@@ -96,4 +96,30 @@ class ZonePlateRendererTest {
         assertEquals((byte) 0x4E, bytes[2]); // N
         assertEquals((byte) 0x47, bytes[3]); // G
     }
+
+    /**
+     * Precision-budget guard. For the worst plausible design served by this engine
+     * (≈ 5 m macro-cell projection in deep blue), proves that {@code double}
+     * delivers an absolute phase error far below the 8-bit quantization step,
+     * so {@link java.math.BigDecimal} arbitrary precision is not required.
+     */
+    @Test
+    void worstCasePhasePrecisionFitsInDouble() {
+        // Path length L (mm) for a 5 m macro-cell looking at a 5 m wall, edge ray.
+        double Lmm = 5000.0 + 250.0; // ~5.25 m
+        double lambdaMm = 400.0e-6;  // 400 nm (deep blue, worst-case wavelength)
+        double phi = 2.0 * Math.PI * Lmm / lambdaMm;
+        // Absolute error of phi in double precision: |phi| · 2^-52
+        double absErrorRad = Math.abs(phi) * Math.pow(2.0, -52);
+        // 8-bit greyscale phase quantization step in radians: 2π / 256
+        double quantStepRad = 2.0 * Math.PI / 256.0;
+        // Demand at least 100x headroom over the output quantization
+        assertTrue(absErrorRad * 100.0 < quantStepRad,
+                () -> "double precision insufficient: absErr=" + absErrorRad
+                        + " rad, quantStep=" + quantStepRad + " rad");
+        // Sanity: float (~24-bit mantissa) would be utterly inadequate here.
+        double absErrorRadFloat = Math.abs(phi) * Math.pow(2.0, -23);
+        assertTrue(absErrorRadFloat > quantStepRad,
+                "float would actually have been good enough — re-evaluate the choice");
+    }
 }

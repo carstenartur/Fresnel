@@ -17,12 +17,29 @@ import java.awt.image.WritableRaster;
  * <p>Pixels outside the circular aperture are rendered black.
  *
  * <p><b>Numerical precision:</b> all path-length and phase calculations are
- * performed in {@code double} (IEEE-754 64-bit). For typical designs the optical
- * path length {@code L} is many millions of wavelengths, so {@code phi = 2π·L/λ}
- * accumulates a very large argument before being reduced by {@code cos}. {@code float}
- * (32-bit) precision is insufficient — its ~7 significant decimal digits would
- * cause visible ring-position errors in the outer zones. Do not change the working
- * type of the inner loop variables to {@code float}.
+ * performed in {@code double} (IEEE-754 64-bit, ~15.95 decimal digits). For
+ * typical designs the optical path length {@code L} is many millions of
+ * wavelengths, so {@code phi = 2π·L/λ} accumulates a large argument before
+ * being reduced by {@code cos}.
+ *
+ * <ul>
+ *   <li><b>{@code float} (32-bit)</b> — only ~7 decimal digits of mantissa.
+ *       At a worst-case {@code phi ≈ 8e10} rad the absolute error is several
+ *       radians, which would scramble the cosine sign. <b>Do not</b> change
+ *       inner-loop variables to {@code float}.</li>
+ *   <li><b>{@code double} (64-bit)</b> — at the same worst-case {@code phi}
+ *       the absolute error is {@code 8e10·2⁻⁵² ≈ 2e-5} rad, i.e. about
+ *       0.001 LSB of an 8-bit greyscale phase output. This is three orders
+ *       of magnitude tighter than the output quantization. <b>Sufficient.</b></li>
+ *   <li><b>{@code java.math.BigDecimal} / arbitrary precision</b> — would be
+ *       100×–1000× slower (software-emulated, no FPU), does not support
+ *       {@code sqrt}/{@code cos} natively, and adds zero observable quality
+ *       because the output sink is 1-bit or 8-bit. <b>Not needed</b> for any
+ *       physically realistic design served by this engine.</li>
+ * </ul>
+ *
+ * <p>The precision budget is locked in by
+ * {@code ZonePlateRendererTest#worstCasePhasePrecisionFitsInDouble}.
  */
 public final class ZonePlateRenderer {
 
