@@ -37,11 +37,13 @@ public final class WindowFoilRenderer {
         double k = 2.0 * Math.PI / lambdaMm;
         double subRadiusMm = p.subDiameterMm() / 2.0;
         double subRadiusMmSq = subRadiusMm * subRadiusMm;
+        double subPitchMm = p.subPitchMm();
         boolean binary = p.maskType() == MaskType.BINARY_AMPLITUDE;
         boolean positive = p.polarity() == Polarity.POSITIVE;
 
-        // Precompute sub-element centres for one cell (relative to cell centre).
-        List<double[]> subCentres = HexMacroCellRenderer.hexLatticeCentresInsideHex(R, p.subPitchMm());
+        // Sub-element centres within one cell are derived analytically per pixel via
+        // HexMacroCellRenderer.nearestLatticeContaining (O(1) lattice inversion),
+        // avoiding the previous O(numSubCentres) scan per pixel.
 
         // Render row by row.
         int[] rowBuf = new int[wPx];
@@ -73,8 +75,10 @@ public final class WindowFoilRenderer {
                     double dxLocal = xMm - cx;
                     if (Math.abs(dxLocal) + Math.abs(dyLocal) * invSqrt3 > R) continue;
 
-                    // Find sub-element containing (dxLocal, dyLocal).
-                    double[] sub = nearestContainingCentre(dxLocal, dyLocal, subCentres, subRadiusMmSq);
+                    // Find sub-element containing (dxLocal, dyLocal) in O(1) via the
+                    // analytical lattice inverse instead of scanning the centre list.
+                    double[] sub = HexMacroCellRenderer.nearestLatticeContaining(
+                            dxLocal, dyLocal, subPitchMm, subRadiusMmSq, R);
                     if (sub == null) continue;
                     double sx = sub[0];
                     double sy = sub[1];
@@ -130,21 +134,6 @@ public final class WindowFoilRenderer {
             }
         }
         return out;
-    }
-
-    private static double[] nearestContainingCentre(double x, double y, List<double[]> centres, double rSq) {
-        double[] best = null;
-        double bestD = Double.MAX_VALUE;
-        for (double[] c : centres) {
-            double dx = x - c[0];
-            double dy = y - c[1];
-            double d = dx * dx + dy * dy;
-            if (d <= rSq && d < bestD) {
-                bestD = d;
-                best = c;
-            }
-        }
-        return best;
     }
 
     /** Draw 5 mm tick marks at the four sheet corners and small marks at each cell top. */

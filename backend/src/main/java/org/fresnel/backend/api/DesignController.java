@@ -262,28 +262,30 @@ public class DesignController {
     private static ResponseEntity<byte[]> pngResponse(byte[] body, String disposition, String filename) {
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.IMAGE_PNG);
-        h.setContentDispositionFormData(disposition, filename);
+        h.setContentDisposition("inline".equalsIgnoreCase(disposition)
+                ? org.springframework.http.ContentDisposition.inline().filename(filename).build()
+                : org.springframework.http.ContentDisposition.attachment().filename(filename).build());
         return new ResponseEntity<>(body, h, 200);
     }
 
     private static ResponseEntity<byte[]> svgResponse(byte[] body, String filename) {
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.parseMediaType("image/svg+xml"));
-        h.setContentDispositionFormData("attachment", filename);
+        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(filename).build());
         return new ResponseEntity<>(body, h, 200);
     }
 
     private static ResponseEntity<byte[]> pdfResponse(byte[] body, String filename) {
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.APPLICATION_PDF);
-        h.setContentDispositionFormData("attachment", filename);
+        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(filename).build());
         return new ResponseEntity<>(body, h, 200);
     }
 
     private static ResponseEntity<byte[]> vendorResponse(byte[] body, String mime, String filename) {
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.parseMediaType(mime));
-        h.setContentDispositionFormData("attachment", filename);
+        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(filename).build());
         return new ResponseEntity<>(body, h, 200);
     }
 

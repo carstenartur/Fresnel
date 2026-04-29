@@ -69,5 +69,8 @@ class RenderJobControllerTest {
                 .andExpect(status().isNotFound());
         mvc.perform(get("/api/jobs/{id}/result.png", "does-not-exist"))
                 .andExpect(status().isNotFound());
+        // SSE stream for an unknown job should also produce 404, not a 200 + stream-error.
+        mvc.perform(get("/api/jobs/{id}/events", "does-not-exist"))
+                .andExpect(status().isNotFound());
     }
 }

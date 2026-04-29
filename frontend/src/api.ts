@@ -139,7 +139,9 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Defer revocation so the browser has time to consume the URL — revoking
+  // synchronously after click() can truncate the download in some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // --- Single zone plate ---

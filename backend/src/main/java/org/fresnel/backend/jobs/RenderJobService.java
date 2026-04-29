@@ -1,5 +1,6 @@
 package org.fresnel.backend.jobs;
 
+import jakarta.annotation.PreDestroy;
 import org.fresnel.optics.RenderResult;
 
 import java.time.Instant;
@@ -7,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.springframework.stereotype.Service;
@@ -60,5 +62,24 @@ public class RenderJobService {
     private void reapOldJobs() {
         long cutoff = Instant.now().toEpochMilli() - JOB_TTL_MS;
         jobs.entrySet().removeIf(e -> e.getValue().createdAtEpochMs() < cutoff);
+    }
+
+    /**
+     * Stop accepting new work and tear down the worker pool when the Spring
+     * context closes (graceful shutdown / redeploy / test teardown). Without
+     * this, the executor would keep its threads alive until JVM exit even after
+     * the application context is destroyed.
+     */
+    @PreDestroy
+    public void shutdown() {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 }

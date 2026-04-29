@@ -38,6 +38,15 @@ public class HologramController {
     /** Max side length for synchronous synthesis (1024 = ~1 M FFTs per iteration). */
     public static final int MAX_SIDE = 1024;
 
+    /**
+     * Hard cap on the base64-encoded target image. 8 MB of base64 ≈ 6 MB of decoded
+     * bytes, which already covers any 1024×1024 RGB PNG by a wide margin. Larger
+     * payloads are rejected without ever calling {@link Base64#decode(String)} or
+     * {@link ImageIO#read(java.io.InputStream)} so we cannot be DoS'd by giant
+     * attachments.
+     */
+    public static final int MAX_BASE64_BYTES = 8 * 1024 * 1024;
+
     @PostMapping(value = "/synthesize.png",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
@@ -68,7 +77,11 @@ public class HologramController {
             throw new IllegalArgumentException("sidePx > " + MAX_SIDE + " requires async render-job");
         if ((req.sidePx() & (req.sidePx() - 1)) != 0)
             throw new IllegalArgumentException("sidePx must be a power of two");
-        byte[] raw = Base64.getDecoder().decode(stripDataUrlPrefix(req.targetImageBase64()));
+        String b64 = stripDataUrlPrefix(req.targetImageBase64());
+        if (b64.length() > MAX_BASE64_BYTES)
+            throw new IllegalArgumentException("targetImageBase64 too large (>"
+                    + MAX_BASE64_BYTES + " bytes); resize before upload");
+        byte[] raw = Base64.getDecoder().decode(b64);
         BufferedImage src = ImageIO.read(new ByteArrayInputStream(raw));
         if (src == null) throw new IllegalArgumentException("could not decode targetImageBase64 as image");
         BufferedImage normalised = toSquareGreyscale(src, req.sidePx());
@@ -123,7 +136,9 @@ public class HologramController {
     private static ResponseEntity<byte[]> png(byte[] body, String filename, String disposition) {
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.IMAGE_PNG);
-        h.setContentDispositionFormData(disposition, filename);
+        h.setContentDisposition("inline".equalsIgnoreCase(disposition)
+                ? org.springframework.http.ContentDisposition.inline().filename(filename).build()
+                : org.springframework.http.ContentDisposition.attachment().filename(filename).build());
         return new ResponseEntity<>(body, h, 200);
     }
 }

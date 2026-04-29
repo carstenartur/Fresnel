@@ -106,9 +106,10 @@ public class RenderJobController {
     public SseEmitter events(@PathVariable("id") String id) {
         RenderJob job = jobs.get(id);
         if (job == null) {
-            SseEmitter dead = new SseEmitter(0L);
-            dead.completeWithError(new IllegalArgumentException("unknown job id: " + id));
-            return dead;
+            // Use a proper 404 instead of an SSE stream that completes with an error,
+            // so clients can distinguish a missing job from a transient stream error.
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.NOT_FOUND, "unknown job id: " + id);
         }
         SseEmitter emitter = new SseEmitter(0L);
         java.util.function.Consumer<RenderJob> listener = j -> {
@@ -149,7 +150,8 @@ public class RenderJobController {
         byte[] png = PngExporter.toPngBytes(r, dpi);
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.IMAGE_PNG);
-        h.setContentDispositionFormData("attachment", "fresnel-job-" + id + ".png");
+        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment()
+                .filename("fresnel-job-" + id + ".png").build());
         return new ResponseEntity<>(png, h, 200);
     }
 }

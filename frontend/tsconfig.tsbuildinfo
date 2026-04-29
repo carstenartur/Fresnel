@@ -1,1 +1,0 @@
-{"root":["./src/App.tsx","./src/api.ts","./src/main.tsx","./src/modes/HexMacroCellPanel.tsx","./src/modes/HologramPanel.tsx","./src/modes/MultiFocusPanel.tsx","./src/modes/RgbPanel.tsx","./src/modes/SingleZonePlatePanel.tsx","./src/modes/WindowFoilPanel.tsx","./src/modes/shared.tsx"],"version":"5.9.3"}

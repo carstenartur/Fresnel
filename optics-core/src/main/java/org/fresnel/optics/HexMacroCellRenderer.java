@@ -17,6 +17,11 @@ import java.util.List;
  */
 public final class HexMacroCellRenderer {
 
+    /** Tolerance for hex-aperture inclusion tests, in millimetres. Shared between
+     *  {@link #hexLatticeCentresInsideHex} and {@link #nearestLatticeContaining} so
+     *  both inclusion paths agree on the boundary. */
+    private static final double HEX_INCLUSION_EPS_MM = 1e-9;
+
     private HexMacroCellRenderer() {}
 
     public static RenderResult render(HexMacroCellParameters p) {
@@ -29,8 +34,6 @@ public final class HexMacroCellRenderer {
         double centerPx = (sizePx - 1) / 2.0;
         double subRadiusMm = p.subDiameterMm() / 2.0;
         double subRadiusMmSq = subRadiusMm * subRadiusMm;
-
-        List<double[]> centres = hexLatticeCentresInsideHex(p.macroRadiusMm(), p.subPitchMm());
 
         double lambdaMm = Units.nmToMm(p.wavelengthNm());
         double k = 2.0 * Math.PI / lambdaMm;
@@ -60,9 +63,9 @@ public final class HexMacroCellRenderer {
                 if (absY > halfFlat) continue;
                 if (Math.abs(xMm) + absY * invSqrt3 > R) continue;
 
-                // Find a sub-element that contains this pixel.
-                // The lattice pitch ≥ sub-diameter, so pixel can belong to at most one sub-circle.
-                double[] cMatch = nearestContainingCentre(xMm, yMm, centres, subRadiusMmSq);
+                // Find a sub-element that contains this pixel, in O(1) via the
+                // analytical inverse of the triangular lattice (no list scan).
+                double[] cMatch = nearestLatticeContaining(xMm, yMm, p.subPitchMm(), subRadiusMmSq, R);
                 if (cMatch == null) continue;
 
                 double cx = cMatch[0];
@@ -104,29 +107,56 @@ public final class HexMacroCellRenderer {
         double invSqrt3 = 1.0 / sqrt3;
         for (int j = -nRows; j <= nRows; j++) {
             double cy = j * rowDy;
-            if (Math.abs(cy) > halfFlat + 1e-9) continue;
+            if (Math.abs(cy) > halfFlat + HEX_INCLUSION_EPS_MM) continue;
             double xOffset = (j & 1) == 0 ? 0.0 : pitch / 2.0;
             int nCols = (int) Math.ceil(R / pitch) + 1;
             for (int i = -nCols; i <= nCols; i++) {
                 double cx = i * pitch + xOffset;
-                if (Math.abs(cx) + Math.abs(cy) * invSqrt3 > R + 1e-9) continue;
+                if (Math.abs(cx) + Math.abs(cy) * invSqrt3 > R + HEX_INCLUSION_EPS_MM) continue;
                 out.add(new double[]{cx, cy});
             }
         }
         return out;
     }
 
-    /** First centre whose circular support of radius² rSq contains (x,y), or null. */
-    private static double[] nearestContainingCentre(double x, double y, List<double[]> centres, double rSq) {
+    /**
+     * Analytical O(1) inverse of {@link #hexLatticeCentresInsideHex}: given a query
+     * point {@code (x,y)} in cell-local mm coordinates, returns the nearest lattice
+     * centre whose disc of radius² {@code rSq} covers the point and which lies
+     * inside the outer hex of circumscribed radius {@code hexR}, or {@code null} if
+     * no such centre exists. Replaces the previous O(numSubElements) scan.
+     *
+     * <p>Lattice inversion: row index {@code j = round(y / rowDy)} where
+     * {@code rowDy = pitch · √3 / 2}; column index {@code i = round((x - xOff) / pitch)}
+     * with {@code xOff = (j&1)==0 ? 0 : pitch/2}. The candidate centre is
+     * {@code (i·pitch + xOff, j·rowDy)}. Because the chosen {@code j} only rounds
+     * to the closest row centre, the actual containing row may be one above or
+     * below, so we test {@code j-1, j, j+1} — three candidates total.
+     */
+    static double[] nearestLatticeContaining(double x, double y, double pitch, double rSq, double hexR) {
+        double sqrt3 = Math.sqrt(3.0);
+        double rowDy = pitch * sqrt3 / 2.0;
+        double invSqrt3 = 1.0 / sqrt3;
+        double halfFlat = hexR * sqrt3 / 2.0;
+        int j0 = (int) Math.round(y / rowDy);
         double[] best = null;
         double bestD = Double.MAX_VALUE;
-        for (double[] c : centres) {
-            double dx = x - c[0];
-            double dy = y - c[1];
+        for (int dj = -1; dj <= 1; dj++) {
+            int j = j0 + dj;
+            double cy = j * rowDy;
+            // Match the inclusion tests in hexLatticeCentresInsideHex:
+            //   |cy| ≤ halfFlat   AND   |cx| + |cy|/√3 ≤ R
+            if (Math.abs(cy) > halfFlat + HEX_INCLUSION_EPS_MM) continue;
+            double xOff = (j & 1) == 0 ? 0.0 : pitch / 2.0;
+            int i = (int) Math.round((x - xOff) / pitch);
+            double cx = i * pitch + xOff;
+            if (Math.abs(cx) + Math.abs(cy) * invSqrt3 > hexR + HEX_INCLUSION_EPS_MM) continue;
+            double dx = x - cx;
+            double dy = y - cy;
             double d = dx * dx + dy * dy;
             if (d <= rSq && d < bestD) {
                 bestD = d;
-                best = c;
+                best = new double[]{cx, cy};
             }
         }
         return best;

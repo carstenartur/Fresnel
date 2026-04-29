@@ -1,13 +1,14 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 
 export function NumberField({ label, value, min, max, step, onChange }: {
   label: string; value: number; min?: number; max?: number; step?: number;
   onChange: (v: number) => void;
 }) {
+  const inputId = useId();
   return (
     <div className="field">
-      <label>{label}</label>
-      <input type="number" value={value} min={min} max={max} step={step}
+      <label htmlFor={inputId}>{label}</label>
+      <input id={inputId} type="number" value={value} min={min} max={max} step={step}
              onChange={(e) => onChange(Number(e.target.value))} />
     </div>
   );

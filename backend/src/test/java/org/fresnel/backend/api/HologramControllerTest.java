@@ -85,6 +85,26 @@ class HologramControllerTest {
                 .andExpect(content().contentType(MediaType.IMAGE_PNG));
     }
 
+    @Test
+    void rejectsOversizedBase64Payload() throws Exception {
+        // Build a base64 string just over the cap; should be rejected before decode.
+        int over = HologramController.MAX_BASE64_BYTES + 8;
+        StringBuilder sb = new StringBuilder(over);
+        for (int i = 0; i < over; i++) sb.append('A');
+        String body = """
+                {
+                  "targetImageBase64": "%s",
+                  "sidePx": 16,
+                  "iterations": 1,
+                  "dpi": 300.0
+                }
+                """.formatted(sb);
+        mvc.perform(post("/api/holograms/synthesize.png")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
     private static String base64CheckerPng(int n) throws Exception {
         BufferedImage img = new BufferedImage(n, n, BufferedImage.TYPE_BYTE_GRAY);
         for (int y = 0; y < n; y++) {
