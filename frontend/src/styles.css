@@ -9,7 +9,7 @@ body { margin: 0; }
 
 .app {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: minmax(420px, 560px) 1fr;
   min-height: 100vh;
 }
 
@@ -18,6 +18,37 @@ body { margin: 0; }
   border-right: 1px solid #e0e2e6;
   padding: 24px;
   overflow-y: auto;
+  max-height: 100vh;
+}
+
+.preview {
+  padding: 24px;
+  background: #f5f6f7;
+}
+
+.mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e0e2e6;
+  padding-bottom: 8px;
+}
+
+.mode-tab {
+  background: #fff;
+  color: #2563eb;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mode-tab.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
 }
 
 .panel h1 {
