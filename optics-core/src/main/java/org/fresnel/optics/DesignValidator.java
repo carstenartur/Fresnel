@@ -33,13 +33,35 @@ public final class DesignValidator {
         // Number of zones across the radius:  n = R^2 / (λ·f)
         double radiusMm = p.apertureDiameterMm() / 2.0;
         int numberOfZones = (int) Math.floor((radiusMm * radiusMm) / (lambdaMm * p.focalLengthMm()));
+
+        // Chromatic shift table at sample R/G/B wavelengths (paraxial f ∝ 1/λ).
+        java.util.List<DesignMetrics.ChromaticShift> chromatic = java.util.List.of(
+                new DesignMetrics.ChromaticShift(450.0,
+                        focalLengthAtWavelength(p.focalLengthMm(), p.wavelengthNm(), 450.0)),
+                new DesignMetrics.ChromaticShift(532.0,
+                        focalLengthAtWavelength(p.focalLengthMm(), p.wavelengthNm(), 532.0)),
+                new DesignMetrics.ChromaticShift(p.wavelengthNm(), p.focalLengthMm()),
+                new DesignMetrics.ChromaticShift(630.0,
+                        focalLengthAtWavelength(p.focalLengthMm(), p.wavelengthNm(), 630.0)));
+
+        // Defocus blur table at a few wall distances scaled to the design focal length.
+        double f = p.focalLengthMm();
+        double[] sampleDistances = { 0.5 * f, 0.75 * f, f, 1.5 * f, 2.0 * f };
+        java.util.List<DesignMetrics.DefocusEntry> defocus = new ArrayList<>(sampleDistances.length);
+        for (double z : sampleDistances) {
+            defocus.add(new DesignMetrics.DefocusEntry(z,
+                    defocusBlurMm(p.apertureDiameterMm(), f, z)));
+        }
+
         return new DesignMetrics(
                 outerZoneMm * 1000.0,
                 printerPixelMm * 1000.0,
                 pixelsPerOuterZone,
                 BINARY_AMPLITUDE_TRANSMISSION,
                 BINARY_AMPLITUDE_FIRST_ORDER_EFFICIENCY,
-                numberOfZones);
+                numberOfZones,
+                chromatic,
+                defocus);
     }
 
     /** Validate a single zone plate design and produce warnings. */

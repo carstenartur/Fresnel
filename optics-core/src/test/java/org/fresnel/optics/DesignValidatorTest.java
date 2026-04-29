@@ -68,4 +68,20 @@ class DesignValidatorTest {
         assertEquals(8.0, DesignValidator.defocusBlurMm(20.0, 5000.0, 3000.0), 1e-9);
         assertEquals(0.0, DesignValidator.defocusBlurMm(20.0, 5000.0, 5000.0), 1e-9);
     }
+
+    @Test
+    void metricsIncludeChromaticAndDefocusTables() {
+        SingleZonePlateParameters p = SingleZonePlateParameters.onAxis(20.0, 5000.0, 550.0, 2400.0);
+        DesignMetrics m = DesignValidator.computeMetrics(p);
+        assertFalse(m.chromaticShifts().isEmpty(), "chromatic shifts should be populated");
+        assertFalse(m.defocusBlurs().isEmpty(), "defocus blurs should be populated");
+        // Sanity: a row at design wavelength should match the design focal length.
+        assertTrue(m.chromaticShifts().stream()
+                .anyMatch(c -> Math.abs(c.wavelengthNm() - 550.0) < 1e-6
+                        && Math.abs(c.focalLengthMm() - 5000.0) < 1e-6));
+        // Defocus at z = f should be zero.
+        assertTrue(m.defocusBlurs().stream()
+                .anyMatch(d -> Math.abs(d.wallDistanceMm() - 5000.0) < 1e-6
+                        && Math.abs(d.blurDiameterMm()) < 1e-9));
+    }
 }
