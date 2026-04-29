@@ -103,6 +103,22 @@ public class DesignController {
         return pdfResponse(pdf, "fresnel-zone-plate.pdf");
     }
 
+    @PostMapping(value = "/export.dxf",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = "application/dxf")
+    public ResponseEntity<byte[]> exportDxf(@Valid @RequestBody SingleZonePlateRequest req) throws IOException {
+        byte[] dxf = org.fresnel.optics.DxfExporter.toDxfBytes(req.toParameters());
+        return vendorResponse(dxf, "application/dxf", "fresnel-zone-plate.dxf");
+    }
+
+    @PostMapping(value = "/export.gbr",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = "application/vnd.gerber")
+    public ResponseEntity<byte[]> exportGerber(@Valid @RequestBody SingleZonePlateRequest req) throws IOException {
+        byte[] gbr = org.fresnel.optics.GerberExporter.toGerberBytes(req.toParameters());
+        return vendorResponse(gbr, "application/vnd.gerber", "fresnel-zone-plate.gbr");
+    }
+
     // -------- Hex macro cell (Use Case B) --------
 
     @PostMapping(value = "/hex/info",
@@ -260,6 +276,13 @@ public class DesignController {
     private static ResponseEntity<byte[]> pdfResponse(byte[] body, String filename) {
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.APPLICATION_PDF);
+        h.setContentDispositionFormData("attachment", filename);
+        return new ResponseEntity<>(body, h, 200);
+    }
+
+    private static ResponseEntity<byte[]> vendorResponse(byte[] body, String mime, String filename) {
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.parseMediaType(mime));
         h.setContentDispositionFormData("attachment", filename);
         return new ResponseEntity<>(body, h, 200);
     }

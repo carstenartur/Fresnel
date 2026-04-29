@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  downloadExportDxf,
+  downloadExportGerber,
   downloadExportPdf,
   downloadExportPng,
   downloadExportSvg,
   fetchPreviewPng,
+  loadDesignFromFile,
+  saveDesign,
   validate,
   type DesignMetrics,
   type SingleZonePlateRequest,
@@ -143,6 +147,45 @@ export function SingleZonePlatePanel() {
                 onClick={() => downloadExportPdf(req, sheet, 'fresnel-zone-plate.pdf')}>
           PDF
         </button>
+        <button className="secondary" disabled={!valid || loading}
+                onClick={() => downloadExportDxf(req, 'fresnel-zone-plate.dxf')}
+                title="DXF outlines for laser cutters / pen plotters">
+          DXF
+        </button>
+        <button className="secondary" disabled={!valid || loading}
+                onClick={() => downloadExportGerber(req, 'fresnel-zone-plate.gbr')}
+                title="Gerber RS-274X for PCB-style fabrication">
+          Gerber
+        </button>
+      </div>
+
+      <h2 style={{ marginTop: 16 }}>Save / load design</h2>
+      <div className="actions">
+        <button className="secondary"
+                onClick={() => saveDesign({ kind: 'single', version: 1, payload: req })}>
+          Save (.json)
+        </button>
+        <label className="secondary" style={{ cursor: 'pointer' }}>
+          Load…
+          <input type="file" accept="application/json,.json" style={{ display: 'none' }}
+                 onChange={async (e) => {
+                   const f = e.target.files?.[0];
+                   if (!f) return;
+                   try {
+                     const doc = await loadDesignFromFile<SingleZonePlateRequest>(f);
+                     if (doc.kind !== 'single') {
+                       setError(`Loaded file is for "${doc.kind}" mode, not single.`);
+                       return;
+                     }
+                     setReq({ ...DEFAULT_REQ, ...doc.payload });
+                     setError(null);
+                   } catch (err) {
+                     setError(err instanceof Error ? err.message : String(err));
+                   } finally {
+                     e.target.value = '';
+                   }
+                 }} />
+        </label>
       </div>
       {error && <p className="error-message">{error}</p>}
 

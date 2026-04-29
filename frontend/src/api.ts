@@ -162,6 +162,35 @@ export async function downloadExportPdf(req: SingleZonePlateRequest, sheet: stri
   const blob = await postBlob(`/api/designs/export.pdf?sheet=${sheet}`, req, 'application/pdf');
   downloadBlob(blob, filename);
 }
+export async function downloadExportDxf(req: SingleZonePlateRequest, filename: string): Promise<void> {
+  const blob = await postBlob('/api/designs/export.dxf', req, 'application/dxf');
+  downloadBlob(blob, filename);
+}
+export async function downloadExportGerber(req: SingleZonePlateRequest, filename: string): Promise<void> {
+  const blob = await postBlob('/api/designs/export.gbr', req, 'application/vnd.gerber');
+  downloadBlob(blob, filename);
+}
+
+// --- Save / Load (any design) ---
+
+export type DesignKind = 'single' | 'hex' | 'foil' | 'multifocus' | 'rgb' | 'hologram';
+export interface DesignDocument<T = unknown> {
+  kind: DesignKind;
+  version: number;
+  payload: T;
+}
+
+export async function saveDesign<T>(doc: DesignDocument<T>, filename?: string): Promise<void> {
+  const blob = await postBlob('/api/designs/save', doc, 'application/json');
+  downloadBlob(blob, filename ?? `fresnel-design-${doc.kind}.json`);
+}
+
+export async function loadDesignFromFile<T = unknown>(file: File): Promise<DesignDocument<T>> {
+  const text = await file.text();
+  const parsed = JSON.parse(text) as DesignDocument<T>;
+  // Round-trip through the backend to validate shape & schema version.
+  return postJson<DesignDocument<T>>('/api/designs/load', parsed);
+}
 
 // --- Hex macro cell ---
 
