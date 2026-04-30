@@ -22,7 +22,7 @@ docker run --rm -p 8080:8080 ghcr.io/carstenartur/fresnel:latest
 ```
 
 No JDK or Node installation required — the image ships the full application
-(Spring Boot API + React frontend) as a single self-contained artefact.
+(Spring Boot API + React frontend) as a single self-contained artifact.
 
 ## Releases
 
