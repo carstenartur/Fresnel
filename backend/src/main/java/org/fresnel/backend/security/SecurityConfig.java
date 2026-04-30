@@ -38,7 +38,14 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .csrf(csrf -> csrf.disable())
+                // CSRF protection is disabled only for the stateless REST surface.
+                // Authentication is conveyed by the Authorization header on every
+                // request (HTTP Basic), not by a session cookie that an attacker
+                // could ride via a forged form, so the standard CSRF threat model
+                // does not apply. Any non-/api/** routes (e.g. the static SPA shell
+                // served from /, /index.html, /assets/**) keep the default CSRF
+                // protection enabled.
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
                 .cors(cors -> {})
                 .authorizeHttpRequests(auth -> auth
                         // Public read-only endpoints.
