@@ -1,5 +1,13 @@
 # Fresnel
 
+[![CI](https://github.com/carstenartur/Fresnel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/carstenartur/Fresnel/actions/workflows/ci.yml)
+[![Tests](https://github.com/carstenartur/Fresnel/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/carstenartur/Fresnel/actions/workflows/tests.yml)
+[![Coverage](https://github.com/carstenartur/Fresnel/actions/workflows/coverage.yml/badge.svg?branch=main)](https://carstenartur.github.io/Fresnel/coverage/)
+[![CodeQL](https://github.com/carstenartur/Fresnel/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/carstenartur/Fresnel/actions/workflows/codeql.yml)
+[![E2E](https://github.com/carstenartur/Fresnel/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/carstenartur/Fresnel/actions/workflows/e2e.yml)
+
+📊 **[Coverage report](https://carstenartur.github.io/Fresnel/coverage/)** — JaCoCo HTML, regenerated on every push to `main` and daily.
+
 A web application for designing printable diffractive optical elements:
 Fresnel zone plates, hexagonal macro-cells, window-foil layouts and
 simple computer-generated holograms.
