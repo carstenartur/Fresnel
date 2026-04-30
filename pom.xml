@@ -112,9 +112,11 @@
         <plugins>
             <plugin>
                 <artifactId>maven-surefire-report-plugin</artifactId>
+                <version>3.5.5</version>
             </plugin>
             <plugin>
                 <artifactId>maven-project-info-reports-plugin</artifactId>
+                <version>3.9.0</version>
             </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>
