@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RenderJob.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.jobs</a> &gt; <span class="el_source">RenderJob.java</span></div><h1>RenderJob.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.jobs;
+
+import org.fresnel.optics.RenderResult;
+
+import java.time.Instant;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+
+/**
+ * A long-running render job. Threadsafe; a single producer reports progress and
+ * eventually completes or fails, while many consumers (SSE subscribers) read state.
+ *
+ * &lt;p&gt;Listeners are notified on every progress update and on terminal state changes.
+ */
+public final class RenderJob {
+
+    /** Job lifecycle. */
+<span class="fc" id="L19">    public enum State { QUEUED, RUNNING, COMPLETED, FAILED }</span>
+
+    private final String id;
+    private final String label;
+    private final long createdAtEpochMs;
+<span class="fc" id="L24">    private final AtomicReference&lt;State&gt; state = new AtomicReference&lt;&gt;(State.QUEUED);</span>
+<span class="fc" id="L25">    private volatile double progress = 0.0;</span>
+<span class="fc" id="L26">    private volatile String message = &quot;queued&quot;;</span>
+    private volatile RenderResult result;
+    private volatile Throwable error;
+
+<span class="fc" id="L30">    private final CopyOnWriteArrayList&lt;Consumer&lt;RenderJob&gt;&gt; listeners = new CopyOnWriteArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L32">    public RenderJob(String id, String label) {</span>
+<span class="fc" id="L33">        this.id = id;</span>
+<span class="fc" id="L34">        this.label = label;</span>
+<span class="fc" id="L35">        this.createdAtEpochMs = Instant.now().toEpochMilli();</span>
+<span class="fc" id="L36">    }</span>
+
+<span class="fc" id="L38">    public String id() { return id; }</span>
+<span class="fc" id="L39">    public String label() { return label; }</span>
+<span class="fc" id="L40">    public long createdAtEpochMs() { return createdAtEpochMs; }</span>
+<span class="fc" id="L41">    public State state() { return state.get(); }</span>
+<span class="fc" id="L42">    public double progress() { return progress; }</span>
+<span class="fc" id="L43">    public String message() { return message; }</span>
+<span class="fc" id="L44">    public RenderResult result() { return result; }</span>
+<span class="fc" id="L45">    public Throwable error() { return error; }</span>
+
+    /** Called by the worker to update progress. Triggers listeners. */
+    public void reportProgress(double frac, String msg) {
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (state.get() == State.QUEUED) state.compareAndSet(State.QUEUED, State.RUNNING);</span>
+<span class="fc" id="L50">        this.progress = Math.max(0.0, Math.min(1.0, frac));</span>
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">        if (msg != null) this.message = msg;</span>
+<span class="fc" id="L52">        notifyListeners();</span>
+<span class="fc" id="L53">    }</span>
+
+    void complete(RenderResult r) {
+<span class="fc" id="L56">        this.result = r;</span>
+<span class="fc" id="L57">        this.progress = 1.0;</span>
+<span class="fc" id="L58">        this.message = &quot;completed&quot;;</span>
+<span class="fc" id="L59">        state.set(State.COMPLETED);</span>
+<span class="fc" id="L60">        notifyListeners();</span>
+<span class="fc" id="L61">    }</span>
+
+    void fail(Throwable t) {
+<span class="nc" id="L64">        this.error = t;</span>
+<span class="nc" id="L65">        this.message = &quot;failed: &quot; + t.getMessage();</span>
+<span class="nc" id="L66">        state.set(State.FAILED);</span>
+<span class="nc" id="L67">        notifyListeners();</span>
+<span class="nc" id="L68">    }</span>
+
+<span class="nc" id="L70">    public void addListener(Consumer&lt;RenderJob&gt; listener) { listeners.add(listener); }</span>
+<span class="nc" id="L71">    public void removeListener(Consumer&lt;RenderJob&gt; listener) { listeners.remove(listener); }</span>
+
+    public boolean isTerminal() {
+<span class="nc" id="L74">        State s = state.get();</span>
+<span class="nc bnc" id="L75" title="All 4 branches missed.">        return s == State.COMPLETED || s == State.FAILED;</span>
+    }
+
+    /**
+     * Used by {@link org.fresnel.backend.jobs.RenderJobService} to rehydrate a
+     * read-only snapshot from a persisted {@code COMPLETED} record. The result
+     * payload itself is not stored on the snapshot — clients fetch the PNG via
+     * {@code RenderJobService.resultPng(id)}.
+     */
+    public void markCompletedExternally(double progress, String message) {
+<span class="nc" id="L85">        this.progress = Math.max(0.0, Math.min(1.0, progress));</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if (message != null) this.message = message;</span>
+<span class="nc" id="L87">        state.set(State.COMPLETED);</span>
+<span class="nc" id="L88">    }</span>
+
+    /** Counterpart of {@link #markCompletedExternally} for failed persisted jobs. */
+    public void markFailedExternally(String message, String errorMessage) {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (message != null) this.message = message;</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (errorMessage != null) this.error = new RuntimeException(errorMessage);</span>
+<span class="nc" id="L94">        state.set(State.FAILED);</span>
+<span class="nc" id="L95">    }</span>
+
+    private void notifyListeners() {
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        for (Consumer&lt;RenderJob&gt; l : listeners) {</span>
+<span class="nc" id="L99">            try { l.accept(this); } catch (RuntimeException ignored) { /* never let a listener crash the producer */ }</span>
+<span class="nc" id="L100">        }</span>
+<span class="fc" id="L101">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

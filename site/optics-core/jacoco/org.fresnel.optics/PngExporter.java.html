@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PngExporter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">PngExporter.java</span></div><h1>PngExporter.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageTypeSpecifier;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+
+/**
+ * PNG export with embedded physical-pixel metadata (pHYs chunk) so prints come
+ * out at the correct DPI.
+ */
+public final class PngExporter {
+
+    private PngExporter() {}
+
+    /** Write the rendered zone plate as PNG to the given stream, embedding DPI metadata. */
+    public static void writePng(RenderResult result, double dpi, OutputStream out) throws IOException {
+<span class="fc" id="L26">        ImageWriter writer = ImageIO.getImageWritersByFormatName(&quot;png&quot;).next();</span>
+<span class="fc" id="L27">        try (ImageOutputStream ios = ImageIO.createImageOutputStream(out)) {</span>
+<span class="fc" id="L28">            writer.setOutput(ios);</span>
+<span class="fc" id="L29">            ImageWriteParam param = writer.getDefaultWriteParam();</span>
+<span class="fc" id="L30">            BufferedImage img = result.image();</span>
+<span class="fc" id="L31">            IIOMetadata metadata = writer.getDefaultImageMetadata(</span>
+                    new ImageTypeSpecifier(img), param);
+<span class="fc" id="L33">            addDpiMetadata(metadata, dpi);</span>
+<span class="fc" id="L34">            writer.write(null, new IIOImage(img, null, metadata), param);</span>
+        } finally {
+<span class="fc" id="L36">            writer.dispose();</span>
+        }
+<span class="fc" id="L38">    }</span>
+
+    /** Convenience: render to PNG byte array. */
+    public static byte[] toPngBytes(RenderResult result, double dpi) throws IOException {
+<span class="fc" id="L42">        ByteArrayOutputStream baos = new ByteArrayOutputStream();</span>
+<span class="fc" id="L43">        writePng(result, dpi, baos);</span>
+<span class="fc" id="L44">        return baos.toByteArray();</span>
+    }
+
+    private static void addDpiMetadata(IIOMetadata metadata, double dpi) throws IOException {
+        // pixels per millimeter
+<span class="fc" id="L49">        double dotsPerMm = dpi / Units.INCH_MM;</span>
+        // PNG pHYs uses pixels-per-meter when unit specifier is 1 (meters)
+<span class="fc" id="L51">        long pixelsPerMeter = Math.round(dotsPerMm * 1000.0);</span>
+
+<span class="fc" id="L53">        String formatName = &quot;javax_imageio_png_1.0&quot;;</span>
+<span class="fc" id="L54">        IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree(formatName);</span>
+<span class="fc" id="L55">        IIOMetadataNode phys = new IIOMetadataNode(&quot;pHYs&quot;);</span>
+<span class="fc" id="L56">        phys.setAttribute(&quot;pixelsPerUnitXAxis&quot;, Long.toString(pixelsPerMeter));</span>
+<span class="fc" id="L57">        phys.setAttribute(&quot;pixelsPerUnitYAxis&quot;, Long.toString(pixelsPerMeter));</span>
+<span class="fc" id="L58">        phys.setAttribute(&quot;unitSpecifier&quot;, &quot;meter&quot;);</span>
+<span class="fc" id="L59">        root.appendChild(phys);</span>
+<span class="fc" id="L60">        metadata.mergeTree(formatName, root);</span>
+<span class="fc" id="L61">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

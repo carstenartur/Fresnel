@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZonePlateRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">ZonePlateRenderer.java</span></div><h1>ZonePlateRenderer.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
+
+/**
+ * Renders a single Fresnel zone plate (on-axis or off-axis) as a {@link BufferedImage}.
+ *
+ * &lt;p&gt;The phase at point (x,y) for a focus at (xf, yf, zf) is
+ * {@code φ(x,y) = (2π/λ) · √((x-xf)² + (y-yf)² + zf²)}.
+ * For on-axis (xf=yf=0) and zf=f this reduces to the classic Fresnel zone plate.
+ *
+ * &lt;p&gt;For {@link MaskType#BINARY_AMPLITUDE}, pixels are transparent (white) when
+ * {@code cos(φ) ≥ 0} (or inverted with {@link Polarity#NEGATIVE}). For
+ * {@link MaskType#GREYSCALE_PHASE} the wrapped phase is mapped linearly to 0..255.
+ *
+ * &lt;p&gt;Pixels outside the circular aperture are rendered black.
+ *
+ * &lt;p&gt;&lt;b&gt;Numerical precision:&lt;/b&gt; all path-length and phase calculations are
+ * performed in {@code double} (IEEE-754 64-bit, ~15.95 decimal digits). For
+ * typical designs the optical path length {@code L} is many millions of
+ * wavelengths, so {@code phi = 2π·L/λ} accumulates a large argument before
+ * being reduced by {@code cos}.
+ *
+ * &lt;ul&gt;
+ *   &lt;li&gt;&lt;b&gt;{@code float} (32-bit)&lt;/b&gt; — only ~7 decimal digits of mantissa.
+ *       At a worst-case {@code phi ≈ 8e10} rad the absolute error is several
+ *       radians, which would scramble the cosine sign. &lt;b&gt;Do not&lt;/b&gt; change
+ *       inner-loop variables to {@code float}.&lt;/li&gt;
+ *   &lt;li&gt;&lt;b&gt;{@code double} (64-bit)&lt;/b&gt; — at the same worst-case {@code phi}
+ *       the absolute error is {@code 8e10·2⁻⁵² ≈ 2e-5} rad, i.e. about
+ *       0.001 LSB of an 8-bit greyscale phase output. This is three orders
+ *       of magnitude tighter than the output quantization. &lt;b&gt;Sufficient.&lt;/b&gt;&lt;/li&gt;
+ *   &lt;li&gt;&lt;b&gt;{@code java.math.BigDecimal} / arbitrary precision&lt;/b&gt; — would be
+ *       100×–1000× slower (software-emulated, no FPU), does not support
+ *       {@code sqrt}/{@code cos} natively, and adds zero observable quality
+ *       because the output sink is 1-bit or 8-bit. &lt;b&gt;Not needed&lt;/b&gt; for any
+ *       physically realistic design served by this engine.&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;The precision budget is locked in by
+ * {@code ZonePlateRendererTest#worstCasePhasePrecisionFitsInDouble}.
+ */
+public final class ZonePlateRenderer {
+
+    private ZonePlateRenderer() {}
+
+    public static RenderResult render(SingleZonePlateParameters p) {
+<span class="fc" id="L49">        double pixelSizeMm = Units.pixelSizeMm(p.dpi());</span>
+<span class="fc" id="L50">        int sizePx = Math.max(2, (int) Math.ceil(p.apertureDiameterMm() / pixelSizeMm));</span>
+        // Make size odd so that there is a well-defined center pixel.
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        if (sizePx % 2 == 0) sizePx++;</span>
+
+<span class="fc" id="L54">        double radiusMm = p.apertureDiameterMm() / 2.0;</span>
+<span class="fc" id="L55">        double radiusPx = radiusMm / pixelSizeMm;</span>
+<span class="fc" id="L56">        double radiusPxSq = radiusPx * radiusPx;</span>
+<span class="fc" id="L57">        double centerPx = (sizePx - 1) / 2.0;</span>
+
+<span class="fc" id="L59">        double lambdaMm = Units.nmToMm(p.wavelengthNm());</span>
+<span class="fc" id="L60">        double k = 2.0 * Math.PI / lambdaMm; // angular wavenumber, [1/mm]</span>
+<span class="fc" id="L61">        double xfMm = p.targetOffsetXmm();</span>
+<span class="fc" id="L62">        double yfMm = p.targetOffsetYmm();</span>
+<span class="fc" id="L63">        double zfMm = p.focalLengthMm();</span>
+<span class="fc" id="L64">        double zfSqMm = zfMm * zfMm;</span>
+
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        boolean binary = p.maskType() == MaskType.BINARY_AMPLITUDE;</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        boolean positive = p.polarity() == Polarity.POSITIVE;</span>
+
+<span class="fc" id="L69">        BufferedImage img = new BufferedImage(sizePx, sizePx, BufferedImage.TYPE_BYTE_GRAY);</span>
+<span class="fc" id="L70">        WritableRaster raster = img.getRaster();</span>
+<span class="fc" id="L71">        int[] row = new int[sizePx];</span>
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        for (int yPx = 0; yPx &lt; sizePx; yPx++) {</span>
+<span class="fc" id="L74">            double dy = (yPx - centerPx);</span>
+<span class="fc" id="L75">            double yMm = dy * pixelSizeMm;</span>
+<span class="fc" id="L76">            double dyAp = dy;</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">            for (int xPx = 0; xPx &lt; sizePx; xPx++) {</span>
+<span class="fc" id="L78">                double dx = (xPx - centerPx);</span>
+                // Aperture clipping (circular)
+<span class="fc bfc" id="L80" title="All 2 branches covered.">                if (dx * dx + dyAp * dyAp &gt; radiusPxSq) {</span>
+<span class="fc" id="L81">                    row[xPx] = 0;</span>
+<span class="fc" id="L82">                    continue;</span>
+                }
+<span class="fc" id="L84">                double xMm = dx * pixelSizeMm;</span>
+<span class="fc" id="L85">                double dxF = xMm - xfMm;</span>
+<span class="fc" id="L86">                double dyF = yMm - yfMm;</span>
+<span class="fc" id="L87">                double L = Math.sqrt(dxF * dxF + dyF * dyF + zfSqMm);</span>
+<span class="fc" id="L88">                double phi = k * L;</span>
+                int v;
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">                if (binary) {</span>
+<span class="fc" id="L91">                    double c = Math.cos(phi);</span>
+<span class="fc bfc" id="L92" title="All 6 branches covered.">                    boolean transparent = positive ? (c &gt;= 0.0) : (c &lt; 0.0);</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">                    v = transparent ? 255 : 0;</span>
+<span class="fc" id="L94">                } else {</span>
+                    // wrap to [0, 2π) then map to 0..255
+<span class="nc" id="L96">                    double wrapped = phi - 2.0 * Math.PI * Math.floor(phi / (2.0 * Math.PI));</span>
+<span class="nc" id="L97">                    v = (int) Math.min(255, Math.max(0, Math.round(wrapped * (255.0 / (2.0 * Math.PI)))));</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                    if (!positive) v = 255 - v;</span>
+                }
+<span class="fc" id="L100">                row[xPx] = v;</span>
+            }
+<span class="fc" id="L102">            raster.setSamples(0, yPx, sizePx, 1, 0, row);</span>
+        }
+<span class="fc" id="L104">        return new RenderResult(img, pixelSizeMm);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

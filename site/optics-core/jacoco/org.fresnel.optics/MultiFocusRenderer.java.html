@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MultiFocusRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">MultiFocusRenderer.java</span></div><h1>MultiFocusRenderer.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
+import java.util.List;
+
+/**
+ * Renders a multi-point / line focus mask via deterministic per-pixel sub-aperture
+ * allocation: each pixel is assigned to exactly one focus by a stable hash, and is
+ * then rendered as that focus' single zone-plate phase. The resulting mask, when
+ * illuminated, produces N distinct focal spots whose intensities are roughly equal.
+ *
+ * &lt;p&gt;Per-pixel hashing instead of contiguous sub-apertures keeps every focal spot
+ * spatially coherent across the entire aperture (preserving angular resolution per
+ * spot) at the cost of introducing slight speckle, which is the standard trade-off
+ * for this style of multi-focus diffractive optic.
+ */
+public final class MultiFocusRenderer {
+
+    private MultiFocusRenderer() {}
+
+    public static RenderResult render(MultiFocusParameters p) {
+<span class="fc" id="L23">        double pixelSizeMm = Units.pixelSizeMm(p.dpi());</span>
+<span class="fc" id="L24">        int sizePx = Math.max(2, (int) Math.ceil(p.apertureDiameterMm() / pixelSizeMm));</span>
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        if (sizePx % 2 == 0) sizePx++;</span>
+
+<span class="fc" id="L27">        double radiusMm = p.apertureDiameterMm() / 2.0;</span>
+<span class="fc" id="L28">        double radiusPx = radiusMm / pixelSizeMm;</span>
+<span class="fc" id="L29">        double radiusPxSq = radiusPx * radiusPx;</span>
+<span class="fc" id="L30">        double centerPx = (sizePx - 1) / 2.0;</span>
+<span class="fc" id="L31">        double lambdaMm = Units.nmToMm(p.wavelengthNm());</span>
+<span class="fc" id="L32">        double k = 2.0 * Math.PI / lambdaMm;</span>
+<span class="pc bpc" id="L33" title="1 of 2 branches missed.">        boolean binary = p.maskType() == MaskType.BINARY_AMPLITUDE;</span>
+<span class="pc bpc" id="L34" title="1 of 2 branches missed.">        boolean positive = p.polarity() == Polarity.POSITIVE;</span>
+<span class="fc" id="L35">        List&lt;MultiFocusParameters.FocusPoint&gt; foci = p.focusPoints();</span>
+<span class="fc" id="L36">        int n = foci.size();</span>
+
+        // Pre-extract focus arrays for inner-loop speed.
+<span class="fc" id="L39">        double[] xf = new double[n];</span>
+<span class="fc" id="L40">        double[] yf = new double[n];</span>
+<span class="fc" id="L41">        double[] zfSq = new double[n];</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        for (int i = 0; i &lt; n; i++) {</span>
+<span class="fc" id="L43">            MultiFocusParameters.FocusPoint f = foci.get(i);</span>
+<span class="fc" id="L44">            xf[i] = f.xMm();</span>
+<span class="fc" id="L45">            yf[i] = f.yMm();</span>
+<span class="fc" id="L46">            zfSq[i] = f.zMm() * f.zMm();</span>
+        }
+
+<span class="fc" id="L49">        BufferedImage img = new BufferedImage(sizePx, sizePx, BufferedImage.TYPE_BYTE_GRAY);</span>
+<span class="fc" id="L50">        WritableRaster raster = img.getRaster();</span>
+<span class="fc" id="L51">        int[] row = new int[sizePx];</span>
+
+<span class="fc bfc" id="L53" title="All 2 branches covered.">        for (int yPx = 0; yPx &lt; sizePx; yPx++) {</span>
+<span class="fc" id="L54">            double dy = yPx - centerPx;</span>
+<span class="fc" id="L55">            double yMm = dy * pixelSizeMm;</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">            for (int xPx = 0; xPx &lt; sizePx; xPx++) {</span>
+<span class="fc" id="L57">                double dx = xPx - centerPx;</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">                if (dx * dx + dy * dy &gt; radiusPxSq) {</span>
+<span class="fc" id="L59">                    row[xPx] = 0;</span>
+<span class="fc" id="L60">                    continue;</span>
+                }
+<span class="fc" id="L62">                double xMm = dx * pixelSizeMm;</span>
+<span class="fc" id="L63">                int idx = pixelToFocusIndex(xPx, yPx, n);</span>
+<span class="fc" id="L64">                double dxF = xMm - xf[idx];</span>
+<span class="fc" id="L65">                double dyF = yMm - yf[idx];</span>
+<span class="fc" id="L66">                double L = Math.sqrt(dxF * dxF + dyF * dyF + zfSq[idx]);</span>
+<span class="fc" id="L67">                double phi = k * L;</span>
+                int v;
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">                if (binary) {</span>
+<span class="fc" id="L70">                    double c = Math.cos(phi);</span>
+<span class="pc bpc" id="L71" title="3 of 6 branches missed.">                    boolean transparent = positive ? (c &gt;= 0.0) : (c &lt; 0.0);</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">                    v = transparent ? 255 : 0;</span>
+<span class="fc" id="L73">                } else {</span>
+<span class="nc" id="L74">                    double wrapped = phi - 2.0 * Math.PI * Math.floor(phi / (2.0 * Math.PI));</span>
+<span class="nc" id="L75">                    v = (int) Math.min(255, Math.max(0, Math.round(wrapped * (255.0 / (2.0 * Math.PI)))));</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">                    if (!positive) v = 255 - v;</span>
+                }
+<span class="fc" id="L78">                row[xPx] = v;</span>
+            }
+<span class="fc" id="L80">            raster.setSamples(0, yPx, sizePx, 1, 0, row);</span>
+        }
+<span class="fc" id="L82">        return new RenderResult(img, pixelSizeMm);</span>
+    }
+
+    /**
+     * Deterministic hash of a pixel location into [0, n). Uses a 32-bit splitmix-style
+     * mixer so the output is uniform-looking and stable across runs.
+     */
+    static int pixelToFocusIndex(int x, int y, int n) {
+<span class="fc" id="L90">        int h = (x * 0x9E3779B1) ^ (y * 0x85EBCA77);</span>
+<span class="fc" id="L91">        h ^= h &gt;&gt;&gt; 13;</span>
+<span class="fc" id="L92">        h *= 0xC2B2AE35;</span>
+<span class="fc" id="L93">        h ^= h &gt;&gt;&gt; 16;</span>
+<span class="fc" id="L94">        int idx = h % n;</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        if (idx &lt; 0) idx += n;</span>
+<span class="fc" id="L96">        return idx;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

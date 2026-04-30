@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesignValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">DesignValidator.java</span></div><h1>DesignValidator.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Computes design metrics and printability warnings for a Fresnel zone plate.
+ *
+ * &lt;p&gt;Outermost zone width approximation: {@code Δr ≈ λ·f / D}.
+ *
+ * &lt;p&gt;Printability thresholds (printer pixels per outermost zone):
+ * &lt;ul&gt;
+ *     &lt;li&gt;&amp;lt; 2 px: critical (ERROR)&lt;/li&gt;
+ *     &lt;li&gt;&amp;lt; 5 px: suboptimal (WARNING)&lt;/li&gt;
+ *     &lt;li&gt;≥ 5 px: good (no warning)&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+public final class DesignValidator {
+
+    /** Average transmission of a binary amplitude zone plate. */
+    public static final double BINARY_AMPLITUDE_TRANSMISSION = 0.5;
+    /** First-order diffraction efficiency of a binary amplitude zone plate (1/π² ≈ 0.1013). */
+    public static final double BINARY_AMPLITUDE_FIRST_ORDER_EFFICIENCY = 1.0 / (Math.PI * Math.PI);
+
+    private DesignValidator() {}
+
+    /** Compute metrics for a single zone plate design. */
+    public static DesignMetrics computeMetrics(SingleZonePlateParameters p) {
+<span class="fc" id="L29">        double lambdaMm = Units.nmToMm(p.wavelengthNm());</span>
+<span class="fc" id="L30">        double outerZoneMm = lambdaMm * p.focalLengthMm() / p.apertureDiameterMm();</span>
+<span class="fc" id="L31">        double printerPixelMm = Units.pixelSizeMm(p.dpi());</span>
+<span class="fc" id="L32">        double pixelsPerOuterZone = outerZoneMm / printerPixelMm;</span>
+        // Number of zones across the radius:  n = R^2 / (λ·f)
+<span class="fc" id="L34">        double radiusMm = p.apertureDiameterMm() / 2.0;</span>
+<span class="fc" id="L35">        int numberOfZones = (int) Math.floor((radiusMm * radiusMm) / (lambdaMm * p.focalLengthMm()));</span>
+
+        // Chromatic shift table at sample R/G/B wavelengths (paraxial f ∝ 1/λ).
+<span class="fc" id="L38">        java.util.List&lt;DesignMetrics.ChromaticShift&gt; chromatic = java.util.List.of(</span>
+                new DesignMetrics.ChromaticShift(450.0,
+<span class="fc" id="L40">                        focalLengthAtWavelength(p.focalLengthMm(), p.wavelengthNm(), 450.0)),</span>
+                new DesignMetrics.ChromaticShift(532.0,
+<span class="fc" id="L42">                        focalLengthAtWavelength(p.focalLengthMm(), p.wavelengthNm(), 532.0)),</span>
+<span class="fc" id="L43">                new DesignMetrics.ChromaticShift(p.wavelengthNm(), p.focalLengthMm()),</span>
+                new DesignMetrics.ChromaticShift(630.0,
+<span class="fc" id="L45">                        focalLengthAtWavelength(p.focalLengthMm(), p.wavelengthNm(), 630.0)));</span>
+
+        // Defocus blur table at a few wall distances scaled to the design focal length.
+<span class="fc" id="L48">        double f = p.focalLengthMm();</span>
+<span class="fc" id="L49">        double[] sampleDistances = { 0.5 * f, 0.75 * f, f, 1.5 * f, 2.0 * f };</span>
+<span class="fc" id="L50">        java.util.List&lt;DesignMetrics.DefocusEntry&gt; defocus = new ArrayList&lt;&gt;(sampleDistances.length);</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        for (double z : sampleDistances) {</span>
+<span class="fc" id="L52">            defocus.add(new DesignMetrics.DefocusEntry(z,</span>
+<span class="fc" id="L53">                    defocusBlurMm(p.apertureDiameterMm(), f, z)));</span>
+        }
+
+<span class="fc" id="L56">        return new DesignMetrics(</span>
+                outerZoneMm * 1000.0,
+                printerPixelMm * 1000.0,
+                pixelsPerOuterZone,
+                BINARY_AMPLITUDE_TRANSMISSION,
+                BINARY_AMPLITUDE_FIRST_ORDER_EFFICIENCY,
+                numberOfZones,
+                chromatic,
+                defocus);
+    }
+
+    /** Validate a single zone plate design and produce warnings. */
+    public static ValidationResult validate(SingleZonePlateParameters p) {
+<span class="fc" id="L69">        DesignMetrics m = computeMetrics(p);</span>
+<span class="fc" id="L70">        List&lt;ValidationResult.Warning&gt; warnings = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L71">        boolean valid = true;</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (m.pixelsPerOuterZone() &lt; 2.0) {</span>
+<span class="fc" id="L73">            warnings.add(new ValidationResult.Warning(</span>
+                    &quot;OUTER_ZONE_TOO_SMALL&quot;,
+<span class="fc" id="L75">                    String.format(</span>
+                            &quot;The outer zone width is only %.2f printer pixels (need ≥ 2).&quot;,
+<span class="fc" id="L77">                            m.pixelsPerOuterZone()),</span>
+                    ValidationResult.Warning.Severity.ERROR));
+<span class="fc" id="L79">            valid = false;</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">        } else if (m.pixelsPerOuterZone() &lt; 5.0) {</span>
+<span class="nc" id="L81">            warnings.add(new ValidationResult.Warning(</span>
+                    &quot;OUTER_ZONE_SUBOPTIMAL&quot;,
+<span class="nc" id="L83">                    String.format(</span>
+                            &quot;The outer zone covers %.2f printer pixels; ≥ 5 px is recommended for good print fidelity.&quot;,
+<span class="nc" id="L85">                            m.pixelsPerOuterZone()),</span>
+                    ValidationResult.Warning.Severity.WARNING));
+        }
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        if (m.numberOfZones() &lt; 5) {</span>
+<span class="nc" id="L89">            warnings.add(new ValidationResult.Warning(</span>
+                    &quot;FEW_ZONES&quot;,
+<span class="nc" id="L91">                    String.format(</span>
+                            &quot;Only %d Fresnel zones fit in the aperture; focus quality will be poor.&quot;,
+<span class="nc" id="L93">                            m.numberOfZones()),</span>
+                    ValidationResult.Warning.Severity.WARNING));
+        }
+<span class="fc" id="L96">        return new ValidationResult(valid, warnings, m);</span>
+    }
+
+    /**
+     * Estimate the focal length at a different wavelength (paraxial diffractive approximation,
+     * f(λ) ∝ 1/λ).
+     */
+    public static double focalLengthAtWavelength(double designFocalMm, double designWavelengthNm,
+                                                 double otherWavelengthNm) {
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        if (otherWavelengthNm &lt;= 0) throw new IllegalArgumentException(&quot;wavelength must be &gt; 0&quot;);</span>
+<span class="fc" id="L106">        return designFocalMm * (designWavelengthNm / otherWavelengthNm);</span>
+    }
+
+    /**
+     * Defocus blur diameter for a wall at distance {@code zMm} when the design focal length is
+     * {@code fMm} and the aperture is {@code dMm}: {@code c ≈ D·|f-z|/f}.
+     */
+    public static double defocusBlurMm(double apertureDiameterMm, double focalLengthMm, double wallDistanceMm) {
+<span class="fc" id="L114">        return apertureDiameterMm * Math.abs(focalLengthMm - wallDistanceMm) / focalLengthMm;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

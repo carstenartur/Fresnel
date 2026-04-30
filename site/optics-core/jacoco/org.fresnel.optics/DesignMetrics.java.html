@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesignMetrics.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">DesignMetrics.java</span></div><h1>DesignMetrics.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+/**
+ * Printability and quality metrics for a Fresnel zone plate design.
+ *
+ * @param outerZoneWidthMicrons   width of the outermost (smallest) Fresnel zone in micrometers
+ * @param printerPixelMicrons     printer pixel size in micrometers
+ * @param pixelsPerOuterZone      printer pixels per outermost zone
+ * @param estimatedTransmission   approximate average transmission of a binary amplitude mask (~0.5)
+ * @param estimatedFirstOrderEfficiency approximate first-order diffraction efficiency
+ * @param numberOfZones           total number of Fresnel zones across the aperture radius
+ * @param chromaticShifts         focal length at sample wavelengths (paraxial diffractive, f∝1/λ)
+ * @param defocusBlurs            defocus circle-of-confusion at sample wall distances
+ */
+public record DesignMetrics(
+        double outerZoneWidthMicrons,
+        double printerPixelMicrons,
+        double pixelsPerOuterZone,
+        double estimatedTransmission,
+        double estimatedFirstOrderEfficiency,
+        int numberOfZones,
+        java.util.List&lt;ChromaticShift&gt; chromaticShifts,
+        java.util.List&lt;DefocusEntry&gt; defocusBlurs
+) {
+
+    /** Compact constructor copies the lists defensively and tolerates nulls. */
+<span class="fc" id="L27">    public DesignMetrics {</span>
+<span class="pc bpc" id="L28" title="1 of 2 branches missed.">        chromaticShifts = chromaticShifts == null ? java.util.List.of() : java.util.List.copyOf(chromaticShifts);</span>
+<span class="pc bpc" id="L29" title="1 of 2 branches missed.">        defocusBlurs    = defocusBlurs    == null ? java.util.List.of() : java.util.List.copyOf(defocusBlurs);</span>
+<span class="fc" id="L30">    }</span>
+
+    /** Backwards-compatible constructor (no chromatic / defocus tables). */
+    public DesignMetrics(double outerZoneWidthMicrons, double printerPixelMicrons,
+                         double pixelsPerOuterZone, double estimatedTransmission,
+                         double estimatedFirstOrderEfficiency, int numberOfZones) {
+<span class="nc" id="L36">        this(outerZoneWidthMicrons, printerPixelMicrons, pixelsPerOuterZone,</span>
+                estimatedTransmission, estimatedFirstOrderEfficiency, numberOfZones,
+<span class="nc" id="L38">                java.util.List.of(), java.util.List.of());</span>
+<span class="nc" id="L39">    }</span>
+
+    /** Focal length at a different wavelength than the design wavelength. */
+<span class="fc" id="L42">    public record ChromaticShift(double wavelengthNm, double focalLengthMm) {}</span>
+
+    /** Defocus blur diameter when projecting onto a wall at a given distance. */
+<span class="fc" id="L45">    public record DefocusEntry(double wallDistanceMm, double blurDiameterMm) {}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>
