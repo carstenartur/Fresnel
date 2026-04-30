@@ -1,7 +1,7 @@
 package org.fresnel.backend.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Envelope used for save/load of any Fresnel design.
