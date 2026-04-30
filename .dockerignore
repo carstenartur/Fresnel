@@ -1,0 +1,41 @@
+# Build artifacts
+target/
+*/target/
+**/target/
+
+# Node dependencies
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# Frontend build output
+frontend/dist/
+dist/
+
+# Version-control internals
+.git/
+.gitattributes
+
+# CI/CD configs (not needed in image)
+.github/
+
+# IDE project files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+coverage/
+
+# Markdown files (except README)
+*.md
+!README.md
+
+# Test / quality tool configs
+*.xml.bak

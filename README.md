@@ -3,6 +3,8 @@
 [![CI](https://github.com/carstenartur/Fresnel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/carstenartur/Fresnel/actions/workflows/ci.yml)
 [![Tests](https://github.com/carstenartur/Fresnel/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/carstenartur/Fresnel/actions/workflows/tests.yml)
 [![Coverage](https://github.com/carstenartur/Fresnel/actions/workflows/coverage.yml/badge.svg?branch=main)](https://carstenartur.github.io/Fresnel/coverage/)
+[![Release](https://github.com/carstenartur/Fresnel/actions/workflows/deploy-release.yml/badge.svg)](https://github.com/carstenartur/Fresnel/releases)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fcarstenartur%2Ffresnel-blue)](https://github.com/carstenartur/Fresnel/pkgs/container/fresnel)
 [![CodeQL](https://github.com/carstenartur/Fresnel/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/carstenartur/Fresnel/security/code-scanning)
 [![E2E](https://github.com/carstenartur/Fresnel/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/carstenartur/Fresnel/actions/workflows/e2e.yml)
 
@@ -11,6 +13,69 @@
 A web application for designing printable diffractive optical elements:
 Fresnel zone plates, hexagonal macro-cells, window-foil layouts and
 simple computer-generated holograms.
+
+## Quickstart — Run with Docker
+
+```bash
+docker run --rm -p 8080:8080 ghcr.io/carstenartur/fresnel:latest
+# → open http://localhost:8080
+```
+
+No JDK or Node installation required — the image ships the full application
+(Spring Boot API + React frontend) as a single self-contained artefact.
+
+## Releases
+
+Tagged releases are created automatically when a `v*.*.*` tag is pushed (or
+manually via the *Release* workflow in GitHub Actions).  Each release publishes:
+
+- **`backend-<version>.jar`** — executable Spring Boot fat jar (requires JDK 21)
+- **SHA-256 checksum** for the jar
+- **Docker image** `ghcr.io/carstenartur/fresnel:<version>` pushed to GHCR
+
+Download the jar from the [Releases page](https://github.com/carstenartur/Fresnel/releases)
+and run it directly if you already have a JDK:
+
+```bash
+java -jar backend-<version>.jar
+# → http://localhost:8080
+```
+
+## Local Development
+
+### Backend
+
+```bash
+# Default profile uses an in-memory H2 database
+mvn -pl backend spring-boot:run
+```
+
+### Frontend (dev server with hot-reload)
+
+```bash
+cd frontend
+npm install --legacy-peer-deps
+npm run dev
+# → http://localhost:5173  (Vite proxies /api → localhost:8080)
+```
+
+Vite proxies every `/api/*` request to `http://localhost:8080`, so you can
+develop the frontend against a locally running backend without any CORS issues.
+
+### Build the all-in-one Jar
+
+```bash
+mvn -B verify
+# Resulting fat jar: backend/target/backend-*.jar
+java -jar backend/target/backend-*.jar
+```
+
+### Build Docker image locally
+
+```bash
+docker build -t fresnel:dev .
+docker run --rm -p 8080:8080 fresnel:dev
+```
 
 ## Modules
 
@@ -21,34 +86,10 @@ simple computer-generated holograms.
   `/api/designs/preview.png` and `/api/designs/export.png`. Persists
   designs / render-job state via Spring Data JPA (H2 by default,
   PostgreSQL via the `postgres` profile) and protects mutating endpoints
-  with HTTP Basic auth.
+  with HTTP Basic auth.  Also serves the bundled React frontend as static
+  resources from `classpath:/static/`.
 - **`frontend/`** – React + TypeScript + Vite single-page app: parameter
   panel, live validation, preview and PNG download.
-
-## Build & test
-
-```bash
-# Java side
-mvn -B test                  # runs all backend + optics-core tests (requires JDK 21)
-mvn -B install -DskipTests   # builds the runnable jar
-
-# Frontend
-cd frontend
-npm install --legacy-peer-deps
-npm run build                # type-checks and bundles to frontend/dist
-npm run dev                  # dev server on http://localhost:5173 (proxies /api)
-```
-
-## Run locally
-
-```bash
-# Terminal 1 – backend (default profile uses an in-memory H2 database)
-mvn -pl backend spring-boot:run
-
-# Terminal 2 – frontend dev server
-cd frontend && npm run dev
-# open http://localhost:5173
-```
 
 ## Authentication
 

@@ -38,7 +38,7 @@ jobs:
           cache: maven
 
       - name: Build & test with coverage
-        run: mvn -B -ntp verify
+        run: mvn -B -ntp verify -Pno-frontend
 
       - name: Stage coverage reports for Pages
         run: |
