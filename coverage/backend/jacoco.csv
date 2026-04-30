@@ -3,6 +3,7 @@ Fresnel Backend,org.fresnel.backend.persistence,RenderJobEntity.State,0,27,0,0,0
 Fresnel Backend,org.fresnel.backend.persistence,DesignEntity,37,57,2,2,10,19,12,8,10,8
 Fresnel Backend,org.fresnel.backend.persistence,RenderJobEntity,31,79,1,1,10,23,11,16,10,16
 Fresnel Backend,org.fresnel.backend.config,WebConfig,4,48,3,3,1,9,3,2,0,2
+Fresnel Backend,org.fresnel.backend.config,SpaController,2,3,0,0,1,1,1,1,1,1
 Fresnel Backend,org.fresnel.backend.jobs,RenderJob,87,106,12,4,19,30,13,13,6,12
 Fresnel Backend,org.fresnel.backend.jobs,RenderJobService,127,230,17,9,29,53,18,11,5,10
 Fresnel Backend,org.fresnel.backend.jobs,RenderJob.State,0,27,0,0,0,1,0,1,0,1
