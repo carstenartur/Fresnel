@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ValidationResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">ValidationResponse.java</span></div><h1>ValidationResponse.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import org.fresnel.optics.DesignMetrics;
+import org.fresnel.optics.ValidationResult;
+
+import java.util.List;
+
+/** REST response for a validation request. */
+<span class="fc" id="L9">public record ValidationResponse(</span>
+        boolean valid,
+        List&lt;WarningDto&gt; warnings,
+        DesignMetrics metrics
+) {
+
+<span class="fc" id="L15">    public record WarningDto(String code, String message, String severity) {}</span>
+
+    public static ValidationResponse from(ValidationResult v) {
+<span class="fc" id="L18">        List&lt;WarningDto&gt; warnings = v.warnings().stream()</span>
+<span class="fc" id="L19">                .map(w -&gt; new WarningDto(w.code(), w.message(), w.severity().name()))</span>
+<span class="fc" id="L20">                .toList();</span>
+<span class="fc" id="L21">        return new ValidationResponse(v.valid(), warnings, v.metrics());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

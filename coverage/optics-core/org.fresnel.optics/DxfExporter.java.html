@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DxfExporter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">DxfExporter.java</span></div><h1>DxfExporter.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+
+/**
+ * DXF (AutoCAD Drawing Interchange File) export for fabrication tools.
+ *
+ * &lt;p&gt;Emits a minimal AutoCAD R12 ASCII DXF containing only an {@code ENTITIES}
+ * section. Most CAM software (LightBurn, RDWorks, Inkscape, QCAD, LibreCAD,
+ * EagleCAD, KiCad) accepts this minimal form. Coordinates are in millimetres,
+ * matching the rest of the optics core.
+ *
+ * &lt;p&gt;For an on-axis circular zone plate the boundary of every Fresnel zone is
+ * emitted as a full {@code CIRCLE} entity (group code 0/CIRCLE) with centre at
+ * the origin and radius {@code r_n = √(n·λ·f)}. The aperture-clipping circle
+ * is also emitted as the outermost circle. This is the most useful form for
+ * laser cutters and pen plotters, which only ever follow path outlines and do
+ * not fill regions.
+ *
+ * &lt;p&gt;For arbitrary masks (off-axis, hex, foil, hologram) there is no concise
+ * vector representation; clients should use SVG or PDF in those cases.
+ */
+public final class DxfExporter {
+
+    private DxfExporter() {}
+
+    /**
+     * Write zone-boundary circles of an on-axis zone plate as DXF.
+     *
+     * &lt;p&gt;Off-axis offsets in {@code p} are honoured by translating the centre.
+     * The {@code maskType} and {@code polarity} fields do not affect the output:
+     * a CAM operator typically chooses cut/engrave layers from the resulting
+     * geometry separately.
+     */
+    public static void writeZonePlate(SingleZonePlateParameters p, OutputStream out) throws IOException {
+<span class="fc" id="L42">        double D = p.apertureDiameterMm();</span>
+<span class="fc" id="L43">        double f = p.focalLengthMm();</span>
+<span class="fc" id="L44">        double lambdaMm = Units.nmToMm(p.wavelengthNm());</span>
+<span class="fc" id="L45">        double R = D / 2.0;</span>
+<span class="fc" id="L46">        double cx = p.targetOffsetXmm();</span>
+<span class="fc" id="L47">        double cy = p.targetOffsetYmm();</span>
+        // Number of zones n_max = R² / (λ·f)
+<span class="fc" id="L49">        int nMax = (int) Math.floor((R * R) / (lambdaMm * f));</span>
+<span class="fc" id="L50">        try (Writer w = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {</span>
+<span class="fc" id="L51">            writeHeader(w);</span>
+            // Aperture-clipping outer circle.
+<span class="fc" id="L53">            writeCircle(w, cx, cy, R);</span>
+            // Zone boundaries n = 1..nMax (skip any that exceed the aperture).
+<span class="fc bfc" id="L55" title="All 2 branches covered.">            for (int n = 1; n &lt;= nMax; n++) {</span>
+<span class="fc" id="L56">                double rn = Math.sqrt(n * lambdaMm * f);</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">                if (rn &gt; R) break;</span>
+<span class="fc" id="L58">                writeCircle(w, cx, cy, rn);</span>
+            }
+<span class="fc" id="L60">            writeFooter(w);</span>
+        }
+<span class="fc" id="L62">    }</span>
+
+    public static byte[] toDxfBytes(SingleZonePlateParameters p) throws IOException {
+<span class="fc" id="L65">        ByteArrayOutputStream baos = new ByteArrayOutputStream();</span>
+<span class="fc" id="L66">        writeZonePlate(p, baos);</span>
+<span class="fc" id="L67">        return baos.toByteArray();</span>
+    }
+
+    private static void writeHeader(Writer w) throws IOException {
+        // Minimal DXF: just an ENTITIES section. AutoCAD R12-compatible.
+<span class="fc" id="L72">        w.write(&quot;0\nSECTION\n2\nENTITIES\n&quot;);</span>
+<span class="fc" id="L73">    }</span>
+
+    private static void writeFooter(Writer w) throws IOException {
+<span class="fc" id="L76">        w.write(&quot;0\nENDSEC\n0\nEOF\n&quot;);</span>
+<span class="fc" id="L77">    }</span>
+
+    private static void writeCircle(Writer w, double cx, double cy, double r) throws IOException {
+        // Group codes: 0=entity, 8=layer, 10/20/30=centre x/y/z, 40=radius.
+<span class="fc" id="L81">        w.write(String.format(Locale.ROOT,</span>
+                &quot;0\nCIRCLE\n8\n0\n10\n%.6f\n20\n%.6f\n30\n0.0\n40\n%.6f\n&quot;,
+<span class="fc" id="L83">                cx, cy, r));</span>
+<span class="fc" id="L84">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HologramSynthesizer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">HologramSynthesizer.java</span></div><h1>HologramSynthesizer.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
+import java.util.Random;
+
+/**
+ * Computer-generated hologram synthesis via the Gerchberg–Saxton algorithm.
+ *
+ * &lt;p&gt;Given a target far-field amplitude pattern (the desired reconstructed image), GS
+ * iteratively finds a phase-only near-field (the hologram) whose Fourier transform
+ * approximates the target amplitude. The standard loop:
+ * &lt;ol&gt;
+ *   &lt;li&gt;Start from {@code H = exp(i·random_phase)} in the near-field.&lt;/li&gt;
+ *   &lt;li&gt;FFT → far-field {@code F}.&lt;/li&gt;
+ *   &lt;li&gt;Replace amplitude of {@code F} with the target amplitude, keep phase.&lt;/li&gt;
+ *   &lt;li&gt;IFFT → updated near-field {@code H'}.&lt;/li&gt;
+ *   &lt;li&gt;Replace amplitude of {@code H'} with 1 (unit aperture); keep phase.&lt;/li&gt;
+ *   &lt;li&gt;Repeat from step 2.&lt;/li&gt;
+ * &lt;/ol&gt;
+ *
+ * &lt;p&gt;The synthesised phase is then quantised to either 0/π (binary phase, exported
+ * as a 1-bit amplitude-style mask) or continuous greyscale.
+ */
+public final class HologramSynthesizer {
+
+    private HologramSynthesizer() {}
+
+    public static RenderResult synthesize(HologramParameters p) {
+<span class="fc" id="L30">        return synthesize(p, 0xFE5E_1234L);</span>
+    }
+
+    /** With explicit RNG seed (deterministic for tests). */
+    public static RenderResult synthesize(HologramParameters p, long seed) {
+<span class="fc" id="L35">        BufferedImage target = p.targetImage();</span>
+<span class="fc" id="L36">        int n = target.getWidth();</span>
+<span class="fc" id="L37">        int total = n * n;</span>
+
+        // Target amplitude: sqrt of pixel intensity (so |F|² ≈ target intensity).
+<span class="fc" id="L40">        double[] tgtAmp = new double[total];</span>
+<span class="fc" id="L41">        WritableRaster tr = target.getRaster();</span>
+<span class="fc" id="L42">        int[] buf = new int[n];</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        for (int y = 0; y &lt; n; y++) {</span>
+<span class="fc" id="L44">            tr.getSamples(0, y, n, 1, 0, buf);</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">            for (int x = 0; x &lt; n; x++) tgtAmp[y * n + x] = Math.sqrt(buf[x] / 255.0);</span>
+        }
+
+        // Initial near-field: unit amplitude, random phase.
+<span class="fc" id="L49">        Random rng = new Random(seed);</span>
+<span class="fc" id="L50">        double[] re = new double[total];</span>
+<span class="fc" id="L51">        double[] im = new double[total];</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        for (int i = 0; i &lt; total; i++) {</span>
+<span class="fc" id="L53">            double ph = 2.0 * Math.PI * rng.nextDouble();</span>
+<span class="fc" id="L54">            re[i] = Math.cos(ph);</span>
+<span class="fc" id="L55">            im[i] = Math.sin(ph);</span>
+        }
+
+        // The conventional GS loop expects the target amplitude in fft-shifted layout
+        // (DC at corner). We supply target with origin already at corner and let GS run.
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        for (int it = 0; it &lt; p.iterations(); it++) {</span>
+            // Near → far
+<span class="fc" id="L62">            Fft2.fft2(re, im, n);</span>
+            // Replace amplitude with target amplitude.
+<span class="fc bfc" id="L64" title="All 2 branches covered.">            for (int i = 0; i &lt; total; i++) {</span>
+<span class="fc" id="L65">                double ar = re[i];</span>
+<span class="fc" id="L66">                double ai = im[i];</span>
+<span class="fc" id="L67">                double mag = Math.sqrt(ar * ar + ai * ai);</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">                double scale = mag &gt; 1e-30 ? tgtAmp[i] / mag : tgtAmp[i];</span>
+<span class="fc" id="L69">                re[i] = ar * scale;</span>
+<span class="fc" id="L70">                im[i] = ai * scale;</span>
+            }
+            // Far → near
+<span class="fc" id="L73">            Fft2.ifft2(re, im, n);</span>
+            // Constrain near-field to unit amplitude (phase only).
+<span class="fc bfc" id="L75" title="All 2 branches covered.">            for (int i = 0; i &lt; total; i++) {</span>
+<span class="fc" id="L76">                double ar = re[i];</span>
+<span class="fc" id="L77">                double ai = im[i];</span>
+<span class="fc" id="L78">                double mag = Math.sqrt(ar * ar + ai * ai);</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">                if (mag &gt; 1e-30) {</span>
+<span class="fc" id="L80">                    re[i] = ar / mag;</span>
+<span class="fc" id="L81">                    im[i] = ai / mag;</span>
+                } else {
+<span class="nc" id="L83">                    re[i] = 1.0;</span>
+<span class="nc" id="L84">                    im[i] = 0.0;</span>
+                }
+            }
+        }
+
+        // Convert near-field phase to a printable mask.
+<span class="fc" id="L90">        BufferedImage mask = new BufferedImage(n, n, BufferedImage.TYPE_BYTE_GRAY);</span>
+<span class="fc" id="L91">        WritableRaster mr = mask.getRaster();</span>
+<span class="fc" id="L92">        int[] row = new int[n];</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        boolean binary = p.outputType() == HologramParameters.OutputType.BINARY_PHASE;</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        for (int y = 0; y &lt; n; y++) {</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">            for (int x = 0; x &lt; n; x++) {</span>
+<span class="fc" id="L96">                double phase = Math.atan2(im[y * n + x], re[y * n + x]);</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">                if (binary) {</span>
+                    // Cosine sign as 1-bit.
+<span class="fc bfc" id="L99" title="All 2 branches covered.">                    row[x] = Math.cos(phase) &gt;= 0.0 ? 255 : 0;</span>
+                } else {
+                    // Map [-π, π] → [0, 255]
+<span class="fc" id="L102">                    double wrapped = phase + Math.PI;</span>
+<span class="fc" id="L103">                    row[x] = (int) Math.min(255, Math.max(0, Math.round(wrapped * (255.0 / (2.0 * Math.PI)))));</span>
+                }
+            }
+<span class="fc" id="L106">            mr.setSamples(0, y, n, 1, 0, row);</span>
+        }
+<span class="fc" id="L108">        double pixelMm = Units.pixelSizeMm(p.dpi());</span>
+<span class="fc" id="L109">        return new RenderResult(mask, pixelMm);</span>
+    }
+
+    /**
+     * Simulate the optical reconstruction of a phase-only mask: {@code |FFT(H)|²},
+     * normalised to 0..255 greyscale. Useful for previewing what the hologram will
+     * project before printing.
+     */
+    public static BufferedImage reconstruct(BufferedImage phaseMask, HologramParameters.OutputType type) {
+<span class="fc" id="L118">        int n = phaseMask.getWidth();</span>
+<span class="pc bpc" id="L119" title="2 of 4 branches missed.">        if (phaseMask.getHeight() != n || (n &amp; (n - 1)) != 0)</span>
+<span class="nc" id="L120">            throw new IllegalArgumentException(&quot;phaseMask must be square power-of-two&quot;);</span>
+<span class="fc" id="L121">        double[] re = new double[n * n];</span>
+<span class="fc" id="L122">        double[] im = new double[n * n];</span>
+<span class="fc" id="L123">        WritableRaster r = phaseMask.getRaster();</span>
+<span class="fc" id="L124">        int[] row = new int[n];</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">        for (int y = 0; y &lt; n; y++) {</span>
+<span class="fc" id="L126">            r.getSamples(0, y, n, 1, 0, row);</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">            for (int x = 0; x &lt; n; x++) {</span>
+                double phase;
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">                if (type == HologramParameters.OutputType.BINARY_PHASE) {</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                    phase = row[x] &gt;= 128 ? 0.0 : Math.PI;</span>
+                } else {
+<span class="fc" id="L132">                    phase = (row[x] / 255.0) * 2.0 * Math.PI - Math.PI;</span>
+                }
+<span class="fc" id="L134">                re[y * n + x] = Math.cos(phase);</span>
+<span class="fc" id="L135">                im[y * n + x] = Math.sin(phase);</span>
+            }
+        }
+<span class="fc" id="L138">        Fft2.fft2(re, im, n);</span>
+        // Compute intensity, find max for normalisation.
+<span class="fc" id="L140">        double[] intensity = new double[n * n];</span>
+<span class="fc" id="L141">        double maxI = 0.0;</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">        for (int i = 0; i &lt; intensity.length; i++) {</span>
+<span class="fc" id="L143">            double a = re[i];</span>
+<span class="fc" id="L144">            double b = im[i];</span>
+<span class="fc" id="L145">            double v = a * a + b * b;</span>
+<span class="fc" id="L146">            intensity[i] = v;</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">            if (v &gt; maxI) maxI = v;</span>
+        }
+<span class="fc" id="L149">        BufferedImage out = new BufferedImage(n, n, BufferedImage.TYPE_BYTE_GRAY);</span>
+<span class="fc" id="L150">        WritableRaster ow = out.getRaster();</span>
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">        double inv = maxI &gt; 1e-30 ? 255.0 / maxI : 0.0;</span>
+        // fftshift so DC is centred (more intuitive preview).
+<span class="fc" id="L153">        int half = n / 2;</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">        for (int y = 0; y &lt; n; y++) {</span>
+<span class="fc" id="L155">            int sy = (y + half) % n;</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">            for (int x = 0; x &lt; n; x++) {</span>
+<span class="fc" id="L157">                int sx = (x + half) % n;</span>
+<span class="fc" id="L158">                int v = (int) Math.min(255, Math.round(intensity[sy * n + sx] * inv));</span>
+<span class="fc" id="L159">                row[x] = v;</span>
+            }
+<span class="fc" id="L161">            ow.setSamples(0, y, n, 1, 0, row);</span>
+        }
+<span class="fc" id="L163">        return out;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

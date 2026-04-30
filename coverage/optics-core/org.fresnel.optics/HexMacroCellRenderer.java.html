@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HexMacroCellRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">HexMacroCellRenderer.java</span></div><h1>HexMacroCellRenderer.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Renders a hexagonal macro cell composed of many sub-zone-plates that all converge
+ * on a common image plane.
+ *
+ * &lt;p&gt;Sub-elements are placed on a triangular (hex) lattice with pitch {@code subPitchMm}.
+ * Sub-element centres outside the outer hexagonal aperture are skipped. Inside the cell,
+ * each pixel is rendered using the local zone-plate phase formula of the nearest
+ * sub-element whose own circular support contains the pixel; pixels outside every
+ * sub-element circle and inside the hex are rendered as background (black).
+ */
+public final class HexMacroCellRenderer {
+
+    /** Tolerance for hex-aperture inclusion tests, in millimetres. Shared between
+     *  {@link #hexLatticeCentresInsideHex} and {@link #nearestLatticeContaining} so
+     *  both inclusion paths agree on the boundary. */
+    private static final double HEX_INCLUSION_EPS_MM = 1e-9;
+
+    private HexMacroCellRenderer() {}
+
+    public static RenderResult render(HexMacroCellParameters p) {
+<span class="fc" id="L28">        double pixelSizeMm = Units.pixelSizeMm(p.dpi());</span>
+        // Macro cell flat-to-flat width = √3 · radius. Hex width (vertex-to-vertex) = 2·radius.
+<span class="fc" id="L30">        double extentMm = 2.0 * p.macroRadiusMm();</span>
+<span class="fc" id="L31">        int sizePx = Math.max(2, (int) Math.ceil(extentMm / pixelSizeMm));</span>
+<span class="pc bpc" id="L32" title="1 of 2 branches missed.">        if (sizePx % 2 == 0) sizePx++;</span>
+
+<span class="fc" id="L34">        double centerPx = (sizePx - 1) / 2.0;</span>
+<span class="fc" id="L35">        double subRadiusMm = p.subDiameterMm() / 2.0;</span>
+<span class="fc" id="L36">        double subRadiusMmSq = subRadiusMm * subRadiusMm;</span>
+
+<span class="fc" id="L38">        double lambdaMm = Units.nmToMm(p.wavelengthNm());</span>
+<span class="fc" id="L39">        double k = 2.0 * Math.PI / lambdaMm;</span>
+<span class="fc" id="L40">        double zfMm = p.focalLengthMm();</span>
+<span class="fc" id="L41">        double zfSqMm = zfMm * zfMm;</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        boolean binary = p.maskType() == MaskType.BINARY_AMPLITUDE;</span>
+<span class="pc bpc" id="L43" title="1 of 2 branches missed.">        boolean positive = p.polarity() == Polarity.POSITIVE;</span>
+
+<span class="fc" id="L45">        BufferedImage img = new BufferedImage(sizePx, sizePx, BufferedImage.TYPE_BYTE_GRAY);</span>
+<span class="fc" id="L46">        WritableRaster raster = img.getRaster();</span>
+<span class="fc" id="L47">        int[] row = new int[sizePx];</span>
+
+        // Hex aperture parameters: flat-top hex inscribed/circumscribed of radius R.
+        // Point (x,y) lies inside iff |y| ≤ R·√3/2 AND |x|+|y|/√3 ≤ R.
+<span class="fc" id="L51">        double R = p.macroRadiusMm();</span>
+<span class="fc" id="L52">        double sqrt3 = Math.sqrt(3.0);</span>
+<span class="fc" id="L53">        double halfFlat = R * sqrt3 / 2.0;</span>
+<span class="fc" id="L54">        double invSqrt3 = 1.0 / sqrt3;</span>
+
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        for (int yPx = 0; yPx &lt; sizePx; yPx++) {</span>
+<span class="fc" id="L57">            double yMm = (yPx - centerPx) * pixelSizeMm;</span>
+<span class="fc" id="L58">            double absY = Math.abs(yMm);</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">            for (int xPx = 0; xPx &lt; sizePx; xPx++) {</span>
+<span class="fc" id="L60">                double xMm = (xPx - centerPx) * pixelSizeMm;</span>
+<span class="fc" id="L61">                row[xPx] = 0;</span>
+                // Hex aperture clip
+<span class="fc bfc" id="L63" title="All 2 branches covered.">                if (absY &gt; halfFlat) continue;</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">                if (Math.abs(xMm) + absY * invSqrt3 &gt; R) continue;</span>
+
+                // Find a sub-element that contains this pixel, in O(1) via the
+                // analytical inverse of the triangular lattice (no list scan).
+<span class="fc" id="L68">                double[] cMatch = nearestLatticeContaining(xMm, yMm, p.subPitchMm(), subRadiusMmSq, R);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">                if (cMatch == null) continue;</span>
+
+<span class="fc" id="L71">                double cx = cMatch[0];</span>
+<span class="fc" id="L72">                double cy = cMatch[1];</span>
+                // Each sub-plate focuses on common target → its local off-axis target is:
+<span class="fc" id="L74">                double xfLocal = p.targetOffsetXmm() - cx;</span>
+<span class="fc" id="L75">                double yfLocal = p.targetOffsetYmm() - cy;</span>
+<span class="fc" id="L76">                double dxF = (xMm - cx) - xfLocal;</span>
+<span class="fc" id="L77">                double dyF = (yMm - cy) - yfLocal;</span>
+<span class="fc" id="L78">                double L = Math.sqrt(dxF * dxF + dyF * dyF + zfSqMm);</span>
+<span class="fc" id="L79">                double phi = k * L;</span>
+                int v;
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">                if (binary) {</span>
+<span class="fc" id="L82">                    double c = Math.cos(phi);</span>
+<span class="pc bpc" id="L83" title="3 of 6 branches missed.">                    boolean transparent = positive ? (c &gt;= 0.0) : (c &lt; 0.0);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">                    v = transparent ? 255 : 0;</span>
+<span class="fc" id="L85">                } else {</span>
+<span class="nc" id="L86">                    double wrapped = phi - 2.0 * Math.PI * Math.floor(phi / (2.0 * Math.PI));</span>
+<span class="nc" id="L87">                    v = (int) Math.min(255, Math.max(0, Math.round(wrapped * (255.0 / (2.0 * Math.PI)))));</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                    if (!positive) v = 255 - v;</span>
+                }
+<span class="fc" id="L90">                row[xPx] = v;</span>
+            }
+<span class="fc" id="L92">            raster.setSamples(0, yPx, sizePx, 1, 0, row);</span>
+        }
+<span class="fc" id="L94">        return new RenderResult(img, pixelSizeMm);</span>
+    }
+
+    /**
+     * Generate hex-lattice centres inside the flat-top outer hex of circumscribed radius R.
+     * The lattice pitch is {@code pitch}; rows are spaced by {@code pitch · √3 / 2}.
+     */
+    static List&lt;double[]&gt; hexLatticeCentresInsideHex(double R, double pitch) {
+<span class="fc" id="L102">        List&lt;double[]&gt; out = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L103">        double sqrt3 = Math.sqrt(3.0);</span>
+<span class="fc" id="L104">        double rowDy = pitch * sqrt3 / 2.0;</span>
+<span class="fc" id="L105">        int nRows = (int) Math.ceil(R / rowDy) + 1;</span>
+<span class="fc" id="L106">        double halfFlat = R * sqrt3 / 2.0;</span>
+<span class="fc" id="L107">        double invSqrt3 = 1.0 / sqrt3;</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        for (int j = -nRows; j &lt;= nRows; j++) {</span>
+<span class="fc" id="L109">            double cy = j * rowDy;</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">            if (Math.abs(cy) &gt; halfFlat + HEX_INCLUSION_EPS_MM) continue;</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">            double xOffset = (j &amp; 1) == 0 ? 0.0 : pitch / 2.0;</span>
+<span class="fc" id="L112">            int nCols = (int) Math.ceil(R / pitch) + 1;</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">            for (int i = -nCols; i &lt;= nCols; i++) {</span>
+<span class="fc" id="L114">                double cx = i * pitch + xOffset;</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">                if (Math.abs(cx) + Math.abs(cy) * invSqrt3 &gt; R + HEX_INCLUSION_EPS_MM) continue;</span>
+<span class="fc" id="L116">                out.add(new double[]{cx, cy});</span>
+            }
+        }
+<span class="fc" id="L119">        return out;</span>
+    }
+
+    /**
+     * Analytical O(1) inverse of {@link #hexLatticeCentresInsideHex}: given a query
+     * point {@code (x,y)} in cell-local mm coordinates, returns the nearest lattice
+     * centre whose disc of radius² {@code rSq} covers the point and which lies
+     * inside the outer hex of circumscribed radius {@code hexR}, or {@code null} if
+     * no such centre exists. Replaces the previous O(numSubElements) scan.
+     *
+     * &lt;p&gt;Lattice inversion: row index {@code j = round(y / rowDy)} where
+     * {@code rowDy = pitch · √3 / 2}; column index {@code i = round((x - xOff) / pitch)}
+     * with {@code xOff = (j&amp;1)==0 ? 0 : pitch/2}. The candidate centre is
+     * {@code (i·pitch + xOff, j·rowDy)}. Because the chosen {@code j} only rounds
+     * to the closest row centre, the actual containing row may be one above or
+     * below, so we test {@code j-1, j, j+1} — three candidates total.
+     */
+    static double[] nearestLatticeContaining(double x, double y, double pitch, double rSq, double hexR) {
+<span class="fc" id="L137">        double sqrt3 = Math.sqrt(3.0);</span>
+<span class="fc" id="L138">        double rowDy = pitch * sqrt3 / 2.0;</span>
+<span class="fc" id="L139">        double invSqrt3 = 1.0 / sqrt3;</span>
+<span class="fc" id="L140">        double halfFlat = hexR * sqrt3 / 2.0;</span>
+<span class="fc" id="L141">        int j0 = (int) Math.round(y / rowDy);</span>
+<span class="fc" id="L142">        double[] best = null;</span>
+<span class="fc" id="L143">        double bestD = Double.MAX_VALUE;</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">        for (int dj = -1; dj &lt;= 1; dj++) {</span>
+<span class="fc" id="L145">            int j = j0 + dj;</span>
+<span class="fc" id="L146">            double cy = j * rowDy;</span>
+            // Match the inclusion tests in hexLatticeCentresInsideHex:
+            //   |cy| ≤ halfFlat   AND   |cx| + |cy|/√3 ≤ R
+<span class="fc bfc" id="L149" title="All 2 branches covered.">            if (Math.abs(cy) &gt; halfFlat + HEX_INCLUSION_EPS_MM) continue;</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">            double xOff = (j &amp; 1) == 0 ? 0.0 : pitch / 2.0;</span>
+<span class="fc" id="L151">            int i = (int) Math.round((x - xOff) / pitch);</span>
+<span class="fc" id="L152">            double cx = i * pitch + xOff;</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">            if (Math.abs(cx) + Math.abs(cy) * invSqrt3 &gt; hexR + HEX_INCLUSION_EPS_MM) continue;</span>
+<span class="fc" id="L154">            double dx = x - cx;</span>
+<span class="fc" id="L155">            double dy = y - cy;</span>
+<span class="fc" id="L156">            double d = dx * dx + dy * dy;</span>
+<span class="pc bpc" id="L157" title="1 of 4 branches missed.">            if (d &lt;= rSq &amp;&amp; d &lt; bestD) {</span>
+<span class="fc" id="L158">                bestD = d;</span>
+<span class="fc" id="L159">                best = new double[]{cx, cy};</span>
+            }
+        }
+<span class="fc" id="L162">        return best;</span>
+    }
+
+    /** Number of sub-elements that fit inside the outer hex for the given parameters. */
+    public static int countSubElements(HexMacroCellParameters p) {
+<span class="fc" id="L167">        return hexLatticeCentresInsideHex(p.macroRadiusMm(), p.subPitchMm()).size();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

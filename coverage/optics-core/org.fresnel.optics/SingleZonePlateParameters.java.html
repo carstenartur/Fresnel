@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SingleZonePlateParameters.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">SingleZonePlateParameters.java</span></div><h1>SingleZonePlateParameters.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+/**
+ * Parameters for a single Fresnel zone plate.
+ *
+ * @param apertureDiameterMm aperture diameter in millimeters
+ * @param focalLengthMm      design focal length in millimeters
+ * @param wavelengthNm       design wavelength in nanometers
+ * @param dpi                printer resolution (dots per inch)
+ * @param targetOffsetXmm    off-axis target offset X (mm), 0 for on-axis
+ * @param targetOffsetYmm    off-axis target offset Y (mm), 0 for on-axis
+ * @param maskType           binary amplitude or greyscale phase
+ * @param polarity           which half of the cosine is transparent
+ */
+public record SingleZonePlateParameters(
+        double apertureDiameterMm,
+        double focalLengthMm,
+        double wavelengthNm,
+        double dpi,
+        double targetOffsetXmm,
+        double targetOffsetYmm,
+        MaskType maskType,
+        Polarity polarity
+) {
+
+<span class="fc" id="L26">    public SingleZonePlateParameters {</span>
+<span class="pc bpc" id="L27" title="1 of 2 branches missed.">        if (apertureDiameterMm &lt;= 0) throw new IllegalArgumentException(&quot;apertureDiameterMm must be &gt; 0&quot;);</span>
+<span class="pc bpc" id="L28" title="1 of 2 branches missed.">        if (focalLengthMm &lt;= 0) throw new IllegalArgumentException(&quot;focalLengthMm must be &gt; 0&quot;);</span>
+<span class="pc bpc" id="L29" title="1 of 2 branches missed.">        if (wavelengthNm &lt;= 0) throw new IllegalArgumentException(&quot;wavelengthNm must be &gt; 0&quot;);</span>
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">        if (dpi &lt;= 0) throw new IllegalArgumentException(&quot;dpi must be &gt; 0&quot;);</span>
+<span class="pc bpc" id="L31" title="1 of 2 branches missed.">        if (maskType == null) throw new IllegalArgumentException(&quot;maskType must not be null&quot;);</span>
+<span class="pc bpc" id="L32" title="1 of 2 branches missed.">        if (polarity == null) throw new IllegalArgumentException(&quot;polarity must not be null&quot;);</span>
+<span class="fc" id="L33">    }</span>
+
+    /** On-axis convenience constructor. */
+    public static SingleZonePlateParameters onAxis(
+            double apertureDiameterMm,
+            double focalLengthMm,
+            double wavelengthNm,
+            double dpi) {
+<span class="fc" id="L41">        return new SingleZonePlateParameters(</span>
+                apertureDiameterMm, focalLengthMm, wavelengthNm, dpi,
+                0.0, 0.0,
+                MaskType.BINARY_AMPLITUDE, Polarity.POSITIVE);
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

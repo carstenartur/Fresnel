@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RenderJobEntity.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.persistence</a> &gt; <span class="el_source">RenderJobEntity.java</span></div><h1>RenderJobEntity.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.persistence;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Lob;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+
+import java.time.Instant;
+
+/**
+ * Persisted snapshot of a {@link org.fresnel.backend.jobs.RenderJob}.
+ *
+ * &lt;p&gt;Live progress for in-flight jobs is tracked in memory by
+ * {@link org.fresnel.backend.jobs.RenderJobService}; this entity is written when a
+ * job transitions to a terminal state ({@code COMPLETED} / {@code FAILED}) so the
+ * result survives JVM restarts and is visible to other instances.
+ */
+@Entity
+@Table(name = &quot;render_jobs&quot;, indexes = {
+        @Index(name = &quot;idx_render_jobs_owner&quot;, columnList = &quot;owner_id&quot;),
+        @Index(name = &quot;idx_render_jobs_created_at&quot;, columnList = &quot;created_at&quot;)
+})
+public class RenderJobEntity {
+
+<span class="fc" id="L30">    public enum State { QUEUED, RUNNING, COMPLETED, FAILED }</span>
+
+    @Id
+    @Column(name = &quot;id&quot;, nullable = false, updatable = false, length = 64)
+    private String id;
+
+    @Column(name = &quot;label&quot;, nullable = false, length = 64)
+    private String label;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = &quot;state&quot;, nullable = false, length = 16)
+    private State state;
+
+    @Column(name = &quot;progress&quot;, nullable = false)
+    private double progress;
+
+    @Column(name = &quot;message&quot;, length = 1024)
+    private String message;
+
+    @Column(name = &quot;error_message&quot;, length = 2048)
+    private String errorMessage;
+
+    @Column(name = &quot;owner_id&quot;, length = 128)
+    private String ownerId;
+
+    @Lob
+    @Column(name = &quot;result_png&quot;)
+    private byte[] resultPng;
+
+    @Column(name = &quot;result_pixel_size_mm&quot;)
+    private Double resultPixelSizeMm;
+
+    @Column(name = &quot;result_width_px&quot;)
+    private Integer resultWidthPx;
+
+    @Column(name = &quot;result_height_px&quot;)
+    private Integer resultHeightPx;
+
+    @Column(name = &quot;created_at&quot;, nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = &quot;finished_at&quot;)
+    private Instant finishedAt;
+
+<span class="fc" id="L74">    public RenderJobEntity() {}</span>
+
+<span class="fc" id="L76">    public RenderJobEntity(String id, String label, String ownerId) {</span>
+<span class="fc" id="L77">        this.id = id;</span>
+<span class="fc" id="L78">        this.label = label;</span>
+<span class="fc" id="L79">        this.ownerId = ownerId;</span>
+<span class="fc" id="L80">        this.state = State.QUEUED;</span>
+<span class="fc" id="L81">        this.progress = 0.0;</span>
+<span class="fc" id="L82">        this.message = &quot;queued&quot;;</span>
+<span class="fc" id="L83">    }</span>
+
+    @PrePersist
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">    void onCreate() { if (createdAt == null) createdAt = Instant.now(); }</span>
+
+<span class="nc" id="L88">    public String getId() { return id; }</span>
+<span class="nc" id="L89">    public String getLabel() { return label; }</span>
+<span class="fc" id="L90">    public State getState() { return state; }</span>
+<span class="fc" id="L91">    public void setState(State state) { this.state = state; }</span>
+<span class="nc" id="L92">    public double getProgress() { return progress; }</span>
+<span class="fc" id="L93">    public void setProgress(double progress) { this.progress = progress; }</span>
+<span class="nc" id="L94">    public String getMessage() { return message; }</span>
+<span class="fc" id="L95">    public void setMessage(String message) { this.message = message; }</span>
+<span class="nc" id="L96">    public String getErrorMessage() { return errorMessage; }</span>
+<span class="nc" id="L97">    public void setErrorMessage(String e) { this.errorMessage = e; }</span>
+<span class="fc" id="L98">    public String getOwnerId() { return ownerId; }</span>
+<span class="fc" id="L99">    public void setOwnerId(String ownerId) { this.ownerId = ownerId; }</span>
+<span class="fc" id="L100">    public byte[] getResultPng() { return resultPng; }</span>
+<span class="fc" id="L101">    public void setResultPng(byte[] resultPng) { this.resultPng = resultPng; }</span>
+<span class="nc" id="L102">    public Double getResultPixelSizeMm() { return resultPixelSizeMm; }</span>
+<span class="fc" id="L103">    public void setResultPixelSizeMm(Double v) { this.resultPixelSizeMm = v; }</span>
+<span class="fc" id="L104">    public Integer getResultWidthPx() { return resultWidthPx; }</span>
+<span class="fc" id="L105">    public void setResultWidthPx(Integer v) { this.resultWidthPx = v; }</span>
+<span class="nc" id="L106">    public Integer getResultHeightPx() { return resultHeightPx; }</span>
+<span class="fc" id="L107">    public void setResultHeightPx(Integer v) { this.resultHeightPx = v; }</span>
+<span class="nc" id="L108">    public Instant getCreatedAt() { return createdAt; }</span>
+<span class="nc" id="L109">    public Instant getFinishedAt() { return finishedAt; }</span>
+<span class="fc" id="L110">    public void setFinishedAt(Instant finishedAt) { this.finishedAt = finishedAt; }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

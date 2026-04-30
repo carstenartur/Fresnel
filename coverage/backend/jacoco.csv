@@ -1,0 +1,26 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+Fresnel Backend,org.fresnel.backend.persistence,RenderJobEntity.State,0,27,0,0,0,1,0,1,0,1
+Fresnel Backend,org.fresnel.backend.persistence,DesignEntity,37,57,2,2,10,19,12,8,10,8
+Fresnel Backend,org.fresnel.backend.persistence,RenderJobEntity,31,79,1,1,10,23,11,16,10,16
+Fresnel Backend,org.fresnel.backend.config,WebConfig,4,48,3,3,1,9,3,2,0,2
+Fresnel Backend,org.fresnel.backend.jobs,RenderJob,87,106,12,4,19,30,13,13,6,12
+Fresnel Backend,org.fresnel.backend.jobs,RenderJobService,127,230,17,9,29,53,18,11,5,10
+Fresnel Backend,org.fresnel.backend.jobs,RenderJob.State,0,27,0,0,0,1,0,1,0,1
+Fresnel Backend,org.fresnel.backend.api,DesignDocument,0,40,5,7,0,7,5,3,0,2
+Fresnel Backend,org.fresnel.backend.api,DesignController,147,387,11,13,21,79,18,22,7,21
+Fresnel Backend,org.fresnel.backend.api,RgbZonePlateRequest,0,15,0,0,0,1,0,1,0,1
+Fresnel Backend,org.fresnel.backend.api,HologramController,65,228,7,11,10,48,7,10,1,7
+Fresnel Backend,org.fresnel.backend.api,ValidationResponse.WarningDto,0,12,0,0,0,1,0,1,0,1
+Fresnel Backend,org.fresnel.backend.api,SingleZonePlateRequest,10,63,4,4,0,10,4,2,0,2
+Fresnel Backend,org.fresnel.backend.api,HologramRequest,0,18,0,0,0,1,0,1,0,1
+Fresnel Backend,org.fresnel.backend.api,RenderJobController,151,135,10,8,35,35,14,9,7,7
+Fresnel Backend,org.fresnel.backend.api,MultiFocusRequest.FocusPointDto,0,25,0,0,0,2,0,2,0,2
+Fresnel Backend,org.fresnel.backend.api,HexMacroCellRequest,10,75,4,4,0,9,4,2,0,2
+Fresnel Backend,org.fresnel.backend.api,WindowFoilRequest,21,89,6,6,1,10,5,3,0,2
+Fresnel Backend,org.fresnel.backend.api,ValidationResponse,0,39,0,0,0,5,0,3,0,3
+Fresnel Backend,org.fresnel.backend.api,DesignDocumentController,181,181,32,18,29,48,29,11,6,9
+Fresnel Backend,org.fresnel.backend.api,WindowFoilRequest.CellSpecDto,35,0,4,0,5,0,4,0,2,0
+Fresnel Backend,org.fresnel.backend.api,GlobalExceptionHandler,2,14,1,1,0,4,1,2,0,2
+Fresnel Backend,org.fresnel.backend.api,MultiFocusRequest,4,66,2,4,0,7,2,3,0,2
+Fresnel Backend,org.fresnel.backend,FresnelBackendApplication,5,3,0,0,2,1,1,1,1,1
+Fresnel Backend,org.fresnel.backend.security,SecurityConfig,0,212,0,0,0,26,0,9,0,9

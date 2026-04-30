@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesignEntity.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.persistence</a> &gt; <span class="el_source">DesignEntity.java</span></div><h1>DesignEntity.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.persistence;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * Persisted Fresnel design envelope.
+ *
+ * &lt;p&gt;Mirrors {@link org.fresnel.backend.api.DesignDocument} (kind / version / payload),
+ * adds {@code id}, an optional human-friendly {@code name}, audit timestamps and an
+ * optional {@code ownerId} (populated from the authenticated principal once Spring
+ * Security is enabled — left nullable for now to keep anonymous save/load working).
+ *
+ * &lt;p&gt;The payload is stored as a JSON string. The Flyway-managed schema declares
+ * {@code jsonb} on Postgres and {@code CLOB} on H2, both of which Hibernate writes
+ * a String to without a vendor-specific {@code JsonType}.
+ */
+@Entity
+@Table(name = &quot;designs&quot;, indexes = {
+        @Index(name = &quot;idx_designs_owner&quot;, columnList = &quot;owner_id&quot;),
+        @Index(name = &quot;idx_designs_created_at&quot;, columnList = &quot;created_at&quot;)
+})
+public class DesignEntity {
+
+    @Id
+    @Column(name = &quot;id&quot;, nullable = false, updatable = false)
+    private UUID id;
+
+    @Column(name = &quot;kind&quot;, nullable = false, length = 32)
+    private String kind;
+
+    @Column(name = &quot;schema_version&quot;, nullable = false)
+    private int schemaVersion;
+
+    @Column(name = &quot;name&quot;, length = 256)
+    private String name;
+
+    @Column(name = &quot;owner_id&quot;, length = 128)
+    private String ownerId;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = &quot;payload&quot;, nullable = false)
+    private String payloadJson;
+
+    @Column(name = &quot;created_at&quot;, nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = &quot;updated_at&quot;, nullable = false)
+    private Instant updatedAt;
+
+<span class="nc" id="L61">    public DesignEntity() {}</span>
+
+    public DesignEntity(UUID id, String kind, int schemaVersion, String name,
+<span class="fc" id="L64">                        String ownerId, String payloadJson) {</span>
+<span class="fc" id="L65">        this.id = id;</span>
+<span class="fc" id="L66">        this.kind = kind;</span>
+<span class="fc" id="L67">        this.schemaVersion = schemaVersion;</span>
+<span class="fc" id="L68">        this.name = name;</span>
+<span class="fc" id="L69">        this.ownerId = ownerId;</span>
+<span class="fc" id="L70">        this.payloadJson = payloadJson;</span>
+<span class="fc" id="L71">    }</span>
+
+    @PrePersist
+    void onCreate() {
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        if (id == null) id = UUID.randomUUID();</span>
+<span class="fc" id="L76">        Instant now = Instant.now();</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">        if (createdAt == null) createdAt = now;</span>
+<span class="fc" id="L78">        updatedAt = now;</span>
+<span class="fc" id="L79">    }</span>
+
+    @PreUpdate
+<span class="nc" id="L82">    void onUpdate() { updatedAt = Instant.now(); }</span>
+
+<span class="fc" id="L84">    public UUID getId() { return id; }</span>
+<span class="nc" id="L85">    public void setId(UUID id) { this.id = id; }</span>
+<span class="fc" id="L86">    public String getKind() { return kind; }</span>
+<span class="nc" id="L87">    public void setKind(String kind) { this.kind = kind; }</span>
+<span class="nc" id="L88">    public int getSchemaVersion() { return schemaVersion; }</span>
+<span class="nc" id="L89">    public void setSchemaVersion(int v) { this.schemaVersion = v; }</span>
+<span class="nc" id="L90">    public String getName() { return name; }</span>
+<span class="nc" id="L91">    public void setName(String name) { this.name = name; }</span>
+<span class="fc" id="L92">    public String getOwnerId() { return ownerId; }</span>
+<span class="nc" id="L93">    public void setOwnerId(String ownerId) { this.ownerId = ownerId; }</span>
+<span class="fc" id="L94">    public String getPayloadJson() { return payloadJson; }</span>
+<span class="nc" id="L95">    public void setPayloadJson(String p) { this.payloadJson = p; }</span>
+<span class="fc" id="L96">    public Instant getCreatedAt() { return createdAt; }</span>
+<span class="fc" id="L97">    public Instant getUpdatedAt() { return updatedAt; }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

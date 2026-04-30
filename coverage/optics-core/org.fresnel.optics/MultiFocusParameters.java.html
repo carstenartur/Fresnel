@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MultiFocusParameters.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">MultiFocusParameters.java</span></div><h1>MultiFocusParameters.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.util.List;
+
+/**
+ * Parameters for a multi-point / line focus zone plate. The aperture is divided
+ * into N sub-apertures (one per focus target) by a deterministic per-pixel hash;
+ * each sub-aperture diffracts toward its own (xf, yf, zf). This produces N distinct
+ * focal spots; for line focus, supply many targets along a line.
+ *
+ * @param apertureDiameterMm aperture diameter, mm
+ * @param focusPoints        list of focus targets {@code (x, y, z)} in mm relative
+ *                           to the centre of the aperture (z is the focal distance)
+ * @param wavelengthNm       wavelength, nm
+ * @param dpi                printer DPI
+ * @param maskType           binary amplitude or greyscale phase
+ * @param polarity           polarity
+ */
+public record MultiFocusParameters(
+        double apertureDiameterMm,
+        List&lt;FocusPoint&gt; focusPoints,
+        double wavelengthNm,
+        double dpi,
+        MaskType maskType,
+        Polarity polarity
+) {
+
+    /** A single (x, y, z) focus target in mm. */
+    public record FocusPoint(double xMm, double yMm, double zMm) {
+<span class="fc" id="L30">        public FocusPoint {</span>
+<span class="pc bpc" id="L31" title="1 of 2 branches missed.">            if (zMm &lt;= 0) throw new IllegalArgumentException(&quot;zMm must be &gt; 0&quot;);</span>
+<span class="fc" id="L32">        }</span>
+    }
+
+<span class="fc" id="L35">    public MultiFocusParameters {</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">        if (apertureDiameterMm &lt;= 0) throw new IllegalArgumentException(&quot;apertureDiameterMm must be &gt; 0&quot;);</span>
+<span class="pc bpc" id="L37" title="1 of 4 branches missed.">        if (focusPoints == null || focusPoints.isEmpty())</span>
+<span class="fc" id="L38">            throw new IllegalArgumentException(&quot;focusPoints must not be empty&quot;);</span>
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">        if (wavelengthNm &lt;= 0) throw new IllegalArgumentException(&quot;wavelengthNm must be &gt; 0&quot;);</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">        if (dpi &lt;= 0) throw new IllegalArgumentException(&quot;dpi must be &gt; 0&quot;);</span>
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">        if (maskType == null) throw new IllegalArgumentException(&quot;maskType must not be null&quot;);</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (polarity == null) throw new IllegalArgumentException(&quot;polarity must not be null&quot;);</span>
+<span class="fc" id="L43">        focusPoints = List.copyOf(focusPoints);</span>
+<span class="fc" id="L44">    }</span>
+
+    /** Build a line-focus design with {@code n} equally-spaced points between two endpoints. */
+    public static List&lt;FocusPoint&gt; lineOfPoints(
+            double x0, double y0, double z0,
+            double x1, double y1, double z1, int n) {
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">        if (n &lt; 2) throw new IllegalArgumentException(&quot;n must be ≥ 2&quot;);</span>
+<span class="fc" id="L51">        List&lt;FocusPoint&gt; out = new java.util.ArrayList&lt;&gt;(n);</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        for (int i = 0; i &lt; n; i++) {</span>
+<span class="fc" id="L53">            double t = (double) i / (n - 1);</span>
+<span class="fc" id="L54">            out.add(new FocusPoint(</span>
+                    x0 + t * (x1 - x0),
+                    y0 + t * (y1 - y0),
+                    z0 + t * (z1 - z0)));
+        }
+<span class="fc" id="L59">        return out;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

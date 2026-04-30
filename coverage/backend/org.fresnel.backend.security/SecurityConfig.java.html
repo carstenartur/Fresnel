@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SecurityConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.security</a> &gt; <span class="el_source">SecurityConfig.java</span></div><h1>SecurityConfig.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.security;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.SecurityFilterChain;
+
+/**
+ * Stateless HTTP-Basic security configuration for the Fresnel backend.
+ *
+ * &lt;p&gt;Public, read-only endpoints (validate, preview, info, GET design persistence
+ * by id) remain accessible to unauthenticated callers so the SPA stays usable
+ * without login. All mutating endpoints (POST design save/persist, POST job
+ * submissions, hologram submit, DELETE) require an authenticated principal.
+ *
+ * &lt;p&gt;Two users are seeded from configuration ({@code fresnel.security.user.*} and
+ * {@code fresnel.security.admin.*}) — these are placeholder credentials suitable
+ * for local development; for any non-throwaway environment override the
+ * passwords via environment variables (see README).
+ *
+ * &lt;p&gt;Sessions are stateless (no {@code JSESSIONID}). CSRF is disabled for the
+ * {@code /api/**} surface because authentication is conveyed by the {@code
+ * Authorization} header on every request, not by a cookie that an attacker could
+ * piggy-back via a forged form.
+ */
+@Configuration
+<span class="fc" id="L35">public class SecurityConfig {</span>
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+<span class="fc" id="L39">        http</span>
+<span class="fc" id="L40">                .sessionManagement(s -&gt; s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))</span>
+                // CSRF protection is disabled only for the stateless REST surface.
+                // Authentication is conveyed by the Authorization header on every
+                // request (HTTP Basic), not by a session cookie that an attacker
+                // could ride via a forged form, so the standard CSRF threat model
+                // does not apply. Any non-/api/** routes (e.g. the static SPA shell
+                // served from /, /index.html, /assets/**) keep the default CSRF
+                // protection enabled.
+<span class="fc" id="L48">                .csrf(csrf -&gt; csrf.ignoringRequestMatchers(&quot;/api/**&quot;))</span>
+<span class="fc" id="L49">                .cors(cors -&gt; {})</span>
+<span class="fc" id="L50">                .authorizeHttpRequests(auth -&gt; auth</span>
+                        // Public read-only endpoints.
+<span class="fc" id="L52">                        .requestMatchers(HttpMethod.GET,</span>
+                                &quot;/api/designs/persist/**&quot;,
+                                &quot;/api/designs/preview*&quot;,
+                                &quot;/api/designs/*/info&quot;,
+                                &quot;/api/jobs/*&quot;,
+                                &quot;/api/jobs/*/events&quot;,
+                                &quot;/api/jobs/*/result.png&quot;,
+                                &quot;/error&quot;, &quot;/&quot;, &quot;/index.html&quot;,
+<span class="fc" id="L60">                                &quot;/assets/**&quot;, &quot;/static/**&quot;, &quot;/favicon.ico&quot;).permitAll()</span>
+<span class="fc" id="L61">                        .requestMatchers(HttpMethod.POST,</span>
+                                &quot;/api/designs/validate&quot;,
+                                &quot;/api/designs/preview.png&quot;,
+                                &quot;/api/designs/load&quot;,
+                                &quot;/api/designs/*/info&quot;,
+<span class="fc" id="L66">                                &quot;/api/designs/*/preview.png&quot;).permitAll()</span>
+                        // Mutating endpoints require an authenticated user.
+<span class="fc" id="L68">                        .requestMatchers(HttpMethod.POST,</span>
+                                &quot;/api/designs/save&quot;,
+                                &quot;/api/designs/persist&quot;,
+                                &quot;/api/designs/export*&quot;,
+                                &quot;/api/designs/*/export*&quot;,
+                                &quot;/api/jobs/**&quot;,
+<span class="fc" id="L74">                                &quot;/api/holograms/**&quot;).authenticated()</span>
+<span class="fc" id="L75">                        .requestMatchers(HttpMethod.DELETE, &quot;/api/**&quot;).authenticated()</span>
+<span class="fc" id="L76">                        .anyRequest().permitAll())</span>
+<span class="fc" id="L77">                .httpBasic(basic -&gt; {});</span>
+<span class="fc" id="L78">        return http.build();</span>
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+<span class="fc" id="L83">        return PasswordEncoderFactories.createDelegatingPasswordEncoder();</span>
+    }
+
+    @Bean
+    public InMemoryUserDetailsManager userDetailsService(
+            PasswordEncoder encoder,
+            @Value(&quot;${fresnel.security.user.username:user}&quot;) String userName,
+            @Value(&quot;${fresnel.security.user.password:user}&quot;) String userPassword,
+            @Value(&quot;${fresnel.security.admin.username:admin}&quot;) String adminName,
+            @Value(&quot;${fresnel.security.admin.password:admin}&quot;) String adminPassword) {
+<span class="fc" id="L93">        UserDetails user = User.withUsername(userName)</span>
+<span class="fc" id="L94">                .password(encoder.encode(userPassword))</span>
+<span class="fc" id="L95">                .roles(&quot;USER&quot;)</span>
+<span class="fc" id="L96">                .build();</span>
+<span class="fc" id="L97">        UserDetails admin = User.withUsername(adminName)</span>
+<span class="fc" id="L98">                .password(encoder.encode(adminPassword))</span>
+<span class="fc" id="L99">                .roles(&quot;USER&quot;, &quot;ADMIN&quot;)</span>
+<span class="fc" id="L100">                .build();</span>
+<span class="fc" id="L101">        return new InMemoryUserDetailsManager(user, admin);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

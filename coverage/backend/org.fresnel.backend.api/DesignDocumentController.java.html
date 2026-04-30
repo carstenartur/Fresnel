@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesignDocumentController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">DesignDocumentController.java</span></div><h1>DesignDocumentController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import org.fresnel.backend.persistence.DesignEntity;
+import org.fresnel.backend.persistence.DesignRepository;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Save / load endpoints for {@link DesignDocument} envelopes.
+ *
+ * &lt;p&gt;This controller offers two complementary persistence modes:
+ *
+ * &lt;ul&gt;
+ *   &lt;li&gt;&lt;b&gt;Stateless round-trip&lt;/b&gt;: {@code POST /save} returns the canonicalised
+ *       JSON as a downloadable attachment; {@code POST /load} validates and echoes
+ *       a posted document. Used by the SPA's &quot;Download / upload JSON&quot; buttons.
+ *   &lt;li&gt;&lt;b&gt;Server-side persistence&lt;/b&gt;: {@code POST /persist} stores the design
+ *       in the database (Postgres in production, H2 in local/dev/tests) and returns
+ *       the assigned UUID; {@code GET /persist} lists designs scoped to the caller
+ *       (admin sees all); {@code GET /persist/{id}} loads a specific design.
+ * &lt;/ul&gt;
+ */
+@RestController
+@RequestMapping(&quot;/api/designs&quot;)
+public class DesignDocumentController {
+
+    private final ObjectMapper mapper;
+    private final DesignRepository repository;
+
+<span class="fc" id="L47">    public DesignDocumentController(ObjectMapper mapper, DesignRepository repository) {</span>
+<span class="fc" id="L48">        this.mapper = mapper;</span>
+<span class="fc" id="L49">        this.repository = repository;</span>
+<span class="fc" id="L50">    }</span>
+
+    // -------- Stateless round-trip (existing API) --------
+
+    @PostMapping(value = &quot;/save&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;byte[]&gt; save(@RequestBody DesignDocument doc) throws Exception {
+<span class="fc" id="L58">        validate(doc);</span>
+<span class="fc" id="L59">        DesignDocument normalised = new DesignDocument(</span>
+<span class="fc" id="L60">                doc.kind(),</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">                doc.version() &lt;= 0 ? DesignDocument.SCHEMA_VERSION : doc.version(),</span>
+<span class="fc" id="L62">                doc.payload());</span>
+<span class="fc" id="L63">        byte[] body = mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(normalised);</span>
+<span class="fc" id="L64">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="fc" id="L65">        headers.setContentType(MediaType.APPLICATION_JSON);</span>
+<span class="fc" id="L66">        headers.set(HttpHeaders.CONTENT_DISPOSITION,</span>
+<span class="fc" id="L67">                &quot;attachment; filename=\&quot;fresnel-design-&quot; + normalised.kind() + &quot;.json\&quot;&quot;);</span>
+<span class="fc" id="L68">        return ResponseEntity.ok().headers(headers).body(body);</span>
+    }
+
+    @PostMapping(value = &quot;/load&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public DesignDocument load(@RequestBody DesignDocument doc) {
+<span class="fc" id="L75">        validate(doc);</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (doc.version() &gt; DesignDocument.SCHEMA_VERSION) {</span>
+<span class="fc" id="L77">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L78">                    &quot;Design schema version &quot; + doc.version() + &quot; is newer than supported (&quot;</span>
+                            + DesignDocument.SCHEMA_VERSION + &quot;). Please upgrade.&quot;);
+        }
+<span class="fc" id="L81">        return doc;</span>
+    }
+
+    // -------- Server-side persistence --------
+
+    @PostMapping(value = &quot;/persist&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public Map&lt;String, String&gt; persist(@RequestBody DesignDocument doc) throws Exception {
+<span class="fc" id="L90">        validate(doc);</span>
+<span class="pc bpc" id="L91" title="3 of 4 branches missed.">        String name = (doc.payload().has(&quot;name&quot;) &amp;&amp; doc.payload().get(&quot;name&quot;).isTextual())</span>
+<span class="pc" id="L92">                ? doc.payload().get(&quot;name&quot;).asText() : null;</span>
+<span class="fc" id="L93">        DesignEntity entity = new DesignEntity(</span>
+                null,
+<span class="fc" id="L95">                doc.kind(),</span>
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">                doc.version() &lt;= 0 ? DesignDocument.SCHEMA_VERSION : doc.version(),</span>
+                name,
+<span class="fc" id="L98">                currentOwnerOrNull(),</span>
+<span class="fc" id="L99">                mapper.writeValueAsString(doc.payload()));</span>
+<span class="fc" id="L100">        DesignEntity saved = repository.save(entity);</span>
+<span class="fc" id="L101">        return Map.of(&quot;id&quot;, saved.getId().toString());</span>
+    }
+
+    @GetMapping(value = &quot;/persist&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public List&lt;Map&lt;String, Object&gt;&gt; list() {
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        List&lt;DesignEntity&gt; rows = isAdmin()</span>
+<span class="nc" id="L107">                ? repository.findAllByOrderByCreatedAtDesc()</span>
+<span class="fc" id="L108">                : repository.findAllByOwnerIdOrderByCreatedAtDesc(currentOwnerOrNull());</span>
+<span class="pc" id="L109">        return rows.stream().map(e -&gt; Map.&lt;String, Object&gt;of(</span>
+<span class="nc" id="L110">                &quot;id&quot;, e.getId().toString(),</span>
+<span class="nc" id="L111">                &quot;kind&quot;, e.getKind(),</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                &quot;name&quot;, e.getName() == null ? &quot;&quot; : e.getName(),</span>
+<span class="nc" id="L113">                &quot;version&quot;, e.getSchemaVersion(),</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">                &quot;ownerId&quot;, e.getOwnerId() == null ? &quot;&quot; : e.getOwnerId(),</span>
+<span class="nc" id="L115">                &quot;createdAt&quot;, e.getCreatedAt().toString(),</span>
+<span class="pc" id="L116">                &quot;updatedAt&quot;, e.getUpdatedAt().toString())).toList();</span>
+    }
+
+    @GetMapping(value = &quot;/persist/{id}&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public DesignDocument loadById(@PathVariable(&quot;id&quot;) String id) throws Exception {
+<span class="nc" id="L121">        UUID uuid = parseUuid(id);</span>
+<span class="nc" id="L122">        DesignEntity entity = repository.findById(uuid)</span>
+<span class="nc" id="L123">                .orElseThrow(() -&gt; new ResponseStatusException(</span>
+                        org.springframework.http.HttpStatus.NOT_FOUND, &quot;design not found: &quot; + id));
+<span class="nc bnc" id="L125" title="All 4 branches missed.">        if (!isAdmin() &amp;&amp; entity.getOwnerId() != null</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">                &amp;&amp; !entity.getOwnerId().equals(currentOwnerOrNull())) {</span>
+<span class="nc" id="L127">            throw new ResponseStatusException(</span>
+                    org.springframework.http.HttpStatus.FORBIDDEN, &quot;not the owner&quot;);
+        }
+<span class="nc" id="L130">        JsonNode payload = mapper.readTree(entity.getPayloadJson());</span>
+<span class="nc" id="L131">        return new DesignDocument(entity.getKind(), entity.getSchemaVersion(), payload);</span>
+    }
+
+    @DeleteMapping(value = &quot;/persist/{id}&quot;)
+    public ResponseEntity&lt;Void&gt; deleteById(@PathVariable(&quot;id&quot;) String id) {
+<span class="nc" id="L136">        UUID uuid = parseUuid(id);</span>
+<span class="nc" id="L137">        DesignEntity entity = repository.findById(uuid)</span>
+<span class="nc" id="L138">                .orElseThrow(() -&gt; new ResponseStatusException(</span>
+                        org.springframework.http.HttpStatus.NOT_FOUND, &quot;design not found: &quot; + id));
+<span class="nc bnc" id="L140" title="All 4 branches missed.">        if (!isAdmin() &amp;&amp; entity.getOwnerId() != null</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                &amp;&amp; !entity.getOwnerId().equals(currentOwnerOrNull())) {</span>
+<span class="nc" id="L142">            throw new ResponseStatusException(</span>
+                    org.springframework.http.HttpStatus.FORBIDDEN, &quot;not the owner&quot;);
+        }
+<span class="nc" id="L145">        repository.delete(entity);</span>
+<span class="nc" id="L146">        return ResponseEntity.noContent().build();</span>
+    }
+
+    // -------- Helpers --------
+
+    private static UUID parseUuid(String id) {
+<span class="nc" id="L152">        try { return UUID.fromString(id); }</span>
+<span class="nc" id="L153">        catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L154">            throw new ResponseStatusException(</span>
+                    org.springframework.http.HttpStatus.BAD_REQUEST, &quot;invalid UUID: &quot; + id);
+        }
+    }
+
+    private static String currentOwnerOrNull() {
+<span class="fc" id="L160">        Authentication auth = SecurityContextHolder.getContext().getAuthentication();</span>
+<span class="pc bpc" id="L161" title="2 of 4 branches missed.">        if (auth == null || !auth.isAuthenticated()) return null;</span>
+<span class="fc" id="L162">        String name = auth.getName();</span>
+<span class="pc bpc" id="L163" title="2 of 4 branches missed.">        return (name == null || &quot;anonymousUser&quot;.equals(name)) ? null : name;</span>
+    }
+
+    private static boolean isAdmin() {
+<span class="fc" id="L167">        Authentication auth = SecurityContextHolder.getContext().getAuthentication();</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">        if (auth == null) return false;</span>
+<span class="fc" id="L169">        return auth.getAuthorities().stream()</span>
+<span class="fc" id="L170">                .anyMatch(a -&gt; &quot;ROLE_ADMIN&quot;.equals(a.getAuthority()));</span>
+    }
+
+    private static void validate(DesignDocument doc) {
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (doc == null) {</span>
+<span class="nc" id="L175">            throw new IllegalArgumentException(&quot;design document must not be null&quot;);</span>
+        }
+<span class="pc bpc" id="L177" title="2 of 4 branches missed.">        if (doc.kind() == null || doc.kind().isBlank()) {</span>
+<span class="nc" id="L178">            throw new IllegalArgumentException(&quot;design document 'kind' must not be empty&quot;);</span>
+        }
+<span class="fc bfc" id="L180" title="All 2 branches covered.">        if (!DesignDocument.isKnownKind(doc.kind())) {</span>
+<span class="fc" id="L181">            throw new IllegalArgumentException(&quot;unknown design kind: &quot; + doc.kind());</span>
+        }
+<span class="pc bpc" id="L183" title="2 of 4 branches missed.">        if (doc.payload() == null || doc.payload().isNull()) {</span>
+<span class="nc" id="L184">            throw new IllegalArgumentException(&quot;design document 'payload' must not be empty&quot;);</span>
+        }
+<span class="fc" id="L186">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>
