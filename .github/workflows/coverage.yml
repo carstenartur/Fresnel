@@ -20,7 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: gh-pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

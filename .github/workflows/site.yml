@@ -1,0 +1,83 @@
+name: Maven Site
+
+# Generates the Maven site (project reports, Surefire HTML, JaCoCo) for every
+# Maven module and publishes the aggregated result to GitHub Pages under the
+# /site sub-path (the /coverage sub-path is owned by the Coverage workflow).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  site:
+    name: Maven Site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build, test and generate Maven Site
+        run: mvn -B -ntp -Pno-frontend verify site
+
+      - name: Stage site for upload
+        run: |
+          mkdir -p site/optics-core site/backend
+          cp -r optics-core/target/site/. site/optics-core/
+          cp -r backend/target/site/.     site/backend/
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <title>Fresnel — Maven Site</title>
+            <style>
+              body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2em auto; padding: 0 1em; }
+              h1 { color: #0066cc; }
+              li { margin: .5em 0; }
+              a { color: #0066cc; }
+            </style>
+          </head>
+          <body>
+            <h1>Fresnel — Maven Site</h1>
+            <p>Per-module Maven site reports (Surefire, JaCoCo, project info), regenerated from the
+              <a href="https://github.com/carstenartur/Fresnel/actions/workflows/site.yml">Site workflow</a>.</p>
+            <ul>
+              <li><a href="optics-core/index.html">optics-core</a></li>
+              <li><a href="backend/index.html">backend</a></li>
+            </ul>
+          </body>
+          </html>
+          HTML
+
+      - name: Upload Maven Site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: maven-site
+          path: site
+          retention-days: 14
+
+      - name: Deploy Maven Site to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          destination_dir: site
+          keep_files: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'Deploy Maven site'
