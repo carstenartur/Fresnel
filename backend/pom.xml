@@ -149,7 +149,7 @@
                     <!-- 2. Copy the built frontend assets into the Spring Boot static dir. -->
                     <plugin>
                         <artifactId>maven-resources-plugin</artifactId>
-                        <version>3.3.1</version>
+                        <version>3.5.0</version>
                         <executions>
                             <execution>
                                 <id>copy-frontend-dist</id>
