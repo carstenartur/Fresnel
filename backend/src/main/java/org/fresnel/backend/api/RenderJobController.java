@@ -144,10 +144,17 @@ public class RenderJobController {
                     .contentType(MediaType.TEXT_PLAIN)
                     .body(("job not yet complete (state=" + job.state() + ")").getBytes());
         }
+        byte[] png;
         RenderResult r = job.result();
-        // Find a sensible DPI: derive from pixel size (mm/pixel → dpi = 25.4 / mmPerPixel).
-        double dpi = 25.4 / r.pixelSizeMm();
-        byte[] png = PngExporter.toPngBytes(r, dpi);
+        if (r != null) {
+            // Live in-memory result.
+            double dpi = 25.4 / r.pixelSizeMm();
+            png = PngExporter.toPngBytes(r, dpi);
+        } else {
+            // Rehydrated from DB (no in-memory image) — serve the persisted PNG.
+            png = jobs.resultPng(id).orElse(null);
+            if (png == null) return ResponseEntity.notFound().build();
+        }
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.IMAGE_PNG);
         h.setContentDisposition(org.springframework.http.ContentDisposition.attachment()

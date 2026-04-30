@@ -75,6 +75,25 @@ public final class RenderJob {
         return s == State.COMPLETED || s == State.FAILED;
     }
 
+    /**
+     * Used by {@link org.fresnel.backend.jobs.RenderJobService} to rehydrate a
+     * read-only snapshot from a persisted {@code COMPLETED} record. The result
+     * payload itself is not stored on the snapshot — clients fetch the PNG via
+     * {@code RenderJobService.resultPng(id)}.
+     */
+    public void markCompletedExternally(double progress, String message) {
+        this.progress = Math.max(0.0, Math.min(1.0, progress));
+        if (message != null) this.message = message;
+        state.set(State.COMPLETED);
+    }
+
+    /** Counterpart of {@link #markCompletedExternally} for failed persisted jobs. */
+    public void markFailedExternally(String message, String errorMessage) {
+        if (message != null) this.message = message;
+        if (errorMessage != null) this.error = new RuntimeException(errorMessage);
+        state.set(State.FAILED);
+    }
+
     private void notifyListeners() {
         for (Consumer<RenderJob> l : listeners) {
             try { l.accept(this); } catch (RuntimeException ignored) { /* never let a listener crash the producer */ }

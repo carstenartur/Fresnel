@@ -1,0 +1,105 @@
+name: Coverage
+
+# Generates JaCoCo coverage reports for both Maven modules and publishes the
+# aggregated HTML to GitHub Pages so the README badge can link to a live report.
+#
+# Runs on every push to main, on PRs (report uploaded as artifact only — gh-pages
+# is reserved for main), and on a daily schedule to keep the published report
+# fresh even when development goes quiet.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    name: JaCoCo coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build & test with coverage
+        run: mvn -B -ntp verify
+
+      - name: Stage coverage reports for Pages
+        run: |
+          mkdir -p site/coverage/optics-core site/coverage/backend
+          cp -r optics-core/target/site/jacoco/. site/coverage/optics-core/
+          cp -r backend/target/site/jacoco/.     site/coverage/backend/
+          # Tiny landing page that links to both module reports.
+          cat > site/coverage/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <title>Fresnel — JaCoCo coverage</title>
+            <style>
+              body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2em auto; padding: 0 1em; }
+              h1 { color: #0066cc; }
+              li { margin: .5em 0; }
+              a { color: #0066cc; }
+            </style>
+          </head>
+          <body>
+            <h1>Fresnel — JaCoCo coverage</h1>
+            <p>Per-module HTML coverage reports, regenerated from the
+              <a href="https://github.com/carstenartur/Fresnel/actions/workflows/coverage.yml">Coverage workflow</a>.</p>
+            <ul>
+              <li><a href="optics-core/index.html">optics-core</a></li>
+              <li><a href="backend/index.html">backend</a></li>
+            </ul>
+          </body>
+          </html>
+          HTML
+
+      - name: Coverage summary
+        run: |
+          echo "### 📊 JaCoCo coverage" >> "$GITHUB_STEP_SUMMARY"
+          for csv in optics-core/target/site/jacoco/jacoco.csv backend/target/site/jacoco/jacoco.csv; do
+            module=$(echo "$csv" | cut -d/ -f1)
+            covered=$(awk -F',' 'NR>1 {c+=$5} END {print c}' "$csv")
+            missed=$(awk  -F',' 'NR>1 {m+=$4} END {print m}' "$csv")
+            total=$((covered + missed))
+            if [ "$total" -gt 0 ]; then
+              pct=$(awk -v c="$covered" -v t="$total" 'BEGIN { printf "%.1f", (c/t)*100 }')
+              echo "- **${module}**: ${pct}% line coverage (${covered}/${total})" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-coverage
+          path: site/coverage
+          retention-days: 14
+
+      - name: Deploy coverage to GitHub Pages
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site/coverage
+          destination_dir: coverage
+          keep_files: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'Deploy JaCoCo coverage report'

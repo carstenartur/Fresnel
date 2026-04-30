@@ -1,0 +1,97 @@
+name: E2E
+
+# End-to-end tests using Playwright (chromium) against:
+#  - Vite dev server (frontend/)
+#  - Spring Boot backend launched as a background process
+#
+# The backend uses the H2 default profile so no external services are required.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright E2E (chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build backend (skip tests — already covered by CI workflow)
+        run: mvn -B -ntp -DskipTests package
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --legacy-peer-deps
+
+      - name: Install Playwright browsers (chromium only)
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Start backend (H2 profile)
+        run: |
+          JAR=$(ls backend/target/backend-*.jar | head -1)
+          nohup java -jar "$JAR" > backend.log 2>&1 &
+          echo $! > backend.pid
+          # Wait for the backend to come up (up to 60s).
+          for i in $(seq 1 60); do
+            if curl -sf -u user:user http://localhost:8080/api/designs/persist > /dev/null; then
+              echo "Backend ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Backend failed to start; logs:"
+          cat backend.log
+          exit 1
+
+      - name: Run Playwright tests
+        working-directory: frontend
+        env:
+          CI: 'true'
+          E2E_USER: user
+          E2E_PASSWORD: user
+        run: npm run e2e
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f backend.pid ]; then
+            kill "$(cat backend.pid)" || true
+          fi
+
+      - name: Upload Playwright HTML report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7
+
+      - name: Upload backend log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log
+          path: backend.log
+          retention-days: 7
