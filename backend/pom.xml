@@ -92,14 +92,13 @@
 
     <profiles>
         <!-- Default profile: includes frontend build.
-             Disable with -Pno-frontend for pure backend builds (e.g. coverage CI). -->
+             Disable with -Pno-frontend for pure backend builds (e.g. Docker backend-build stage).
+             activeByDefault is suppressed whenever any other profile is explicitly activated,
+             so -Pno-frontend reliably prevents this profile from running. -->
         <profile>
             <id>frontend</id>
             <activation>
                 <activeByDefault>true</activeByDefault>
-                <property>
-                    <name>!skipFrontend</name>
-                </property>
             </activation>
             <build>
                 <plugins>
@@ -174,14 +173,11 @@
         </profile>
 
         <!-- Opt-out profile: skips all frontend steps entirely.
-             Activate with -Pno-frontend. -->
+             Activate with -Pno-frontend.
+             Activating this profile suppresses the frontend profile because activeByDefault
+             is only effective when no other profiles are explicitly activated. -->
         <profile>
             <id>no-frontend</id>
-            <build>
-                <plugins>
-                    <!-- Disable the frontend-maven-plugin executions when no-frontend is active. -->
-                </plugins>
-            </build>
         </profile>
     </profiles>
 </project>
