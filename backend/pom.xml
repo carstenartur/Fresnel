@@ -106,7 +106,6 @@
                     <plugin>
                         <groupId>com.github.eirslett</groupId>
                         <artifactId>frontend-maven-plugin</artifactId>
-                        <version>2.0.0</version>
                         <configuration>
                             <workingDirectory>${project.basedir}/../frontend</workingDirectory>
                             <installDirectory>${project.build.directory}</installDirectory>
@@ -175,9 +174,23 @@
         <!-- Opt-out profile: skips all frontend steps entirely.
              Activate with -Pno-frontend.
              Activating this profile suppresses the frontend profile because activeByDefault
-             is only effective when no other profiles are explicitly activated. -->
+             is only effective when no other profiles are explicitly activated.
+             The frontend-maven-plugin is also explicitly configured with skip=true here
+             so that Maven's profile-config merging guarantees the plugin is skipped even
+             in environments where activeByDefault suppression does not take effect. -->
         <profile>
             <id>no-frontend</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <configuration>
+                            <skip>true</skip>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 </project>
