@@ -182,12 +182,31 @@
              Normally, activating any explicit profile suppresses the frontend profile's
              activeByDefault, but we also override frontend.skip=true here as a safety net
              for environments where that suppression does not take effect reliably.
-             The property can also be set directly on the command line: -Dfrontend.skip=true. -->
+             The property can also be set directly on the command line: -Dfrontend.skip=true.
+             The maven-resources-plugin copy-frontend-dist execution is also rebound to
+             phase 'none' (by execution ID) so it cannot run even if the frontend profile
+             stays active, guarding against the same edge case. -->
         <profile>
             <id>no-frontend</id>
             <properties>
                 <frontend.skip>true</frontend.skip>
             </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <executions>
+                            <!-- Rebind copy-frontend-dist to phase 'none' so it never runs
+                                 when no-frontend is active, even if the frontend profile is
+                                 also active (activeByDefault suppression edge case). -->
+                            <execution>
+                                <id>copy-frontend-dist</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 </project>
