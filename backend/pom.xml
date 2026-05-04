@@ -73,6 +73,11 @@
         </dependency>
     </dependencies>
 
+    <properties>
+        <!-- Set to true to skip all frontend-maven-plugin executions (e.g. -Dfrontend.skip=true or via the no-frontend profile). -->
+        <frontend.skip>false</frontend.skip>
+    </properties>
+
     <build>
         <plugins>
             <plugin>
@@ -106,10 +111,10 @@
                     <plugin>
                         <groupId>com.github.eirslett</groupId>
                         <artifactId>frontend-maven-plugin</artifactId>
-                        <version>2.0.0</version>
                         <configuration>
                             <workingDirectory>${project.basedir}/../frontend</workingDirectory>
                             <installDirectory>${project.build.directory}</installDirectory>
+                            <skip>${frontend.skip}</skip>
                         </configuration>
                         <executions>
                             <execution>
@@ -174,10 +179,34 @@
 
         <!-- Opt-out profile: skips all frontend steps entirely.
              Activate with -Pno-frontend.
-             Activating this profile suppresses the frontend profile because activeByDefault
-             is only effective when no other profiles are explicitly activated. -->
+             Normally, activating any explicit profile suppresses the frontend profile's
+             activeByDefault, but we also override frontend.skip=true here as a safety net
+             for environments where that suppression does not take effect reliably.
+             The property can also be set directly on the command line: -Dfrontend.skip=true.
+             The maven-resources-plugin copy-frontend-dist execution is also rebound to
+             phase 'none' (by execution ID) so it cannot run even if the frontend profile
+             stays active, guarding against the same edge case. -->
         <profile>
             <id>no-frontend</id>
+            <properties>
+                <frontend.skip>true</frontend.skip>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <executions>
+                            <!-- Rebind copy-frontend-dist to phase 'none' so it never runs
+                                 when no-frontend is active, even if the frontend profile is
+                                 also active (activeByDefault suppression edge case). -->
+                            <execution>
+                                <id>copy-frontend-dist</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 </project>
