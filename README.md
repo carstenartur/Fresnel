@@ -35,8 +35,8 @@ No JDK or Node installation required — the image ships the full application
 
 ## Releases
 
-Tagged releases are created automatically when a `v*.*.*` tag is pushed (or
-manually via the *Release* workflow in GitHub Actions).  Each release publishes:
+Releases are created manually via the *Release* workflow in GitHub Actions
+(`workflow_dispatch`, input `release_version`, no `v` prefix). Each release publishes:
 
 - **`backend-<version>.jar`** — executable Spring Boot fat jar (requires JDK 21)
 - **SHA-256 checksum** for the jar
