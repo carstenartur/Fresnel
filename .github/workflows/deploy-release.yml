@@ -156,7 +156,12 @@ jobs:
         run: |
           VERSION="${{ needs.preflight.outputs.release_version }}"
           mkdir -p dist
-          JAR=$(ls backend/target/backend-*.jar | grep -v 'original' | head -1)
+          JAR="backend/target/backend-${VERSION}.jar"
+          if [ ! -f "$JAR" ]; then
+            echo "::error::Expected boot jar not found at $JAR"
+            ls -la backend/target || true
+            exit 1
+          fi
           cp "$JAR" "dist/backend-${VERSION}.jar"
           (cd dist && sha256sum "backend-${VERSION}.jar" > "backend-${VERSION}.jar.sha256")
 
@@ -190,7 +195,7 @@ jobs:
           echo "::notice::Dry run mode - would push release commit ${{ steps.release_commit.outputs.sha }} to main via temp branch + API fast-forward"
 
       - name: Cleanup temporary release branch
-        if: ${{ always() && !inputs.dry_run }}
+        if: ${{ success() && !inputs.dry_run }}
         run: |
           TEMP_BRANCH="release-temp-${{ needs.preflight.outputs.release_version }}"
           if git ls-remote --exit-code --heads origin "$TEMP_BRANCH" >/dev/null 2>&1; then
