@@ -160,11 +160,16 @@ jobs:
           cp "$JAR" "dist/backend-${VERSION}.jar"
           (cd dist && sha256sum "backend-${VERSION}.jar" > "backend-${VERSION}.jar.sha256")
 
+      - name: Capture release commit SHA
+        id: release_commit
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Push release commit to main (temp branch + API fast-forward)
         if: ${{ !inputs.dry_run }}
         run: |
           set -e
-          COMMIT_SHA=$(git rev-parse HEAD)
+          COMMIT_SHA="${{ steps.release_commit.outputs.sha }}"
           TEMP_BRANCH="release-temp-${{ needs.preflight.outputs.release_version }}"
 
           if git ls-remote --exit-code --heads origin "$TEMP_BRANCH" >/dev/null 2>&1; then
@@ -174,12 +179,15 @@ jobs:
 
           gh api "repos/${{ github.repository }}/git/refs/heads/main" \
             --method PATCH \
-            -f sha="$COMMIT_SHA"
+            -f sha="$COMMIT_SHA" || {
+              echo "::error::Failed to fast-forward main to ${COMMIT_SHA}"
+              exit 1
+            }
 
       - name: Dry run - Skip pushing release commit
         if: ${{ inputs.dry_run }}
         run: |
-          echo "::notice::Dry run mode - would push release commit $(git rev-parse HEAD) to main via temp branch + API fast-forward"
+          echo "::notice::Dry run mode - would push release commit ${{ steps.release_commit.outputs.sha }} to main via temp branch + API fast-forward"
 
       - name: Cleanup temporary release branch
         if: ${{ always() && !inputs.dry_run }}
@@ -194,7 +202,7 @@ jobs:
         run: |
           set -e
           VERSION="${{ needs.preflight.outputs.release_version }}"
-          COMMIT_SHA=$(git rev-parse HEAD)
+          COMMIT_SHA="${{ steps.release_commit.outputs.sha }}"
 
           TAG_SHA=$(gh api "repos/${{ github.repository }}/git/tags" \
             --method POST \
@@ -225,7 +233,7 @@ jobs:
             gh api "repos/${{ github.repository }}/git/refs" \
               --method POST \
               -f ref="refs/heads/${BRANCH_NAME}" \
-              -f sha="$(git rev-parse HEAD)"
+              -f sha="${{ steps.release_commit.outputs.sha }}"
           fi
 
       - name: Dry run - Skip maintenance branch creation
@@ -300,7 +308,8 @@ jobs:
 
       - name: Clean working directory
         run: |
-          git reset --hard
+          git checkout main
+          git reset --hard "${{ steps.release_commit.outputs.sha }}"
           git clean -fd
 
       - name: Bump to next SNAPSHOT version
