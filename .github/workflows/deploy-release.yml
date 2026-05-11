@@ -166,13 +166,11 @@ jobs:
           set -e
           COMMIT_SHA=$(git rev-parse HEAD)
           TEMP_BRANCH="release-temp-${{ needs.preflight.outputs.release_version }}"
-          TEMP_PUSHED=false
 
-          trap '[[ "$TEMP_PUSHED" == true ]] && git push origin ":refs/heads/${TEMP_BRANCH}" || true' EXIT
-
-          git push origin ":refs/heads/${TEMP_BRANCH}" || true
+          if git ls-remote --exit-code --heads origin "$TEMP_BRANCH" >/dev/null 2>&1; then
+            git push origin ":refs/heads/${TEMP_BRANCH}"
+          fi
           git push origin "HEAD:refs/heads/${TEMP_BRANCH}"
-          TEMP_PUSHED=true
 
           gh api "repos/${{ github.repository }}/git/refs/heads/main" \
             --method PATCH \
@@ -182,6 +180,14 @@ jobs:
         if: ${{ inputs.dry_run }}
         run: |
           echo "::notice::Dry run mode - would push release commit $(git rev-parse HEAD) to main via temp branch + API fast-forward"
+
+      - name: Cleanup temporary release branch
+        if: ${{ always() && !inputs.dry_run }}
+        run: |
+          TEMP_BRANCH="release-temp-${{ needs.preflight.outputs.release_version }}"
+          if git ls-remote --exit-code --heads origin "$TEMP_BRANCH" >/dev/null 2>&1; then
+            git push origin ":refs/heads/${TEMP_BRANCH}"
+          fi
 
       - name: Create and push annotated tag
         if: ${{ !inputs.dry_run }}
@@ -316,7 +322,9 @@ jobs:
             exit 0
           fi
 
-          git push origin ":refs/heads/${BRANCH_NAME}" || true
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
+            git push origin ":refs/heads/${BRANCH_NAME}"
+          fi
           git push origin "$BRANCH_NAME"
 
           gh pr create \
