@@ -61,9 +61,9 @@ class PluginDocImagesTest {
     void zonePlate_generateDocImages() throws IOException {
         Path dir = pluginDir("zone-plate");
 
-        // On-axis, binary amplitude, positive polarity (10 mm @ 254 dpi → ~101 px)
+        // On-axis, binary amplitude, positive polarity (10 mm @ 1200 dpi → ~473 px)
         SingleZonePlateParameters onAxis = SingleZonePlateParameters.onAxis(
-                10.0, 250.0, 550.0, 254.0);
+                10.0, 250.0, 550.0, 1200.0);
         RenderResult rOnAxis = ZonePlateRenderer.render(onAxis);
         assertNotNull(rOnAxis.image());
         assertTrue(rOnAxis.image().getWidth() > 0);
@@ -71,14 +71,14 @@ class PluginDocImagesTest {
 
         // Greyscale phase mask
         SingleZonePlateParameters greyscale = new SingleZonePlateParameters(
-                10.0, 250.0, 550.0, 254.0, 0.0, 0.0,
+                10.0, 250.0, 550.0, 1200.0, 0.0, 0.0,
                 MaskType.GREYSCALE_PHASE, Polarity.POSITIVE);
         RenderResult rGrey = ZonePlateRenderer.render(greyscale);
         savePng(rGrey.image(), dir, "greyscale-phase.png");
 
         // Negative polarity (inverted binary amplitude)
         SingleZonePlateParameters negative = new SingleZonePlateParameters(
-                10.0, 250.0, 550.0, 254.0, 0.0, 0.0,
+                10.0, 250.0, 550.0, 1200.0, 0.0, 0.0,
                 MaskType.BINARY_AMPLITUDE, Polarity.NEGATIVE);
         RenderResult rNeg = ZonePlateRenderer.render(negative);
         savePng(rNeg.image(), dir, "negative-polarity.png");
@@ -96,7 +96,7 @@ class PluginDocImagesTest {
         Path dir = pluginDir("rgb-zone-plate");
 
         SingleZonePlateParameters base = SingleZonePlateParameters.onAxis(
-                10.0, 250.0, 550.0, 254.0);
+                10.0, 250.0, 550.0, 1200.0);
         RenderResult rgb = RgbZonePlateRenderer.render(base, 630.0, 532.0, 450.0);
         assertNotNull(rgb.image());
         assertTrue(rgb.image().getWidth() > 0);
@@ -121,7 +121,7 @@ class PluginDocImagesTest {
                 List.of(
                         new MultiFocusParameters.FocusPoint(-3.0, 0.0, 300.0),
                         new MultiFocusParameters.FocusPoint(+3.0, 0.0, 300.0)),
-                550.0, 254.0,
+                550.0, 1200.0,
                 MaskType.BINARY_AMPLITUDE, Polarity.POSITIVE);
         RenderResult rTwo = MultiFocusRenderer.render(twoFoci);
         assertNotNull(rTwo.image());
@@ -132,7 +132,7 @@ class PluginDocImagesTest {
         List<MultiFocusParameters.FocusPoint> line =
                 MultiFocusParameters.lineOfPoints(-4, 0, 400, 4, 0, 400, 5);
         MultiFocusParameters lineFocus = new MultiFocusParameters(
-                10.0, line, 550.0, 254.0,
+                10.0, line, 550.0, 1200.0,
                 MaskType.BINARY_AMPLITUDE, Polarity.POSITIVE);
         RenderResult rLine = MultiFocusRenderer.render(lineFocus);
         savePng(rLine.image(), dir, "line-focus.png");
@@ -149,9 +149,9 @@ class PluginDocImagesTest {
     void hexMacroCell_generateDocImages() throws IOException {
         Path dir = pluginDir("hex-macro-cell");
 
-        // 15 mm radius macro cell with 5 mm sub-elements @ 127 dpi → ~189 px
+        // 15 mm radius macro cell with 5 mm sub-elements @ 400 dpi → ~473 px (30 mm diameter)
         HexMacroCellParameters p = HexMacroCellParameters.onAxis(
-                15.0, 5.0, 5.5, 500.0, 550.0, 127.0);
+                15.0, 5.0, 5.5, 500.0, 550.0, 400.0);
         RenderResult r = HexMacroCellRenderer.render(p);
         assertNotNull(r.image());
         assertTrue(r.image().getWidth() > 0);
@@ -169,9 +169,9 @@ class PluginDocImagesTest {
     void windowFoil_generateDocImages() throws IOException {
         Path dir = pluginDir("window-foil");
 
-        // 60 mm × 40 mm sheet at 72 dpi → ~170 × 113 px
+        // 60 mm × 40 mm sheet at 200 dpi → ~473 × 315 px
         WindowFoilParameters p = new WindowFoilParameters(
-                60.0, 40.0, 12.0, 4.0, 4.5, 550.0, 72.0,
+                60.0, 40.0, 12.0, 4.0, 4.5, 550.0, 200.0,
                 MaskType.BINARY_AMPLITUDE, Polarity.POSITIVE,
                 List.of(WindowFoilParameters.CellSpec.onAxis(1000.0)),
                 true);
@@ -194,13 +194,13 @@ class PluginDocImagesTest {
     void hologram_generateDocImages() throws IOException {
         Path dir = pluginDir("hologram");
 
-        // 64×64 checker target
-        BufferedImage target = HologramParameters.syntheticCheckerTarget(64, 8);
+        // 512×512 checker target (power-of-two, max detail within API limits)
+        BufferedImage target = HologramParameters.syntheticCheckerTarget(512, 8);
         savePng(target, dir, "target.png");
 
         // Gerchberg–Saxton synthesis (deterministic seed via default overload)
         HologramParameters p = new HologramParameters(
-                target, 50, HologramParameters.OutputType.GREYSCALE_PHASE, 1200.0);
+                target, 100, HologramParameters.OutputType.GREYSCALE_PHASE, 1200.0);
         RenderResult r = HologramSynthesizer.synthesize(p);
         assertNotNull(r.image());
         assertTrue(r.image().getWidth() > 0);
