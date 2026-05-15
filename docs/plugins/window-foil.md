@@ -71,5 +71,5 @@ int n = WindowFoilRenderer.countCells(p);
 ## Regenerating the example images
 
 ```bash
-mvn -pl optics-core test -Dtest=PluginDocImagesTest#windowFoil_generateDocImages
+mvn -pl optics-core test -Dtest=PluginDocImagesTest#windowFoil_generateDocImages -Dfresnel.docs=generate
 ```

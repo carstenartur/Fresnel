@@ -13,34 +13,45 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Integration tests that render each plugin and write example PNG images to
- * {@code docs/assets/plugins/<plugin>/} for use in plugin documentation.
+ * Integration tests that render each plugin and validate the output image.
  *
- * <p>Each test renders one or more representative configurations, validates the
- * output, and writes the resulting image(s) to the documentation assets directory.
- * All rendering is deterministic; the same parameters always produce the same image.
+ * <p>By default images are written to {@code target/doc-images/<plugin>/} so
+ * that normal CI runs stay clean (no modifications to tracked files).
  *
- * <p>To regenerate the documentation images, run:
+ * <p>To regenerate the committed documentation assets under
+ * {@code docs/assets/plugins/}, pass the system property
+ * {@code fresnel.docs=generate}:
  * <pre>
- *   mvn -pl optics-core test -Dtest=PluginDocImagesTest
+ *   mvn -pl optics-core test -Dtest=PluginDocImagesTest -Dfresnel.docs=generate
  * </pre>
  */
 class PluginDocImagesTest {
 
+    /** System-property name that triggers writing to the docs assets directory. */
+    private static final String DOCS_PROP = "fresnel.docs";
+
     /**
-     * Resolves {@code docs/assets/plugins/<name>} by walking up from the
-     * current working directory until the project root (containing
-     * {@code optics-core/}) is found.
+     * Returns the output directory for plugin {@code name}.
+     *
+     * <ul>
+     *   <li>When {@code -Dfresnel.docs=generate} is set, resolves
+     *       {@code docs/assets/plugins/<name>} under the project root so that
+     *       the committed documentation images are updated.</li>
+     *   <li>Otherwise writes to {@code target/doc-images/<name>} which is
+     *       never committed, keeping normal CI runs side-effect free.</li>
+     * </ul>
      */
     private static Path pluginDir(String name) throws IOException {
-        Path cur = Path.of("").toAbsolutePath();
-        while (cur != null && !Files.isDirectory(cur.resolve("optics-core"))) {
-            cur = cur.getParent();
+        Path root = Path.of("").toAbsolutePath();
+        while (root != null && !Files.isDirectory(root.resolve("optics-core"))) {
+            root = root.getParent();
         }
-        if (cur == null) {
-            cur = Path.of("").toAbsolutePath();
+        if (root == null) {
+            root = Path.of("").toAbsolutePath();
         }
-        Path dir = cur.resolve("docs/assets/plugins/" + name);
+        Path dir = "generate".equals(System.getProperty(DOCS_PROP))
+                ? root.resolve("docs/assets/plugins/" + name)
+                : root.resolve("optics-core/target/doc-images/" + name);
         Files.createDirectories(dir);
         return dir;
     }

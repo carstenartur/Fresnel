@@ -74,5 +74,5 @@ SingleZonePlateParameters p2 = new SingleZonePlateParameters(
 ## Regenerating the example images
 
 ```bash
-mvn -pl optics-core test -Dtest=PluginDocImagesTest#zonePlate_generateDocImages
+mvn -pl optics-core test -Dtest=PluginDocImagesTest#zonePlate_generateDocImages -Dfresnel.docs=generate
 ```

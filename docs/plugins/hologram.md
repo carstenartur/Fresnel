@@ -86,5 +86,5 @@ RenderResult det = HologramSynthesizer.synthesize(p, 0xDEAD_BEEFL);
 ## Regenerating the example images
 
 ```bash
-mvn -pl optics-core test -Dtest=PluginDocImagesTest#hologram_generateDocImages
+mvn -pl optics-core test -Dtest=PluginDocImagesTest#hologram_generateDocImages -Dfresnel.docs=generate
 ```

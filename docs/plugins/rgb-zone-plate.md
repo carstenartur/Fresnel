@@ -55,5 +55,5 @@ BufferedImage rgbImage = result.image(); // TYPE_INT_RGB
 ## Regenerating the example images
 
 ```bash
-mvn -pl optics-core test -Dtest=PluginDocImagesTest#rgbZonePlate_generateDocImages
+mvn -pl optics-core test -Dtest=PluginDocImagesTest#rgbZonePlate_generateDocImages -Dfresnel.docs=generate
 ```

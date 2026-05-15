@@ -77,5 +77,5 @@ MultiFocusParameters lineFocusParams = new MultiFocusParameters(
 ## Regenerating the example images
 
 ```bash
-mvn -pl optics-core test -Dtest=PluginDocImagesTest#multiFocus_generateDocImages
+mvn -pl optics-core test -Dtest=PluginDocImagesTest#multiFocus_generateDocImages -Dfresnel.docs=generate
 ```

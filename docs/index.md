@@ -32,7 +32,7 @@ Each plugin consists of:
 ## Regenerating all documentation images
 
 ```bash
-mvn -pl optics-core test -Dtest=PluginDocImagesTest
+mvn -pl optics-core test -Dtest=PluginDocImagesTest -Dfresnel.docs=generate
 ```
 
 The images in `docs/assets/plugins/` are committed to the repository.

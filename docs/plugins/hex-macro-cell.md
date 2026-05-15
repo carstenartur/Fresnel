@@ -59,5 +59,5 @@ List<double[]> centres =
 ## Regenerating the example images
 
 ```bash
-mvn -pl optics-core test -Dtest=PluginDocImagesTest#hexMacroCell_generateDocImages
+mvn -pl optics-core test -Dtest=PluginDocImagesTest#hexMacroCell_generateDocImages -Dfresnel.docs=generate
 ```
