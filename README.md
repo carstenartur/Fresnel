@@ -86,6 +86,21 @@ docker build -t fresnel:dev .
 docker run --rm -p 8080:8080 fresnel:dev
 ```
 
+## Plugins
+
+Fresnel supports six diffractive element types, each an independent plugin.
+See **[docs/index.md](docs/index.md)** for the full plugin overview including
+example images and API references.
+
+| Plugin | Description |
+|--------|-------------|
+| [Zone Plate](docs/plugins/zone-plate.md) | Single Fresnel zone plate — binary amplitude or greyscale phase |
+| [RGB Zone Plate](docs/plugins/rgb-zone-plate.md) | Zone plate rendered at R / G / B wavelengths and composited |
+| [Multi-Focus](docs/plugins/multi-focus.md) | Aperture split among multiple focal targets |
+| [Hex Macro Cell](docs/plugins/hex-macro-cell.md) | Hexagonal array of sub-zone-plates |
+| [Window Foil](docs/plugins/window-foil.md) | Rectangular sheet tiled with hex macro cells |
+| [Hologram](docs/plugins/hologram.md) | Computer-generated hologram (Gerchberg–Saxton) |
+
 ## Modules
 
 - **`optics-core/`** – Pure Java library (no Spring dependency) with the
