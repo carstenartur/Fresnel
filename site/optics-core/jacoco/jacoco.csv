@@ -12,7 +12,7 @@ Fresnel Optics Core,org.fresnel.optics,DesignMetrics.ChromaticShift,0,9,0,0,0,1,
 Fresnel Optics Core,org.fresnel.optics,RgbZonePlateRenderer,5,185,6,12,1,32,6,5,0,2
 Fresnel Optics Core,org.fresnel.optics,WindowFoilRenderer,40,650,21,49,3,108,19,22,0,6
 Fresnel Optics Core,org.fresnel.optics,MultiFocusRenderer,35,275,9,19,3,53,7,9,0,2
-Fresnel Optics Core,org.fresnel.optics,ZonePlateRenderer,26,207,4,20,3,40,3,10,0,1
+Fresnel Optics Core,org.fresnel.optics,ZonePlateRenderer,4,229,1,23,0,43,1,12,0,1
 Fresnel Optics Core,org.fresnel.optics,ValidationResult,2,17,1,1,0,3,1,1,0,1
 Fresnel Optics Core,org.fresnel.optics,PdfExporter.SheetSize,0,62,0,0,0,8,0,2,0,2
 Fresnel Optics Core,org.fresnel.optics,HologramParameters.OutputType,0,15,0,0,0,3,0,1,0,1

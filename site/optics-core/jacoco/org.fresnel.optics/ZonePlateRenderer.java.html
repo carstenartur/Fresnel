@@ -63,7 +63,7 @@ public final class ZonePlateRenderer {
 <span class="fc" id="L63">        double zfMm = p.focalLengthMm();</span>
 <span class="fc" id="L64">        double zfSqMm = zfMm * zfMm;</span>
 
-<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        boolean binary = p.maskType() == MaskType.BINARY_AMPLITUDE;</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        boolean binary = p.maskType() == MaskType.BINARY_AMPLITUDE;</span>
 <span class="fc bfc" id="L67" title="All 2 branches covered.">        boolean positive = p.polarity() == Polarity.POSITIVE;</span>
 
 <span class="fc" id="L69">        BufferedImage img = new BufferedImage(sizePx, sizePx, BufferedImage.TYPE_BYTE_GRAY);</span>
@@ -87,15 +87,15 @@ public final class ZonePlateRenderer {
 <span class="fc" id="L87">                double L = Math.sqrt(dxF * dxF + dyF * dyF + zfSqMm);</span>
 <span class="fc" id="L88">                double phi = k * L;</span>
                 int v;
-<span class="pc bpc" id="L90" title="1 of 2 branches missed.">                if (binary) {</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">                if (binary) {</span>
 <span class="fc" id="L91">                    double c = Math.cos(phi);</span>
 <span class="fc bfc" id="L92" title="All 6 branches covered.">                    boolean transparent = positive ? (c &gt;= 0.0) : (c &lt; 0.0);</span>
 <span class="fc bfc" id="L93" title="All 2 branches covered.">                    v = transparent ? 255 : 0;</span>
 <span class="fc" id="L94">                } else {</span>
                     // wrap to [0, 2π) then map to 0..255
-<span class="nc" id="L96">                    double wrapped = phi - 2.0 * Math.PI * Math.floor(phi / (2.0 * Math.PI));</span>
-<span class="nc" id="L97">                    v = (int) Math.min(255, Math.max(0, Math.round(wrapped * (255.0 / (2.0 * Math.PI)))));</span>
-<span class="nc bnc" id="L98" title="All 2 branches missed.">                    if (!positive) v = 255 - v;</span>
+<span class="fc" id="L96">                    double wrapped = phi - 2.0 * Math.PI * Math.floor(phi / (2.0 * Math.PI));</span>
+<span class="fc" id="L97">                    v = (int) Math.min(255, Math.max(0, Math.round(wrapped * (255.0 / (2.0 * Math.PI)))));</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">                    if (!positive) v = 255 - v;</span>
                 }
 <span class="fc" id="L100">                row[xPx] = v;</span>
             }
