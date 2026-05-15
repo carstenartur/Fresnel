@@ -56,8 +56,19 @@ class PluginDocImagesTest {
         return dir;
     }
 
-    private static void savePng(BufferedImage img, Path dir, String filename) throws IOException {
-        ImageIO.write(img, "PNG", dir.resolve(filename).toFile());
+    private static Path savePng(BufferedImage img, Path dir, String filename) throws IOException {
+        Path file = dir.resolve(filename);
+        ImageIO.write(img, "PNG", file.toFile());
+        return file;
+    }
+
+    /** Asserts image dimensions and that the saved file is non-empty. */
+    private static void assertImage(BufferedImage img, Path saved, int minWidth, int minHeight) throws IOException {
+        assertNotNull(img);
+        assertTrue(img.getWidth()  >= minWidth,  "image width "  + img.getWidth()  + " < " + minWidth);
+        assertTrue(img.getHeight() >= minHeight, "image height " + img.getHeight() + " < " + minHeight);
+        assertTrue(Files.exists(saved),           "file not written: " + saved.getFileName());
+        assertTrue(Files.size(saved)  > 0,        "file is empty: "    + saved.getFileName());
     }
 
     // -------------------------------------------------------------------------
@@ -76,23 +87,24 @@ class PluginDocImagesTest {
         SingleZonePlateParameters onAxis = SingleZonePlateParameters.onAxis(
                 10.0, 250.0, 550.0, 1200.0);
         RenderResult rOnAxis = ZonePlateRenderer.render(onAxis);
-        assertNotNull(rOnAxis.image());
-        assertTrue(rOnAxis.image().getWidth() > 0);
-        savePng(rOnAxis.image(), dir, "on-axis.png");
+        Path fOnAxis = savePng(rOnAxis.image(), dir, "on-axis.png");
+        assertImage(rOnAxis.image(), fOnAxis, 400, 400);
 
         // Greyscale phase mask
         SingleZonePlateParameters greyscale = new SingleZonePlateParameters(
                 10.0, 250.0, 550.0, 1200.0, 0.0, 0.0,
                 MaskType.GREYSCALE_PHASE, Polarity.POSITIVE);
         RenderResult rGrey = ZonePlateRenderer.render(greyscale);
-        savePng(rGrey.image(), dir, "greyscale-phase.png");
+        Path fGrey = savePng(rGrey.image(), dir, "greyscale-phase.png");
+        assertImage(rGrey.image(), fGrey, 400, 400);
 
         // Negative polarity (inverted binary amplitude)
         SingleZonePlateParameters negative = new SingleZonePlateParameters(
                 10.0, 250.0, 550.0, 1200.0, 0.0, 0.0,
                 MaskType.BINARY_AMPLITUDE, Polarity.NEGATIVE);
         RenderResult rNeg = ZonePlateRenderer.render(negative);
-        savePng(rNeg.image(), dir, "negative-polarity.png");
+        Path fNeg = savePng(rNeg.image(), dir, "negative-polarity.png");
+        assertImage(rNeg.image(), fNeg, 400, 400);
     }
 
     // -------------------------------------------------------------------------
@@ -109,9 +121,8 @@ class PluginDocImagesTest {
         SingleZonePlateParameters base = SingleZonePlateParameters.onAxis(
                 10.0, 250.0, 550.0, 1200.0);
         RenderResult rgb = RgbZonePlateRenderer.render(base, 630.0, 532.0, 450.0);
-        assertNotNull(rgb.image());
-        assertTrue(rgb.image().getWidth() > 0);
-        savePng(rgb.image(), dir, "rgb.png");
+        Path fRgb = savePng(rgb.image(), dir, "rgb.png");
+        assertImage(rgb.image(), fRgb, 400, 400);
     }
 
     // -------------------------------------------------------------------------
@@ -135,9 +146,8 @@ class PluginDocImagesTest {
                 550.0, 1200.0,
                 MaskType.BINARY_AMPLITUDE, Polarity.POSITIVE);
         RenderResult rTwo = MultiFocusRenderer.render(twoFoci);
-        assertNotNull(rTwo.image());
-        assertTrue(rTwo.image().getWidth() > 0);
-        savePng(rTwo.image(), dir, "two-foci.png");
+        Path fTwo = savePng(rTwo.image(), dir, "two-foci.png");
+        assertImage(rTwo.image(), fTwo, 400, 400);
 
         // Line focus with 5 points
         List<MultiFocusParameters.FocusPoint> line =
@@ -146,7 +156,8 @@ class PluginDocImagesTest {
                 10.0, line, 550.0, 1200.0,
                 MaskType.BINARY_AMPLITUDE, Polarity.POSITIVE);
         RenderResult rLine = MultiFocusRenderer.render(lineFocus);
-        savePng(rLine.image(), dir, "line-focus.png");
+        Path fLine = savePng(rLine.image(), dir, "line-focus.png");
+        assertImage(rLine.image(), fLine, 400, 400);
     }
 
     // -------------------------------------------------------------------------
@@ -164,9 +175,8 @@ class PluginDocImagesTest {
         HexMacroCellParameters p = HexMacroCellParameters.onAxis(
                 15.0, 5.0, 5.5, 500.0, 550.0, 400.0);
         RenderResult r = HexMacroCellRenderer.render(p);
-        assertNotNull(r.image());
-        assertTrue(r.image().getWidth() > 0);
-        savePng(r.image(), dir, "on-axis.png");
+        Path f = savePng(r.image(), dir, "on-axis.png");
+        assertImage(r.image(), f, 400, 400);
     }
 
     // -------------------------------------------------------------------------
@@ -187,9 +197,8 @@ class PluginDocImagesTest {
                 List.of(WindowFoilParameters.CellSpec.onAxis(1000.0)),
                 true);
         RenderResult r = WindowFoilRenderer.render(p);
-        assertNotNull(r.image());
-        assertTrue(r.image().getWidth() > 0);
-        savePng(r.image(), dir, "foil-sheet.png");
+        Path f = savePng(r.image(), dir, "foil-sheet.png");
+        assertImage(r.image(), f, 400, 250);
     }
 
     // -------------------------------------------------------------------------
@@ -207,19 +216,20 @@ class PluginDocImagesTest {
 
         // 512×512 checker target (power-of-two, max detail within API limits)
         BufferedImage target = HologramParameters.syntheticCheckerTarget(512, 8);
-        savePng(target, dir, "target.png");
+        Path fTarget = savePng(target, dir, "target.png");
+        assertImage(target, fTarget, 512, 512);
 
         // Gerchberg–Saxton synthesis (deterministic seed via default overload)
         HologramParameters p = new HologramParameters(
                 target, 100, HologramParameters.OutputType.GREYSCALE_PHASE, 1200.0);
         RenderResult r = HologramSynthesizer.synthesize(p);
-        assertNotNull(r.image());
-        assertTrue(r.image().getWidth() > 0);
-        savePng(r.image(), dir, "hologram-mask.png");
+        Path fMask = savePng(r.image(), dir, "hologram-mask.png");
+        assertImage(r.image(), fMask, 400, 400);
 
         // Simulated optical reconstruction
         BufferedImage recon = HologramSynthesizer.reconstruct(
                 r.image(), HologramParameters.OutputType.GREYSCALE_PHASE);
-        savePng(recon, dir, "reconstruction.png");
+        Path fRecon = savePng(recon, dir, "reconstruction.png");
+        assertImage(recon, fRecon, 400, 400);
     }
 }

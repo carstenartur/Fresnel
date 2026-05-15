@@ -1,7 +1,7 @@
 # Plugin Documentation
 
-Fresnel is built around a **plugin architecture**: each diffractive element type
-is an independent, self-contained module (Java renderer + parameter record +
+Fresnel is structured around **plugin-style modules**: each diffractive element
+type is an independent, self-contained unit (Java renderer + parameter record +
 React panel) that can be added or replaced without touching the core pipeline.
 
 The table below lists all currently available plugins.

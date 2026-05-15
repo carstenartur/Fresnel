@@ -30,7 +30,7 @@ cell to aid alignment after printing and cutting.
 
 ## Example image
 
-### 60 mm × 40 mm foil sheet at 72 dpi with crop marks
+### 60 mm × 40 mm foil sheet at 200 dpi with crop marks
 
 ![Window foil sheet](../assets/plugins/window-foil/foil-sheet.png)
 
