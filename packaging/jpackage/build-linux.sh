@@ -26,11 +26,17 @@ JPACKAGE_TYPE="${JPACKAGE_TYPE:-deb}"
 OUTPUT_DIR="${OUTPUT_DIR:-$TARGET_DIR/dist}"
 mkdir -p "$OUTPUT_DIR"
 
-# Stage the jar into an input directory; jpackage copies everything from
-# --input into the app's lib/ directory.
+# Stage the jar plus the external-config template into an input
+# directory; jpackage copies everything from --input into the app's
+# lib/ (which is also $APPDIR at runtime), so the bundled
+# application-standalone.properties ends up at
+# $APPDIR/config/application-standalone.properties and users can edit
+# it post-install.
 STAGE_DIR="$(mktemp -d)"
 trap 'rm -rf "$STAGE_DIR"' EXIT
 cp "$APP_JAR" "$STAGE_DIR/fresnel.jar"
+mkdir -p "$STAGE_DIR/config"
+cp "$REPO_ROOT/packaging/config/application-standalone.properties" "$STAGE_DIR/config/"
 
 JAVA_CMD="${JAVA_HOME:+$JAVA_HOME/bin/}jpackage"
 if ! command -v "$JAVA_CMD" >/dev/null 2>&1; then
@@ -50,7 +56,7 @@ echo "build-linux.sh: building $JPACKAGE_TYPE for Fresnel $APP_VERSION_NUM"
   --main-jar fresnel.jar \
   --main-class org.springframework.boot.loader.launch.JarLauncher \
   --java-options "-Dspring.profiles.active=standalone" \
-  --java-options "-Dspring.config.additional-location=optional:file:\$APPDIR/../config/" \
+  --java-options "-Dspring.config.additional-location=optional:file:\$APPDIR/config/" \
   --dest "$OUTPUT_DIR" \
   --linux-shortcut \
   --linux-menu-group "Graphics"

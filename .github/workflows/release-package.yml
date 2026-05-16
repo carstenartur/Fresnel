@@ -88,8 +88,8 @@ jobs:
         with:
           name: fresnel-jar
           path: |
-            staging/backend-*.jar
-            staging/backend-*.jar.sha256
+            staging/backend-${{ steps.version.outputs.version }}.jar
+            staging/backend-${{ steps.version.outputs.version }}.jar.sha256
           if-no-files-found: error
 
       - name: Upload Windows ZIP

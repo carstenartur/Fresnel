@@ -12,15 +12,21 @@
 #   Linux   : $HOME/.local/share/fresnel
 #   macOS   : $HOME/Library/Application Support/Fresnel
 #
-# If FRESNEL_DATA_DIR is unset, we fall back to <user.home>/.fresnel so
-# the app still starts in a sensible per-user location.
+# When the app is launched directly by the jpackage installer (i.e. via
+# JarLauncher, without the start-fresnel scripts) FRESNEL_DATA_DIR is
+# unset, so we fall back through a chain of placeholders that resolves
+# to the same per-user OS location:
+#   * Windows : ${APPDATA}/Fresnel        (APPDATA env var → Roaming dir)
+#   * Linux   : ${XDG_DATA_HOME}/Fresnel  (or ${user.home}/.local/share/Fresnel)
+#   * macOS   : ${user.home}/.local/share/Fresnel (close enough; users who
+#                care can set FRESNEL_DATA_DIR explicitly)
 server:
   port: ${SERVER_PORT:8080}
   address: ${SERVER_ADDRESS:127.0.0.1}
 
 spring:
   datasource:
-    url: jdbc:h2:file:${FRESNEL_DATA_DIR:${user.home}/.fresnel}/db/fresnel;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;AUTO_SERVER=TRUE
+    url: jdbc:h2:file:${FRESNEL_DATA_DIR:${APPDATA:${XDG_DATA_HOME:${user.home}/.local/share}}/Fresnel}/db/fresnel;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;AUTO_SERVER=TRUE
     username: sa
     password: ""
     driver-class-name: org.h2.Driver
