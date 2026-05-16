@@ -154,7 +154,7 @@ jobs:
           cache: maven
 
       - name: Download jar from archives job
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.7
         with:
           name: fresnel-jar
           path: backend/target
