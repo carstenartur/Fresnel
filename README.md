@@ -23,32 +23,116 @@ A web application for designing printable diffractive optical elements:
 Fresnel zone plates, hexagonal macro-cells, window-foil layouts and
 simple computer-generated holograms.
 
-## Quickstart — Run with Docker
+## Installation
+
+Fresnel ships in four flavours. Pick the one that matches your use-case;
+all open the same UI at <http://localhost:8080>.
+
+| Flavour | Best for | Java required? |
+|---|---|---|
+| [Docker](#docker) | Server / container deployments | No |
+| [Windows installer](#windows-installer) | Local desktop use on Windows | No (bundled) |
+| [Linux installer](#linux-installer) | Local desktop use on Linux | No (bundled) |
+| [Plain JAR](#plain-jar) | Anywhere you already have JDK 21 (CI etc) | Yes |
+
+> **Docker is best for server / container deployments. The Windows and
+> Linux installers are best for local desktop use** — they bundle a
+> private Java runtime, register a shortcut, and store data outside the
+> install directory.
+
+See [`packaging/README-install.md`](packaging/README-install.md) for the
+full installation guide, including how to change the port, where
+configuration lives, and how to reset local data.
+
+### Docker
 
 ```bash
 docker run --rm -p 8080:8080 ghcr.io/carstenartur/fresnel:latest
 # → open http://localhost:8080
 ```
 
-No JDK or Node installation required — the image ships the full application
-(Spring Boot API + React frontend) as a single self-contained artifact.
+No JDK or Node installation required — the image ships the full
+application (Spring Boot API + React frontend) as a single
+self-contained artifact. The default container uses an in-memory H2
+database; mount a volume and switch to the standalone profile to
+persist data:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e SPRING_PROFILES_ACTIVE=standalone \
+  -e FRESNEL_DATA_DIR=/data \
+  -v fresnel-data:/data \
+  ghcr.io/carstenartur/fresnel:latest
+```
+
+### Windows installer
+
+Download the latest `Fresnel-<version>.msi` (or the
+`fresnel-<version>-windows.zip` fallback) from the
+[Releases page](https://github.com/carstenartur/Fresnel/releases) and
+run it. The installer:
+
+- installs Fresnel under `C:\Program Files\Fresnel\`
+- registers a Start-menu shortcut
+- bundles its own Java 21 runtime (no JDK needed)
+- stores the database under `%APPDATA%\Fresnel\` — **never** inside the
+  install directory
+
+Then open <http://localhost:8080>.
+
+### Linux installer
+
+Download `fresnel_<version>_amd64.deb` (Debian/Ubuntu) or the
+`fresnel-<version>-linux.tar.gz` fallback from the
+[Releases page](https://github.com/carstenartur/Fresnel/releases):
+
+```bash
+sudo apt install ./fresnel_<version>_amd64.deb
+fresnel                              # or: /opt/fresnel/bin/Fresnel
+# → http://localhost:8080
+```
+
+The `.deb` bundles a private JRE and stores data under
+`$HOME/.local/share/fresnel/`. The tar.gz fallback uses your system
+Java; unpack it and run `bin/start-fresnel.sh`.
+
+### Plain JAR
+
+Each release publishes `backend-<version>.jar` plus a SHA-256 checksum.
+
+```bash
+java -jar backend-<version>.jar                                # in-memory DB
+java -Dspring.profiles.active=standalone -jar backend-*.jar    # file-based DB under ~/.fresnel/
+```
+
+The standalone profile honours `FRESNEL_DATA_DIR`, `SERVER_PORT`, and
+the `FRESNEL_SECURITY_*` overrides documented below.
+
+### Where data and configuration live
+
+| Item | Windows | Linux | macOS |
+|---|---|---|---|
+| Database | `%APPDATA%\Fresnel\db\` | `$HOME/.local/share/fresnel/db/` | `$HOME/Library/Application Support/Fresnel/db/` |
+| Config | `<install>\config\application-standalone.properties` | `<install>/config/application-standalone.properties` | same |
+
+Change the port: edit `server.port` in `application-standalone.properties`,
+or set `SERVER_PORT=9090` before launching. Reset local data: stop
+Fresnel and delete the database directory above.
 
 ## Releases
 
 Releases are created manually via the *Release* workflow in GitHub Actions
-(`workflow_dispatch`, input `release_version`, no `v` prefix). Each release publishes:
+(`workflow_dispatch`, input `release_version`, no `v` prefix). The
+*Release Packages* workflow then builds the cross-platform artifacts.
+Each release publishes:
 
 - **`backend-<version>.jar`** — executable Spring Boot fat jar (requires JDK 21)
-- **SHA-256 checksum** for the jar
+- **`fresnel-<version>-windows.zip`** — portable Windows distribution (system Java)
+- **`fresnel-<version>-linux.tar.gz`** — portable Linux distribution (system Java)
+- **`Fresnel-<version>.msi`** — Windows installer with bundled JRE (jpackage)
+- **`fresnel_<version>_amd64.deb`** — Debian/Ubuntu installer with bundled JRE (jpackage)
+- **SHA-256 checksums** for every archive
 - **Docker image** `ghcr.io/carstenartur/fresnel:<version>` pushed to GHCR
-
-Download the jar from the [Releases page](https://github.com/carstenartur/Fresnel/releases)
-and run it directly if you already have a JDK:
-
-```bash
-java -jar backend-<version>.jar
-# → http://localhost:8080
-```
 
 ## Local Development
 

@@ -177,6 +177,55 @@
             </build>
         </profile>
 
+        <!-- Release-package profile: builds the Windows .zip and Linux .tar.gz
+             fallback distributions alongside the Spring Boot fat jar. Activate
+             with -Prelease-package. The native jpackage installers are built by
+             the shell scripts under packaging/jpackage/ on the matching host
+             OS (they need jpackage from the JDK on PATH). -->
+        <profile>
+            <id>release-package</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <version>3.7.1</version>
+                        <executions>
+                            <execution>
+                                <id>dist-windows</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                                <configuration>
+                                    <appendAssemblyId>true</appendAssemblyId>
+                                    <finalName>fresnel-${project.version}</finalName>
+                                    <outputDirectory>${project.build.directory}/dist</outputDirectory>
+                                    <descriptors>
+                                        <descriptor>${project.basedir}/../packaging/assembly-windows.xml</descriptor>
+                                    </descriptors>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>dist-linux</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                                <configuration>
+                                    <appendAssemblyId>true</appendAssemblyId>
+                                    <finalName>fresnel-${project.version}</finalName>
+                                    <outputDirectory>${project.build.directory}/dist</outputDirectory>
+                                    <descriptors>
+                                        <descriptor>${project.basedir}/../packaging/assembly-linux.xml</descriptor>
+                                    </descriptors>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
         <!-- Opt-out profile: skips all frontend steps entirely.
              Activate with -Pno-frontend.
              Normally, activating any explicit profile suppresses the frontend profile's

@@ -1,0 +1,186 @@
+name: Release Packages
+
+# Builds the cross-platform distribution artifacts (jar, Windows ZIP,
+# Linux tar.gz, plus native jpackage installers where supported) on
+# every push to main, every pull request that touches packaging code,
+# on release publication, and on demand via workflow_dispatch.
+#
+# Artifacts are always uploaded to the workflow run. When triggered by
+# a published release, they are also attached to the release.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'optics-core/**'
+      - 'pom.xml'
+      - 'packaging/**'
+      - '.github/workflows/release-package.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'optics-core/**'
+      - 'pom.xml'
+      - 'packaging/**'
+      - '.github/workflows/release-package.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────
+  # Stage 1: build the Spring Boot fat jar + the ZIP/tar.gz archives.
+  # This runs on Linux because that's where the frontend builds and
+  # because the assembly artifacts are platform-independent.
+  # ──────────────────────────────────────────────────────────────────
+  archives:
+    name: Build jar + ZIP/tar.gz
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --legacy-peer-deps
+
+      - name: Build jar + ZIP/tar.gz
+        run: mvn -B -ntp -Prelease-package -DskipTests -pl backend -am package
+
+      - name: Read project version
+        id: version
+        run: |
+          VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Project version: $VERSION"
+
+      - name: Stage release artifacts
+        run: |
+          mkdir -p staging
+          cp backend/target/backend-*.jar staging/
+          cp backend/target/dist/fresnel-*-windows.zip staging/
+          cp backend/target/dist/fresnel-*-linux.tar.gz staging/
+          (cd staging && for f in *.jar *.zip *.tar.gz; do sha256sum "$f" > "$f.sha256"; done)
+          ls -la staging
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresnel-jar
+          path: |
+            staging/backend-${{ steps.version.outputs.version }}.jar
+            staging/backend-${{ steps.version.outputs.version }}.jar.sha256
+          if-no-files-found: error
+
+      - name: Upload Windows ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresnel-windows-zip
+          path: |
+            staging/fresnel-*-windows.zip
+            staging/fresnel-*-windows.zip.sha256
+          if-no-files-found: error
+
+      - name: Upload Linux tar.gz
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresnel-linux-tgz
+          path: |
+            staging/fresnel-*-linux.tar.gz
+            staging/fresnel-*-linux.tar.gz.sha256
+          if-no-files-found: error
+
+      - name: Attach archives to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            staging/fresnel-*-windows.zip staging/fresnel-*-windows.zip.sha256 \
+            staging/fresnel-*-linux.tar.gz staging/fresnel-*-linux.tar.gz.sha256 \
+            --clobber
+
+  # ──────────────────────────────────────────────────────────────────
+  # Stage 2: native jpackage installers. These need the matching host
+  # OS (Windows for .msi, Linux for .deb). The job depends on the jar
+  # produced by `archives` so we do not rebuild the frontend.
+  # ──────────────────────────────────────────────────────────────────
+  installers:
+    name: jpackage (${{ matrix.os }})
+    needs: archives
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux
+            script: bash packaging/jpackage/build-linux.sh
+            jpackage_type: deb
+            artifact_glob: 'backend/target/dist/*.deb'
+          - os: windows-latest
+            label: windows
+            script: packaging\jpackage\build-windows.cmd
+            jpackage_type: msi
+            artifact_glob: 'backend/target/dist/*.msi'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Download jar from archives job
+        uses: actions/download-artifact@v4.1.7
+        with:
+          name: fresnel-jar
+          path: backend/target
+
+      - name: Build native installer
+        env:
+          JPACKAGE_TYPE: ${{ matrix.jpackage_type }}
+        run: ${{ matrix.script }}
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresnel-installer-${{ matrix.label }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
+
+      - name: Attach installer to GitHub Release
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          files=(backend/target/dist/*.${{ matrix.jpackage_type }})
+          if [ ${#files[@]} -gt 0 ]; then
+            gh release upload "${{ github.event.release.tag_name }}" "${files[@]}" --clobber
+          else
+            echo "::warning::no ${{ matrix.jpackage_type }} artifact produced"
+          fi
