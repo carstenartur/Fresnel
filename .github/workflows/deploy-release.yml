@@ -266,7 +266,7 @@ jobs:
 
       - name: Set up QEMU (multi-arch)
         if: ${{ !inputs.dry_run }}
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         if: ${{ !inputs.dry_run }}
