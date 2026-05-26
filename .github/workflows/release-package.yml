@@ -84,7 +84,7 @@ jobs:
           ls -la staging
 
       - name: Upload jar
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fresnel-jar
           path: |
@@ -93,7 +93,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Windows ZIP
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fresnel-windows-zip
           path: |
@@ -102,7 +102,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Linux tar.gz
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fresnel-linux-tgz
           path: |
@@ -165,7 +165,7 @@ jobs:
         run: ${{ matrix.script }}
 
       - name: Upload installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fresnel-installer-${{ matrix.label }}
           path: ${{ matrix.artifact_glob }}
