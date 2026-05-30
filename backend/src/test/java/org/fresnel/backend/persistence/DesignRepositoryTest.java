@@ -43,16 +43,16 @@ class DesignRepositoryTest {
 
     @Test
     void scopesListingsByOwner() {
-        String ownerAlice = UUID.randomUUID().toString();
-        String ownerBob = UUID.randomUUID().toString();
-        repository.save(new DesignEntity(null, "single", 1, "a1", ownerAlice, "{\"x\":1}"));
-        repository.save(new DesignEntity(null, "single", 1, "a2", ownerAlice, "{\"x\":2}"));
-        repository.save(new DesignEntity(null, "single", 1, "b1", ownerBob, "{\"x\":3}"));
+        String firstOwnerId = UUID.randomUUID().toString();
+        String secondOwnerId = UUID.randomUUID().toString();
+        repository.save(new DesignEntity(null, "single", 1, "a1", firstOwnerId, "{\"x\":1}"));
+        repository.save(new DesignEntity(null, "single", 1, "a2", firstOwnerId, "{\"x\":2}"));
+        repository.save(new DesignEntity(null, "single", 1, "b1", secondOwnerId, "{\"x\":3}"));
 
-        List<DesignEntity> aliceDesigns = repository.findAllByOwnerIdOrderByCreatedAtDesc(ownerAlice);
-        List<DesignEntity> bobDesigns = repository.findAllByOwnerIdOrderByCreatedAtDesc(ownerBob);
+        List<DesignEntity> firstOwnerDesigns = repository.findAllByOwnerIdOrderByCreatedAtDesc(firstOwnerId);
+        List<DesignEntity> secondOwnerDesigns = repository.findAllByOwnerIdOrderByCreatedAtDesc(secondOwnerId);
 
-        assertThat(aliceDesigns).allMatch(e -> ownerAlice.equals(e.getOwnerId())).hasSize(2);
-        assertThat(bobDesigns).allMatch(e -> ownerBob.equals(e.getOwnerId())).hasSize(1);
+        assertThat(firstOwnerDesigns).allMatch(e -> firstOwnerId.equals(e.getOwnerId())).hasSize(2);
+        assertThat(secondOwnerDesigns).allMatch(e -> secondOwnerId.equals(e.getOwnerId())).hasSize(1);
     }
 }
