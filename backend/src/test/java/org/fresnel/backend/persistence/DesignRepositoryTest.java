@@ -43,8 +43,8 @@ class DesignRepositoryTest {
 
     @Test
     void scopesListingsByOwner() {
-        String ownerAlice = "alice-" + UUID.randomUUID();
-        String ownerBob = "bob-" + UUID.randomUUID();
+        String ownerAlice = UUID.randomUUID().toString();
+        String ownerBob = UUID.randomUUID().toString();
         repository.save(new DesignEntity(null, "single", 1, "a1", ownerAlice, "{\"x\":1}"));
         repository.save(new DesignEntity(null, "single", 1, "a2", ownerAlice, "{\"x\":2}"));
         repository.save(new DesignEntity(null, "single", 1, "b1", ownerBob, "{\"x\":3}"));
