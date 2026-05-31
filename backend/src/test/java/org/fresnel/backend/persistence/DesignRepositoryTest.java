@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -42,14 +43,16 @@ class DesignRepositoryTest {
 
     @Test
     void scopesListingsByOwner() {
-        repository.save(new DesignEntity(null, "single", 1, "a1", "alice", "{\"x\":1}"));
-        repository.save(new DesignEntity(null, "single", 1, "a2", "alice", "{\"x\":2}"));
-        repository.save(new DesignEntity(null, "single", 1, "b1", "bob",   "{\"x\":3}"));
+        String firstOwnerId = UUID.randomUUID().toString();
+        String secondOwnerId = UUID.randomUUID().toString();
+        repository.save(new DesignEntity(null, "single", 1, "a1", firstOwnerId, "{\"x\":1}"));
+        repository.save(new DesignEntity(null, "single", 1, "a2", firstOwnerId, "{\"x\":2}"));
+        repository.save(new DesignEntity(null, "single", 1, "b1", secondOwnerId, "{\"x\":3}"));
 
-        List<DesignEntity> aliceDesigns = repository.findAllByOwnerIdOrderByCreatedAtDesc("alice");
-        List<DesignEntity> bobDesigns   = repository.findAllByOwnerIdOrderByCreatedAtDesc("bob");
+        List<DesignEntity> firstOwnerDesigns = repository.findAllByOwnerIdOrderByCreatedAtDesc(firstOwnerId);
+        List<DesignEntity> secondOwnerDesigns = repository.findAllByOwnerIdOrderByCreatedAtDesc(secondOwnerId);
 
-        assertThat(aliceDesigns).allMatch(e -> "alice".equals(e.getOwnerId())).hasSize(2);
-        assertThat(bobDesigns).allMatch(e -> "bob".equals(e.getOwnerId())).hasSize(1);
+        assertThat(firstOwnerDesigns).allMatch(e -> firstOwnerId.equals(e.getOwnerId())).hasSize(2);
+        assertThat(secondOwnerDesigns).allMatch(e -> secondOwnerId.equals(e.getOwnerId())).hasSize(1);
     }
 }
