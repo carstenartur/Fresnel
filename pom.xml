@@ -26,7 +26,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>6.1.0</junit.version>
-        <spring.boot.version>4.0.6</spring.boot.version>
+        <spring.boot.version>4.1.0</spring.boot.version>
     </properties>
 
     <dependencyManagement>
