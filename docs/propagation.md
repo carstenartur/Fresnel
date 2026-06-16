@@ -73,7 +73,8 @@ wavelength λ, and printer resolution *p* (mm/pixel):
 
 ```
 outer zone half-period  =  λ f / (2 D)  ≥  2 p
-         ⟹  DPI  ≥  25.4 · D / (λ · f)  (in SI-mixed units)
+         ⟹  DPI  ≥  25.4 · D / (λ · f)
+              where D, λ, f are in millimetres and DPI is dots per inch
 ```
 
 For typical desktop printers (300–1200 DPI) this condition is satisfied only

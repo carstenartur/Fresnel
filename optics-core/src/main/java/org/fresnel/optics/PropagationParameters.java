@@ -28,9 +28,9 @@ public record PropagationParameters(
     public PropagationParameters {
         if (maskImage == null) throw new IllegalArgumentException("maskImage must not be null");
         if (maskType == null) throw new IllegalArgumentException("maskType must not be null");
-        if (pixelSizeMm <= 0) throw new IllegalArgumentException("pixelSizeMm must be > 0");
-        if (wavelengthNm <= 0) throw new IllegalArgumentException("wavelengthNm must be > 0");
-        if (zMm <= 0) throw new IllegalArgumentException("zMm must be > 0");
+        if (pixelSizeMm <= 0) throw new IllegalArgumentException("pixelSizeMm must be > 0 (millimeters)");
+        if (wavelengthNm <= 0) throw new IllegalArgumentException("wavelengthNm must be > 0 (nanometers)");
+        if (zMm <= 0) throw new IllegalArgumentException("zMm must be > 0 (millimeters)");
         if (mode == null) throw new IllegalArgumentException("mode must not be null");
     }
 }
