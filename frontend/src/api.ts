@@ -173,6 +173,21 @@ export async function downloadExportGerber(req: SingleZonePlateRequest, filename
   downloadBlob(blob, filename);
 }
 
+// --- Propagation preview ---
+
+export type PropagationMode = 'FRESNEL_TF' | 'FRAUNHOFER';
+
+export interface PropagateRequest {
+  base: SingleZonePlateRequest;
+  zMm: number;
+  wavelengthNm?: number;
+  mode?: PropagationMode;
+}
+
+export async function fetchPropagatePng(req: PropagateRequest): Promise<Blob> {
+  return postBlob('/api/designs/propagate.png', req);
+}
+
 // --- Save / Load (any design) ---
 
 export type DesignKind = 'single' | 'hex' | 'foil' | 'multifocus' | 'rgb' | 'hologram';

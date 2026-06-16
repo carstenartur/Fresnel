@@ -298,4 +298,107 @@ class DesignControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_PDF));
     }
+
+    // -------- Propagation preview --------
+
+    @Test
+    void propagatePngReturnsPng() throws Exception {
+        String body = """
+                {
+                  "base": {
+                    "apertureDiameterMm": 5.0,
+                    "focalLengthMm": 50.0,
+                    "wavelengthNm": 550.0,
+                    "dpi": 600.0
+                  },
+                  "zMm": 50.0
+                }
+                """;
+        mvc.perform(post("/api/designs/propagate.png")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG));
+    }
+
+    @Test
+    void propagatePngRejectsOversizedMask() throws Exception {
+        // 100 mm @ 4800 dpi => ~18 900 px, above the 4096 cap
+        String body = """
+                {
+                  "base": {
+                    "apertureDiameterMm": 100.0,
+                    "focalLengthMm": 5000.0,
+                    "wavelengthNm": 550.0,
+                    "dpi": 4800.0
+                  },
+                  "zMm": 5000.0
+                }
+                """;
+        mvc.perform(post("/api/designs/propagate.png")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isPayloadTooLarge());
+    }
+
+    @Test
+    void propagatePngRejectsMissingZMm() throws Exception {
+        String body = """
+                {
+                  "base": {
+                    "apertureDiameterMm": 5.0,
+                    "focalLengthMm": 50.0,
+                    "wavelengthNm": 550.0,
+                    "dpi": 600.0
+                  }
+                }
+                """;
+        mvc.perform(post("/api/designs/propagate.png")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void propagatePngAcceptsFresnelTfMode() throws Exception {
+        String body = """
+                {
+                  "base": {
+                    "apertureDiameterMm": 5.0,
+                    "focalLengthMm": 50.0,
+                    "wavelengthNm": 550.0,
+                    "dpi": 600.0,
+                    "maskType": "GREYSCALE_PHASE"
+                  },
+                  "zMm": 50.0,
+                  "mode": "FRESNEL_TF"
+                }
+                """;
+        mvc.perform(post("/api/designs/propagate.png")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG));
+    }
+
+    @Test
+    void propagatePngAcceptsFraunhoferMode() throws Exception {
+        String body = """
+                {
+                  "base": {
+                    "apertureDiameterMm": 5.0,
+                    "focalLengthMm": 50.0,
+                    "wavelengthNm": 550.0,
+                    "dpi": 600.0
+                  },
+                  "zMm": 50.0,
+                  "mode": "FRAUNHOFER"
+                }
+                """;
+        mvc.perform(post("/api/designs/propagate.png")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG));
+    }
 }

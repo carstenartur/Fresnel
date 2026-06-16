@@ -2,9 +2,12 @@ package org.fresnel.backend.api;
 
 import jakarta.validation.Valid;
 import org.fresnel.optics.DesignValidator;
+import org.fresnel.optics.MaskType;
 import org.fresnel.optics.MultiFocusRenderer;
 import org.fresnel.optics.PdfExporter;
 import org.fresnel.optics.PngExporter;
+import org.fresnel.optics.PropagationParameters;
+import org.fresnel.optics.PropagationSimulator;
 import org.fresnel.optics.RenderResult;
 import org.fresnel.optics.RgbZonePlateRenderer;
 import org.fresnel.optics.SingleZonePlateParameters;
@@ -244,6 +247,45 @@ public class DesignController {
         SingleZonePlateParameters base = req.base().toParameters();
         RenderResult r = RgbZonePlateRenderer.render(base, req.redNm(), req.greenNm(), req.blueNm());
         return pngResponse(PngExporter.toPngBytes(r, base.dpi()), "attachment", "fresnel-rgb.png");
+    }
+
+    // -------- Optical propagation preview --------
+
+    /**
+     * Propagate the zone-plate mask encoded in the request body by the given
+     * distance and return the intensity as a PNG image.
+     *
+     * <p>The mask is rendered first (same as {@code /preview.png}), then fed to
+     * {@link PropagationSimulator}.  The pixel-size cap of {@link #MAX_PREVIEW_PX}
+     * applies to the mask side; the propagation output has the same grid size.
+     *
+     * <p>Input bounds validated:
+     * <ul>
+     *   <li>All zone-plate constraints from {@link SingleZonePlateRequest}</li>
+     *   <li>{@code zMm} must be positive</li>
+     *   <li>{@code wavelengthNm}, if supplied, must be positive</li>
+     * </ul>
+     */
+    @PostMapping(value = "/propagate.png",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> propagatePng(@Valid @RequestBody PropagateRequest req) throws IOException {
+        SingleZonePlateParameters params = req.base().toParameters();
+        long sizePx = estimateSizePx(params);
+        if (sizePx > MAX_PREVIEW_PX) {
+            return tooLarge(sizePx);
+        }
+        RenderResult mask = org.fresnel.optics.ZonePlateRenderer.render(params);
+        PropagationParameters propParams = new PropagationParameters(
+                mask.image(),
+                params.maskType(),
+                mask.pixelSizeMm(),
+                req.resolvedWavelengthNm(),
+                req.zMm(),
+                req.resolvedMode());
+        RenderResult propagated = PropagationSimulator.propagate(propParams);
+        byte[] png = PngExporter.toPngBytes(propagated, params.dpi());
+        return pngResponse(png, "inline", "fresnel-propagation.png");
     }
 
     // -------- Helpers --------
