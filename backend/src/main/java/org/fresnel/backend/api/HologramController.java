@@ -4,7 +4,10 @@ import jakarta.validation.Valid;
 import org.fresnel.optics.HologramParameters;
 import org.fresnel.optics.HologramSynthesizer;
 import org.fresnel.optics.PngExporter;
+import org.fresnel.optics.PhaseReliefGenerator;
+import org.fresnel.optics.ReliefParameters;
 import org.fresnel.optics.RenderResult;
+import org.fresnel.optics.StlExporter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -70,6 +73,21 @@ public class HologramController {
         java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
         ImageIO.write(out, "png", baos);
         return png(baos.toByteArray(), "fresnel-hologram-reconstruction.png", "inline");
+    }
+
+    @PostMapping(value = "/export.stl",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = "model/stl")
+    public ResponseEntity<byte[]> exportStl(@Valid @RequestBody HologramRequest req) throws IOException {
+        HologramParameters p = decode(req);
+        RenderResult mask = HologramSynthesizer.synthesize(p);
+        ReliefParameters relief = new ReliefParameters(
+                req.resolvedWavelengthNm(),
+                req.resolvedRefractiveIndexDelta(),
+                req.resolvedMaxPhaseShiftRad());
+        double[][] heightMap = PhaseReliefGenerator.toHeightMapMm(mask.image(), relief);
+        byte[] stl = StlExporter.toBinaryStl(heightMap, mask.pixelSizeMm());
+        return binary(stl, "model/stl", "fresnel-hologram-relief.stl");
     }
 
     static HologramParameters decode(HologramRequest req) throws IOException {
@@ -139,6 +157,13 @@ public class HologramController {
         h.setContentDisposition("inline".equalsIgnoreCase(disposition)
                 ? org.springframework.http.ContentDisposition.inline().filename(filename).build()
                 : org.springframework.http.ContentDisposition.attachment().filename(filename).build());
+        return new ResponseEntity<>(body, h, 200);
+    }
+
+    private static ResponseEntity<byte[]> binary(byte[] body, String mime, String filename) {
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.parseMediaType(mime));
+        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(filename).build());
         return new ResponseEntity<>(body, h, 200);
     }
 }

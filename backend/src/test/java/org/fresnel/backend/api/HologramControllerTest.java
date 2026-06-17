@@ -12,6 +12,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Base64;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -105,6 +107,31 @@ class HologramControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void exportsBinaryStlFromSynthesisedPhaseMask() throws Exception {
+        String b64 = base64CheckerPng(32);
+        String body = """
+                {
+                  "targetImageBase64": "%s",
+                  "sidePx": 32,
+                  "iterations": 5,
+                  "outputType": "GREYSCALE_PHASE",
+                  "dpi": 600.0
+                }
+                """.formatted(b64);
+        MvcResult res = mvc.perform(post("/api/holograms/export.stl")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("model/stl"))
+                .andReturn();
+
+        byte[] stl = res.getResponse().getContentAsByteArray();
+        org.junit.jupiter.api.Assertions.assertTrue(stl.length > 84);
+        int triCount = ByteBuffer.wrap(stl, 80, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+        org.junit.jupiter.api.Assertions.assertTrue(triCount > 0);
     }
 
     private static String base64CheckerPng(int n) throws Exception {

@@ -117,6 +117,9 @@ export interface HologramRequest {
   iterations: number;
   outputType?: HologramOutputType;
   dpi: number;
+  wavelengthNm?: number;
+  refractiveIndexDelta?: number;
+  maxPhaseShiftRad?: number;
 }
 
 const BASE = ''; // same-origin via Vite proxy or packaged jar
@@ -287,6 +290,10 @@ export async function reconstructHologramPng(req: HologramRequest, previewOnly =
 }
 export async function downloadHologramPng(req: HologramRequest, filename: string): Promise<void> {
   const blob = await synthesizeHologramPng(req);
+  downloadBlob(blob, filename);
+}
+export async function downloadHologramStl(req: HologramRequest, filename: string): Promise<void> {
+  const blob = await postBlob('/api/holograms/export.stl', req, 'model/stl');
   downloadBlob(blob, filename);
 }
 
