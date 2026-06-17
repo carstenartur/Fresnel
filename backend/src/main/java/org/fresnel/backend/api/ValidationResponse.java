@@ -1,5 +1,6 @@
 package org.fresnel.backend.api;
 
+import org.fresnel.optics.OpticalQualityReport;
 import org.fresnel.optics.DesignMetrics;
 import org.fresnel.optics.ValidationResult;
 
@@ -9,7 +10,8 @@ import java.util.List;
 public record ValidationResponse(
         boolean valid,
         List<WarningDto> warnings,
-        DesignMetrics metrics
+        DesignMetrics metrics,
+        OpticalQualityReport qualityReport
 ) {
 
     public record WarningDto(String code, String message, String severity) {}
@@ -18,6 +20,6 @@ public record ValidationResponse(
         List<WarningDto> warnings = v.warnings().stream()
                 .map(w -> new WarningDto(w.code(), w.message(), w.severity().name()))
                 .toList();
-        return new ValidationResponse(v.valid(), warnings, v.metrics());
+        return new ValidationResponse(v.valid(), warnings, v.metrics(), v.qualityReport());
     }
 }

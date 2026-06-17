@@ -11,6 +11,7 @@ import {
   saveDesign,
   validate,
   type DesignMetrics,
+  type OpticalQualityReport,
   type PropagationMode,
   type SingleZonePlateRequest,
   type Warning,
@@ -34,6 +35,7 @@ const DEFAULT_REQ: SingleZonePlateRequest = {
 export function SingleZonePlatePanel() {
   const [req, setReq] = useState<SingleZonePlateRequest>(DEFAULT_REQ);
   const [metrics, setMetrics] = useState<DesignMetrics | null>(null);
+  const [qualityReport, setQualityReport] = useState<OpticalQualityReport | null>(null);
   const [warnings, setWarnings] = useState<Warning[]>([]);
   const [valid, setValid] = useState(true);
   const [previewUrl, setPreview] = useBlobUrl();
@@ -49,11 +51,16 @@ export function SingleZonePlatePanel() {
         const v = await validate(req);
         if (id !== lastReqId.current) return;
         setMetrics(v.metrics);
+        setQualityReport(v.qualityReport ?? null);
         setWarnings(v.warnings);
         setValid(v.valid);
         setError(null);
       } catch (e) {
         if (id !== lastReqId.current) return;
+        setMetrics(null);
+        setQualityReport(null);
+        setWarnings([]);
+        setValid(false);
         setError(e instanceof Error ? e.message : String(e));
       }
     }, 200);
@@ -194,6 +201,7 @@ export function SingleZonePlatePanel() {
       <Warnings warnings={warnings} valid={valid} />
       <PreviewPane url={previewUrl} alt="Fresnel zone plate preview" />
       {metrics && <Metrics m={metrics} />}
+      {qualityReport && <QualityReport r={qualityReport} />}
 
       <PropagationPanel req={req} />
     </>
@@ -272,6 +280,39 @@ function Metrics({ m }: { m: DesignMetrics }) {
           </table>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Optical quality report panel.
+ *
+ * Displays the independently computed optical quality metrics for the current
+ * design: NA, f-number, Airy disk diameter, Rayleigh angular resolution,
+ * depth of focus, outermost zone width and chromatic focal shift.
+ */
+function QualityReport({ r }: { r: OpticalQualityReport }) {
+  return (
+    <div className="metrics" style={{ marginTop: 16 }}>
+      <h3>Optical quality report</h3>
+      <dl>
+        <dt>Design wavelength</dt><dd>{r.wavelengthNm.toFixed(1)} nm</dd>
+        <dt>Focal length</dt><dd>{r.focalLengthMm.toFixed(2)} mm</dd>
+        <dt>Aperture diameter</dt><dd>{r.apertureDiameterMm.toFixed(2)} mm</dd>
+        <dt>Numerical aperture (NA)</dt><dd>{r.numericalAperture.toFixed(4)}</dd>
+        <dt>f-number (F#)</dt><dd>{r.fNumber.toFixed(1)}</dd>
+        <dt>Airy disk diameter</dt><dd>{r.airyDiskDiameterMicrons.toFixed(2)} µm</dd>
+        <dt>Rayleigh angular resolution</dt>
+        <dd>{(r.rayleighAngularResolutionRad * 1e6).toFixed(3)} µrad</dd>
+        <dt>Depth of focus (DoF)</dt><dd>{r.depthOfFocusMicrons.toFixed(1)} µm</dd>
+        <dt>Outermost zone width</dt><dd>{r.outermostZoneWidthMicrons.toFixed(2)} µm</dd>
+        <dt>Chromatic focal shift
+          <span style={{ fontWeight: 'normal', fontSize: 11, color: '#6b7280' }}>
+            {' '}({r.chromaticRangeMinNm.toFixed(0)}–{r.chromaticRangeMaxNm.toFixed(0)} nm)
+          </span>
+        </dt>
+        <dd>{r.chromaticFocalShiftMm.toFixed(2)} mm</dd>
+      </dl>
     </div>
   );
 }

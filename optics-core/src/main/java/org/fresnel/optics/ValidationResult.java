@@ -9,11 +9,18 @@ import java.util.List;
 public record ValidationResult(
         boolean valid,
         List<Warning> warnings,
-        DesignMetrics metrics
+        DesignMetrics metrics,
+        SingleZonePlateParameters parameters,
+        OpticalQualityReport qualityReport
 ) {
 
     public ValidationResult {
         warnings = warnings == null ? List.of() : List.copyOf(warnings);
+    }
+
+    /** Backwards-compatible constructor (no parameters or quality report). */
+    public ValidationResult(boolean valid, List<Warning> warnings, DesignMetrics metrics) {
+        this(valid, warnings, metrics, null, null);
     }
 
     /** A printability or quality warning. */

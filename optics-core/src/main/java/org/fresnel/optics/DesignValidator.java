@@ -93,7 +93,66 @@ public final class DesignValidator {
                             m.numberOfZones()),
                     ValidationResult.Warning.Severity.WARNING));
         }
-        return new ValidationResult(valid, warnings, m);
+        return new ValidationResult(valid, warnings, m, p, computeOpticalQualityReport(p));
+    }
+
+    /**
+     * Compute an optical quality report for the given zone plate parameters.
+     *
+     * <p>The chromatic focal shift is estimated over the default visible range
+     * ({@link OpticalQualityReport#DEFAULT_CHROMATIC_MIN_NM} –
+     * {@link OpticalQualityReport#DEFAULT_CHROMATIC_MAX_NM} nm).
+     */
+    public static OpticalQualityReport computeOpticalQualityReport(SingleZonePlateParameters p) {
+        return computeOpticalQualityReport(p,
+                OpticalQualityReport.DEFAULT_CHROMATIC_MIN_NM,
+                OpticalQualityReport.DEFAULT_CHROMATIC_MAX_NM);
+    }
+
+    /**
+     * Compute an optical quality report for the given zone plate parameters and explicit
+     * wavelength range for the chromatic focal shift estimate.
+     *
+     * @param p              zone plate design parameters
+     * @param chromaticMinNm minimum wavelength for the chromatic shift estimate (nm, &gt; 0)
+     * @param chromaticMaxNm maximum wavelength for the chromatic shift estimate (nm, &gt; chromaticMinNm)
+     */
+    public static OpticalQualityReport computeOpticalQualityReport(SingleZonePlateParameters p,
+                                                                    double chromaticMinNm,
+                                                                    double chromaticMaxNm) {
+        if (chromaticMinNm <= 0 || chromaticMaxNm <= 0)
+            throw new IllegalArgumentException("Chromatic wavelength bounds must be positive");
+        if (chromaticMinNm >= chromaticMaxNm)
+            throw new IllegalArgumentException("chromaticMinNm must be less than chromaticMaxNm");
+
+        double lambda = p.wavelengthNm();
+        double f      = p.focalLengthMm();
+        double d      = p.apertureDiameterMm();
+        double lambdaMm = Units.nmToMm(lambda);
+
+        double na           = d / (2.0 * f);
+        double fNumber      = f / d;
+        // Airy disk diameter: 2.44·λ·f/D — convert mm → µm (* 1000)
+        double airyDiskMicrons = 2.44 * lambdaMm * fNumber * 1000.0;
+        // Rayleigh angular resolution: 1.22·λ/D (radians)
+        double rayleighRad  = 1.22 * lambdaMm / d;
+        // Depth of focus: 2·λ·F#² — convert mm → µm
+        double dofMicrons   = 2.0 * lambdaMm * fNumber * fNumber * 1000.0;
+        // Outermost zone width: λ·f/D — convert mm → µm
+        double outerZoneMicrons = lambdaMm * f / d * 1000.0;
+        // Chromatic focal shift: f_design·(λ_design/λ_min − λ_design/λ_max)
+        double chromaticShiftMm = f * lambda * (1.0 / chromaticMinNm - 1.0 / chromaticMaxNm);
+
+        return new OpticalQualityReport(
+                lambda, f, d,
+                na, fNumber,
+                airyDiskMicrons,
+                rayleighRad,
+                dofMicrons,
+                outerZoneMicrons,
+                chromaticShiftMm,
+                chromaticMinNm,
+                chromaticMaxNm);
     }
 
     /**
