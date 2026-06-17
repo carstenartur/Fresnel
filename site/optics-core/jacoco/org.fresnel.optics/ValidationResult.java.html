@@ -9,16 +9,23 @@ import java.util.List;
 public record ValidationResult(
         boolean valid,
         List&lt;Warning&gt; warnings,
-        DesignMetrics metrics
+        DesignMetrics metrics,
+        SingleZonePlateParameters parameters,
+        OpticalQualityReport qualityReport
 ) {
 
-<span class="fc" id="L15">    public ValidationResult {</span>
-<span class="pc bpc" id="L16" title="1 of 2 branches missed.">        warnings = warnings == null ? List.of() : List.copyOf(warnings);</span>
-<span class="fc" id="L17">    }</span>
+<span class="fc" id="L17">    public ValidationResult {</span>
+<span class="pc bpc" id="L18" title="1 of 2 branches missed.">        warnings = warnings == null ? List.of() : List.copyOf(warnings);</span>
+<span class="fc" id="L19">    }</span>
+
+    /** Backwards-compatible constructor (no parameters or quality report). */
+    public ValidationResult(boolean valid, List&lt;Warning&gt; warnings, DesignMetrics metrics) {
+<span class="nc" id="L23">        this(valid, warnings, metrics, null, null);</span>
+<span class="nc" id="L24">    }</span>
 
     /** A printability or quality warning. */
-<span class="fc" id="L20">    public record Warning(String code, String message, Severity severity) {</span>
-<span class="fc" id="L21">        public enum Severity { INFO, WARNING, ERROR }</span>
+<span class="fc" id="L27">    public record Warning(String code, String message, Severity severity) {</span>
+<span class="fc" id="L28">        public enum Severity { INFO, WARNING, ERROR }</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

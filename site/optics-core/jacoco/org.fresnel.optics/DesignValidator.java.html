@@ -93,7 +93,66 @@ public final class DesignValidator {
 <span class="nc" id="L93">                            m.numberOfZones()),</span>
                     ValidationResult.Warning.Severity.WARNING));
         }
-<span class="fc" id="L96">        return new ValidationResult(valid, warnings, m);</span>
+<span class="fc" id="L96">        return new ValidationResult(valid, warnings, m, p, computeOpticalQualityReport(p));</span>
+    }
+
+    /**
+     * Compute an optical quality report for the given zone plate parameters.
+     *
+     * &lt;p&gt;The chromatic focal shift is estimated over the default visible range
+     * ({@link OpticalQualityReport#DEFAULT_CHROMATIC_MIN_NM} –
+     * {@link OpticalQualityReport#DEFAULT_CHROMATIC_MAX_NM} nm).
+     */
+    public static OpticalQualityReport computeOpticalQualityReport(SingleZonePlateParameters p) {
+<span class="fc" id="L107">        return computeOpticalQualityReport(p,</span>
+                OpticalQualityReport.DEFAULT_CHROMATIC_MIN_NM,
+                OpticalQualityReport.DEFAULT_CHROMATIC_MAX_NM);
+    }
+
+    /**
+     * Compute an optical quality report for the given zone plate parameters and explicit
+     * wavelength range for the chromatic focal shift estimate.
+     *
+     * @param p              zone plate design parameters
+     * @param chromaticMinNm minimum wavelength for the chromatic shift estimate (nm, &amp;gt; 0)
+     * @param chromaticMaxNm maximum wavelength for the chromatic shift estimate (nm, &amp;gt; chromaticMinNm)
+     */
+    public static OpticalQualityReport computeOpticalQualityReport(SingleZonePlateParameters p,
+                                                                    double chromaticMinNm,
+                                                                    double chromaticMaxNm) {
+<span class="pc bpc" id="L123" title="1 of 4 branches missed.">        if (chromaticMinNm &lt;= 0 || chromaticMaxNm &lt;= 0)</span>
+<span class="fc" id="L124">            throw new IllegalArgumentException(&quot;Chromatic wavelength bounds must be positive&quot;);</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">        if (chromaticMinNm &gt;= chromaticMaxNm)</span>
+<span class="fc" id="L126">            throw new IllegalArgumentException(&quot;chromaticMinNm must be less than chromaticMaxNm&quot;);</span>
+
+<span class="fc" id="L128">        double lambda = p.wavelengthNm();</span>
+<span class="fc" id="L129">        double f      = p.focalLengthMm();</span>
+<span class="fc" id="L130">        double d      = p.apertureDiameterMm();</span>
+<span class="fc" id="L131">        double lambdaMm = Units.nmToMm(lambda);</span>
+
+<span class="fc" id="L133">        double na           = d / (2.0 * f);</span>
+<span class="fc" id="L134">        double fNumber      = f / d;</span>
+        // Airy disk diameter: 2.44·λ·f/D — convert mm → µm (* 1000)
+<span class="fc" id="L136">        double airyDiskMicrons = 2.44 * lambdaMm * fNumber * 1000.0;</span>
+        // Rayleigh angular resolution: 1.22·λ/D (radians)
+<span class="fc" id="L138">        double rayleighRad  = 1.22 * lambdaMm / d;</span>
+        // Depth of focus: 2·λ·F#² — convert mm → µm
+<span class="fc" id="L140">        double dofMicrons   = 2.0 * lambdaMm * fNumber * fNumber * 1000.0;</span>
+        // Outermost zone width: λ·f/D — convert mm → µm
+<span class="fc" id="L142">        double outerZoneMicrons = lambdaMm * f / d * 1000.0;</span>
+        // Chromatic focal shift: f_design·(λ_design/λ_min − λ_design/λ_max)
+<span class="fc" id="L144">        double chromaticShiftMm = f * lambda * (1.0 / chromaticMinNm - 1.0 / chromaticMaxNm);</span>
+
+<span class="fc" id="L146">        return new OpticalQualityReport(</span>
+                lambda, f, d,
+                na, fNumber,
+                airyDiskMicrons,
+                rayleighRad,
+                dofMicrons,
+                outerZoneMicrons,
+                chromaticShiftMm,
+                chromaticMinNm,
+                chromaticMaxNm);
     }
 
     /**
@@ -102,8 +161,8 @@ public final class DesignValidator {
      */
     public static double focalLengthAtWavelength(double designFocalMm, double designWavelengthNm,
                                                  double otherWavelengthNm) {
-<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        if (otherWavelengthNm &lt;= 0) throw new IllegalArgumentException(&quot;wavelength must be &gt; 0&quot;);</span>
-<span class="fc" id="L106">        return designFocalMm * (designWavelengthNm / otherWavelengthNm);</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">        if (otherWavelengthNm &lt;= 0) throw new IllegalArgumentException(&quot;wavelength must be &gt; 0&quot;);</span>
+<span class="fc" id="L165">        return designFocalMm * (designWavelengthNm / otherWavelengthNm);</span>
     }
 
     /**
@@ -111,7 +170,7 @@ public final class DesignValidator {
      * {@code fMm} and the aperture is {@code dMm}: {@code c ≈ D·|f-z|/f}.
      */
     public static double defocusBlurMm(double apertureDiameterMm, double focalLengthMm, double wallDistanceMm) {
-<span class="fc" id="L114">        return apertureDiameterMm * Math.abs(focalLengthMm - wallDistanceMm) / focalLengthMm;</span>
+<span class="fc" id="L173">        return apertureDiameterMm * Math.abs(focalLengthMm - wallDistanceMm) / focalLengthMm;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

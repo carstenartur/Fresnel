@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpticalQualityReport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">OpticalQualityReport.java</span></div><h1>OpticalQualityReport.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+/**
+ * Optical quality report for a Fresnel zone plate design.
+ *
+ * &lt;p&gt;All formulas assume a paraxial diffractive optic working in air (n&amp;nbsp;=&amp;nbsp;1).
+ *
+ * &lt;h2&gt;Formulas and assumptions&lt;/h2&gt;
+ * &lt;dl&gt;
+ *   &lt;dt&gt;Numerical aperture (NA)&lt;/dt&gt;
+ *   &lt;dd&gt;{@code NA = D / (2·f)} &amp;mdash; paraxial, sin&amp;nbsp;&amp;theta;&amp;nbsp;&amp;asymp;&amp;nbsp;&amp;theta;&amp;nbsp;=&amp;nbsp;D/(2f)&lt;/dd&gt;
+ *   &lt;dt&gt;f-number (F#)&lt;/dt&gt;
+ *   &lt;dd&gt;{@code F# = f / D}&lt;/dd&gt;
+ *   &lt;dt&gt;Airy disk diameter&lt;/dt&gt;
+ *   &lt;dd&gt;{@code d_Airy = 2.44·&amp;lambda;·F# = 2.44·&amp;lambda;·f/D}
+ *       &amp;mdash; diameter to the first dark ring of the Airy pattern&lt;/dd&gt;
+ *   &lt;dt&gt;Rayleigh angular resolution&lt;/dt&gt;
+ *   &lt;dd&gt;{@code &amp;theta;_R = 1.22·&amp;lambda;/D} (radians) &amp;mdash; classical Rayleigh criterion&lt;/dd&gt;
+ *   &lt;dt&gt;Depth of focus (DoF)&lt;/dt&gt;
+ *   &lt;dd&gt;{@code DoF = 2·&amp;lambda;·F#² = 2·&amp;lambda;·(f/D)²}
+ *       &amp;mdash; &amp;plusmn;1&amp;lambda; wave-front-error criterion&lt;/dd&gt;
+ *   &lt;dt&gt;Outermost zone width&lt;/dt&gt;
+ *   &lt;dd&gt;{@code &amp;Delta;r = &amp;lambda;·f/D} &amp;mdash; paraxial approximation for the outermost zone&lt;/dd&gt;
+ *   &lt;dt&gt;Chromatic focal shift&lt;/dt&gt;
+ *   &lt;dd&gt;{@code &amp;Delta;f = f_design·(&amp;lambda;_design/&amp;lambda;_min &amp;minus; &amp;lambda;_design/&amp;lambda;_max)}
+ *       &amp;mdash; derived from the diffractive relation f(&amp;lambda;)&amp;nbsp;&amp;prop;&amp;nbsp;1/&amp;lambda;&lt;/dd&gt;
+ * &lt;/dl&gt;
+ *
+ * @param wavelengthNm                   design wavelength (nm)
+ * @param focalLengthMm                  design focal length (mm)
+ * @param apertureDiameterMm             aperture diameter (mm)
+ * @param numericalAperture              dimensionless NA = D / (2·f)
+ * @param fNumber                        dimensionless f-number = f / D
+ * @param airyDiskDiameterMicrons        estimated Airy disk diameter (&amp;mu;m)
+ * @param rayleighAngularResolutionRad   Rayleigh angular resolution (rad)
+ * @param depthOfFocusMicrons            depth-of-focus estimate (&amp;mu;m)
+ * @param outermostZoneWidthMicrons      outermost zone width (&amp;mu;m), same as &amp;Delta;r = &amp;lambda;·f/D
+ * @param chromaticFocalShiftMm          chromatic focal shift (mm) over the given wavelength range
+ * @param chromaticRangeMinNm            minimum wavelength used for chromatic shift estimate (nm)
+ * @param chromaticRangeMaxNm            maximum wavelength used for chromatic shift estimate (nm)
+ */
+<span class="fc" id="L42">public record OpticalQualityReport(</span>
+        double wavelengthNm,
+        double focalLengthMm,
+        double apertureDiameterMm,
+        double numericalAperture,
+        double fNumber,
+        double airyDiskDiameterMicrons,
+        double rayleighAngularResolutionRad,
+        double depthOfFocusMicrons,
+        double outermostZoneWidthMicrons,
+        double chromaticFocalShiftMm,
+        double chromaticRangeMinNm,
+        double chromaticRangeMaxNm
+) {
+
+    /** Default minimum wavelength (nm) for the visible-range chromatic shift estimate. */
+    public static final double DEFAULT_CHROMATIC_MIN_NM = 450.0;
+    /** Default maximum wavelength (nm) for the visible-range chromatic shift estimate. */
+    public static final double DEFAULT_CHROMATIC_MAX_NM = 650.0;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
