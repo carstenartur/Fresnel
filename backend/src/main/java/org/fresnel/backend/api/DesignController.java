@@ -2,7 +2,6 @@ package org.fresnel.backend.api;
 
 import jakarta.validation.Valid;
 import org.fresnel.optics.DesignValidator;
-import org.fresnel.optics.MaskType;
 import org.fresnel.optics.MultiFocusRenderer;
 import org.fresnel.optics.PdfExporter;
 import org.fresnel.optics.PngExporter;

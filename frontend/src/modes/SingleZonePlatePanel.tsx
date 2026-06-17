@@ -294,10 +294,19 @@ function Metrics({ m }: { m: DesignMetrics }) {
  */
 function PropagationPanel({ req }: { req: SingleZonePlateRequest }) {
   const [zMm, setZMm] = useState(req.focalLengthMm);
+  const zMmEditedRef = useRef(false);
   const [mode, setMode] = useState<PropagationMode>('FRESNEL_TF');
   const [propUrl, setPropUrl] = useBlobUrl();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Keep zMm in sync with the design focal length unless the user has
+  // explicitly overridden it via the distance field.
+  useEffect(() => {
+    if (!zMmEditedRef.current) {
+      setZMm(req.focalLengthMm);
+    }
+  }, [req.focalLengthMm]);
 
   const renderPropagation = async () => {
     setLoading(true); setError(null);
@@ -323,7 +332,7 @@ function PropagationPanel({ req }: { req: SingleZonePlateRequest }) {
 
       <NumberField label="Propagation distance z (mm)"
         value={zMm} min={0.001} step={1}
-        onChange={(v) => setZMm(v)} />
+        onChange={(v) => { zMmEditedRef.current = true; setZMm(v); }} />
 
       <div className="field">
         <label htmlFor="prop-mode">Propagation mode</label>

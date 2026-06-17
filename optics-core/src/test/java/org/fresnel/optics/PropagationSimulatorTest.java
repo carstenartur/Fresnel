@@ -53,7 +53,7 @@ class PropagationSimulatorTest {
                         0.1, 550.0, 0.0, PropagationMode.FRAUNHOFER));
     }
 
-    // ---- Fraunhofer mode: circular aperture ----
+    // ---- Fraunhofer mode: square aperture ----
 
     /**
      * A uniform (all-white) square aperture in BINARY_AMPLITUDE mode should
@@ -61,7 +61,7 @@ class PropagationSimulatorTest {
      * the edges.
      */
     @Test
-    void fraunhoferCircularApertureBrightAtCentre() {
+    void fraunhoferSquareApertureBrightAtCentre() {
         // Build a small all-white (fully open) aperture image.
         int side = 32;
         BufferedImage aperture = new BufferedImage(side, side, BufferedImage.TYPE_BYTE_GRAY);
@@ -106,7 +106,7 @@ class PropagationSimulatorTest {
         assertTrue(centerVal > cornerVal + 50, "centre should be much brighter than corner");
     }
 
-    // ---- Fresnel TF mode: circular aperture ----
+    // ---- Fresnel TF mode: uniform square aperture ----
 
     /**
      * A uniform aperture propagated a short distance in FRESNEL_TF mode should
@@ -138,7 +138,7 @@ class PropagationSimulatorTest {
      * <p>Parameters: pixelSizeMm = 0.010 mm, aperture radius = 15 px (0.15 mm),
      * f = 10 mm, λ = 550 nm.  The phase change per pixel at the aperture edge is
      * ≈ 0.27 cycles/pixel, comfortably below the Nyquist limit of 0.5 cycles/pixel.
-     * After padding the 31 × 31 aperture image to the next power-of-two (64 × 64),
+     * After padding the 31 × 31 aperture image to the next power-of-two (32 × 32),
      * propagation at z = f = 10 mm must produce a bright central spot.
      */
     @Test
@@ -157,9 +157,9 @@ class PropagationSimulatorTest {
         RenderResult result = PropagationSimulator.propagate(p);
 
         BufferedImage out = result.image();
-        int n = out.getWidth(); // 64
+        int n = out.getWidth(); // nextPow2(31) = 32
 
-        // Lens centre in padded grid: offset = (64-31)/2 = 16, centre px = 16+15 = 31
+        // Lens centre in padded grid: offset = (n-side)/2, centre px = (n-side)/2 + apertureRadiusPx
         int expectedCx = (n - side) / 2 + apertureRadiusPx;
         int expectedCy = expectedCx;
 

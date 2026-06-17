@@ -61,9 +61,16 @@ public final class PropagationSimulator {
                     re[idx] = pixel; // 0 (opaque) or 1 (transparent)
                     im[idx] = 0.0;
                 } else { // GREYSCALE_PHASE
-                    double phase = pixel * 2.0 * Math.PI;
-                    re[idx] = Math.cos(phase);
-                    im[idx] = Math.sin(phase);
+                    // pixel == 0 signals the aperture boundary (ZonePlateRenderer
+                    // renders all out-of-aperture pixels as 0 for every mask type).
+                    if (row[x] == 0) {
+                        re[idx] = 0.0;
+                        im[idx] = 0.0;
+                    } else {
+                        double phase = pixel * 2.0 * Math.PI;
+                        re[idx] = Math.cos(phase);
+                        im[idx] = Math.sin(phase);
+                    }
                 }
             }
         }
@@ -135,8 +142,12 @@ public final class PropagationSimulator {
 
     /** Build intensity image with fftshift (DC in the centre). */
     private static RenderResult intensityFftShifted(double[] re, double[] im, int n, double pixelSizeMm) {
-        double[] intensity = computeIntensity(re, im, n);
-        double maxI = max(intensity);
+        // Compute |FFT|² in-place into re[] to avoid a third large array allocation.
+        for (int i = 0; i < n * n; i++) {
+            double a = re[i], b = im[i];
+            re[i] = a * a + b * b;
+        }
+        double maxI = max(re, n * n);
         double inv = maxI > 1e-30 ? 255.0 / maxI : 0.0;
         BufferedImage out = new BufferedImage(n, n, BufferedImage.TYPE_BYTE_GRAY);
         WritableRaster ow = out.getRaster();
@@ -146,7 +157,7 @@ public final class PropagationSimulator {
             int sy = (y + half) % n;
             for (int x = 0; x < n; x++) {
                 int sx = (x + half) % n;
-                row[x] = (int) Math.min(255, Math.round(intensity[sy * n + sx] * inv));
+                row[x] = (int) Math.min(255, Math.round(re[sy * n + sx] * inv));
             }
             ow.setSamples(0, y, n, 1, 0, row);
         }
@@ -155,33 +166,28 @@ public final class PropagationSimulator {
 
     /** Build intensity image without shift (spatial output of IFFT). */
     private static RenderResult intensityDirect(double[] re, double[] im, int n, double pixelSizeMm) {
-        double[] intensity = computeIntensity(re, im, n);
-        double maxI = max(intensity);
+        // Compute intensity in-place into re[] to avoid a third large array allocation.
+        for (int i = 0; i < n * n; i++) {
+            double a = re[i], b = im[i];
+            re[i] = a * a + b * b;
+        }
+        double maxI = max(re, n * n);
         double inv = maxI > 1e-30 ? 255.0 / maxI : 0.0;
         BufferedImage out = new BufferedImage(n, n, BufferedImage.TYPE_BYTE_GRAY);
         WritableRaster ow = out.getRaster();
         int[] row = new int[n];
         for (int y = 0; y < n; y++) {
             for (int x = 0; x < n; x++) {
-                row[x] = (int) Math.min(255, Math.round(intensity[y * n + x] * inv));
+                row[x] = (int) Math.min(255, Math.round(re[y * n + x] * inv));
             }
             ow.setSamples(0, y, n, 1, 0, row);
         }
         return new RenderResult(out, pixelSizeMm);
     }
 
-    private static double[] computeIntensity(double[] re, double[] im, int n) {
-        double[] intensity = new double[n * n];
-        for (int i = 0; i < intensity.length; i++) {
-            double a = re[i], b = im[i];
-            intensity[i] = a * a + b * b;
-        }
-        return intensity;
-    }
-
-    private static double max(double[] arr) {
+    private static double max(double[] arr, int len) {
         double m = 0.0;
-        for (double v : arr) if (v > m) m = v;
+        for (int i = 0; i < len; i++) if (arr[i] > m) m = arr[i];
         return m;
     }
 
