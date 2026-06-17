@@ -10,16 +10,17 @@ public record ValidationResult(
         boolean valid,
         List<Warning> warnings,
         DesignMetrics metrics,
-        SingleZonePlateParameters parameters
+        SingleZonePlateParameters parameters,
+        OpticalQualityReport qualityReport
 ) {
 
     public ValidationResult {
         warnings = warnings == null ? List.of() : List.copyOf(warnings);
     }
 
-    /** Backwards-compatible constructor (no parameters). */
+    /** Backwards-compatible constructor (no parameters or quality report). */
     public ValidationResult(boolean valid, List<Warning> warnings, DesignMetrics metrics) {
-        this(valid, warnings, metrics, null);
+        this(valid, warnings, metrics, null, null);
     }
 
     /** A printability or quality warning. */

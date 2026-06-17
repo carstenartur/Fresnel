@@ -1,6 +1,5 @@
 package org.fresnel.backend.api;
 
-import org.fresnel.optics.DesignValidator;
 import org.fresnel.optics.OpticalQualityReport;
 import org.fresnel.optics.DesignMetrics;
 import org.fresnel.optics.ValidationResult;
@@ -21,9 +20,6 @@ public record ValidationResponse(
         List<WarningDto> warnings = v.warnings().stream()
                 .map(w -> new WarningDto(w.code(), w.message(), w.severity().name()))
                 .toList();
-        OpticalQualityReport report = v.parameters() != null
-                ? DesignValidator.computeOpticalQualityReport(v.parameters())
-                : null;
-        return new ValidationResponse(v.valid(), warnings, v.metrics(), report);
+        return new ValidationResponse(v.valid(), warnings, v.metrics(), v.qualityReport());
     }
 }

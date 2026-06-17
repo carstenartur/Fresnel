@@ -93,7 +93,7 @@ public final class DesignValidator {
                             m.numberOfZones()),
                     ValidationResult.Warning.Severity.WARNING));
         }
-        return new ValidationResult(valid, warnings, m, p);
+        return new ValidationResult(valid, warnings, m, p, computeOpticalQualityReport(p));
     }
 
     /**
