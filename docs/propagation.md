@@ -73,8 +73,8 @@ The critical condition is that the outer-zone half-period must span at least
 wavelength λ, and printer resolution *p* (mm/pixel):
 
 ```
-outer zone half-period  =  λ f / (2 D)  ≥  2 p
-         ⟹  DPI  ≥  25.4 · D / (λ · f)
+outer zone half-period  =  λ f / D  ≥  2 p
+         ⟹  DPI  ≥  25.4 · 2 D / (λ · f)
               where D, λ, f are in millimetres and DPI is dots per inch
 ```
 
