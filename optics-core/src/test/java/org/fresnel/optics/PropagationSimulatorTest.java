@@ -34,7 +34,7 @@ class PropagationSimulatorTest {
     void rejectsNullMask() {
         assertThrows(IllegalArgumentException.class, () ->
                 new PropagationParameters(null, MaskType.BINARY_AMPLITUDE,
-                        0.1, 550.0, 100.0, PropagationMode.FRAUNHOFER));
+                        0.1, 3.2, 550.0, 100.0, PropagationMode.FRAUNHOFER));
     }
 
     @Test
@@ -42,7 +42,15 @@ class PropagationSimulatorTest {
         BufferedImage img = new BufferedImage(32, 32, BufferedImage.TYPE_BYTE_GRAY);
         assertThrows(IllegalArgumentException.class, () ->
                 new PropagationParameters(img, MaskType.BINARY_AMPLITUDE,
-                        0.0, 550.0, 100.0, PropagationMode.FRAUNHOFER));
+                        0.0, 3.2, 550.0, 100.0, PropagationMode.FRAUNHOFER));
+    }
+
+    @Test
+    void rejectsNonPositiveApertureDiameter() {
+        BufferedImage img = new BufferedImage(32, 32, BufferedImage.TYPE_BYTE_GRAY);
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropagationParameters(img, MaskType.BINARY_AMPLITUDE,
+                        0.1, 0.0, 550.0, 100.0, PropagationMode.FRAUNHOFER));
     }
 
     @Test
@@ -50,7 +58,7 @@ class PropagationSimulatorTest {
         BufferedImage img = new BufferedImage(32, 32, BufferedImage.TYPE_BYTE_GRAY);
         assertThrows(IllegalArgumentException.class, () ->
                 new PropagationParameters(img, MaskType.BINARY_AMPLITUDE,
-                        0.1, 550.0, 0.0, PropagationMode.FRAUNHOFER));
+                        0.1, 3.2, 550.0, 0.0, PropagationMode.FRAUNHOFER));
     }
 
     // ---- Fraunhofer mode: square aperture ----
@@ -69,7 +77,7 @@ class PropagationSimulatorTest {
 
         double pixMm = 0.1;
         PropagationParameters p = new PropagationParameters(
-                aperture, MaskType.BINARY_AMPLITUDE, pixMm, 550.0, 100.0, PropagationMode.FRAUNHOFER);
+                aperture, MaskType.BINARY_AMPLITUDE, pixMm, side * pixMm, 550.0, 100.0, PropagationMode.FRAUNHOFER);
         RenderResult r = PropagationSimulator.propagate(p);
 
         BufferedImage out = r.image();
@@ -95,7 +103,7 @@ class PropagationSimulatorTest {
         fillGrey(aperture, 255);
 
         PropagationParameters p = new PropagationParameters(
-                aperture, MaskType.BINARY_AMPLITUDE, 0.1, 550.0, 100.0, PropagationMode.FRAUNHOFER);
+                aperture, MaskType.BINARY_AMPLITUDE, 0.1, side * 0.1, 550.0, 100.0, PropagationMode.FRAUNHOFER);
         RenderResult r = PropagationSimulator.propagate(p);
 
         BufferedImage out = r.image();
@@ -119,7 +127,7 @@ class PropagationSimulatorTest {
         fillGrey(aperture, 255);
 
         PropagationParameters p = new PropagationParameters(
-                aperture, MaskType.BINARY_AMPLITUDE, 0.1, 550.0, 1.0, PropagationMode.FRESNEL_TF);
+                aperture, MaskType.BINARY_AMPLITUDE, 0.1, side * 0.1, 550.0, 1.0, PropagationMode.FRESNEL_TF);
         RenderResult r = PropagationSimulator.propagate(p);
 
         BufferedImage out = r.image();
@@ -152,8 +160,8 @@ class PropagationSimulatorTest {
         BufferedImage lensImg = syntheticConvergingLens(side, apertureRadiusPx, pixMm, lambdaMm, fMm);
 
         PropagationParameters p = new PropagationParameters(
-                lensImg, MaskType.GREYSCALE_PHASE, pixMm, lambdaMm * 1e6, fMm,
-                PropagationMode.FRESNEL_TF);
+                lensImg, MaskType.GREYSCALE_PHASE, pixMm, 2.0 * apertureRadiusPx * pixMm,
+                lambdaMm * 1e6, fMm, PropagationMode.FRESNEL_TF);
         RenderResult result = PropagationSimulator.propagate(p);
 
         BufferedImage out = result.image();
@@ -193,11 +201,11 @@ class PropagationSimulatorTest {
         BufferedImage lensImg = syntheticConvergingLens(side, apertureRadiusPx, pixMm, lambdaMm, fMm);
 
         PropagationParameters focused = new PropagationParameters(
-                lensImg, MaskType.GREYSCALE_PHASE, pixMm, lambdaMm * 1e6, fMm,
-                PropagationMode.FRESNEL_TF);
+                lensImg, MaskType.GREYSCALE_PHASE, pixMm, 2.0 * apertureRadiusPx * pixMm,
+                lambdaMm * 1e6, fMm, PropagationMode.FRESNEL_TF);
         PropagationParameters defocused = new PropagationParameters(
-                lensImg, MaskType.GREYSCALE_PHASE, pixMm, lambdaMm * 1e6, fMm * 1.5,
-                PropagationMode.FRESNEL_TF);
+                lensImg, MaskType.GREYSCALE_PHASE, pixMm, 2.0 * apertureRadiusPx * pixMm,
+                lambdaMm * 1e6, fMm * 1.5, PropagationMode.FRESNEL_TF);
 
         RenderResult rFoc = PropagationSimulator.propagate(focused);
         RenderResult rDef = PropagationSimulator.propagate(defocused);
@@ -264,15 +272,39 @@ class PropagationSimulatorTest {
     @Test
     void fraunhoferGreyscalePhaseConstantMask() {
         int side = 32;
+        double pixMm = 0.1;
         BufferedImage phaseImg = new BufferedImage(side, side, BufferedImage.TYPE_BYTE_GRAY);
         fillGrey(phaseImg, 128); // phase ≈ π (constant)
 
         PropagationParameters p = new PropagationParameters(
-                phaseImg, MaskType.GREYSCALE_PHASE, 0.1, 550.0, 100.0, PropagationMode.FRAUNHOFER);
+                phaseImg, MaskType.GREYSCALE_PHASE, pixMm, side * pixMm, 550.0, 100.0, PropagationMode.FRAUNHOFER);
         RenderResult r = PropagationSimulator.propagate(p);
 
         int maxVal = maxPixel(r.image());
         assertTrue(maxVal > 0, "constant phase mask should produce non-zero output");
+    }
+
+    /**
+     * A GREYSCALE_PHASE image filled entirely with pixel value 0 (phase = 0)
+     * must produce non-zero Fraunhofer output.  Phase 0 is a valid in-aperture
+     * value (unit amplitude, zero phase shift); it must <em>not</em> be mistaken
+     * for an out-of-aperture blocked pixel.
+     */
+    @Test
+    void greyscalePhaseZeroPixelInsideApertureHasUnitAmplitude() {
+        int side = 32;
+        double pixMm = 0.1;
+        BufferedImage allZeroPhase = new BufferedImage(side, side, BufferedImage.TYPE_BYTE_GRAY);
+        fillGrey(allZeroPhase, 0); // phase = 0 everywhere inside aperture
+
+        PropagationParameters p = new PropagationParameters(
+                allZeroPhase, MaskType.GREYSCALE_PHASE, pixMm, side * pixMm,
+                550.0, 100.0, PropagationMode.FRAUNHOFER);
+        RenderResult r = PropagationSimulator.propagate(p);
+
+        int maxVal = maxPixel(r.image());
+        assertTrue(maxVal > 0,
+                "pixel=0 (phase=0) inside aperture should give unit amplitude, not zero amplitude");
     }
 
     // ---- helpers ----

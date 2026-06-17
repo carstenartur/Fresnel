@@ -12,8 +12,8 @@ spot, defocus pattern, or diffraction artefacts *before* exporting to print.
 
    | `maskType` | Conversion |
    |------------|-----------|
-   | `BINARY_AMPLITUDE` | amplitude = pixel / 255 (0 → opaque, 1 → transparent), phase = 0 |
-   | `GREYSCALE_PHASE`  | unit amplitude, phase = pixel / 255 × 2π |
+   | `BINARY_AMPLITUDE` | amplitude = pixel / 255 (0 → opaque, 1 → transparent), phase = 0; out-of-aperture pixels are already 0 in the rendered image |
+   | `GREYSCALE_PHASE`  | inside the circular aperture: unit amplitude, phase = pixel / 255 × 2π (pixel 0 = phase 0 is a valid in-aperture value); outside the aperture: amplitude = 0 |
 
 2. **Zero-padding** — the complex field is embedded in a square, zero-padded
    array whose side is the next power of two ≥ the mask side.  This avoids
@@ -49,7 +49,8 @@ This gives the **far-field / focal-plane diffraction pattern** and is equivalent
 to observing the field at the back focal plane of an ideal thin lens placed
 immediately after the mask.
 
-- No physical distance is used in the computation; `zMm` is ignored.
+- No physical distance is used in the computation; `zMm` is accepted for API
+  consistency but ignored.
 - Best suited for qualitative inspection of the diffraction order structure.
 - The centre pixel corresponds to the on-axis (DC) component.
 
@@ -116,9 +117,10 @@ RenderResult mask = ZonePlateRenderer.render(zp);
 PropagationParameters p = new PropagationParameters(
         mask.image(),
         MaskType.BINARY_AMPLITUDE,
-        mask.pixelSizeMm(),   // physical pixel size in mm
-        550.0,                // wavelength in nm
-        1000.0,               // propagation distance z in mm
+        mask.pixelSizeMm(),           // physical pixel size in mm
+        zp.apertureDiameterMm(),      // aperture diameter in mm
+        550.0,                        // wavelength in nm
+        1000.0,                       // propagation distance z in mm
         PropagationMode.FRESNEL_TF);
 
 RenderResult intensity = PropagationSimulator.propagate(p);

@@ -279,6 +279,7 @@ public class DesignController {
                 mask.image(),
                 params.maskType(),
                 mask.pixelSizeMm(),
+                params.apertureDiameterMm(),
                 req.resolvedWavelengthNm(),
                 req.zMm(),
                 req.resolvedMode());

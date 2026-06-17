@@ -47,6 +47,17 @@ public final class PropagationSimulator {
         double[] re = new double[n * n];
         double[] im = new double[n * n];
 
+        // For GREYSCALE_PHASE, compute the aperture circle independently of pixel values
+        // so that pixel=0 (phase=0) inside the aperture is correctly treated as unit
+        // amplitude, not as a blocked pixel.
+        double apertureRadiusPxSq = 0.0;
+        double centerXPx = (w - 1) / 2.0;
+        double centerYPx = (h - 1) / 2.0;
+        if (p.maskType() == MaskType.GREYSCALE_PHASE) {
+            double radiusPx = (p.apertureDiameterMm() / 2.0) / p.pixelSizeMm();
+            apertureRadiusPxSq = radiusPx * radiusPx;
+        }
+
         // Load the mask into the centre of the padded array.
         int xOff = (n - w) / 2;
         int yOff = (n - h) / 2;
@@ -58,15 +69,16 @@ public final class PropagationSimulator {
                 int idx = (y + yOff) * n + (x + xOff);
                 double pixel = row[x] / 255.0;
                 if (p.maskType() == MaskType.BINARY_AMPLITUDE) {
-                    re[idx] = pixel; // 0 (opaque) or 1 (transparent)
+                    re[idx] = pixel; // 0 (opaque) or 1 (transparent), aperture already encoded in pixels
                     im[idx] = 0.0;
-                } else { // GREYSCALE_PHASE
-                    // pixel == 0 signals the aperture boundary (ZonePlateRenderer
-                    // renders all out-of-aperture pixels as 0 for every mask type).
-                    if (row[x] == 0) {
+                } else { // GREYSCALE_PHASE: unit amplitude inside circular aperture, 0 outside
+                    double dx = x - centerXPx;
+                    double dy = y - centerYPx;
+                    if (dx * dx + dy * dy > apertureRadiusPxSq) {
                         re[idx] = 0.0;
                         im[idx] = 0.0;
                     } else {
+                        // pixel=0 → phase=0 is a valid in-aperture value (unit amplitude, no phase shift)
                         double phase = pixel * 2.0 * Math.PI;
                         re[idx] = Math.cos(phase);
                         im[idx] = Math.sin(phase);

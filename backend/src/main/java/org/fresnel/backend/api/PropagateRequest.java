@@ -13,7 +13,11 @@ import org.fresnel.optics.PropagationMode;
  * parameters in this record.
  *
  * @param base         zone-plate design parameters (must not be null)
- * @param zMm          propagation distance in millimetres (must be &gt; 0)
+ * @param zMm          propagation distance in millimetres (must be &gt; 0;
+ *                     accepted for {@link PropagationMode#FRAUNHOFER} requests
+ *                     for API consistency but not used in the computation — the
+ *                     Fraunhofer mode produces the far-field pattern regardless
+ *                     of distance)
  * @param wavelengthNm illumination wavelength in nanometres (must be &gt; 0 if supplied);
  *                     if {@code null}, the wavelength from {@code base} is used
  * @param mode         propagation algorithm; if {@code null}, defaults to
