@@ -57,4 +57,3 @@ class PhaseReliefGeneratorTest {
         assertTrue(stl.endsWith("endsolid test_relief\n"));
     }
 }
-

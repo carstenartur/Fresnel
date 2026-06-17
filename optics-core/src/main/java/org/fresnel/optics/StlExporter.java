@@ -10,6 +10,8 @@ import java.util.Locale;
  */
 public final class StlExporter {
 
+    private static final double EPSILON_NORMAL = 1e-30;
+
     private StlExporter() {}
 
     public static byte[] toBinaryStl(double[][] heightMapMm, double pixelSizeMm) {
@@ -154,11 +156,13 @@ public final class StlExporter {
         double ny = uz * vx - ux * vz;
         double nz = ux * vy - uy * vx;
         double n = Math.sqrt(nx * nx + ny * ny + nz * nz);
-        if (n <= 1e-30) return new Vec3(0, 0, 0);
+        if (n <= EPSILON_NORMAL) return new Vec3(0, 0, 0);
         return new Vec3(nx / n, ny / n, nz / n);
     }
 
     private static int triangleCount(int w, int h) {
+        // 2 triangles per grid cell on top and bottom surfaces
+        // + 2 triangles per boundary segment on each of 4 boundaries.
         return 4 * (w - 1) * (h - 1) + 4 * (w + h - 2);
     }
 
@@ -192,4 +196,3 @@ public final class StlExporter {
 
     private record Grid(double[][] heightMap, int w, int h, double pixelSizeMm) {}
 }
-

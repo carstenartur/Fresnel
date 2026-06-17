@@ -152,18 +152,19 @@ public class HologramController {
     }
 
     private static ResponseEntity<byte[]> png(byte[] body, String filename, String disposition) {
-        HttpHeaders h = new HttpHeaders();
-        h.setContentType(MediaType.IMAGE_PNG);
-        h.setContentDisposition("inline".equalsIgnoreCase(disposition)
-                ? org.springframework.http.ContentDisposition.inline().filename(filename).build()
-                : org.springframework.http.ContentDisposition.attachment().filename(filename).build());
-        return new ResponseEntity<>(body, h, 200);
+        return response(body, MediaType.IMAGE_PNG_VALUE, filename, disposition);
     }
 
     private static ResponseEntity<byte[]> binary(byte[] body, String mime, String filename) {
+        return response(body, mime, filename, "attachment");
+    }
+
+    private static ResponseEntity<byte[]> response(byte[] body, String mime, String filename, String disposition) {
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.parseMediaType(mime));
-        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(filename).build());
+        h.setContentDisposition("inline".equalsIgnoreCase(disposition)
+                ? org.springframework.http.ContentDisposition.inline().filename(filename).build()
+                : org.springframework.http.ContentDisposition.attachment().filename(filename).build());
         return new ResponseEntity<>(body, h, 200);
     }
 }

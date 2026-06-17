@@ -18,4 +18,3 @@ public record ReliefParameters(
         if (maxPhaseShiftRad <= 0.0) throw new IllegalArgumentException("maxPhaseShiftRad must be > 0");
     }
 }
-

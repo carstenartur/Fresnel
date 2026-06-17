@@ -38,4 +38,3 @@ public final class PhaseReliefGenerator {
         return out;
     }
 }
-
