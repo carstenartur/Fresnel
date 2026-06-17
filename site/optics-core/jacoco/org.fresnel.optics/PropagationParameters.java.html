@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PropagationParameters.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">PropagationParameters.java</span></div><h1>PropagationParameters.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.awt.image.BufferedImage;
+
+/**
+ * Parameters for the scalar optical propagation in {@link PropagationSimulator}.
+ *
+ * @param maskImage          the rendered print mask (greyscale, any size)
+ * @param maskType           how the greyscale values encode the field:
+ *                           &lt;ul&gt;
+ *                             &lt;li&gt;{@link MaskType#BINARY_AMPLITUDE}: pixel 0 → opaque,
+ *                                 pixel 255 → transparent; the aperture boundary is already
+ *                                 encoded in the pixel values (outside-aperture pixels are 0).&lt;/li&gt;
+ *                             &lt;li&gt;{@link MaskType#GREYSCALE_PHASE}: inside the circular
+ *                                 aperture of diameter {@code apertureDiameterMm}, the field
+ *                                 has unit amplitude and phase = pixel/255 × 2π (phase 0 at
+ *                                 pixel 0 is a valid in-aperture value); outside the aperture
+ *                                 the field is zero regardless of the pixel value.&lt;/li&gt;
+ *                           &lt;/ul&gt;
+ * @param pixelSizeMm        physical size of one mask pixel in millimetres (must be &amp;gt; 0)
+ * @param apertureDiameterMm diameter of the circular aperture in millimetres (must be &amp;gt; 0);
+ *                           used by {@link PropagationSimulator} to determine the aperture
+ *                           boundary for {@link MaskType#GREYSCALE_PHASE} masks independently
+ *                           of the pixel values
+ * @param wavelengthNm       illumination wavelength in nanometres (must be &amp;gt; 0)
+ * @param zMm                propagation distance in millimetres (must be &amp;gt; 0;
+ *                           accepted but not used for {@link PropagationMode#FRAUNHOFER})
+ * @param mode               propagation algorithm
+ */
+public record PropagationParameters(
+        BufferedImage maskImage,
+        MaskType maskType,
+        double pixelSizeMm,
+        double apertureDiameterMm,
+        double wavelengthNm,
+        double zMm,
+        PropagationMode mode
+) {
+
+<span class="fc" id="L40">    public PropagationParameters {</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        if (maskImage == null) throw new IllegalArgumentException(&quot;maskImage must not be null&quot;);</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (maskType == null) throw new IllegalArgumentException(&quot;maskType must not be null&quot;);</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        if (pixelSizeMm &lt;= 0) throw new IllegalArgumentException(&quot;pixelSizeMm must be &gt; 0 (millimeters)&quot;);</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">        if (apertureDiameterMm &lt;= 0) throw new IllegalArgumentException(&quot;apertureDiameterMm must be &gt; 0 (millimeters)&quot;);</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        if (wavelengthNm &lt;= 0) throw new IllegalArgumentException(&quot;wavelengthNm must be &gt; 0 (nanometers)&quot;);</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        if (zMm &lt;= 0) throw new IllegalArgumentException(&quot;zMm must be &gt; 0 (millimeters)&quot;);</span>
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">        if (mode == null) throw new IllegalArgumentException(&quot;mode must not be null&quot;);</span>
+<span class="fc" id="L48">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

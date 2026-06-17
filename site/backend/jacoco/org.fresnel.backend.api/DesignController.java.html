@@ -5,6 +5,8 @@ import org.fresnel.optics.DesignValidator;
 import org.fresnel.optics.MultiFocusRenderer;
 import org.fresnel.optics.PdfExporter;
 import org.fresnel.optics.PngExporter;
+import org.fresnel.optics.PropagationParameters;
+import org.fresnel.optics.PropagationSimulator;
 import org.fresnel.optics.RenderResult;
 import org.fresnel.optics.RgbZonePlateRenderer;
 import org.fresnel.optics.SingleZonePlateParameters;
@@ -38,7 +40,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping(&quot;/api/designs&quot;)
-<span class="fc" id="L41">public class DesignController {</span>
+<span class="fc" id="L43">public class DesignController {</span>
 
     /** Maximum image side (in pixels) allowed for synchronous PNG preview. */
     public static final long MAX_PREVIEW_PX = 4096;
@@ -49,28 +51,28 @@ import java.util.Map;
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ValidationResponse validate(@Valid @RequestBody SingleZonePlateRequest req) {
-<span class="fc" id="L52">        SingleZonePlateParameters params = req.toParameters();</span>
-<span class="fc" id="L53">        ValidationResult v = DesignValidator.validate(params);</span>
-<span class="fc" id="L54">        return ValidationResponse.from(v);</span>
+<span class="fc" id="L54">        SingleZonePlateParameters params = req.toParameters();</span>
+<span class="fc" id="L55">        ValidationResult v = DesignValidator.validate(params);</span>
+<span class="fc" id="L56">        return ValidationResponse.from(v);</span>
     }
 
     @PostMapping(value = &quot;/preview.png&quot;,
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; previewPng(@Valid @RequestBody SingleZonePlateRequest req) throws IOException {
-<span class="fc" id="L61">        SingleZonePlateParameters params = req.toParameters();</span>
-<span class="fc" id="L62">        long sizePx = estimateSizePx(params);</span>
-<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (sizePx &gt; MAX_PREVIEW_PX) {</span>
-<span class="fc" id="L64">            return tooLarge(sizePx);</span>
+<span class="fc" id="L63">        SingleZonePlateParameters params = req.toParameters();</span>
+<span class="fc" id="L64">        long sizePx = estimateSizePx(params);</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        if (sizePx &gt; MAX_PREVIEW_PX) {</span>
+<span class="fc" id="L66">            return tooLarge(sizePx);</span>
         }
-<span class="fc" id="L66">        return renderSinglePng(params, &quot;inline&quot;, &quot;fresnel-zone-plate.png&quot;);</span>
+<span class="fc" id="L68">        return renderSinglePng(params, &quot;inline&quot;, &quot;fresnel-zone-plate.png&quot;);</span>
     }
 
     @PostMapping(value = &quot;/export.png&quot;,
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; exportPng(@Valid @RequestBody SingleZonePlateRequest req) throws IOException {
-<span class="nc" id="L73">        return renderSinglePng(req.toParameters(), &quot;attachment&quot;, &quot;fresnel-zone-plate.png&quot;);</span>
+<span class="nc" id="L75">        return renderSinglePng(req.toParameters(), &quot;attachment&quot;, &quot;fresnel-zone-plate.png&quot;);</span>
     }
 
     @PostMapping(value = &quot;/export.svg&quot;,
@@ -79,16 +81,16 @@ import java.util.Map;
     public ResponseEntity&lt;byte[]&gt; exportSvg(@Valid @RequestBody SingleZonePlateRequest req,
                                             @RequestParam(value = &quot;vector&quot;, defaultValue = &quot;true&quot;) boolean vector)
             throws IOException {
-<span class="fc" id="L82">        SingleZonePlateParameters params = req.toParameters();</span>
-<span class="pc bpc" id="L83" title="1 of 2 branches missed.">        boolean canVector = vector</span>
-<span class="pc bpc" id="L84" title="1 of 2 branches missed.">                &amp;&amp; (params.targetOffsetXmm() == 0.0)</span>
-<span class="pc bpc" id="L85" title="1 of 2 branches missed.">                &amp;&amp; (params.targetOffsetYmm() == 0.0)</span>
-<span class="pc bpc" id="L86" title="1 of 2 branches missed.">                &amp;&amp; params.maskType() == org.fresnel.optics.MaskType.BINARY_AMPLITUDE;</span>
-<span class="pc bpc" id="L87" title="1 of 2 branches missed.">        byte[] svg = canVector</span>
-<span class="fc" id="L88">                ? SvgExporter.toSvgZonePlateBytes(params)</span>
-<span class="pc" id="L89">                : SvgExporter.toSvgRasterBytes(</span>
-<span class="nc" id="L90">                        org.fresnel.optics.ZonePlateRenderer.render(params), params.dpi());</span>
-<span class="fc" id="L91">        return svgResponse(svg, &quot;fresnel-zone-plate.svg&quot;);</span>
+<span class="fc" id="L84">        SingleZonePlateParameters params = req.toParameters();</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">        boolean canVector = vector</span>
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">                &amp;&amp; (params.targetOffsetXmm() == 0.0)</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">                &amp;&amp; (params.targetOffsetYmm() == 0.0)</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">                &amp;&amp; params.maskType() == org.fresnel.optics.MaskType.BINARY_AMPLITUDE;</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        byte[] svg = canVector</span>
+<span class="fc" id="L90">                ? SvgExporter.toSvgZonePlateBytes(params)</span>
+<span class="pc" id="L91">                : SvgExporter.toSvgRasterBytes(</span>
+<span class="nc" id="L92">                        org.fresnel.optics.ZonePlateRenderer.render(params), params.dpi());</span>
+<span class="fc" id="L93">        return svgResponse(svg, &quot;fresnel-zone-plate.svg&quot;);</span>
     }
 
     @PostMapping(value = &quot;/export.pdf&quot;,
@@ -97,26 +99,26 @@ import java.util.Map;
     public ResponseEntity&lt;byte[]&gt; exportPdf(@Valid @RequestBody SingleZonePlateRequest req,
                                             @RequestParam(value = &quot;sheet&quot;, defaultValue = &quot;FIT&quot;) String sheet)
             throws IOException {
-<span class="fc" id="L100">        PdfExporter.SheetSize size = parseSheetSize(sheet);</span>
-<span class="fc" id="L101">        RenderResult r = org.fresnel.optics.ZonePlateRenderer.render(req.toParameters());</span>
-<span class="fc" id="L102">        byte[] pdf = PdfExporter.toPdfBytes(r, size);</span>
-<span class="fc" id="L103">        return pdfResponse(pdf, &quot;fresnel-zone-plate.pdf&quot;);</span>
+<span class="fc" id="L102">        PdfExporter.SheetSize size = parseSheetSize(sheet);</span>
+<span class="fc" id="L103">        RenderResult r = org.fresnel.optics.ZonePlateRenderer.render(req.toParameters());</span>
+<span class="fc" id="L104">        byte[] pdf = PdfExporter.toPdfBytes(r, size);</span>
+<span class="fc" id="L105">        return pdfResponse(pdf, &quot;fresnel-zone-plate.pdf&quot;);</span>
     }
 
     @PostMapping(value = &quot;/export.dxf&quot;,
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = &quot;application/dxf&quot;)
     public ResponseEntity&lt;byte[]&gt; exportDxf(@Valid @RequestBody SingleZonePlateRequest req) throws IOException {
-<span class="fc" id="L110">        byte[] dxf = org.fresnel.optics.DxfExporter.toDxfBytes(req.toParameters());</span>
-<span class="fc" id="L111">        return vendorResponse(dxf, &quot;application/dxf&quot;, &quot;fresnel-zone-plate.dxf&quot;);</span>
+<span class="fc" id="L112">        byte[] dxf = org.fresnel.optics.DxfExporter.toDxfBytes(req.toParameters());</span>
+<span class="fc" id="L113">        return vendorResponse(dxf, &quot;application/dxf&quot;, &quot;fresnel-zone-plate.dxf&quot;);</span>
     }
 
     @PostMapping(value = &quot;/export.gbr&quot;,
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = &quot;application/vnd.gerber&quot;)
     public ResponseEntity&lt;byte[]&gt; exportGerber(@Valid @RequestBody SingleZonePlateRequest req) throws IOException {
-<span class="fc" id="L118">        byte[] gbr = org.fresnel.optics.GerberExporter.toGerberBytes(req.toParameters());</span>
-<span class="fc" id="L119">        return vendorResponse(gbr, &quot;application/vnd.gerber&quot;, &quot;fresnel-zone-plate.gbr&quot;);</span>
+<span class="fc" id="L120">        byte[] gbr = org.fresnel.optics.GerberExporter.toGerberBytes(req.toParameters());</span>
+<span class="fc" id="L121">        return vendorResponse(gbr, &quot;application/vnd.gerber&quot;, &quot;fresnel-zone-plate.gbr&quot;);</span>
     }
 
     // -------- Hex macro cell (Use Case B) --------
@@ -125,37 +127,37 @@ import java.util.Map;
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
     public Map&lt;String, Object&gt; hexInfo(@Valid @RequestBody HexMacroCellRequest req) {
-<span class="fc" id="L128">        HexMacroCellParameters p = req.toParameters();</span>
-<span class="fc" id="L129">        int n = HexMacroCellRenderer.countSubElements(p);</span>
-<span class="fc" id="L130">        long sidePx = (long) Math.ceil(2.0 * p.macroRadiusMm() / (25.4 / p.dpi()));</span>
-<span class="fc" id="L131">        return Map.of(&quot;subElements&quot;, n, &quot;imageSidePx&quot;, sidePx);</span>
+<span class="fc" id="L130">        HexMacroCellParameters p = req.toParameters();</span>
+<span class="fc" id="L131">        int n = HexMacroCellRenderer.countSubElements(p);</span>
+<span class="fc" id="L132">        long sidePx = (long) Math.ceil(2.0 * p.macroRadiusMm() / (25.4 / p.dpi()));</span>
+<span class="fc" id="L133">        return Map.of(&quot;subElements&quot;, n, &quot;imageSidePx&quot;, sidePx);</span>
     }
 
     @PostMapping(value = &quot;/hex/preview.png&quot;,
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; hexPreview(@Valid @RequestBody HexMacroCellRequest req) throws IOException {
-<span class="fc" id="L138">        HexMacroCellParameters p = req.toParameters();</span>
-<span class="fc" id="L139">        long sizePx = (long) Math.ceil(2.0 * p.macroRadiusMm() / (25.4 / p.dpi()));</span>
-<span class="pc bpc" id="L140" title="1 of 2 branches missed.">        if (sizePx &gt; MAX_PREVIEW_PX) return tooLarge(sizePx);</span>
-<span class="fc" id="L141">        RenderResult r = HexMacroCellRenderer.render(p);</span>
-<span class="fc" id="L142">        return pngResponse(PngExporter.toPngBytes(r, p.dpi()), &quot;inline&quot;, &quot;fresnel-hex-macro.png&quot;);</span>
+<span class="fc" id="L140">        HexMacroCellParameters p = req.toParameters();</span>
+<span class="fc" id="L141">        long sizePx = (long) Math.ceil(2.0 * p.macroRadiusMm() / (25.4 / p.dpi()));</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">        if (sizePx &gt; MAX_PREVIEW_PX) return tooLarge(sizePx);</span>
+<span class="fc" id="L143">        RenderResult r = HexMacroCellRenderer.render(p);</span>
+<span class="fc" id="L144">        return pngResponse(PngExporter.toPngBytes(r, p.dpi()), &quot;inline&quot;, &quot;fresnel-hex-macro.png&quot;);</span>
     }
 
     @PostMapping(value = &quot;/hex/export.png&quot;,
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; hexExportPng(@Valid @RequestBody HexMacroCellRequest req) throws IOException {
-<span class="nc" id="L149">        RenderResult r = HexMacroCellRenderer.render(req.toParameters());</span>
-<span class="nc" id="L150">        return pngResponse(PngExporter.toPngBytes(r, req.dpi()), &quot;attachment&quot;, &quot;fresnel-hex-macro.png&quot;);</span>
+<span class="nc" id="L151">        RenderResult r = HexMacroCellRenderer.render(req.toParameters());</span>
+<span class="nc" id="L152">        return pngResponse(PngExporter.toPngBytes(r, req.dpi()), &quot;attachment&quot;, &quot;fresnel-hex-macro.png&quot;);</span>
     }
 
     @PostMapping(value = &quot;/hex/export.svg&quot;,
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = &quot;image/svg+xml&quot;)
     public ResponseEntity&lt;byte[]&gt; hexExportSvg(@Valid @RequestBody HexMacroCellRequest req) throws IOException {
-<span class="nc" id="L157">        RenderResult r = HexMacroCellRenderer.render(req.toParameters());</span>
-<span class="nc" id="L158">        return svgResponse(SvgExporter.toSvgRasterBytes(r, req.dpi()), &quot;fresnel-hex-macro.svg&quot;);</span>
+<span class="nc" id="L159">        RenderResult r = HexMacroCellRenderer.render(req.toParameters());</span>
+<span class="nc" id="L160">        return svgResponse(SvgExporter.toSvgRasterBytes(r, req.dpi()), &quot;fresnel-hex-macro.svg&quot;);</span>
     }
 
     @PostMapping(value = &quot;/hex/export.pdf&quot;,
@@ -164,8 +166,8 @@ import java.util.Map;
     public ResponseEntity&lt;byte[]&gt; hexExportPdf(@Valid @RequestBody HexMacroCellRequest req,
                                                @RequestParam(value = &quot;sheet&quot;, defaultValue = &quot;FIT&quot;) String sheet)
             throws IOException {
-<span class="nc" id="L167">        RenderResult r = HexMacroCellRenderer.render(req.toParameters());</span>
-<span class="nc" id="L168">        return pdfResponse(PdfExporter.toPdfBytes(r, parseSheetSize(sheet)), &quot;fresnel-hex-macro.pdf&quot;);</span>
+<span class="nc" id="L169">        RenderResult r = HexMacroCellRenderer.render(req.toParameters());</span>
+<span class="nc" id="L170">        return pdfResponse(PdfExporter.toPdfBytes(r, parseSheetSize(sheet)), &quot;fresnel-hex-macro.pdf&quot;);</span>
     }
 
     // -------- Window foil (Use Case C) --------
@@ -174,23 +176,23 @@ import java.util.Map;
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
     public Map&lt;String, Object&gt; foilInfo(@Valid @RequestBody WindowFoilRequest req) {
-<span class="nc" id="L177">        WindowFoilParameters p = req.toParameters();</span>
-<span class="nc" id="L178">        int n = WindowFoilRenderer.countCells(p);</span>
-<span class="nc" id="L179">        long wPx = (long) Math.ceil(p.sheetWidthMm() / (25.4 / p.dpi()));</span>
-<span class="nc" id="L180">        long hPx = (long) Math.ceil(p.sheetHeightMm() / (25.4 / p.dpi()));</span>
-<span class="nc" id="L181">        return Map.of(&quot;cells&quot;, n, &quot;imageWidthPx&quot;, wPx, &quot;imageHeightPx&quot;, hPx);</span>
+<span class="nc" id="L179">        WindowFoilParameters p = req.toParameters();</span>
+<span class="nc" id="L180">        int n = WindowFoilRenderer.countCells(p);</span>
+<span class="nc" id="L181">        long wPx = (long) Math.ceil(p.sheetWidthMm() / (25.4 / p.dpi()));</span>
+<span class="nc" id="L182">        long hPx = (long) Math.ceil(p.sheetHeightMm() / (25.4 / p.dpi()));</span>
+<span class="nc" id="L183">        return Map.of(&quot;cells&quot;, n, &quot;imageWidthPx&quot;, wPx, &quot;imageHeightPx&quot;, hPx);</span>
     }
 
     @PostMapping(value = &quot;/foil/preview.png&quot;,
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; foilPreview(@Valid @RequestBody WindowFoilRequest req) throws IOException {
-<span class="fc" id="L188">        WindowFoilParameters p = req.toParameters();</span>
-<span class="fc" id="L189">        long wPx = (long) Math.ceil(p.sheetWidthMm() / (25.4 / p.dpi()));</span>
-<span class="fc" id="L190">        long hPx = (long) Math.ceil(p.sheetHeightMm() / (25.4 / p.dpi()));</span>
-<span class="pc bpc" id="L191" title="2 of 4 branches missed.">        if (wPx &gt; MAX_PREVIEW_PX || hPx &gt; MAX_PREVIEW_PX) return tooLarge(Math.max(wPx, hPx));</span>
-<span class="fc" id="L192">        RenderResult r = WindowFoilRenderer.render(p);</span>
-<span class="fc" id="L193">        return pngResponse(PngExporter.toPngBytes(r, p.dpi()), &quot;inline&quot;, &quot;fresnel-window-foil.png&quot;);</span>
+<span class="fc" id="L190">        WindowFoilParameters p = req.toParameters();</span>
+<span class="fc" id="L191">        long wPx = (long) Math.ceil(p.sheetWidthMm() / (25.4 / p.dpi()));</span>
+<span class="fc" id="L192">        long hPx = (long) Math.ceil(p.sheetHeightMm() / (25.4 / p.dpi()));</span>
+<span class="pc bpc" id="L193" title="2 of 4 branches missed.">        if (wPx &gt; MAX_PREVIEW_PX || hPx &gt; MAX_PREVIEW_PX) return tooLarge(Math.max(wPx, hPx));</span>
+<span class="fc" id="L194">        RenderResult r = WindowFoilRenderer.render(p);</span>
+<span class="fc" id="L195">        return pngResponse(PngExporter.toPngBytes(r, p.dpi()), &quot;inline&quot;, &quot;fresnel-window-foil.png&quot;);</span>
     }
 
     @PostMapping(value = &quot;/foil/export.pdf&quot;,
@@ -199,8 +201,8 @@ import java.util.Map;
     public ResponseEntity&lt;byte[]&gt; foilExportPdf(@Valid @RequestBody WindowFoilRequest req,
                                                 @RequestParam(value = &quot;sheet&quot;, defaultValue = &quot;A4&quot;) String sheet)
             throws IOException {
-<span class="fc" id="L202">        RenderResult r = WindowFoilRenderer.render(req.toParameters());</span>
-<span class="fc" id="L203">        return pdfResponse(PdfExporter.toPdfBytes(r, parseSheetSize(sheet)), &quot;fresnel-window-foil.pdf&quot;);</span>
+<span class="fc" id="L204">        RenderResult r = WindowFoilRenderer.render(req.toParameters());</span>
+<span class="fc" id="L205">        return pdfResponse(PdfExporter.toPdfBytes(r, parseSheetSize(sheet)), &quot;fresnel-window-foil.pdf&quot;);</span>
     }
 
     // -------- Multi-focus (Mode 4) --------
@@ -209,19 +211,19 @@ import java.util.Map;
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; multiFocusPreview(@Valid @RequestBody MultiFocusRequest req) throws IOException {
-<span class="fc" id="L212">        MultiFocusParameters p = req.toParameters();</span>
-<span class="fc" id="L213">        long sizePx = (long) Math.ceil(p.apertureDiameterMm() / (25.4 / p.dpi()));</span>
-<span class="pc bpc" id="L214" title="1 of 2 branches missed.">        if (sizePx &gt; MAX_PREVIEW_PX) return tooLarge(sizePx);</span>
-<span class="fc" id="L215">        RenderResult r = MultiFocusRenderer.render(p);</span>
-<span class="fc" id="L216">        return pngResponse(PngExporter.toPngBytes(r, p.dpi()), &quot;inline&quot;, &quot;fresnel-multifocus.png&quot;);</span>
+<span class="fc" id="L214">        MultiFocusParameters p = req.toParameters();</span>
+<span class="fc" id="L215">        long sizePx = (long) Math.ceil(p.apertureDiameterMm() / (25.4 / p.dpi()));</span>
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">        if (sizePx &gt; MAX_PREVIEW_PX) return tooLarge(sizePx);</span>
+<span class="fc" id="L217">        RenderResult r = MultiFocusRenderer.render(p);</span>
+<span class="fc" id="L218">        return pngResponse(PngExporter.toPngBytes(r, p.dpi()), &quot;inline&quot;, &quot;fresnel-multifocus.png&quot;);</span>
     }
 
     @PostMapping(value = &quot;/multifocus/export.png&quot;,
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; multiFocusExport(@Valid @RequestBody MultiFocusRequest req) throws IOException {
-<span class="nc" id="L223">        RenderResult r = MultiFocusRenderer.render(req.toParameters());</span>
-<span class="nc" id="L224">        return pngResponse(PngExporter.toPngBytes(r, req.dpi()), &quot;attachment&quot;, &quot;fresnel-multifocus.png&quot;);</span>
+<span class="nc" id="L225">        RenderResult r = MultiFocusRenderer.render(req.toParameters());</span>
+<span class="nc" id="L226">        return pngResponse(PngExporter.toPngBytes(r, req.dpi()), &quot;attachment&quot;, &quot;fresnel-multifocus.png&quot;);</span>
     }
 
     // -------- RGB / multi-wavelength (Mode 5) --------
@@ -230,77 +232,117 @@ import java.util.Map;
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; rgbPreview(@Valid @RequestBody RgbZonePlateRequest req) throws IOException {
-<span class="fc" id="L233">        SingleZonePlateParameters base = req.base().toParameters();</span>
-<span class="fc" id="L234">        long sizePx = estimateSizePx(base);</span>
-<span class="pc bpc" id="L235" title="1 of 2 branches missed.">        if (sizePx &gt; MAX_PREVIEW_PX) return tooLarge(sizePx);</span>
-<span class="fc" id="L236">        RenderResult r = RgbZonePlateRenderer.render(base, req.redNm(), req.greenNm(), req.blueNm());</span>
-<span class="fc" id="L237">        return pngResponse(PngExporter.toPngBytes(r, base.dpi()), &quot;inline&quot;, &quot;fresnel-rgb.png&quot;);</span>
+<span class="fc" id="L235">        SingleZonePlateParameters base = req.base().toParameters();</span>
+<span class="fc" id="L236">        long sizePx = estimateSizePx(base);</span>
+<span class="pc bpc" id="L237" title="1 of 2 branches missed.">        if (sizePx &gt; MAX_PREVIEW_PX) return tooLarge(sizePx);</span>
+<span class="fc" id="L238">        RenderResult r = RgbZonePlateRenderer.render(base, req.redNm(), req.greenNm(), req.blueNm());</span>
+<span class="fc" id="L239">        return pngResponse(PngExporter.toPngBytes(r, base.dpi()), &quot;inline&quot;, &quot;fresnel-rgb.png&quot;);</span>
     }
 
     @PostMapping(value = &quot;/rgb/export.png&quot;,
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; rgbExport(@Valid @RequestBody RgbZonePlateRequest req) throws IOException {
-<span class="nc" id="L244">        SingleZonePlateParameters base = req.base().toParameters();</span>
-<span class="nc" id="L245">        RenderResult r = RgbZonePlateRenderer.render(base, req.redNm(), req.greenNm(), req.blueNm());</span>
-<span class="nc" id="L246">        return pngResponse(PngExporter.toPngBytes(r, base.dpi()), &quot;attachment&quot;, &quot;fresnel-rgb.png&quot;);</span>
+<span class="nc" id="L246">        SingleZonePlateParameters base = req.base().toParameters();</span>
+<span class="nc" id="L247">        RenderResult r = RgbZonePlateRenderer.render(base, req.redNm(), req.greenNm(), req.blueNm());</span>
+<span class="nc" id="L248">        return pngResponse(PngExporter.toPngBytes(r, base.dpi()), &quot;attachment&quot;, &quot;fresnel-rgb.png&quot;);</span>
+    }
+
+    // -------- Optical propagation preview --------
+
+    /**
+     * Propagate the zone-plate mask encoded in the request body by the given
+     * distance and return the intensity as a PNG image.
+     *
+     * &lt;p&gt;The mask is rendered first (same as {@code /preview.png}), then fed to
+     * {@link PropagationSimulator}.  The pixel-size cap of {@link #MAX_PREVIEW_PX}
+     * applies to the mask side; the propagation output has the same grid size.
+     *
+     * &lt;p&gt;Input bounds validated:
+     * &lt;ul&gt;
+     *   &lt;li&gt;All zone-plate constraints from {@link SingleZonePlateRequest}&lt;/li&gt;
+     *   &lt;li&gt;{@code zMm} must be positive&lt;/li&gt;
+     *   &lt;li&gt;{@code wavelengthNm}, if supplied, must be positive&lt;/li&gt;
+     * &lt;/ul&gt;
+     */
+    @PostMapping(value = &quot;/propagate.png&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity&lt;byte[]&gt; propagatePng(@Valid @RequestBody PropagateRequest req) throws IOException {
+<span class="fc" id="L272">        SingleZonePlateParameters params = req.base().toParameters();</span>
+<span class="fc" id="L273">        long sizePx = estimateSizePx(params);</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">        if (sizePx &gt; MAX_PREVIEW_PX) {</span>
+<span class="fc" id="L275">            return tooLarge(sizePx);</span>
+        }
+<span class="fc" id="L277">        RenderResult mask = org.fresnel.optics.ZonePlateRenderer.render(params);</span>
+<span class="fc" id="L278">        PropagationParameters propParams = new PropagationParameters(</span>
+<span class="fc" id="L279">                mask.image(),</span>
+<span class="fc" id="L280">                params.maskType(),</span>
+<span class="fc" id="L281">                mask.pixelSizeMm(),</span>
+<span class="fc" id="L282">                params.apertureDiameterMm(),</span>
+<span class="fc" id="L283">                req.resolvedWavelengthNm(),</span>
+<span class="fc" id="L284">                req.zMm(),</span>
+<span class="fc" id="L285">                req.resolvedMode());</span>
+<span class="fc" id="L286">        RenderResult propagated = PropagationSimulator.propagate(propParams);</span>
+<span class="fc" id="L287">        byte[] png = PngExporter.toPngBytes(propagated, params.dpi());</span>
+<span class="fc" id="L288">        return pngResponse(png, &quot;inline&quot;, &quot;fresnel-propagation.png&quot;);</span>
     }
 
     // -------- Helpers --------
 
     private static long estimateSizePx(SingleZonePlateParameters p) {
-<span class="fc" id="L252">        double pixelMm = 25.4 / p.dpi();</span>
-<span class="fc" id="L253">        return Math.round(p.apertureDiameterMm() / pixelMm);</span>
+<span class="fc" id="L294">        double pixelMm = 25.4 / p.dpi();</span>
+<span class="fc" id="L295">        return Math.round(p.apertureDiameterMm() / pixelMm);</span>
     }
 
     private static ResponseEntity&lt;byte[]&gt; renderSinglePng(SingleZonePlateParameters params,
                                                           String disposition, String filename) throws IOException {
-<span class="fc" id="L258">        RenderResult r = org.fresnel.optics.ZonePlateRenderer.render(params);</span>
-<span class="fc" id="L259">        return pngResponse(PngExporter.toPngBytes(r, params.dpi()), disposition, filename);</span>
+<span class="fc" id="L300">        RenderResult r = org.fresnel.optics.ZonePlateRenderer.render(params);</span>
+<span class="fc" id="L301">        return pngResponse(PngExporter.toPngBytes(r, params.dpi()), disposition, filename);</span>
     }
 
     private static ResponseEntity&lt;byte[]&gt; pngResponse(byte[] body, String disposition, String filename) {
-<span class="fc" id="L263">        HttpHeaders h = new HttpHeaders();</span>
-<span class="fc" id="L264">        h.setContentType(MediaType.IMAGE_PNG);</span>
-<span class="pc bpc" id="L265" title="1 of 2 branches missed.">        h.setContentDisposition(&quot;inline&quot;.equalsIgnoreCase(disposition)</span>
-<span class="fc" id="L266">                ? org.springframework.http.ContentDisposition.inline().filename(filename).build()</span>
-<span class="nc" id="L267">                : org.springframework.http.ContentDisposition.attachment().filename(filename).build());</span>
-<span class="fc" id="L268">        return new ResponseEntity&lt;&gt;(body, h, 200);</span>
+<span class="fc" id="L305">        HttpHeaders h = new HttpHeaders();</span>
+<span class="fc" id="L306">        h.setContentType(MediaType.IMAGE_PNG);</span>
+<span class="pc bpc" id="L307" title="1 of 2 branches missed.">        h.setContentDisposition(&quot;inline&quot;.equalsIgnoreCase(disposition)</span>
+<span class="fc" id="L308">                ? org.springframework.http.ContentDisposition.inline().filename(filename).build()</span>
+<span class="nc" id="L309">                : org.springframework.http.ContentDisposition.attachment().filename(filename).build());</span>
+<span class="fc" id="L310">        return new ResponseEntity&lt;&gt;(body, h, 200);</span>
     }
 
     private static ResponseEntity&lt;byte[]&gt; svgResponse(byte[] body, String filename) {
-<span class="fc" id="L272">        HttpHeaders h = new HttpHeaders();</span>
-<span class="fc" id="L273">        h.setContentType(MediaType.parseMediaType(&quot;image/svg+xml&quot;));</span>
-<span class="fc" id="L274">        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(filename).build());</span>
-<span class="fc" id="L275">        return new ResponseEntity&lt;&gt;(body, h, 200);</span>
+<span class="fc" id="L314">        HttpHeaders h = new HttpHeaders();</span>
+<span class="fc" id="L315">        h.setContentType(MediaType.parseMediaType(&quot;image/svg+xml&quot;));</span>
+<span class="fc" id="L316">        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(filename).build());</span>
+<span class="fc" id="L317">        return new ResponseEntity&lt;&gt;(body, h, 200);</span>
     }
 
     private static ResponseEntity&lt;byte[]&gt; pdfResponse(byte[] body, String filename) {
-<span class="fc" id="L279">        HttpHeaders h = new HttpHeaders();</span>
-<span class="fc" id="L280">        h.setContentType(MediaType.APPLICATION_PDF);</span>
-<span class="fc" id="L281">        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(filename).build());</span>
-<span class="fc" id="L282">        return new ResponseEntity&lt;&gt;(body, h, 200);</span>
+<span class="fc" id="L321">        HttpHeaders h = new HttpHeaders();</span>
+<span class="fc" id="L322">        h.setContentType(MediaType.APPLICATION_PDF);</span>
+<span class="fc" id="L323">        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(filename).build());</span>
+<span class="fc" id="L324">        return new ResponseEntity&lt;&gt;(body, h, 200);</span>
     }
 
     private static ResponseEntity&lt;byte[]&gt; vendorResponse(byte[] body, String mime, String filename) {
-<span class="fc" id="L286">        HttpHeaders h = new HttpHeaders();</span>
-<span class="fc" id="L287">        h.setContentType(MediaType.parseMediaType(mime));</span>
-<span class="fc" id="L288">        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(filename).build());</span>
-<span class="fc" id="L289">        return new ResponseEntity&lt;&gt;(body, h, 200);</span>
+<span class="fc" id="L328">        HttpHeaders h = new HttpHeaders();</span>
+<span class="fc" id="L329">        h.setContentType(MediaType.parseMediaType(mime));</span>
+<span class="fc" id="L330">        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(filename).build());</span>
+<span class="fc" id="L331">        return new ResponseEntity&lt;&gt;(body, h, 200);</span>
     }
 
     private static ResponseEntity&lt;byte[]&gt; tooLarge(long sizePx) {
-<span class="fc" id="L293">        return ResponseEntity.status(413)</span>
-<span class="fc" id="L294">                .contentType(MediaType.TEXT_PLAIN)</span>
-<span class="fc" id="L295">                .body((&quot;Image would be &quot; + sizePx + &quot; px wide; use async render jobs for &gt; &quot;</span>
-<span class="fc" id="L296">                        + MAX_PREVIEW_PX + &quot; px.&quot;).getBytes());</span>
+<span class="fc" id="L335">        return ResponseEntity.status(413)</span>
+<span class="fc" id="L336">                .contentType(MediaType.TEXT_PLAIN)</span>
+<span class="fc" id="L337">                .body((&quot;Image would be &quot; + sizePx + &quot; px wide; use async render jobs for &gt; &quot;</span>
+<span class="fc" id="L338">                        + MAX_PREVIEW_PX + &quot; px.&quot;).getBytes());</span>
     }
 
     private static PdfExporter.SheetSize parseSheetSize(String s) {
         try {
-<span class="fc" id="L301">            return PdfExporter.SheetSize.valueOf(s.trim().toUpperCase(java.util.Locale.ROOT));</span>
-<span class="nc" id="L302">        } catch (RuntimeException e) {</span>
-<span class="nc" id="L303">            throw new IllegalArgumentException(&quot;unknown sheet size: &quot; + s</span>
+<span class="fc" id="L343">            return PdfExporter.SheetSize.valueOf(s.trim().toUpperCase(java.util.Locale.ROOT));</span>
+<span class="nc" id="L344">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L345">            throw new IllegalArgumentException(&quot;unknown sheet size: &quot; + s</span>
                     + &quot; (allowed: A0,A1,A2,A3,A4,FIT)&quot;);
         }
     }
