@@ -48,7 +48,47 @@ a larger phase shift.
 Every transparent zone becomes opaque and vice versa.  The first-order focal spot
 is the same; only the zero-order background changes.
 
-## Java API
+## Optical quality report
+
+Calling `DesignValidator.validate(p)` (or the `/api/designs/validate` REST endpoint)
+returns an `OpticalQualityReport` alongside the printability metrics.
+
+### Fields and formulas
+
+All formulas assume a paraxial diffractive optic working in air (n = 1).
+
+| Field | Unit | Formula |
+|-------|------|---------|
+| `wavelengthNm` | nm | design wavelength (input) |
+| `focalLengthMm` | mm | design focal length (input) |
+| `apertureDiameterMm` | mm | aperture diameter (input) |
+| `numericalAperture` | — | `NA = D / (2·f)` |
+| `fNumber` | — | `F# = f / D` |
+| `airyDiskDiameterMicrons` | µm | `d_Airy = 2.44·λ·F#` — diameter to first dark ring |
+| `rayleighAngularResolutionRad` | rad | `θ_R = 1.22·λ/D` — classical Rayleigh criterion |
+| `depthOfFocusMicrons` | µm | `DoF = 2·λ·F#²` — ±1λ wave-front-error criterion |
+| `outermostZoneWidthMicrons` | µm | `Δr = λ·f/D` — paraxial outer zone approximation |
+| `chromaticFocalShiftMm` | mm | `Δf = f·λ·(1/λ_min − 1/λ_max)` — from f(λ) ∝ 1/λ |
+| `chromaticRangeMinNm` | nm | lower bound of chromatic shift estimate (default 450) |
+| `chromaticRangeMaxNm` | nm | upper bound of chromatic shift estimate (default 650) |
+
+### Java API
+
+```java
+SingleZonePlateParameters p = SingleZonePlateParameters.onAxis(10.0, 1000.0, 550.0, 1200.0);
+
+// Default visible range (450–650 nm)
+OpticalQualityReport report = DesignValidator.computeOpticalQualityReport(p);
+
+// Custom wavelength range
+OpticalQualityReport report2 = DesignValidator.computeOpticalQualityReport(p, 500.0, 600.0);
+
+System.out.println("NA = "  + report.numericalAperture());
+System.out.println("F# = "  + report.fNumber());
+System.out.println("Airy disk = " + report.airyDiskDiameterMicrons() + " µm");
+```
+
+
 
 ```java
 // On-axis convenience constructor

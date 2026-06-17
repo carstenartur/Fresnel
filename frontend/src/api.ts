@@ -28,6 +28,21 @@ export interface DesignMetrics {
   defocusBlurs?: DefocusEntry[];
 }
 
+export interface OpticalQualityReport {
+  wavelengthNm: number;
+  focalLengthMm: number;
+  apertureDiameterMm: number;
+  numericalAperture: number;
+  fNumber: number;
+  airyDiskDiameterMicrons: number;
+  rayleighAngularResolutionRad: number;
+  depthOfFocusMicrons: number;
+  outermostZoneWidthMicrons: number;
+  chromaticFocalShiftMm: number;
+  chromaticRangeMinNm: number;
+  chromaticRangeMaxNm: number;
+}
+
 export interface Warning {
   code: string;
   message: string;
@@ -38,6 +53,7 @@ export interface ValidationResponse {
   valid: boolean;
   warnings: Warning[];
   metrics: DesignMetrics;
+  qualityReport?: OpticalQualityReport;
 }
 
 // --- Hex macro cell (Use Case B) ---
