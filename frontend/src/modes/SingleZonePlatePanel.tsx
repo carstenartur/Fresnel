@@ -57,6 +57,10 @@ export function SingleZonePlatePanel() {
         setError(null);
       } catch (e) {
         if (id !== lastReqId.current) return;
+        setMetrics(null);
+        setQualityReport(null);
+        setWarnings([]);
+        setValid(false);
         setError(e instanceof Error ? e.message : String(e));
       }
     }, 200);
