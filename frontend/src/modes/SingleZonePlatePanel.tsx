@@ -6,10 +6,12 @@ import {
   downloadExportPng,
   downloadExportSvg,
   fetchPreviewPng,
+  fetchPropagatePng,
   loadDesignFromFile,
   saveDesign,
   validate,
   type DesignMetrics,
+  type PropagationMode,
   type SingleZonePlateRequest,
   type Warning,
 } from '../api';
@@ -192,6 +194,8 @@ export function SingleZonePlatePanel() {
       <Warnings warnings={warnings} valid={valid} />
       <PreviewPane url={previewUrl} alt="Fresnel zone plate preview" />
       {metrics && <Metrics m={metrics} />}
+
+      <PropagationPanel req={req} />
     </>
   );
 }
@@ -268,6 +272,85 @@ function Metrics({ m }: { m: DesignMetrics }) {
           </table>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Optical propagation preview panel.
+ *
+ * Renders the zone plate at the current design parameters, propagates the
+ * resulting field by the user-specified distance, and shows the intensity
+ * image.
+ *
+ * Approximation used: scalar (paraxial) diffraction.
+ * - FRESNEL_TF: angular-spectrum transfer-function propagation, valid for any
+ *   finite distance; the output represents the physical intensity at z = zMm.
+ * - FRAUNHOFER: far-field |FFT|² (no specific distance, focal-plane inspection).
+ *
+ * Note: results are qualitative — the pixel grid of a printed zone plate is
+ * typically much coarser than the optical wavelength, so only low-frequency
+ * diffraction features are captured.
+ */
+function PropagationPanel({ req }: { req: SingleZonePlateRequest }) {
+  const [zMm, setZMm] = useState(req.focalLengthMm);
+  const zMmEditedRef = useRef(false);
+  const [mode, setMode] = useState<PropagationMode>('FRESNEL_TF');
+  const [propUrl, setPropUrl] = useBlobUrl();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Keep zMm in sync with the design focal length unless the user has
+  // explicitly overridden it via the distance field.
+  useEffect(() => {
+    if (!zMmEditedRef.current) {
+      setZMm(req.focalLengthMm);
+    }
+  }, [req.focalLengthMm]);
+
+  const renderPropagation = async () => {
+    setLoading(true); setError(null);
+    try {
+      const blob = await fetchPropagatePng({ base: req, zMm, mode });
+      setPropUrl(blob);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 24 }}>
+      <h2>Optical propagation preview</h2>
+      <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+        Simulates the scalar diffraction intensity at distance <em>z</em> from the mask.
+        FRESNEL_TF is the angular-spectrum method (any distance);
+        FRAUNHOFER is the far-field |FFT|² (focal-plane approximation).
+        Results are qualitative — see docs for limits.
+      </p>
+
+      <NumberField label="Propagation distance z (mm)"
+        value={zMm} min={0.001} step={1}
+        onChange={(v) => { zMmEditedRef.current = true; setZMm(v); }} />
+
+      <div className="field">
+        <label htmlFor="prop-mode">Propagation mode</label>
+        <select id="prop-mode" value={mode}
+                onChange={(e) => setMode(e.target.value as PropagationMode)}>
+          <option value="FRESNEL_TF">Fresnel TF (angular spectrum)</option>
+          <option value="FRAUNHOFER">Fraunhofer (far-field |FFT|²)</option>
+        </select>
+      </div>
+
+      <div className="actions">
+        <button onClick={renderPropagation} disabled={loading}>
+          {loading ? 'Propagating…' : 'Compute propagation'}
+        </button>
+      </div>
+
+      {error && <p className="error-message">{error}</p>}
+      <PreviewPane url={propUrl} alt="Optical propagation intensity preview" />
     </div>
   );
 }
