@@ -83,6 +83,27 @@ RenderResult det = HologramSynthesizer.synthesize(p, 0xDEAD_BEEFL);
 - Reconstruction quality improves with more iterations but quickly plateaus
   after ~50–100 iterations for typical targets.
 
+## Phase-relief STL export
+
+The backend can also export a **closed STL mesh** (`POST /api/holograms/export.stl`)
+from the synthesised phase mask.
+
+Conversion assumptions:
+
+1. Greyscale 0…255 maps linearly to phase 0…`maxPhaseShiftRad` (default `2π`).
+2. Optical path difference is `OPD = phase * λ / (2π)`.
+3. Physical relief height is `h = OPD / Δn` where `Δn` is the refractive-index
+   difference between print material and ambient medium.
+
+Defaults used by the API if omitted:
+
+- `wavelengthNm = 550`
+- `refractiveIndexDelta = 0.5`
+- `maxPhaseShiftRad = 2π`
+
+Pixel pitch in the STL (`x/y`) follows the same `dpi` value used for the
+hologram mask generation.
+
 ## Regenerating the example images
 
 ```bash

@@ -12,8 +12,11 @@ import org.springframework.test.web.servlet.MvcResult;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Base64;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -102,6 +105,88 @@ class HologramControllerTest {
                 }
                 """.formatted(sb);
         mvc.perform(post("/api/holograms/synthesize.png")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void exportsBinaryStlFromSynthesisedPhaseMask() throws Exception {
+        String b64 = base64CheckerPng(32);
+        String body = """
+                {
+                  "targetImageBase64": "%s",
+                  "sidePx": 32,
+                  "iterations": 5,
+                  "outputType": "GREYSCALE_PHASE",
+                  "dpi": 600.0
+                }
+                """.formatted(b64);
+        MvcResult res = mvc.perform(post("/api/holograms/export.stl")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("model/stl"))
+                .andReturn();
+
+        byte[] stl = res.getResponse().getContentAsByteArray();
+        org.junit.jupiter.api.Assertions.assertTrue(stl.length > 84);
+        int triCount = ByteBuffer.wrap(stl, 80, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+        org.junit.jupiter.api.Assertions.assertTrue(triCount > 0);
+    }
+
+    @Test
+    void exportStlForcesGreyscalePhaseOutput() throws Exception {
+        String b64 = base64CheckerPng(32);
+        String bodyGreyscale = """
+                {
+                  "targetImageBase64": "%s",
+                  "sidePx": 32,
+                  "iterations": 5,
+                  "outputType": "GREYSCALE_PHASE",
+                  "dpi": 600.0
+                }
+                """.formatted(b64);
+        String bodyBinary = """
+                {
+                  "targetImageBase64": "%s",
+                  "sidePx": 32,
+                  "iterations": 5,
+                  "outputType": "BINARY_PHASE",
+                  "dpi": 600.0
+                }
+                """.formatted(b64);
+
+        byte[] stlGreyscale = mvc.perform(post("/api/holograms/export.stl")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyGreyscale))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
+        byte[] stlBinary = mvc.perform(post("/api/holograms/export.stl")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyBinary))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
+
+        assertArrayEquals(stlGreyscale, stlBinary);
+    }
+
+    @Test
+    void rejectsLargeSideForStlExport() throws Exception {
+        String b64 = base64CheckerPng(32);
+        String body = """
+                {
+                  "targetImageBase64": "%s",
+                  "sidePx": 1024,
+                  "iterations": 1,
+                  "dpi": 600.0
+                }
+                """.formatted(b64);
+        mvc.perform(post("/api/holograms/export.stl")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());

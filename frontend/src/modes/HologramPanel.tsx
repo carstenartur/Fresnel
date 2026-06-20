@@ -1,6 +1,6 @@
 import { useState, type ChangeEvent } from 'react';
 import {
-  downloadHologramPng, fileToBase64, reconstructHologramPng, synthesizeHologramPng,
+  downloadHologramPng, downloadHologramStl, fileToBase64, reconstructHologramPng, synthesizeHologramPng,
   type HologramRequest,
 } from '../api';
 import { NumberField, PreviewPane, useBlobUrl } from './shared';
@@ -86,6 +86,13 @@ export function HologramPanel() {
             catch (e) { setError(e instanceof Error ? e.message : String(e)); }
           }} disabled={busy || !b64}>
           PNG
+        </button>
+        <button className="secondary" onClick={async () => {
+            const req = build(); if (!req) return;
+            try { await downloadHologramStl(req, 'fresnel-hologram-relief.stl'); }
+            catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+          }} disabled={busy || !b64}>
+          STL
         </button>
       </div>
       {error && <p className="error-message">{error}</p>}

@@ -16,5 +16,20 @@ public record HologramRequest(
         @NotNull @Min(16) Integer sidePx,
         @NotNull @Min(1) Integer iterations,
         HologramParameters.OutputType outputType,
-        @NotNull @Positive Double dpi
-) {}
+        @NotNull @Positive Double dpi,
+        @Positive Double wavelengthNm,
+        @Positive Double refractiveIndexDelta,
+        @Positive Double maxPhaseShiftRad
+) {
+    public double resolvedWavelengthNm() {
+        return wavelengthNm == null ? 550.0 : wavelengthNm;
+    }
+
+    public double resolvedRefractiveIndexDelta() {
+        return refractiveIndexDelta == null ? 0.5 : refractiveIndexDelta;
+    }
+
+    public double resolvedMaxPhaseShiftRad() {
+        return maxPhaseShiftRad == null ? 2.0 * Math.PI : maxPhaseShiftRad;
+    }
+}
