@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PhaseReliefGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">PhaseReliefGenerator.java</span></div><h1>PhaseReliefGenerator.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
+
+/**
+ * Converts greyscale phase masks to physical height maps.
+ */
+public final class PhaseReliefGenerator {
+
+    private PhaseReliefGenerator() {}
+
+    /**
+     * Convert a greyscale phase mask to a height map in millimetres.
+     *
+     * &lt;p&gt;Pixel value 0 maps to 0 rad and pixel value 255 maps to
+     * {@code params.maxPhaseShiftRad()}.
+     */
+    public static double[][] toHeightMapMm(BufferedImage phaseMask, ReliefParameters params) {
+<span class="pc bpc" id="L20" title="1 of 2 branches missed.">        if (phaseMask == null) throw new IllegalArgumentException(&quot;phaseMask required&quot;);</span>
+<span class="fc bfc" id="L21" title="All 2 branches covered.">        if (params == null) throw new IllegalArgumentException(&quot;params required&quot;);</span>
+<span class="fc" id="L22">        int w = phaseMask.getWidth();</span>
+<span class="fc" id="L23">        int h = phaseMask.getHeight();</span>
+<span class="pc bpc" id="L24" title="2 of 4 branches missed.">        if (w &lt; 2 || h &lt; 2) throw new IllegalArgumentException(&quot;phaseMask must be at least 2x2&quot;);</span>
+
+<span class="fc" id="L26">        double lambdaMm = Units.nmToMm(params.wavelengthNm());</span>
+<span class="fc" id="L27">        double heightPerGray = (params.maxPhaseShiftRad() * lambdaMm)</span>
+<span class="fc" id="L28">                / (255.0 * 2.0 * Math.PI * params.refractiveIndexDelta());</span>
+
+<span class="fc" id="L30">        WritableRaster r = phaseMask.getRaster();</span>
+<span class="fc" id="L31">        int[] row = new int[w];</span>
+<span class="fc" id="L32">        double[][] out = new double[h][w];</span>
+<span class="fc bfc" id="L33" title="All 2 branches covered.">        for (int y = 0; y &lt; h; y++) {</span>
+<span class="fc" id="L34">            r.getSamples(0, y, w, 1, 0, row);</span>
+<span class="fc bfc" id="L35" title="All 2 branches covered.">            for (int x = 0; x &lt; w; x++) {</span>
+<span class="fc" id="L36">                out[y][x] = row[x] * heightPerGray;</span>
+            }
+        }
+<span class="fc" id="L39">        return out;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

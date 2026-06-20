@@ -4,7 +4,10 @@ import jakarta.validation.Valid;
 import org.fresnel.optics.HologramParameters;
 import org.fresnel.optics.HologramSynthesizer;
 import org.fresnel.optics.PngExporter;
+import org.fresnel.optics.PhaseReliefGenerator;
+import org.fresnel.optics.ReliefParameters;
 import org.fresnel.optics.RenderResult;
+import org.fresnel.optics.StlExporter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -33,10 +36,12 @@ import java.util.Base64;
  */
 @RestController
 @RequestMapping(&quot;/api/holograms&quot;)
-<span class="fc" id="L36">public class HologramController {</span>
+<span class="fc" id="L39">public class HologramController {</span>
 
     /** Max side length for synchronous synthesis (1024 = ~1 M FFTs per iteration). */
     public static final int MAX_SIDE = 1024;
+    /** Cap STL export memory by limiting synchronous relief mesh dimensions. */
+    public static final int MAX_STL_SIDE = 512;
 
     /**
      * Hard cap on the base64-encoded target image. 8 MB of base64 ≈ 6 MB of decoded
@@ -51,10 +56,10 @@ import java.util.Base64;
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; synthesize(@Valid @RequestBody HologramRequest req) throws IOException {
-<span class="fc" id="L54">        HologramParameters p = decode(req);</span>
-<span class="fc" id="L55">        RenderResult r = HologramSynthesizer.synthesize(p);</span>
-<span class="fc" id="L56">        byte[] png = PngExporter.toPngBytes(r, p.dpi());</span>
-<span class="fc" id="L57">        return png(png, &quot;fresnel-hologram.png&quot;, &quot;attachment&quot;);</span>
+<span class="fc" id="L59">        HologramParameters p = decode(req);</span>
+<span class="fc" id="L60">        RenderResult r = HologramSynthesizer.synthesize(p);</span>
+<span class="fc" id="L61">        byte[] png = PngExporter.toPngBytes(r, p.dpi());</span>
+<span class="fc" id="L62">        return png(png, &quot;fresnel-hologram.png&quot;, &quot;attachment&quot;);</span>
     }
 
     @PostMapping(value = &quot;/reconstruct.png&quot;,
@@ -63,83 +68,113 @@ import java.util.Base64;
     public ResponseEntity&lt;byte[]&gt; reconstruct(@Valid @RequestBody HologramRequest req,
                                               @RequestParam(value = &quot;previewOnly&quot;, defaultValue = &quot;false&quot;)
                                               boolean previewOnly) throws IOException {
-<span class="fc" id="L66">        HologramParameters p = decode(req);</span>
-<span class="fc" id="L67">        RenderResult mask = HologramSynthesizer.synthesize(p);</span>
-<span class="fc" id="L68">        BufferedImage recon = HologramSynthesizer.reconstruct(mask.image(), p.outputType());</span>
-<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        BufferedImage out = previewOnly ? recon : sideBySide(mask.image(), recon);</span>
-<span class="fc" id="L70">        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();</span>
-<span class="fc" id="L71">        ImageIO.write(out, &quot;png&quot;, baos);</span>
-<span class="fc" id="L72">        return png(baos.toByteArray(), &quot;fresnel-hologram-reconstruction.png&quot;, &quot;inline&quot;);</span>
+<span class="fc" id="L71">        HologramParameters p = decode(req);</span>
+<span class="fc" id="L72">        RenderResult mask = HologramSynthesizer.synthesize(p);</span>
+<span class="fc" id="L73">        BufferedImage recon = HologramSynthesizer.reconstruct(mask.image(), p.outputType());</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        BufferedImage out = previewOnly ? recon : sideBySide(mask.image(), recon);</span>
+<span class="fc" id="L75">        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();</span>
+<span class="fc" id="L76">        ImageIO.write(out, &quot;png&quot;, baos);</span>
+<span class="fc" id="L77">        return png(baos.toByteArray(), &quot;fresnel-hologram-reconstruction.png&quot;, &quot;inline&quot;);</span>
+    }
+
+    @PostMapping(value = &quot;/export.stl&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = &quot;model/stl&quot;)
+    public ResponseEntity&lt;byte[]&gt; exportStl(@Valid @RequestBody HologramRequest req) throws IOException {
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        if (req.sidePx() &gt; MAX_STL_SIDE)</span>
+<span class="fc" id="L85">            throw new IllegalArgumentException(&quot;sidePx &gt; &quot; + MAX_STL_SIDE + &quot; is too large for STL export&quot;);</span>
+<span class="fc" id="L86">        HologramParameters p = decode(req, HologramParameters.OutputType.GREYSCALE_PHASE);</span>
+<span class="fc" id="L87">        RenderResult mask = HologramSynthesizer.synthesize(p);</span>
+<span class="fc" id="L88">        ReliefParameters relief = new ReliefParameters(</span>
+<span class="fc" id="L89">                req.resolvedWavelengthNm(),</span>
+<span class="fc" id="L90">                req.resolvedRefractiveIndexDelta(),</span>
+<span class="fc" id="L91">                req.resolvedMaxPhaseShiftRad());</span>
+<span class="fc" id="L92">        double[][] heightMap = PhaseReliefGenerator.toHeightMapMm(mask.image(), relief);</span>
+<span class="fc" id="L93">        byte[] stl = StlExporter.toBinaryStl(heightMap, mask.pixelSizeMm());</span>
+<span class="fc" id="L94">        return binary(stl, &quot;model/stl&quot;, &quot;fresnel-hologram-relief.stl&quot;);</span>
     }
 
     static HologramParameters decode(HologramRequest req) throws IOException {
-<span class="pc bpc" id="L76" title="1 of 2 branches missed.">        if (req.sidePx() &gt; MAX_SIDE)</span>
-<span class="nc" id="L77">            throw new IllegalArgumentException(&quot;sidePx &gt; &quot; + MAX_SIDE + &quot; requires async render-job&quot;);</span>
-<span class="fc bfc" id="L78" title="All 2 branches covered.">        if ((req.sidePx() &amp; (req.sidePx() - 1)) != 0)</span>
-<span class="fc" id="L79">            throw new IllegalArgumentException(&quot;sidePx must be a power of two&quot;);</span>
-<span class="fc" id="L80">        String b64 = stripDataUrlPrefix(req.targetImageBase64());</span>
-<span class="fc bfc" id="L81" title="All 2 branches covered.">        if (b64.length() &gt; MAX_BASE64_BYTES)</span>
-<span class="fc" id="L82">            throw new IllegalArgumentException(&quot;targetImageBase64 too large (&gt;&quot;</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        HologramParameters.OutputType type = req.outputType() == null</span>
+<span class="fc" id="L99">                ? HologramParameters.OutputType.GREYSCALE_PHASE</span>
+<span class="fc" id="L100">                : req.outputType();</span>
+<span class="fc" id="L101">        return decode(req, type);</span>
+    }
+
+    private static HologramParameters decode(HologramRequest req,
+                                             HologramParameters.OutputType type) throws IOException {
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        if (req.sidePx() &gt; MAX_SIDE)</span>
+<span class="nc" id="L107">            throw new IllegalArgumentException(&quot;sidePx &gt; &quot; + MAX_SIDE + &quot; requires async render-job&quot;);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if ((req.sidePx() &amp; (req.sidePx() - 1)) != 0)</span>
+<span class="fc" id="L109">            throw new IllegalArgumentException(&quot;sidePx must be a power of two&quot;);</span>
+<span class="fc" id="L110">        String b64 = stripDataUrlPrefix(req.targetImageBase64());</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        if (b64.length() &gt; MAX_BASE64_BYTES)</span>
+<span class="fc" id="L112">            throw new IllegalArgumentException(&quot;targetImageBase64 too large (&gt;&quot;</span>
                     + MAX_BASE64_BYTES + &quot; bytes); resize before upload&quot;);
-<span class="fc" id="L84">        byte[] raw = Base64.getDecoder().decode(b64);</span>
-<span class="fc" id="L85">        BufferedImage src = ImageIO.read(new ByteArrayInputStream(raw));</span>
-<span class="pc bpc" id="L86" title="1 of 2 branches missed.">        if (src == null) throw new IllegalArgumentException(&quot;could not decode targetImageBase64 as image&quot;);</span>
-<span class="fc" id="L87">        BufferedImage normalised = toSquareGreyscale(src, req.sidePx());</span>
-<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        HologramParameters.OutputType type = req.outputType() == null</span>
-<span class="nc" id="L89">                ? HologramParameters.OutputType.GREYSCALE_PHASE</span>
-<span class="fc" id="L90">                : req.outputType();</span>
-<span class="fc" id="L91">        return new HologramParameters(normalised, req.iterations(), type, req.dpi());</span>
+<span class="fc" id="L114">        byte[] raw = Base64.getDecoder().decode(b64);</span>
+<span class="fc" id="L115">        BufferedImage src = ImageIO.read(new ByteArrayInputStream(raw));</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (src == null) throw new IllegalArgumentException(&quot;could not decode targetImageBase64 as image&quot;);</span>
+<span class="fc" id="L117">        BufferedImage normalised = toSquareGreyscale(src, req.sidePx());</span>
+<span class="fc" id="L118">        return new HologramParameters(normalised, req.iterations(), type, req.dpi());</span>
     }
 
     private static String stripDataUrlPrefix(String s) {
-<span class="fc" id="L95">        int comma = s.indexOf(',');</span>
-<span class="pc bpc" id="L96" title="3 of 4 branches missed.">        if (s.startsWith(&quot;data:&quot;) &amp;&amp; comma &gt; 0) return s.substring(comma + 1);</span>
-<span class="fc" id="L97">        return s;</span>
+<span class="fc" id="L122">        int comma = s.indexOf(',');</span>
+<span class="pc bpc" id="L123" title="3 of 4 branches missed.">        if (s.startsWith(&quot;data:&quot;) &amp;&amp; comma &gt; 0) return s.substring(comma + 1);</span>
+<span class="fc" id="L124">        return s;</span>
     }
 
     /** Centre-fit then resize to {@code n × n} greyscale. */
     static BufferedImage toSquareGreyscale(BufferedImage src, int n) {
-<span class="fc" id="L102">        BufferedImage square = new BufferedImage(n, n, BufferedImage.TYPE_BYTE_GRAY);</span>
-<span class="fc" id="L103">        Graphics2D g = square.createGraphics();</span>
+<span class="fc" id="L129">        BufferedImage square = new BufferedImage(n, n, BufferedImage.TYPE_BYTE_GRAY);</span>
+<span class="fc" id="L130">        Graphics2D g = square.createGraphics();</span>
         try {
-<span class="fc" id="L105">            g.setComposite(AlphaComposite.Src);</span>
-<span class="fc" id="L106">            g.setColor(Color.BLACK);</span>
-<span class="fc" id="L107">            g.fillRect(0, 0, n, n);</span>
-<span class="fc" id="L108">            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,</span>
+<span class="fc" id="L132">            g.setComposite(AlphaComposite.Src);</span>
+<span class="fc" id="L133">            g.setColor(Color.BLACK);</span>
+<span class="fc" id="L134">            g.fillRect(0, 0, n, n);</span>
+<span class="fc" id="L135">            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,</span>
                     RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-<span class="fc" id="L110">            int sw = src.getWidth();</span>
-<span class="fc" id="L111">            int sh = src.getHeight();</span>
-<span class="fc" id="L112">            int s = Math.min(sw, sh);</span>
-<span class="fc" id="L113">            int sx = (sw - s) / 2;</span>
-<span class="fc" id="L114">            int sy = (sh - s) / 2;</span>
-<span class="fc" id="L115">            g.drawImage(src, 0, 0, n, n, sx, sy, sx + s, sy + s, null);</span>
+<span class="fc" id="L137">            int sw = src.getWidth();</span>
+<span class="fc" id="L138">            int sh = src.getHeight();</span>
+<span class="fc" id="L139">            int s = Math.min(sw, sh);</span>
+<span class="fc" id="L140">            int sx = (sw - s) / 2;</span>
+<span class="fc" id="L141">            int sy = (sh - s) / 2;</span>
+<span class="fc" id="L142">            g.drawImage(src, 0, 0, n, n, sx, sy, sx + s, sy + s, null);</span>
         } finally {
-<span class="fc" id="L117">            g.dispose();</span>
+<span class="fc" id="L144">            g.dispose();</span>
         }
-<span class="fc" id="L119">        return square;</span>
+<span class="fc" id="L146">        return square;</span>
     }
 
     private static BufferedImage sideBySide(BufferedImage a, BufferedImage b) {
-<span class="nc" id="L123">        int w = a.getWidth() + b.getWidth();</span>
-<span class="nc" id="L124">        int h = Math.max(a.getHeight(), b.getHeight());</span>
-<span class="nc" id="L125">        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);</span>
-<span class="nc" id="L126">        Graphics2D g = out.createGraphics();</span>
+<span class="nc" id="L150">        int w = a.getWidth() + b.getWidth();</span>
+<span class="nc" id="L151">        int h = Math.max(a.getHeight(), b.getHeight());</span>
+<span class="nc" id="L152">        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);</span>
+<span class="nc" id="L153">        Graphics2D g = out.createGraphics();</span>
         try {
-<span class="nc" id="L128">            g.drawImage(a, 0, 0, null);</span>
-<span class="nc" id="L129">            g.drawImage(b, a.getWidth(), 0, null);</span>
+<span class="nc" id="L155">            g.drawImage(a, 0, 0, null);</span>
+<span class="nc" id="L156">            g.drawImage(b, a.getWidth(), 0, null);</span>
         } finally {
-<span class="nc" id="L131">            g.dispose();</span>
+<span class="nc" id="L158">            g.dispose();</span>
         }
-<span class="nc" id="L133">        return out;</span>
+<span class="nc" id="L160">        return out;</span>
     }
 
     private static ResponseEntity&lt;byte[]&gt; png(byte[] body, String filename, String disposition) {
-<span class="fc" id="L137">        HttpHeaders h = new HttpHeaders();</span>
-<span class="fc" id="L138">        h.setContentType(MediaType.IMAGE_PNG);</span>
-<span class="fc bfc" id="L139" title="All 2 branches covered.">        h.setContentDisposition(&quot;inline&quot;.equalsIgnoreCase(disposition)</span>
-<span class="fc" id="L140">                ? org.springframework.http.ContentDisposition.inline().filename(filename).build()</span>
-<span class="fc" id="L141">                : org.springframework.http.ContentDisposition.attachment().filename(filename).build());</span>
-<span class="fc" id="L142">        return new ResponseEntity&lt;&gt;(body, h, 200);</span>
+<span class="fc" id="L164">        return response(body, MediaType.IMAGE_PNG_VALUE, filename, disposition);</span>
+    }
+
+    private static ResponseEntity&lt;byte[]&gt; binary(byte[] body, String mime, String filename) {
+<span class="fc" id="L168">        return response(body, mime, filename, &quot;attachment&quot;);</span>
+    }
+
+    private static ResponseEntity&lt;byte[]&gt; response(byte[] body, String mime, String filename, String disposition) {
+<span class="fc" id="L172">        HttpHeaders h = new HttpHeaders();</span>
+<span class="fc" id="L173">        h.setContentType(MediaType.parseMediaType(mime));</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">        h.setContentDisposition(&quot;inline&quot;.equalsIgnoreCase(disposition)</span>
+<span class="fc" id="L175">                ? org.springframework.http.ContentDisposition.inline().filename(filename).build()</span>
+<span class="fc" id="L176">                : org.springframework.http.ContentDisposition.attachment().filename(filename).build());</span>
+<span class="fc" id="L177">        return new ResponseEntity&lt;&gt;(body, h, 200);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
