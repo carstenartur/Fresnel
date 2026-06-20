@@ -40,6 +40,8 @@ public class HologramController {
 
     /** Max side length for synchronous synthesis (1024 = ~1 M FFTs per iteration). */
     public static final int MAX_SIDE = 1024;
+    /** Cap STL export memory by limiting synchronous relief mesh dimensions. */
+    public static final int MAX_STL_SIDE = 512;
 
     /**
      * Hard cap on the base64-encoded target image. 8 MB of base64 ≈ 6 MB of decoded
@@ -79,7 +81,9 @@ public class HologramController {
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = "model/stl")
     public ResponseEntity<byte[]> exportStl(@Valid @RequestBody HologramRequest req) throws IOException {
-        HologramParameters p = decode(req);
+        if (req.sidePx() > MAX_STL_SIDE)
+            throw new IllegalArgumentException("sidePx > " + MAX_STL_SIDE + " is too large for STL export");
+        HologramParameters p = decode(req, HologramParameters.OutputType.GREYSCALE_PHASE);
         RenderResult mask = HologramSynthesizer.synthesize(p);
         ReliefParameters relief = new ReliefParameters(
                 req.resolvedWavelengthNm(),
@@ -91,6 +95,14 @@ public class HologramController {
     }
 
     static HologramParameters decode(HologramRequest req) throws IOException {
+        HologramParameters.OutputType type = req.outputType() == null
+                ? HologramParameters.OutputType.GREYSCALE_PHASE
+                : req.outputType();
+        return decode(req, type);
+    }
+
+    private static HologramParameters decode(HologramRequest req,
+                                             HologramParameters.OutputType type) throws IOException {
         if (req.sidePx() > MAX_SIDE)
             throw new IllegalArgumentException("sidePx > " + MAX_SIDE + " requires async render-job");
         if ((req.sidePx() & (req.sidePx() - 1)) != 0)
@@ -103,9 +115,6 @@ public class HologramController {
         BufferedImage src = ImageIO.read(new ByteArrayInputStream(raw));
         if (src == null) throw new IllegalArgumentException("could not decode targetImageBase64 as image");
         BufferedImage normalised = toSquareGreyscale(src, req.sidePx());
-        HologramParameters.OutputType type = req.outputType() == null
-                ? HologramParameters.OutputType.GREYSCALE_PHASE
-                : req.outputType();
         return new HologramParameters(normalised, req.iterations(), type, req.dpi());
     }
 

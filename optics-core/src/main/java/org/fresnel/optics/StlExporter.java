@@ -11,11 +11,16 @@ import java.util.Locale;
 public final class StlExporter {
 
     private static final double EPSILON_NORMAL = 1e-30;
+    private static final double DEFAULT_BASE_THICKNESS_MM = 0.1;
 
     private StlExporter() {}
 
     public static byte[] toBinaryStl(double[][] heightMapMm, double pixelSizeMm) {
-        Grid g = validate(heightMapMm, pixelSizeMm);
+        return toBinaryStl(heightMapMm, pixelSizeMm, DEFAULT_BASE_THICKNESS_MM);
+    }
+
+    public static byte[] toBinaryStl(double[][] heightMapMm, double pixelSizeMm, double baseThicknessMm) {
+        Grid g = validate(heightMapMm, pixelSizeMm, baseThicknessMm);
         int triCount = triangleCount(g.w, g.h);
         ByteBuffer out = ByteBuffer.allocate(84 + triCount * 50).order(ByteOrder.LITTLE_ENDIAN);
 
@@ -95,7 +100,7 @@ public final class StlExporter {
     }
 
     public static String toAsciiStl(double[][] heightMapMm, double pixelSizeMm, String solidName) {
-        Grid g = validate(heightMapMm, pixelSizeMm);
+        Grid g = validate(heightMapMm, pixelSizeMm, DEFAULT_BASE_THICKNESS_MM);
         String name = (solidName == null || solidName.isBlank()) ? "phase_relief" : solidName.trim();
         StringBuilder sb = new StringBuilder();
         sb.append("solid ").append(name).append('\n');
@@ -166,7 +171,7 @@ public final class StlExporter {
         return 4 * (w - 1) * (h - 1) + 4 * (w + h - 2);
     }
 
-    private static Grid validate(double[][] heightMapMm, double pixelSizeMm) {
+    private static Grid validate(double[][] heightMapMm, double pixelSizeMm, double baseThicknessMm) {
         if (heightMapMm == null || heightMapMm.length < 2)
             throw new IllegalArgumentException("heightMap must have at least 2 rows");
         int w = heightMapMm[0].length;
@@ -181,11 +186,13 @@ public final class StlExporter {
         }
         if (!(pixelSizeMm > 0.0) || !Double.isFinite(pixelSizeMm))
             throw new IllegalArgumentException("pixelSizeMm must be finite and > 0");
-        return new Grid(heightMapMm, w, heightMapMm.length, pixelSizeMm);
+        if (!(baseThicknessMm > 0.0) || !Double.isFinite(baseThicknessMm))
+            throw new IllegalArgumentException("baseThicknessMm must be finite and > 0");
+        return new Grid(heightMapMm, w, heightMapMm.length, pixelSizeMm, baseThicknessMm);
     }
 
     private static Vec3 top(Grid g, int x, int y) {
-        return new Vec3(x * g.pixelSizeMm, y * g.pixelSizeMm, g.heightMap[y][x]);
+        return new Vec3(x * g.pixelSizeMm, y * g.pixelSizeMm, g.heightMap[y][x] + g.baseThicknessMm);
     }
 
     private static Vec3 bottom(Grid g, int x, int y) {
@@ -194,5 +201,5 @@ public final class StlExporter {
 
     private record Vec3(double x, double y, double z) {}
 
-    private record Grid(double[][] heightMap, int w, int h, double pixelSizeMm) {}
+    private record Grid(double[][] heightMap, int w, int h, double pixelSizeMm, double baseThicknessMm) {}
 }

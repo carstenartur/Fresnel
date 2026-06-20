@@ -293,7 +293,8 @@ export async function downloadHologramPng(req: HologramRequest, filename: string
   downloadBlob(blob, filename);
 }
 export async function downloadHologramStl(req: HologramRequest, filename: string): Promise<void> {
-  const blob = await postBlob('/api/holograms/export.stl', req, 'model/stl');
+  const stlReq: HologramRequest = { ...req, outputType: 'GREYSCALE_PHASE' };
+  const blob = await postBlob('/api/holograms/export.stl', stlReq, 'model/stl');
   downloadBlob(blob, filename);
 }
 

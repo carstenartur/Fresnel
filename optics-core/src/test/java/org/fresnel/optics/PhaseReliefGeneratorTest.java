@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PhaseReliefGeneratorTest {
@@ -55,5 +56,36 @@ class PhaseReliefGeneratorTest {
         assertTrue(stl.startsWith("solid test_relief"));
         assertTrue(stl.contains("facet normal"));
         assertTrue(stl.endsWith("endsolid test_relief\n"));
+    }
+
+    @Test
+    void rejectsNullReliefParameters() {
+        BufferedImage img = new BufferedImage(2, 2, BufferedImage.TYPE_BYTE_GRAY);
+        assertThrows(IllegalArgumentException.class, () -> PhaseReliefGenerator.toHeightMapMm(img, null));
+    }
+
+    @Test
+    void rejectsNonFiniteReliefParameters() {
+        assertThrows(IllegalArgumentException.class, () -> new ReliefParameters(Double.NaN, 0.5, 2.0 * Math.PI));
+        assertThrows(IllegalArgumentException.class, () -> new ReliefParameters(550.0, Double.POSITIVE_INFINITY, 2.0 * Math.PI));
+        assertThrows(IllegalArgumentException.class, () -> new ReliefParameters(550.0, 0.5, Double.NEGATIVE_INFINITY));
+    }
+
+    @Test
+    void exportsSolidWithBaseThicknessWhenReliefIsFlat() {
+        double[][] h = {
+                {0.0, 0.0},
+                {0.0, 0.0}
+        };
+        byte[] stl = StlExporter.toBinaryStl(h, 0.2);
+        ByteBuffer bb = ByteBuffer.wrap(stl).order(ByteOrder.LITTLE_ENDIAN);
+        bb.position(84);
+        bb.getFloat();
+        bb.getFloat();
+        bb.getFloat();
+        bb.getFloat();
+        bb.getFloat();
+        float z = bb.getFloat();
+        assertTrue(z > 0.0f);
     }
 }

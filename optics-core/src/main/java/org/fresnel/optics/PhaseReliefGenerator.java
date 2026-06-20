@@ -18,6 +18,7 @@ public final class PhaseReliefGenerator {
      */
     public static double[][] toHeightMapMm(BufferedImage phaseMask, ReliefParameters params) {
         if (phaseMask == null) throw new IllegalArgumentException("phaseMask required");
+        if (params == null) throw new IllegalArgumentException("params required");
         int w = phaseMask.getWidth();
         int h = phaseMask.getHeight();
         if (w < 2 || h < 2) throw new IllegalArgumentException("phaseMask must be at least 2x2");

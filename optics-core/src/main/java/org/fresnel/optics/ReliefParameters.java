@@ -13,8 +13,11 @@ public record ReliefParameters(
         double maxPhaseShiftRad
 ) {
     public ReliefParameters {
-        if (wavelengthNm <= 0.0) throw new IllegalArgumentException("wavelengthNm must be > 0");
-        if (refractiveIndexDelta <= 0.0) throw new IllegalArgumentException("refractiveIndexDelta must be > 0");
-        if (maxPhaseShiftRad <= 0.0) throw new IllegalArgumentException("maxPhaseShiftRad must be > 0");
+        if (!(wavelengthNm > 0.0) || !Double.isFinite(wavelengthNm))
+            throw new IllegalArgumentException("wavelengthNm must be finite and > 0");
+        if (!(refractiveIndexDelta > 0.0) || !Double.isFinite(refractiveIndexDelta))
+            throw new IllegalArgumentException("refractiveIndexDelta must be finite and > 0");
+        if (!(maxPhaseShiftRad > 0.0) || !Double.isFinite(maxPhaseShiftRad))
+            throw new IllegalArgumentException("maxPhaseShiftRad must be finite and > 0");
     }
 }

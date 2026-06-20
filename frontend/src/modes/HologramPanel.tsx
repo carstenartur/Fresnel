@@ -89,7 +89,7 @@ export function HologramPanel() {
         </button>
         <button className="secondary" onClick={async () => {
             const req = build(); if (!req) return;
-            try { await downloadHologramStl(req, 'fresnel-hologram-relief.stl'); }
+            try { await downloadHologramStl({ ...req, outputType: 'GREYSCALE_PHASE' }, 'fresnel-hologram-relief.stl'); }
             catch (e) { setError(e instanceof Error ? e.message : String(e)); }
           }} disabled={busy || !b64}>
           STL
