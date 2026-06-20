@@ -16,6 +16,21 @@ import org.fresnel.optics.HologramParameters;
         @NotNull @Min(16) Integer sidePx,
         @NotNull @Min(1) Integer iterations,
         HologramParameters.OutputType outputType,
-        @NotNull @Positive Double dpi
-) {}
+        @NotNull @Positive Double dpi,
+        @Positive Double wavelengthNm,
+        @Positive Double refractiveIndexDelta,
+        @Positive Double maxPhaseShiftRad
+) {
+    public double resolvedWavelengthNm() {
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        return wavelengthNm == null ? 550.0 : wavelengthNm;</span>
+    }
+
+    public double resolvedRefractiveIndexDelta() {
+<span class="pc bpc" id="L29" title="1 of 2 branches missed.">        return refractiveIndexDelta == null ? 0.5 : refractiveIndexDelta;</span>
+    }
+
+    public double resolvedMaxPhaseShiftRad() {
+<span class="pc bpc" id="L33" title="1 of 2 branches missed.">        return maxPhaseShiftRad == null ? 2.0 * Math.PI : maxPhaseShiftRad;</span>
+    }
+}
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
