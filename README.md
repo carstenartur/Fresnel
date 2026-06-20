@@ -25,6 +25,31 @@ A web application for designing printable diffractive optical elements:
 Fresnel zone plates, hexagonal macro-cells, window-foil layouts and
 simple computer-generated holograms.
 
+# Fresnel
+
+An open platform for **computational diffractive optics**.
+
+Fresnel is an extensible web application and optics toolkit for designing,
+simulating, validating and exporting printable diffractive optical elements
+(DOEs).
+
+Instead of focusing on a single optical element, Fresnel provides a common
+framework for multiple diffractive design workflows including:
+
+- Fresnel zone plates
+- RGB / multi-wavelength zone plates
+- Multi-focus diffractive elements
+- Hexagonal macro-cell arrays
+- Printable window foils
+- Computer-generated holograms (Gerchberg–Saxton)
+- Optical quality analysis
+- Optical propagation preview
+- Manufacturing exports (PNG, SVG, PDF, DXF, Gerber, STL)
+
+The project combines optics algorithms, simulation, validation,
+manufacturing-oriented export and a modern web interface into a single,
+extensible platform.
+
 ## Related Projects and References
 
 These links are intentionally selective: they give background context for the
