@@ -80,12 +80,17 @@ class PhaseReliefGeneratorTest {
         byte[] stl = StlExporter.toBinaryStl(h, 0.2);
         ByteBuffer bb = ByteBuffer.wrap(stl).order(ByteOrder.LITTLE_ENDIAN);
         bb.position(84);
-        bb.getFloat();
-        bb.getFloat();
-        bb.getFloat();
-        bb.getFloat();
-        bb.getFloat();
-        float z = bb.getFloat();
-        assertTrue(z > 0.0f);
+        float nx = bb.getFloat();
+        float ny = bb.getFloat();
+        float nz = bb.getFloat();
+        float ax = bb.getFloat();
+        float ay = bb.getFloat();
+        float az = bb.getFloat();
+        assertTrue(Float.isFinite(nx));
+        assertTrue(Float.isFinite(ny));
+        assertTrue(Float.isFinite(nz));
+        assertTrue(Float.isFinite(ax));
+        assertTrue(Float.isFinite(ay));
+        assertTrue(az > 0.0f);
     }
 }
