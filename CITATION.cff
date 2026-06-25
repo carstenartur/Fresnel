@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: "Fresnel"
+abstract: "Open platform for computational diffractive optics, printable Fresnel zone plates, holograms, optical validation and manufacturing-oriented exports."
+authors:
+  - family-names: "Hammer"
+    given-names: "Carsten"
+    orcid: "https://orcid.org/0009-0005-1047-6381"
+repository-code: "https://github.com/carstenartur/Fresnel"
+url: "https://carstenartur.github.io/Fresnel/"
+license: "MIT"
+version: "0.1.4-SNAPSHOT"
+keywords:
+  - fresnel-lens
+  - zone-plate
+  - diffractive-optics
+  - computational-optics
+  - computer-generated-holography
+  - hologram
+  - optical-simulation
+  - printable-optics
+  - optical-validation
+  - gerchberg-saxton
+  - fft
+  - spring-boot
+  - react
+  - typescript
+  - docker
