@@ -10,7 +10,7 @@ authors:
 repository-code: "https://github.com/carstenartur/Fresnel"
 url: "https://carstenartur.github.io/Fresnel/"
 license: "MIT"
-version: "0.1.4"
+version: "0.1.5-SNAPSHOT"
 keywords:
   - fresnel-lens
   - zone-plate
@@ -27,4 +27,3 @@ keywords:
   - react
   - typescript
   - docker
-date-released: 2026-06-25
