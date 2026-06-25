@@ -10,6 +10,7 @@
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Fcarstenartur%2Ffresnel-blue?logo=docker)](https://github.com/carstenartur/Fresnel/pkgs/container/fresnel)
 [![Maven Site](https://github.com/carstenartur/Fresnel/actions/workflows/site.yml/badge.svg?branch=main)](https://carstenartur.github.io/Fresnel/site/)
 [![E2E](https://github.com/carstenartur/Fresnel/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/carstenartur/Fresnel/actions/workflows/e2e.yml)
+[![DOI](https://zenodo.org/badge/1224875238.svg)](https://doi.org/10.5281/zenodo.20838658)
 
 📊 **[Coverage report](https://carstenartur.github.io/Fresnel/coverage/)** — JaCoCo HTML, regenerated on every push to `main` and daily.
 
