@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: 'Release version (e.g., 0.1.2)'
+        description: 'Release version (e.g., 0.1.4) - expected value is tracked in release.properties'
         required: true
         type: string
-        default: '0.1.2'
+        default: '0.1.4'
       skip_tests:
         description: 'Skip tests during release build'
         required: false
@@ -36,6 +36,9 @@ jobs:
       release_version: ${{ steps.versions.outputs.release_version }}
       next_snapshot: ${{ steps.versions.outputs.next_snapshot }}
       maintenance_branch: ${{ steps.versions.outputs.maintenance_branch }}
+      current_version: ${{ steps.metadata.outputs.current_version }}
+      citation_version: ${{ steps.metadata.outputs.citation_version }}
+      suggested_release: ${{ steps.metadata.outputs.suggested_release }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -49,12 +52,33 @@ jobs:
           distribution: temurin
           cache: maven
 
+      - name: Read release metadata
+        id: metadata
+        run: |
+          CURRENT=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)
+          CITATION_VERSION=$(grep -E '^version:' CITATION.cff | head -1 | sed -E 's/^version:[[:space:]]*"?([^"]*)"?/\1/')
+
+          if [ -f release.properties ]; then
+            SUGGESTED=$(grep -E '^next.release.version=' release.properties | head -1 | cut -d'=' -f2 | tr -d '[:space:]')
+          else
+            SUGGESTED="${CURRENT%-SNAPSHOT}"
+          fi
+
+          echo "current_version=${CURRENT}" >> "$GITHUB_OUTPUT"
+          echo "citation_version=${CITATION_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "suggested_release=${SUGGESTED}" >> "$GITHUB_OUTPUT"
+
       - name: Validate release version input
         run: |
           VERSION="${{ inputs.release_version }}"
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if ! [[ "$VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
             echo "::error::Invalid release_version '$VERSION' (expected X.Y.Z without prefix)"
             exit 1
+          fi
+
+          SUGGESTED="${{ steps.metadata.outputs.suggested_release }}"
+          if [[ -n "$SUGGESTED" && "$VERSION" != "$SUGGESTED" ]]; then
+            echo "::warning::Input version $VERSION differs from release.properties suggestion $SUGGESTED"
           fi
 
       - name: Calculate version outputs
@@ -80,12 +104,29 @@ jobs:
 
       - name: Validate current pom version is SNAPSHOT
         run: |
-          CURRENT=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)
+          CURRENT="${{ steps.metadata.outputs.current_version }}"
           if [[ "$CURRENT" != *-SNAPSHOT ]]; then
             echo "::error::Current project version '$CURRENT' is not a SNAPSHOT"
             exit 1
           fi
           echo "Current project version: $CURRENT"
+
+      - name: Validate CITATION version matches project version
+        run: |
+          CURRENT="${{ steps.metadata.outputs.current_version }}"
+          CITATION_VERSION="${{ steps.metadata.outputs.citation_version }}"
+
+          if [[ -z "$CITATION_VERSION" ]]; then
+            echo "::error::CITATION.cff does not contain a version field"
+            exit 1
+          fi
+
+          if [[ "$CITATION_VERSION" != "$CURRENT" ]]; then
+            echo "::error::CITATION.cff version '$CITATION_VERSION' does not match project version '$CURRENT'"
+            exit 1
+          fi
+
+          echo "CITATION.cff version: $CITATION_VERSION"
 
       - name: Preflight summary
         run: |
@@ -93,6 +134,9 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Item | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Current project version | ${{ steps.metadata.outputs.current_version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CITATION.cff version | ${{ steps.metadata.outputs.citation_version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Suggested release | ${{ steps.metadata.outputs.suggested_release }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Release version | ${{ steps.versions.outputs.release_version }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Next SNAPSHOT | ${{ steps.versions.outputs.next_snapshot }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Maintenance branch | ${{ steps.versions.outputs.maintenance_branch }} |" >> "$GITHUB_STEP_SUMMARY"
@@ -135,9 +179,13 @@ jobs:
         run: |
           mvn versions:set -DnewVersion=${{ needs.preflight.outputs.release_version }} -DgenerateBackupPoms=false
 
+      - name: Set release version in CITATION.cff
+        run: |
+          python3 .github/scripts/update-citation.py --version "${{ needs.preflight.outputs.release_version }}"
+
       - name: Commit release version changes
         run: |
-          git add pom.xml backend/pom.xml optics-core/pom.xml
+          git add pom.xml backend/pom.xml optics-core/pom.xml CITATION.cff
           git commit -m "Release version ${{ needs.preflight.outputs.release_version }}"
 
       - name: Install frontend dependencies
@@ -321,13 +369,21 @@ jobs:
         run: |
           mvn versions:set -DnewVersion=${{ needs.preflight.outputs.next_snapshot }} -DgenerateBackupPoms=false
 
+      - name: Update citation and release metadata for next development iteration
+        run: |
+          NEXT_VERSION="${{ needs.preflight.outputs.next_snapshot }}"
+          NEXT_RELEASE="${NEXT_VERSION%-SNAPSHOT}"
+
+          python3 .github/scripts/update-citation.py --version "$NEXT_VERSION" --snapshot
+          sed -i "s/^next.release.version=.*/next.release.version=${NEXT_RELEASE}/" release.properties
+
       - name: Create PR for next development iteration
         run: |
           NEXT_VERSION="${{ needs.preflight.outputs.next_snapshot }}"
           BRANCH_NAME="release/prepare-next-${NEXT_VERSION}"
 
           git checkout -B "$BRANCH_NAME"
-          git add pom.xml backend/pom.xml optics-core/pom.xml
+          git add pom.xml backend/pom.xml optics-core/pom.xml CITATION.cff release.properties
           git commit -m "Prepare for next development iteration ${NEXT_VERSION}"
 
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
@@ -341,8 +397,17 @@ jobs:
           fi
           git push origin "$BRANCH_NAME"
 
+          cat > /tmp/pr_body.md << EOF
+          Automated PR to bump Maven and citation metadata to ${NEXT_VERSION} after release ${{ needs.preflight.outputs.release_version }}.
+
+          ## Changes
+          - Bump Maven modules to ${NEXT_VERSION}
+          - Update CITATION.cff version to ${NEXT_VERSION}
+          - Update release.properties for the next release cycle
+          EOF
+
           gh pr create \
             --title "Prepare for next development iteration ${NEXT_VERSION}" \
-            --body "Automated PR to bump pom versions to ${NEXT_VERSION} after release ${{ needs.preflight.outputs.release_version }}." \
+            --body-file /tmp/pr_body.md \
             --base main \
             --head "$BRANCH_NAME"
