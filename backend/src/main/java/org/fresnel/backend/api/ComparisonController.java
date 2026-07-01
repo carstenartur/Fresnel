@@ -331,6 +331,7 @@ public class ComparisonController {
     }
 
     private static double max(double[] arr) {
+        if (arr.length == 0) return 0.0;
         double m = arr[0];
         for (double v : arr) if (v > m) m = v;
         return m;
