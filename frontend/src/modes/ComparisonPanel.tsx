@@ -30,14 +30,18 @@ const RGB_DEFAULT: RgbZonePlateRequest = {
 };
 
 interface VariantState {
+  id: string;
   label: string;
   pluginId: ComparisonPluginId;
   singleParams: SingleZonePlateRequest;
   rgbParams: RgbZonePlateRequest;
 }
 
+let nextVariantId = 1;
+
 function makeDefault(label: string, patch?: Partial<SingleZonePlateRequest>): VariantState {
   return {
+    id: `variant-${nextVariantId++}`,
     label,
     pluginId: 'single',
     singleParams: { ...SINGLE_DEFAULT, ...patch },
@@ -57,19 +61,20 @@ export function ComparisonPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const updateVariant = (idx: number, patch: Partial<VariantState>) =>
-    setVariants((vs) => vs.map((v, i) => (i === idx ? { ...v, ...patch } : v)));
+  const updateVariant = (idx: number, updater: (v: VariantState) => VariantState) =>
+    setVariants((vs) => vs.map((v, i) => (i === idx ? updater(v) : v)));
 
   const updateSingle = (idx: number, patch: Partial<SingleZonePlateRequest>) =>
-    updateVariant(idx, { singleParams: { ...variants[idx].singleParams, ...patch } });
+    updateVariant(idx, (v) => ({ ...v, singleParams: { ...v.singleParams, ...patch } }));
 
   const updateRgbBase = (idx: number, patch: Partial<SingleZonePlateRequest>) =>
-    updateVariant(idx, {
-      rgbParams: { ...variants[idx].rgbParams, base: { ...variants[idx].rgbParams.base, ...patch } },
-    });
+    updateVariant(idx, (v) => ({
+      ...v,
+      rgbParams: { ...v.rgbParams, base: { ...v.rgbParams.base, ...patch } },
+    }));
 
   const updateRgb = (idx: number, patch: Partial<RgbZonePlateRequest>) =>
-    updateVariant(idx, { rgbParams: { ...variants[idx].rgbParams, ...patch } });
+    updateVariant(idx, (v) => ({ ...v, rgbParams: { ...v.rgbParams, ...patch } }));
 
   const addVariant = () =>
     setVariants((vs) => [...vs, makeDefault(`Variant ${String.fromCharCode(65 + vs.length)}`)]);
@@ -108,12 +113,12 @@ export function ComparisonPanel() {
 
       {variants.map((v, idx) => (
         <VariantEditor
-          key={idx}
+          key={v.id}
           index={idx}
           state={v}
           canRemove={variants.length > 2}
-          onLabelChange={(l) => updateVariant(idx, { label: l })}
-          onPluginChange={(p) => updateVariant(idx, { pluginId: p })}
+          onLabelChange={(l) => updateVariant(idx, (state) => ({ ...state, label: l }))}
+          onPluginChange={(p) => updateVariant(idx, (state) => ({ ...state, pluginId: p }))}
           onSingleChange={(patch) => updateSingle(idx, patch)}
           onRgbBaseChange={(patch) => updateRgbBase(idx, patch)}
           onRgbChange={(patch) => updateRgb(idx, patch)}

@@ -68,10 +68,11 @@ public class ComparisonController {
                 .mapToDouble(i -> i.pixelsPerMm)
                 .min()
                 .orElseThrow();
+        double unifiedPixelsPerMm = computeUnifiedTargetPixelsPerMm(intermediates, minPixelsPerMm);
 
         List<DesignComparisonResult.VariantResult> results = new ArrayList<>(intermediates.size());
         for (VariantIntermediate im : intermediates) {
-            results.add(buildVariantResult(im, minPixelsPerMm, null));
+            results.add(buildVariantResult(im, unifiedPixelsPerMm, null));
         }
 
         // --- 3. Compute parameter differences ------------------------------------
@@ -142,12 +143,13 @@ public class ComparisonController {
         // Clamp to the maximum preview size.
         newSide = Math.min(newSide, MAX_COMPARISON_PREVIEW_PX);
         newSide = Math.max(newSide, 1);
+        double effectivePixelsPerMm = newSide * im.pixelsPerMm / src.getWidth();
 
         BufferedImage scaled = scaleImage(src, newSide, newSide);
 
         // Encode to PNG and then base-64.
         RenderResult scaledResult = new RenderResult(scaled, im.renderResult.pixelSizeMm());
-        byte[] pngBytes = PngExporter.toPngBytes(scaledResult, im.singleParams.dpi());
+        byte[] pngBytes = PngExporter.toPngBytes(scaledResult, effectivePixelsPerMm * 25.4);
         String b64 = Base64.getEncoder().encodeToString(pngBytes);
 
         return new DesignComparisonResult.VariantResult(
@@ -157,8 +159,20 @@ public class ComparisonController {
                 b64,
                 scaled.getWidth(),
                 scaled.getHeight(),
-                targetPixelsPerMm,
+                effectivePixelsPerMm,
                 score);
+    }
+
+    private static double computeUnifiedTargetPixelsPerMm(
+            List<VariantIntermediate> intermediates, double requestedPixelsPerMm) {
+        double maxPixelsPerMm = requestedPixelsPerMm;
+        for (VariantIntermediate im : intermediates) {
+            BufferedImage src = im.renderResult.image();
+            if (src.getWidth() <= 0) continue;
+            double capPixelsPerMm = MAX_COMPARISON_PREVIEW_PX * im.pixelsPerMm / src.getWidth();
+            maxPixelsPerMm = Math.min(maxPixelsPerMm, capPixelsPerMm);
+        }
+        return Math.max(maxPixelsPerMm, 1e-9);
     }
 
     /** Bilinear (or nearest-neighbour via Graphics2D) downscale. */

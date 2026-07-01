@@ -48,6 +48,34 @@ class ComparisonControllerTest {
             }
             """;
 
+    private static final String TWO_SINGLE_VARIANTS_MULTI_DIFF = """
+            {
+              "variants": [
+                {
+                  "label": "A",
+                  "pluginId": "single",
+                  "singleParams": {
+                    "apertureDiameterMm": 10.0,
+                    "focalLengthMm": 1000.0,
+                    "wavelengthNm": 550.0,
+                    "dpi": 1200.0
+                  }
+                },
+                {
+                  "label": "B",
+                  "pluginId": "single",
+                  "singleParams": {
+                    "apertureDiameterMm": 20.0,
+                    "focalLengthMm": 5000.0,
+                    "wavelengthNm": 650.0,
+                    "dpi": 600.0
+                  }
+                }
+              ],
+              "rank": false
+            }
+            """;
+
     @Test
     void compareReturnsTwoVariantResults() throws Exception {
         mvc.perform(post("/api/designs/compare")
@@ -95,7 +123,7 @@ class ComparisonControllerTest {
                         "$.parameterDifferences[?(@.parameter=='focalLengthMm')].values[0]",
                         hasItem("1000")))
                 .andExpect(jsonPath(
-                        "$.parameterDifferences[?(@.parameter=='focalLengthMm')].values[0]",
+                        "$.parameterDifferences[?(@.parameter=='focalLengthMm')].values[1]",
                         hasItem("5000")));
     }
 
@@ -231,27 +259,61 @@ class ComparisonControllerTest {
     }
 
     @Test
+    void compareRejectsUnknownPluginId() throws Exception {
+        String body = """
+                {
+                  "variants": [
+                    {
+                      "label": "A",
+                      "pluginId": "single",
+                      "singleParams": {
+                        "apertureDiameterMm": 10.0,
+                        "focalLengthMm": 500.0,
+                        "wavelengthNm": 550.0,
+                        "dpi": 1200.0
+                      }
+                    },
+                    {
+                      "label": "B",
+                      "pluginId": "unknown",
+                      "singleParams": {
+                        "apertureDiameterMm": 10.0,
+                        "focalLengthMm": 1000.0,
+                        "wavelengthNm": 550.0,
+                        "dpi": 1200.0
+                      }
+                    }
+                  ],
+                  "rank": false
+                }
+                """;
+        mvc.perform(post("/api/designs/compare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void comparePreviewsShareSameScale() throws Exception {
-        // Both variants use dpi=1200; pixels-per-mm = 1200/25.4 ≈ 47.24.
-        // The comparison endpoint must report the same scale for all variants.
-        double expectedPixPerMm = 1200.0 / 25.4;
         mvc.perform(post("/api/designs/compare")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(TWO_SINGLE_VARIANTS))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.variants[0].previewWidthPx").value(512))
+                .andExpect(jsonPath("$.variants[1].previewWidthPx").value(512))
                 .andExpect(jsonPath("$.variants[0].pixelsPerMm",
-                        closeTo(expectedPixPerMm, 0.01)))
+                        closeTo(25.6, 0.2)))
                 .andExpect(jsonPath("$.variants[1].pixelsPerMm",
-                        closeTo(expectedPixPerMm, 0.01)));
+                        closeTo(25.6, 0.2)));
     }
 
     @Test
     void compareParameterDifferencesAreSortedAlphabetically() throws Exception {
         mvc.perform(post("/api/designs/compare")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(TWO_SINGLE_VARIANTS))
+                        .content(TWO_SINGLE_VARIANTS_MULTI_DIFF))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.parameterDifferences[0].parameter").isString())
-                .andExpect(jsonPath("$.parameterDifferences[1].parameter").isString());
+                .andExpect(jsonPath("$.parameterDifferences[*].parameter",
+                        contains("apertureDiameterMm", "dpi", "focalLengthMm", "wavelengthNm")));
     }
 }
