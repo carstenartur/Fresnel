@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesignComparisonRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">DesignComparisonRequest.java</span></div><h1>DesignComparisonRequest.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+import java.util.List;
+
+/**
+ * Request body for {@code POST /api/designs/compare}.
+ *
+ * &lt;p&gt;At least two variants are required. Each variant must specify a valid
+ * {@code pluginId} and the matching parameter object.
+ *
+ * @param variants the design variants to compare (minimum 2)
+ * @param rank     when {@code true} the response includes a deterministic ranking
+ *                 of all variants based on optical quality and printability scores
+ */
+<span class="fc" id="L19">public record DesignComparisonRequest(</span>
+        @NotNull @Size(min = 2, message = &quot;At least two variants are required for comparison&quot;)
+        List&lt;@Valid @NotNull DesignVariant&gt; variants,
+        boolean rank
+) {}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

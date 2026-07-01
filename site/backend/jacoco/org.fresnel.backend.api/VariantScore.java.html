@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariantScore.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">VariantScore.java</span></div><h1>VariantScore.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+/**
+ * Ranking result for one design variant.
+ *
+ * &lt;p&gt;A higher {@code score} is better. Scores are normalized to the range
+ * [0, 1] across all variants in the comparison, so the best variant in
+ * each run has score 1.0. The ranking is deterministic: ties are broken
+ * by the order in which the variants were submitted.
+ *
+ * @param rank        1-based rank among all variants (1 = best)
+ * @param score       normalized composite score in [0, 1]
+ * @param explanation human-readable breakdown of the score components
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L18">public record VariantScore(</span>
+        int    rank,
+        double score,
+        String explanation
+) {}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

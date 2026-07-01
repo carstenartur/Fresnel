@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComparisonController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">ComparisonController.java</span></div><h1>ComparisonController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import jakarta.validation.Valid;
+import org.fresnel.optics.DesignValidator;
+import org.fresnel.optics.OpticalQualityReport;
+import org.fresnel.optics.PngExporter;
+import org.fresnel.optics.RenderResult;
+import org.fresnel.optics.RgbZonePlateRenderer;
+import org.fresnel.optics.SingleZonePlateParameters;
+import org.fresnel.optics.ValidationResult;
+import org.fresnel.optics.ZonePlateRenderer;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * REST endpoint for comparing two or more diffractive design variants.
+ *
+ * &lt;p&gt;{@code POST /api/designs/compare} accepts a {@link DesignComparisonRequest} containing
+ * at least two {@link DesignVariant} objects and returns a {@link DesignComparisonResult} with:
+ * &lt;ul&gt;
+ *   &lt;li&gt;per-variant validation reports, quality metrics and printability warnings&lt;/li&gt;
+ *   &lt;li&gt;rendered preview images encoded as base-64 PNG at identical physical scale&lt;/li&gt;
+ *   &lt;li&gt;a structured list of parameters that differ across variants&lt;/li&gt;
+ *   &lt;li&gt;optional deterministic ranking when {@code rank=true} is requested&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;Supported plugin IDs: {@code &quot;single&quot;} (Zone Plate) and {@code &quot;rgb&quot;} (RGB Zone Plate).
+ */
+@RestController
+@RequestMapping(&quot;/api/designs&quot;)
+<span class="fc" id="L43">public class ComparisonController {</span>
+
+    /**
+     * Maximum side length (px) for comparison preview images.
+     * Kept intentionally smaller than the single-design preview cap so that
+     * base-64 payloads remain manageable even when many variants are compared.
+     */
+    static final int MAX_COMPARISON_PREVIEW_PX = 512;
+    /** Lower bound to avoid a zero-scale render in pathological/empty-image scenarios. */
+    private static final double MIN_PIXELS_PER_MM = 1e-9;
+
+    @PostMapping(value = &quot;/compare&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public DesignComparisonResult compare(@Valid @RequestBody DesignComparisonRequest req)
+            throws IOException {
+
+        // --- 1. Validate and compute metrics for every variant ---------------------
+<span class="fc" id="L61">        List&lt;VariantIntermediate&gt; intermediates = new ArrayList&lt;&gt;(req.variants().size());</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        for (DesignVariant v : req.variants()) {</span>
+<span class="fc" id="L63">            intermediates.add(processVariant(v));</span>
+<span class="fc" id="L64">        }</span>
+
+        // --- 2. Render previews at a unified scale --------------------------------
+        // Use the smallest pixels-per-mm value so that every preview is at the
+        // same physical scale (the most &quot;coarse&quot; design sets the common scale).
+<span class="fc" id="L69">        double minPixelsPerMm = intermediates.stream()</span>
+<span class="fc" id="L70">                .mapToDouble(i -&gt; i.pixelsPerMm)</span>
+<span class="fc" id="L71">                .min()</span>
+<span class="fc" id="L72">                .orElseThrow();</span>
+<span class="fc" id="L73">        double unifiedPixelsPerMm = computeUnifiedTargetPixelsPerMm(intermediates, minPixelsPerMm);</span>
+
+<span class="fc" id="L75">        List&lt;DesignComparisonResult.VariantResult&gt; results = new ArrayList&lt;&gt;(intermediates.size());</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        for (VariantIntermediate im : intermediates) {</span>
+<span class="fc" id="L77">            results.add(buildVariantResult(im, unifiedPixelsPerMm, null));</span>
+<span class="fc" id="L78">        }</span>
+
+        // --- 3. Compute parameter differences ------------------------------------
+<span class="fc" id="L81">        List&lt;ParameterDifference&gt; diffs = computeParameterDifferences(req.variants());</span>
+
+        // --- 4. Optional ranking --------------------------------------------------
+<span class="fc" id="L84">        List&lt;DesignComparisonResult.VariantResult&gt; finalResults = results;</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (req.rank()) {</span>
+<span class="fc" id="L86">            List&lt;RankedEntry&gt; ranked = rank(intermediates);</span>
+<span class="fc" id="L87">            List&lt;DesignComparisonResult.VariantResult&gt; rankedResults = new ArrayList&lt;&gt;(results.size());</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">            for (int i = 0; i &lt; results.size(); i++) {</span>
+<span class="fc" id="L89">                final int idx = i;</span>
+<span class="fc" id="L90">                VariantScore score = ranked.stream()</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">                        .filter(r -&gt; r.index == idx)</span>
+<span class="fc" id="L92">                        .findFirst()</span>
+<span class="fc" id="L93">                        .map(r -&gt; new VariantScore(r.rank, r.score, r.explanation))</span>
+<span class="fc" id="L94">                        .orElse(null);</span>
+<span class="fc" id="L95">                DesignComparisonResult.VariantResult old = results.get(i);</span>
+<span class="fc" id="L96">                rankedResults.add(new DesignComparisonResult.VariantResult(</span>
+<span class="fc" id="L97">                        old.label(), old.pluginId(), old.validation(),</span>
+<span class="fc" id="L98">                        old.previewBase64(), old.previewWidthPx(), old.previewHeightPx(),</span>
+<span class="fc" id="L99">                        old.pixelsPerMm(), score));</span>
+            }
+<span class="fc" id="L101">            finalResults = rankedResults;</span>
+        }
+
+<span class="fc" id="L104">        return new DesignComparisonResult(finalResults, diffs);</span>
+    }
+
+    // -------------------------------------------------------------------------
+    // Internal helpers
+    // -------------------------------------------------------------------------
+
+    private VariantIntermediate processVariant(DesignVariant v) throws IOException {
+<span class="fc bfc" id="L112" title="All 3 branches covered.">        return switch (v.pluginId()) {</span>
+            case DesignVariant.PLUGIN_SINGLE -&gt; {
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">                if (v.singleParams() == null)</span>
+<span class="nc" id="L115">                    throw new IllegalArgumentException(</span>
+<span class="nc" id="L116">                            &quot;Variant \&quot;&quot; + v.label() + &quot;\&quot;: singleParams must be set for pluginId=\&quot;single\&quot;&quot;);</span>
+<span class="fc" id="L117">                SingleZonePlateParameters p = v.singleParams().toParameters();</span>
+<span class="fc" id="L118">                ValidationResult vr = DesignValidator.validate(p);</span>
+<span class="fc" id="L119">                RenderResult rr = ZonePlateRenderer.render(p);</span>
+<span class="fc" id="L120">                yield new VariantIntermediate(v, p, vr, rr, p.dpi() / 25.4);</span>
+            }
+            case DesignVariant.PLUGIN_RGB -&gt; {
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">                if (v.rgbParams() == null)</span>
+<span class="nc" id="L124">                    throw new IllegalArgumentException(</span>
+<span class="nc" id="L125">                            &quot;Variant \&quot;&quot; + v.label() + &quot;\&quot;: rgbParams must be set for pluginId=\&quot;rgb\&quot;&quot;);</span>
+<span class="fc" id="L126">                SingleZonePlateParameters base = v.rgbParams().base().toParameters();</span>
+<span class="fc" id="L127">                ValidationResult vr = DesignValidator.validate(base);</span>
+<span class="fc" id="L128">                RenderResult rr = RgbZonePlateRenderer.render(base,</span>
+<span class="fc" id="L129">                        v.rgbParams().redNm(), v.rgbParams().greenNm(), v.rgbParams().blueNm());</span>
+<span class="fc" id="L130">                yield new VariantIntermediate(v, base, vr, rr, base.dpi() / 25.4);</span>
+            }
+<span class="fc" id="L132">            default -&gt; throw new IllegalArgumentException(</span>
+<span class="fc" id="L133">                    &quot;Unknown pluginId \&quot;&quot; + v.pluginId() + &quot;\&quot;; supported: single, rgb&quot;);</span>
+        };
+    }
+
+    private DesignComparisonResult.VariantResult buildVariantResult(
+            VariantIntermediate im, double targetPixelsPerMm, VariantScore score) throws IOException {
+
+        // Re-scale the rendered image so that every preview shares the same
+        // physical scale (targetPixelsPerMm).
+<span class="fc" id="L142">        BufferedImage src = im.renderResult.image();</span>
+<span class="fc" id="L143">        int newSide = (int) Math.round(</span>
+<span class="fc" id="L144">                src.getWidth() * targetPixelsPerMm / im.pixelsPerMm);</span>
+        // Clamp to the maximum preview size.
+<span class="fc" id="L146">        newSide = Math.min(newSide, MAX_COMPARISON_PREVIEW_PX);</span>
+<span class="fc" id="L147">        newSide = Math.max(newSide, 1);</span>
+<span class="fc" id="L148">        double effectivePixelsPerMm = newSide * im.pixelsPerMm / src.getWidth();</span>
+
+<span class="fc" id="L150">        BufferedImage scaled = scaleImage(src, newSide, newSide);</span>
+
+        // Encode to PNG and then base-64.
+<span class="fc" id="L153">        RenderResult scaledResult = new RenderResult(scaled, im.renderResult.pixelSizeMm());</span>
+<span class="fc" id="L154">        byte[] pngBytes = PngExporter.toPngBytes(scaledResult, effectivePixelsPerMm * 25.4);</span>
+<span class="fc" id="L155">        String b64 = Base64.getEncoder().encodeToString(pngBytes);</span>
+
+<span class="fc" id="L157">        return new DesignComparisonResult.VariantResult(</span>
+<span class="fc" id="L158">                im.variant.label(),</span>
+<span class="fc" id="L159">                im.variant.pluginId(),</span>
+<span class="fc" id="L160">                ValidationResponse.from(im.validation),</span>
+                b64,
+<span class="fc" id="L162">                scaled.getWidth(),</span>
+<span class="fc" id="L163">                scaled.getHeight(),</span>
+                effectivePixelsPerMm,
+                score);
+    }
+
+    private static double computeUnifiedTargetPixelsPerMm(
+            List&lt;VariantIntermediate&gt; intermediates, double requestedPixelsPerMm) {
+<span class="fc" id="L170">        double maxPixelsPerMm = requestedPixelsPerMm;</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">        for (VariantIntermediate im : intermediates) {</span>
+<span class="fc" id="L172">            BufferedImage src = im.renderResult.image();</span>
+<span class="pc bpc" id="L173" title="2 of 4 branches missed.">            if (src.getWidth() &lt;= 0 || src.getHeight() &lt;= 0) continue;</span>
+<span class="fc" id="L174">            double capPixelsPerMm = MAX_COMPARISON_PREVIEW_PX * im.pixelsPerMm / src.getWidth();</span>
+<span class="fc" id="L175">            maxPixelsPerMm = Math.min(maxPixelsPerMm, capPixelsPerMm);</span>
+<span class="fc" id="L176">        }</span>
+<span class="fc" id="L177">        return Math.max(maxPixelsPerMm, MIN_PIXELS_PER_MM);</span>
+    }
+
+    /** Bilinear (or nearest-neighbour via Graphics2D) downscale. */
+    private static BufferedImage scaleImage(BufferedImage src, int w, int h) {
+<span class="pc bpc" id="L182" title="1 of 4 branches missed.">        if (src.getWidth() == w &amp;&amp; src.getHeight() == h) return src;</span>
+<span class="fc" id="L183">        BufferedImage dst = new BufferedImage(w, h,</span>
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">                src.getType() == 0 ? BufferedImage.TYPE_INT_ARGB : src.getType());</span>
+<span class="fc" id="L185">        java.awt.Graphics2D g = dst.createGraphics();</span>
+<span class="fc" id="L186">        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,</span>
+                java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+<span class="fc" id="L188">        g.drawImage(src, 0, 0, w, h, null);</span>
+<span class="fc" id="L189">        g.dispose();</span>
+<span class="fc" id="L190">        return dst;</span>
+    }
+
+    // -------------------------------------------------------------------------
+    // Parameter-difference extraction
+    // -------------------------------------------------------------------------
+
+    private List&lt;ParameterDifference&gt; computeParameterDifferences(List&lt;DesignVariant&gt; variants) {
+        // Build a map of parameter → list of formatted values (one per variant).
+        // We compare every shared parameter; parameters absent in a variant are
+        // represented as &quot;-&quot;.
+<span class="fc" id="L201">        Map&lt;String, String[]&gt; table = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L202">        int n = variants.size();</span>
+
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        for (int i = 0; i &lt; n; i++) {</span>
+<span class="fc" id="L205">            DesignVariant v = variants.get(i);</span>
+<span class="fc" id="L206">            Map&lt;String, String&gt; params = extractParameters(v);</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">            for (Map.Entry&lt;String, String&gt; e : params.entrySet()) {</span>
+<span class="fc" id="L208">                table.computeIfAbsent(e.getKey(), k -&gt; new String[n])[i] = e.getValue();</span>
+<span class="fc" id="L209">            }</span>
+        }
+
+        // Fill missing entries and keep only rows where not all values are equal.
+<span class="fc" id="L213">        List&lt;ParameterDifference&gt; diffs = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">        for (Map.Entry&lt;String, String[]&gt; e : table.entrySet()) {</span>
+<span class="fc" id="L215">            String[] vals = e.getValue();</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">            for (int i = 0; i &lt; n; i++) {</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">                if (vals[i] == null) vals[i] = &quot;-&quot;;</span>
+            }
+<span class="fc bfc" id="L219" title="All 2 branches covered.">            if (!allEqual(vals)) {</span>
+<span class="fc" id="L220">                diffs.add(new ParameterDifference(</span>
+<span class="fc" id="L221">                        e.getKey(),</span>
+<span class="fc" id="L222">                        unitFor(e.getKey()),</span>
+<span class="fc" id="L223">                        List.of(vals)));</span>
+            }
+<span class="fc" id="L225">        }</span>
+<span class="fc" id="L226">        diffs.sort(Comparator.comparing(ParameterDifference::parameter));</span>
+<span class="fc" id="L227">        return diffs;</span>
+    }
+
+    private Map&lt;String, String&gt; extractParameters(DesignVariant v) {
+<span class="fc" id="L231">        Map&lt;String, String&gt; m = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L232">        m.put(&quot;pluginId&quot;, v.pluginId());</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">        if (v.singleParams() != null) {</span>
+<span class="fc" id="L234">            SingleZonePlateRequest p = v.singleParams();</span>
+<span class="fc" id="L235">            m.put(&quot;apertureDiameterMm&quot;, fmt(p.apertureDiameterMm()));</span>
+<span class="fc" id="L236">            m.put(&quot;focalLengthMm&quot;,      fmt(p.focalLengthMm()));</span>
+<span class="fc" id="L237">            m.put(&quot;wavelengthNm&quot;,       fmt(p.wavelengthNm()));</span>
+<span class="fc" id="L238">            m.put(&quot;dpi&quot;,                fmt(p.dpi()));</span>
+<span class="fc" id="L239">            m.put(&quot;maskType&quot;,           orDefault(p.maskType(), &quot;BINARY_AMPLITUDE&quot;));</span>
+<span class="fc" id="L240">            m.put(&quot;polarity&quot;,           orDefault(p.polarity(), &quot;POSITIVE&quot;));</span>
+<span class="pc bpc" id="L241" title="1 of 2 branches missed.">            m.put(&quot;targetOffsetXmm&quot;,    fmt(p.targetOffsetXmm() == null ? 0.0 : p.targetOffsetXmm()));</span>
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">            m.put(&quot;targetOffsetYmm&quot;,    fmt(p.targetOffsetYmm() == null ? 0.0 : p.targetOffsetYmm()));</span>
+        }
+<span class="fc bfc" id="L244" title="All 2 branches covered.">        if (v.rgbParams() != null) {</span>
+<span class="fc" id="L245">            m.put(&quot;redNm&quot;,   fmt(v.rgbParams().redNm()));</span>
+<span class="fc" id="L246">            m.put(&quot;greenNm&quot;, fmt(v.rgbParams().greenNm()));</span>
+<span class="fc" id="L247">            m.put(&quot;blueNm&quot;,  fmt(v.rgbParams().blueNm()));</span>
+        }
+<span class="fc" id="L249">        return m;</span>
+    }
+
+    private static String fmt(Double d) {
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">        if (d == null) return &quot;-&quot;;</span>
+<span class="pc bpc" id="L254" title="1 of 2 branches missed.">        return d == Math.floor(d) ? String.valueOf(d.longValue()) : String.valueOf(d);</span>
+    }
+
+    private static String fmt(double d) {
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">        return d == Math.floor(d) ? String.valueOf((long) d) : String.valueOf(d);</span>
+    }
+
+    private static String orDefault(Object val, String def) {
+<span class="pc bpc" id="L262" title="1 of 2 branches missed.">        return val == null ? def : val.toString();</span>
+    }
+
+    private static String unitFor(String param) {
+<span class="fc bfc" id="L266" title="All 4 branches covered.">        return switch (param) {</span>
+            case &quot;apertureDiameterMm&quot;, &quot;focalLengthMm&quot;,
+<span class="fc" id="L268">                 &quot;targetOffsetXmm&quot;, &quot;targetOffsetYmm&quot; -&gt; &quot;mm&quot;;</span>
+<span class="fc" id="L269">            case &quot;wavelengthNm&quot;, &quot;redNm&quot;, &quot;greenNm&quot;, &quot;blueNm&quot; -&gt; &quot;nm&quot;;</span>
+<span class="fc" id="L270">            case &quot;dpi&quot; -&gt; &quot;dpi&quot;;</span>
+<span class="fc" id="L271">            default -&gt; &quot;&quot;;</span>
+        };
+    }
+
+    private static boolean allEqual(String[] vals) {
+<span class="fc bfc" id="L276" title="All 2 branches covered.">        for (int i = 1; i &lt; vals.length; i++) {</span>
+<span class="fc bfc" id="L277" title="All 2 branches covered.">            if (!vals[0].equals(vals[i])) return false;</span>
+        }
+<span class="fc" id="L279">        return true;</span>
+    }
+
+    // -------------------------------------------------------------------------
+    // Ranking
+    // -------------------------------------------------------------------------
+
+    /**
+     * Rank variants by a composite score:
+     * &lt;ul&gt;
+     *   &lt;li&gt;40 % printability  – pixels per outer zone, normalized&lt;/li&gt;
+     *   &lt;li&gt;30 % resolution    – numerical aperture, normalized&lt;/li&gt;
+     *   &lt;li&gt;30 % focus depth   – reciprocal depth-of-focus (smaller DoF is better for tight focus),
+     *       normalized&lt;/li&gt;
+     * &lt;/ul&gt;
+     * The ranking is deterministic: equal scores preserve submission order.
+     */
+    private List&lt;RankedEntry&gt; rank(List&lt;VariantIntermediate&gt; intermediates) {
+<span class="fc" id="L297">        int n = intermediates.size();</span>
+
+        // Collect raw scores.
+<span class="fc" id="L300">        double[] pixPerZone = new double[n];</span>
+<span class="fc" id="L301">        double[] na         = new double[n];</span>
+<span class="fc" id="L302">        double[] dofRecip   = new double[n];</span>
+
+<span class="fc bfc" id="L304" title="All 2 branches covered.">        for (int i = 0; i &lt; n; i++) {</span>
+<span class="fc" id="L305">            VariantIntermediate im = intermediates.get(i);</span>
+<span class="fc" id="L306">            pixPerZone[i] = im.validation.metrics().pixelsPerOuterZone();</span>
+<span class="fc" id="L307">            OpticalQualityReport qr = im.validation.qualityReport();</span>
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">            na[i]       = (qr != null) ? qr.numericalAperture()    : 0.0;</span>
+<span class="pc bpc" id="L309" title="2 of 4 branches missed.">            dofRecip[i] = (qr != null &amp;&amp; qr.depthOfFocusMicrons() &gt; 0)</span>
+<span class="pc" id="L310">                    ? 1.0 / qr.depthOfFocusMicrons() : 0.0;</span>
+        }
+
+<span class="fc" id="L313">        double maxPix  = max(pixPerZone);</span>
+<span class="fc" id="L314">        double maxNA   = max(na);</span>
+<span class="fc" id="L315">        double maxRecip = max(dofRecip);</span>
+
+<span class="fc" id="L317">        double[] composite = new double[n];</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">        for (int i = 0; i &lt; n; i++) {</span>
+<span class="pc bpc" id="L319" title="1 of 2 branches missed.">            double pPrint = maxPix   &gt; 0 ? pixPerZone[i] / maxPix   : 0.0;</span>
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">            double pNA    = maxNA    &gt; 0 ? na[i]         / maxNA    : 0.0;</span>
+<span class="pc bpc" id="L321" title="1 of 2 branches missed.">            double pDoF   = maxRecip &gt; 0 ? dofRecip[i]   / maxRecip : 0.0;</span>
+<span class="fc" id="L322">            composite[i]  = 0.40 * pPrint + 0.30 * pNA + 0.30 * pDoF;</span>
+        }
+
+        // Sort descending by composite score; ties: lower index wins.
+<span class="fc" id="L326">        Integer[] idx = new Integer[n];</span>
+<span class="fc bfc" id="L327" title="All 2 branches covered.">        for (int i = 0; i &lt; n; i++) idx[i] = i;</span>
+<span class="fc" id="L328">        java.util.Arrays.sort(idx, (a, b) -&gt; {</span>
+<span class="fc" id="L329">            int cmp = Double.compare(composite[b], composite[a]);</span>
+<span class="pc bpc" id="L330" title="1 of 2 branches missed.">            return cmp != 0 ? cmp : Integer.compare(a, b);</span>
+        });
+
+<span class="fc" id="L333">        List&lt;RankedEntry&gt; result = new ArrayList&lt;&gt;(n);</span>
+<span class="fc bfc" id="L334" title="All 2 branches covered.">        for (int rank = 1; rank &lt;= n; rank++) {</span>
+<span class="fc" id="L335">            int i = idx[rank - 1];</span>
+<span class="fc" id="L336">            String expl = String.format(</span>
+                    &quot;Composite score %.3f — printability %.3f (px/zone=%.2f), &quot;
+                    + &quot;NA %.3f, 1/DoF %.3e&quot;,
+<span class="fc" id="L339">                    composite[i],</span>
+<span class="pc bpc" id="L340" title="1 of 2 branches missed.">                    0.40 * (maxPix &gt; 0 ? pixPerZone[i] / maxPix : 0),</span>
+<span class="fc" id="L341">                    pixPerZone[i],</span>
+<span class="fc" id="L342">                    na[i],</span>
+<span class="fc" id="L343">                    dofRecip[i]);</span>
+<span class="fc" id="L344">            result.add(new RankedEntry(i, rank, composite[i], expl));</span>
+        }
+<span class="fc" id="L346">        return result;</span>
+    }
+
+    private static double max(double[] arr) {
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">        if (arr.length == 0) return 0.0;</span>
+<span class="fc" id="L351">        double m = arr[0];</span>
+<span class="fc bfc" id="L352" title="All 4 branches covered.">        for (double v : arr) if (v &gt; m) m = v;</span>
+<span class="fc" id="L353">        return m;</span>
+    }
+
+    // -------------------------------------------------------------------------
+    // Value objects
+    // -------------------------------------------------------------------------
+
+<span class="fc" id="L360">    private record VariantIntermediate(</span>
+            DesignVariant variant,
+            SingleZonePlateParameters singleParams,
+            ValidationResult validation,
+            RenderResult renderResult,
+            double pixelsPerMm
+    ) {}
+
+<span class="fc" id="L368">    private record RankedEntry(int index, int rank, double score, String explanation) {}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
