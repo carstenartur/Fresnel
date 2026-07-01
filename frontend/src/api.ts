@@ -298,6 +298,54 @@ export async function downloadHologramStl(req: HologramRequest, filename: string
   downloadBlob(blob, filename);
 }
 
+// --- Design comparison ---
+
+export type ComparisonPluginId = 'single' | 'rgb';
+
+export interface DesignVariant {
+  label: string;
+  pluginId: ComparisonPluginId;
+  singleParams?: SingleZonePlateRequest;
+  rgbParams?: RgbZonePlateRequest;
+}
+
+export interface DesignComparisonRequest {
+  variants: DesignVariant[];
+  rank: boolean;
+}
+
+export interface VariantScore {
+  rank: number;
+  score: number;
+  explanation: string;
+}
+
+export interface VariantResult {
+  label: string;
+  pluginId: string;
+  validation: ValidationResponse;
+  previewBase64: string | null;
+  previewWidthPx: number;
+  previewHeightPx: number;
+  pixelsPerMm: number;
+  score: VariantScore | null;
+}
+
+export interface ParameterDifference {
+  parameter: string;
+  unit: string;
+  values: string[];
+}
+
+export interface DesignComparisonResult {
+  variants: VariantResult[];
+  parameterDifferences: ParameterDifference[];
+}
+
+export async function compareDesigns(req: DesignComparisonRequest): Promise<DesignComparisonResult> {
+  return postJson('/api/designs/compare', req);
+}
+
 /** Read a File / Blob as a base64 string (no data: URL prefix). */
 export function fileToBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
