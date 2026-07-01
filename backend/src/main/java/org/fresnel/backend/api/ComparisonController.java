@@ -48,6 +48,8 @@ public class ComparisonController {
      * base-64 payloads remain manageable even when many variants are compared.
      */
     static final int MAX_COMPARISON_PREVIEW_PX = 512;
+    /** Lower bound to avoid a zero-scale render in pathological/empty-image scenarios. */
+    private static final double MIN_PIXELS_PER_MM = 1e-9;
 
     @PostMapping(value = "/compare",
             consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -168,11 +170,11 @@ public class ComparisonController {
         double maxPixelsPerMm = requestedPixelsPerMm;
         for (VariantIntermediate im : intermediates) {
             BufferedImage src = im.renderResult.image();
-            if (src.getWidth() <= 0) continue;
+            if (src.getWidth() <= 0 || src.getHeight() <= 0) continue;
             double capPixelsPerMm = MAX_COMPARISON_PREVIEW_PX * im.pixelsPerMm / src.getWidth();
             maxPixelsPerMm = Math.min(maxPixelsPerMm, capPixelsPerMm);
         }
-        return Math.max(maxPixelsPerMm, 1e-9);
+        return Math.max(maxPixelsPerMm, MIN_PIXELS_PER_MM);
     }
 
     /** Bilinear (or nearest-neighbour via Graphics2D) downscale. */
