@@ -164,7 +164,7 @@ export function SingleZonePlatePanel() {
                 onClick={() => downloadExportPdf(req, sheet, 'fresnel-zone-plate.pdf')}>
           PDF
         </button>
-        <button className="secondary" disabled={loading}
+        <button className="secondary" disabled={!valid || loading}
                 onClick={() => downloadCalibrationPdf({
                   dpi: req.dpi,
                   printScale: 1,

@@ -33,6 +33,12 @@ public final class CalibrationSheetGenerator {
             if (!Double.isFinite(printScale) || printScale <= 0.0) {
                 throw new IllegalArgumentException("printScale must be > 0");
             }
+            if (wavelengthNm != null && (!Double.isFinite(wavelengthNm) || wavelengthNm <= 0.0)) {
+                throw new IllegalArgumentException("wavelengthNm must be > 0 when provided");
+            }
+            if (focalLengthMm != null && (!Double.isFinite(focalLengthMm) || focalLengthMm <= 0.0)) {
+                throw new IllegalArgumentException("focalLengthMm must be > 0 when provided");
+            }
         }
 
         public static CalibrationSheetParameters of(double dpi, PdfExporter.SheetSize sheetSize) {
@@ -75,6 +81,13 @@ public final class CalibrationSheetGenerator {
         if (p.wavelengthNm != null) meta.append(String.format(Locale.ROOT, " | λ: %.1f nm", p.wavelengthNm));
         if (p.focalLengthMm != null) meta.append(String.format(Locale.ROOT, " | f: %.1f mm", p.focalLengthMm));
         return meta.toString();
+    }
+
+    static String printInstructionText(CalibrationSheetParameters p) {
+        if (Math.abs(p.printScale() - DEFAULT_SCALE) < 1e-9) {
+            return "Print at 100% / actual size. Disable fit-to-page.";
+        }
+        return String.format(Locale.ROOT, "Print at %.1f%% scale. Disable fit-to-page.", p.printScale() * 100.0);
     }
 
     private static void drawFrame(Graphics2D g, CalibrationSheetParameters p, int widthPx, int heightPx) {
@@ -171,7 +184,7 @@ public final class CalibrationSheetGenerator {
         int x = mmToPx(15, p.dpi());
         int y = heightPx - mmToPx(16, p.dpi());
         g.drawString(metadataText(p), x, y);
-        g.drawString("Print at 100% / actual size. Disable fit-to-page.", x, y + mmToPx(4, p.dpi()));
+        g.drawString(printInstructionText(p), x, y + mmToPx(4, p.dpi()));
         g.drawString("Common errors: shrink/expand, blur/bleed, anisotropic scaling, offset registration.",
                 x, y + mmToPx(8, p.dpi()));
         g.drawString("https://github.com/carstenartur/Fresnel", widthPx - mmToPx(70, p.dpi()), heightPx - mmToPx(5, p.dpi()));

@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CalibrationSheetGeneratorTest {
@@ -39,5 +40,28 @@ class CalibrationSheetGeneratorTest {
             assertTrue(doc.getNumberOfPages() >= 1);
             assertEquals(595.28f, doc.getPage(0).getMediaBox().getWidth(), 0.7f);
         }
+    }
+
+    @Test
+    void rejectsNonFiniteOrNonPositiveOptionalInputs() {
+        assertThrows(IllegalArgumentException.class, () -> new CalibrationSheetGenerator.CalibrationSheetParameters(
+                600.0, PdfExporter.SheetSize.A4, 1.0, Double.NaN, 1000.0));
+        assertThrows(IllegalArgumentException.class, () -> new CalibrationSheetGenerator.CalibrationSheetParameters(
+                600.0, PdfExporter.SheetSize.A4, 1.0, Double.POSITIVE_INFINITY, 1000.0));
+        assertThrows(IllegalArgumentException.class, () -> new CalibrationSheetGenerator.CalibrationSheetParameters(
+                600.0, PdfExporter.SheetSize.A4, 1.0, 550.0, 0.0));
+    }
+
+    @Test
+    void printInstructionReflectsConfiguredScale() {
+        var atDefaultScale = new CalibrationSheetGenerator.CalibrationSheetParameters(
+                600.0, PdfExporter.SheetSize.A4, 1.0, null, null);
+        assertEquals("Print at 100% / actual size. Disable fit-to-page.",
+                CalibrationSheetGenerator.printInstructionText(atDefaultScale));
+
+        var atNinetyPercent = new CalibrationSheetGenerator.CalibrationSheetParameters(
+                600.0, PdfExporter.SheetSize.A4, 0.9, null, null);
+        assertEquals("Print at 90.0% scale. Disable fit-to-page.",
+                CalibrationSheetGenerator.printInstructionText(atNinetyPercent));
     }
 }
