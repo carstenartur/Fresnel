@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExperimentController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">ExperimentController.java</span></div><h1>ExperimentController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import org.fresnel.optics.DesignValidationReport;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.ObjectMapper;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * Form-based experimental validation workflow.
+ */
+@RestController
+@RequestMapping(&quot;/api/experiments&quot;)
+public class ExperimentController {
+
+<span class="fc" id="L25">    private static final MediaType TEXT_MARKDOWN = new MediaType(&quot;text&quot;, &quot;markdown&quot;, StandardCharsets.UTF_8);</span>
+
+    private final ObjectMapper mapper;
+
+<span class="fc" id="L29">    public ExperimentController(ObjectMapper mapper) {</span>
+<span class="fc" id="L30">        this.mapper = mapper;</span>
+<span class="fc" id="L31">    }</span>
+
+    @PostMapping(value = &quot;/compare&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ExperimentRecord compare(@RequestBody ExperimentRecord record) {
+<span class="fc" id="L37">        return normalize(record);</span>
+    }
+
+    @PostMapping(value = &quot;/export.json&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;byte[]&gt; exportJson(@RequestBody ExperimentRecord record) throws Exception {
+<span class="fc" id="L44">        ExperimentRecord normalized = normalize(record);</span>
+<span class="fc" id="L45">        byte[] body = mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(normalized);</span>
+<span class="fc" id="L46">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="fc" id="L47">        headers.setContentType(MediaType.APPLICATION_JSON);</span>
+<span class="fc" id="L48">        headers.set(HttpHeaders.CONTENT_DISPOSITION,</span>
+<span class="fc" id="L49">                &quot;attachment; filename=\&quot;fresnel-experiment-&quot; + sanitizeFilename(normalized.pluginId()) + &quot;.json\&quot;&quot;);</span>
+<span class="fc" id="L50">        return ResponseEntity.ok().headers(headers).body(body);</span>
+    }
+
+    @PostMapping(value = &quot;/export.md&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = &quot;text/markdown&quot;)
+    public ResponseEntity&lt;byte[]&gt; exportMarkdown(@RequestBody ExperimentRecord record) {
+<span class="fc" id="L57">        ExperimentRecord normalized = normalize(record);</span>
+<span class="fc" id="L58">        byte[] body = renderMarkdown(normalized).getBytes(StandardCharsets.UTF_8);</span>
+<span class="fc" id="L59">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="fc" id="L60">        headers.setContentType(TEXT_MARKDOWN);</span>
+<span class="fc" id="L61">        headers.set(HttpHeaders.CONTENT_DISPOSITION,</span>
+<span class="fc" id="L62">                &quot;attachment; filename=\&quot;fresnel-experiment-&quot; + sanitizeFilename(normalized.pluginId()) + &quot;.md\&quot;&quot;);</span>
+<span class="fc" id="L63">        return ResponseEntity.ok().headers(headers).body(body);</span>
+    }
+
+    /** Restricts a value to safe filename characters (alphanumerics, hyphens, underscores). */
+    private static String sanitizeFilename(String value) {
+<span class="pc bpc" id="L68" title="2 of 4 branches missed.">        if (value == null || value.isBlank()) {</span>
+<span class="nc" id="L69">            return &quot;export&quot;;</span>
+        }
+<span class="fc" id="L71">        return value.replaceAll(&quot;[^A-Za-z0-9_-]&quot;, &quot;_&quot;);</span>
+    }
+
+    private static ExperimentRecord normalize(ExperimentRecord record) {
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        if (record == null) {</span>
+<span class="nc" id="L76">            throw new IllegalArgumentException(&quot;experiment record must not be null&quot;);</span>
+        }
+<span class="fc" id="L78">        DesignDocument designDocument = validateDesignDocument(record.designDocument());</span>
+<span class="fc" id="L79">        DesignValidationReport validationReport = validateValidationReport(record.validationReport());</span>
+<span class="fc" id="L80">        String pluginId = defaulted(record.pluginId(), validationReport.pluginId(), &quot;plugin id&quot;);</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">        if (!pluginId.equals(validationReport.pluginId())) {</span>
+<span class="nc" id="L82">            throw new IllegalArgumentException(&quot;experiment plugin id must match validation report plugin id&quot;);</span>
+        }
+<span class="fc" id="L84">        String parameterHash = defaulted(record.parameterHash(), validationReport.parameterHash(), &quot;parameter hash&quot;);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (!parameterHash.equals(validationReport.parameterHash())) {</span>
+<span class="fc" id="L86">            throw new IllegalArgumentException(&quot;experiment parameter hash must match validation report parameter hash&quot;);</span>
+        }
+<span class="fc" id="L88">        ExperimentSetup setup = normalizeSetup(record.setup());</span>
+<span class="fc" id="L89">        MeasurementResult measurement = normalizeMeasurement(record.measurement(), validationReport);</span>
+<span class="fc" id="L90">        ExperimentalComparison comparison = compare(measurement);</span>
+<span class="fc" id="L91">        return new ExperimentRecord(</span>
+<span class="fc" id="L92">                trimToNull(record.designId()),</span>
+                pluginId,
+                parameterHash,
+                designDocument,
+                validationReport,
+                setup,
+                measurement,
+                comparison
+        );
+    }
+
+    private static DesignDocument validateDesignDocument(DesignDocument doc) {
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">        if (doc == null) {</span>
+<span class="nc" id="L105">            throw new IllegalArgumentException(&quot;experiment design document must not be null&quot;);</span>
+        }
+<span class="pc bpc" id="L107" title="2 of 4 branches missed.">        if (!StringUtils.hasText(doc.kind()) || !DesignDocument.isKnownKind(doc.kind())) {</span>
+<span class="nc" id="L108">            throw new IllegalArgumentException(&quot;experiment design document kind is unknown&quot;);</span>
+        }
+<span class="pc bpc" id="L110" title="2 of 4 branches missed.">        if (doc.payload() == null || doc.payload().isNull()) {</span>
+<span class="nc" id="L111">            throw new IllegalArgumentException(&quot;experiment design document payload must not be empty&quot;);</span>
+        }
+<span class="fc" id="L113">        return new DesignDocument(doc.kind(),</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">                doc.version() &lt;= 0 ? DesignDocument.SCHEMA_VERSION : doc.version(),</span>
+<span class="fc" id="L115">                doc.payload());</span>
+    }
+
+    private static DesignValidationReport validateValidationReport(DesignValidationReport report) {
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">        if (report == null) {</span>
+<span class="nc" id="L120">            throw new IllegalArgumentException(&quot;experiment validation report must not be null&quot;);</span>
+        }
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        if (!StringUtils.hasText(report.pluginId())) {</span>
+<span class="nc" id="L123">            throw new IllegalArgumentException(&quot;experiment validation report plugin id must not be empty&quot;);</span>
+        }
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (!StringUtils.hasText(report.parameterHash())) {</span>
+<span class="nc" id="L126">            throw new IllegalArgumentException(&quot;experiment validation report parameter hash must not be empty&quot;);</span>
+        }
+<span class="fc" id="L128">        return report;</span>
+    }
+
+    private static ExperimentSetup normalizeSetup(ExperimentSetup setup) {
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">        if (setup == null) {</span>
+<span class="nc" id="L133">            throw new IllegalArgumentException(&quot;experiment setup must not be null&quot;);</span>
+        }
+<span class="fc" id="L135">        return new ExperimentSetup(</span>
+<span class="fc" id="L136">                trimToNull(setup.printerModel()),</span>
+<span class="fc" id="L137">                positiveOrNull(setup.nominalDpi(), &quot;nominal DPI&quot;),</span>
+<span class="fc" id="L138">                positiveOrNull(setup.effectiveDpi(), &quot;effective DPI&quot;),</span>
+<span class="fc" id="L139">                trimToNull(setup.materialType()),</span>
+<span class="fc" id="L140">                trimToNull(setup.exposureSettings()),</span>
+<span class="fc" id="L141">                trimToNull(setup.lightSourceType()),</span>
+<span class="fc" id="L142">                positiveOrNull(setup.wavelengthNm(), &quot;measured wavelength&quot;),</span>
+<span class="fc" id="L143">                trimToNull(setup.spectrumEstimate()),</span>
+<span class="fc" id="L144">                trimToNull(setup.environmentalNotes()),</span>
+<span class="fc" id="L145">                sanitizeStrings(setup.photoReferences())</span>
+        );
+    }
+
+    private static MeasurementResult normalizeMeasurement(MeasurementResult measurement,
+                                                          DesignValidationReport validationReport) {
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">        if (measurement == null) {</span>
+<span class="nc" id="L152">            throw new IllegalArgumentException(&quot;measurement result must not be null&quot;);</span>
+        }
+<span class="fc" id="L154">        Double targetFocalLengthMm = measurement.targetFocalLengthMm();</span>
+<span class="pc bpc" id="L155" title="3 of 4 branches missed.">        if (targetFocalLengthMm == null &amp;&amp; validationReport.targetFocalDistancesMm().size() == 1) {</span>
+<span class="nc" id="L156">            targetFocalLengthMm = validationReport.targetFocalDistancesMm().getFirst();</span>
+        }
+<span class="fc" id="L158">        targetFocalLengthMm = positive(targetFocalLengthMm, &quot;target focal length&quot;);</span>
+
+<span class="fc" id="L160">        List&lt;MeasuredFocus&gt; measuredFoci = measurement.measuredFoci().stream()</span>
+<span class="fc" id="L161">                .map(ExperimentController::normalizeMeasuredFocus)</span>
+<span class="fc" id="L162">                .toList();</span>
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">        if (measuredFoci.isEmpty()) {</span>
+<span class="nc" id="L164">            throw new IllegalArgumentException(&quot;at least one measured focus is required&quot;);</span>
+        }
+<span class="pc bpc" id="L166" title="2 of 4 branches missed.">        if (measuredFoci.stream().noneMatch(f -&gt; f.measuredFocalLengthMm() != null)) {</span>
+<span class="nc" id="L167">            throw new IllegalArgumentException(&quot;at least one measured focus must include a measured focal length&quot;);</span>
+        }
+<span class="fc" id="L169">        return new MeasurementResult(targetFocalLengthMm, measuredFoci);</span>
+    }
+
+    private static MeasuredFocus normalizeMeasuredFocus(MeasuredFocus focus) {
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">        if (focus == null) {</span>
+<span class="nc" id="L174">            throw new IllegalArgumentException(&quot;measured focus must not be null&quot;);</span>
+        }
+<span class="fc" id="L176">        return new MeasuredFocus(</span>
+<span class="fc" id="L177">                trimToNull(focus.label()),</span>
+<span class="fc" id="L178">                positiveOrNull(focus.measuredFocalLengthMm(), &quot;measured focal length&quot;),</span>
+<span class="fc" id="L179">                positiveOrNull(focus.measuredSpotSizeMicrons(), &quot;measured spot size&quot;),</span>
+<span class="fc" id="L180">                trimToNull(focus.focusRating()),</span>
+<span class="fc" id="L181">                trimToNull(focus.notes())</span>
+        );
+    }
+
+    private static ExperimentalComparison compare(MeasurementResult measurement) {
+<span class="fc" id="L186">        MeasuredFocus primary = measurement.measuredFoci().stream()</span>
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">                .filter(f -&gt; f.measuredFocalLengthMm() != null)</span>
+<span class="fc" id="L188">                .findFirst()</span>
+<span class="pc" id="L189">                .orElseThrow(() -&gt; new IllegalArgumentException(</span>
+                        &quot;at least one measured focus must include a measured focal length&quot;));
+<span class="fc" id="L191">        double target = measurement.targetFocalLengthMm();</span>
+<span class="fc" id="L192">        double measured = primary.measuredFocalLengthMm();</span>
+<span class="fc" id="L193">        double errorMm = measured - target;</span>
+<span class="fc" id="L194">        double errorPercent = errorMm / target * 100.0;</span>
+<span class="fc" id="L195">        return new ExperimentalComparison(</span>
+<span class="fc" id="L196">                target,</span>
+<span class="fc" id="L197">                measured,</span>
+<span class="fc" id="L198">                errorMm,</span>
+<span class="fc" id="L199">                errorPercent,</span>
+<span class="fc" id="L200">                primary.measuredSpotSizeMicrons(),</span>
+<span class="fc" id="L201">                primary.focusRating(),</span>
+<span class="fc" id="L202">                summary(target, measured, errorMm, errorPercent, primary)</span>
+        );
+    }
+
+    private static String summary(double target, double measured, double errorMm,
+                                  double errorPercent, MeasuredFocus focus) {
+<span class="fc" id="L208">        StringBuilder sb = new StringBuilder(String.format(Locale.ROOT,</span>
+                &quot;Measured focal length %.3f mm vs target %.3f mm (%+.2f mm, %+.2f%%).&quot;,
+<span class="fc" id="L210">                measured, target, errorMm, errorPercent));</span>
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">        if (focus.measuredSpotSizeMicrons() != null) {</span>
+<span class="fc" id="L212">            sb.append(String.format(Locale.ROOT, &quot; Spot size: %.3f µm.&quot;, focus.measuredSpotSizeMicrons()));</span>
+        }
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">        if (StringUtils.hasText(focus.focusRating())) {</span>
+<span class="fc" id="L215">            sb.append(&quot; Focus rating: &quot;).append(focus.focusRating()).append('.');</span>
+        }
+<span class="fc" id="L217">        return sb.toString();</span>
+    }
+
+    private static String renderMarkdown(ExperimentRecord record) {
+<span class="fc" id="L221">        StringBuilder md = new StringBuilder();</span>
+<span class="fc" id="L222">        md.append(&quot;# Experimental validation record\n\n&quot;);</span>
+<span class="fc" id="L223">        md.append(&quot;- Plugin: `&quot;).append(record.pluginId()).append(&quot;`\n&quot;);</span>
+<span class="fc" id="L224">        md.append(&quot;- Parameter hash: `&quot;).append(record.parameterHash()).append(&quot;`\n&quot;);</span>
+<span class="fc" id="L225">        md.append(&quot;- Design kind: `&quot;).append(record.designDocument().kind()).append(&quot;`\n&quot;);</span>
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">        if (StringUtils.hasText(record.designId())) {</span>
+<span class="fc" id="L227">            md.append(&quot;- Design id: `&quot;).append(record.designId()).append(&quot;`\n&quot;);</span>
+        }
+<span class="fc" id="L229">        md.append('\n');</span>
+
+<span class="fc" id="L231">        md.append(&quot;## Print and measurement setup\n\n&quot;);</span>
+<span class="fc" id="L232">        appendField(md, &quot;Printer model&quot;, record.setup().printerModel());</span>
+<span class="fc" id="L233">        appendField(md, &quot;Nominal DPI&quot;, formatNumber(record.setup().nominalDpi(), &quot;dpi&quot;));</span>
+<span class="fc" id="L234">        appendField(md, &quot;Effective DPI&quot;, formatNumber(record.setup().effectiveDpi(), &quot;dpi&quot;));</span>
+<span class="fc" id="L235">        appendField(md, &quot;Material / foil type&quot;, record.setup().materialType());</span>
+<span class="fc" id="L236">        appendField(md, &quot;Exposure / print settings&quot;, record.setup().exposureSettings());</span>
+<span class="fc" id="L237">        appendField(md, &quot;Light source&quot;, record.setup().lightSourceType());</span>
+<span class="fc" id="L238">        appendField(md, &quot;Wavelength estimate&quot;, formatNumber(record.setup().wavelengthNm(), &quot;nm&quot;));</span>
+<span class="fc" id="L239">        appendField(md, &quot;Spectrum estimate&quot;, record.setup().spectrumEstimate());</span>
+<span class="fc" id="L240">        appendField(md, &quot;Environmental notes&quot;, record.setup().environmentalNotes());</span>
+<span class="pc bpc" id="L241" title="1 of 2 branches missed.">        if (!record.setup().photoReferences().isEmpty()) {</span>
+<span class="fc" id="L242">            md.append(&quot;- Photo references:\n&quot;);</span>
+<span class="fc bfc" id="L243" title="All 2 branches covered.">            for (String ref : record.setup().photoReferences()) {</span>
+<span class="fc" id="L244">                md.append(&quot;  - &quot;).append(ref).append('\n');</span>
+<span class="fc" id="L245">            }</span>
+        }
+<span class="fc" id="L247">        md.append('\n');</span>
+
+<span class="fc" id="L249">        md.append(&quot;## Measurements\n\n&quot;);</span>
+<span class="fc" id="L250">        md.append(&quot;- Target focal length: &quot;).append(formatNumber(record.measurement().targetFocalLengthMm(), &quot;mm&quot;)).append('\n');</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">        for (MeasuredFocus focus : record.measurement().measuredFoci()) {</span>
+<span class="fc" id="L252">            md.append(&quot;- Measured focus&quot;);</span>
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">            if (StringUtils.hasText(focus.label())) {</span>
+<span class="fc" id="L254">                md.append(&quot; (&quot;).append(focus.label()).append(')');</span>
+            }
+<span class="fc" id="L256">            md.append(&quot;:\n&quot;);</span>
+<span class="fc" id="L257">            appendNestedField(md, &quot;Measured focal length&quot;, formatNumber(focus.measuredFocalLengthMm(), &quot;mm&quot;));</span>
+<span class="fc" id="L258">            appendNestedField(md, &quot;Measured spot size&quot;, formatNumber(focus.measuredSpotSizeMicrons(), &quot;µm&quot;));</span>
+<span class="fc" id="L259">            appendNestedField(md, &quot;Focus rating&quot;, focus.focusRating());</span>
+<span class="fc" id="L260">            appendNestedField(md, &quot;Notes&quot;, focus.notes());</span>
+<span class="fc" id="L261">        }</span>
+<span class="fc" id="L262">        md.append('\n');</span>
+
+<span class="fc" id="L264">        md.append(&quot;## Theory versus experiment\n\n&quot;);</span>
+<span class="fc" id="L265">        appendField(md, &quot;Measured focal length&quot;, formatNumber(record.comparison().measuredFocalLengthMm(), &quot;mm&quot;));</span>
+<span class="fc" id="L266">        appendField(md, &quot;Focal-length error (mm)&quot;, formatNumber(record.comparison().focalLengthErrorMm(), &quot;mm&quot;));</span>
+<span class="fc" id="L267">        appendField(md, &quot;Focal-length error (%)&quot;, formatNumber(record.comparison().focalLengthErrorPercent(), &quot;%&quot;));</span>
+<span class="fc" id="L268">        appendField(md, &quot;Measured spot size&quot;, formatNumber(record.comparison().measuredSpotSizeMicrons(), &quot;µm&quot;));</span>
+<span class="fc" id="L269">        appendField(md, &quot;Focus rating&quot;, record.comparison().focusRating());</span>
+<span class="fc" id="L270">        appendField(md, &quot;Summary&quot;, record.comparison().summary());</span>
+<span class="fc" id="L271">        md.append('\n');</span>
+
+<span class="fc" id="L273">        md.append(&quot;## Validation snapshot\n\n&quot;);</span>
+<span class="pc bpc" id="L274" title="1 of 2 branches missed.">        md.append(&quot;- Report valid: &quot;).append(record.validationReport().valid() ? &quot;yes&quot; : &quot;no&quot;).append('\n');</span>
+<span class="pc bpc" id="L275" title="1 of 2 branches missed.">        if (!record.validationReport().targetFocalDistancesMm().isEmpty()) {</span>
+<span class="fc" id="L276">            md.append(&quot;- Predicted focal distances (mm): &quot;);</span>
+<span class="fc" id="L277">            md.append(record.validationReport().targetFocalDistancesMm().stream()</span>
+<span class="fc" id="L278">                    .map(v -&gt; String.format(Locale.ROOT, &quot;%.3f&quot;, v))</span>
+<span class="pc" id="L279">                    .reduce((a, b) -&gt; a + &quot;, &quot; + b)</span>
+<span class="fc" id="L280">                    .orElse(&quot;&quot;));</span>
+<span class="fc" id="L281">            md.append('\n');</span>
+        }
+<span class="fc" id="L283">        return md.toString();</span>
+    }
+
+    private static void appendField(StringBuilder md, String label, String value) {
+<span class="pc bpc" id="L287" title="1 of 2 branches missed.">        if (StringUtils.hasText(value)) {</span>
+<span class="fc" id="L288">            md.append(&quot;- &quot;).append(label).append(&quot;: &quot;).append(value).append('\n');</span>
+        }
+<span class="fc" id="L290">    }</span>
+
+    private static void appendNestedField(StringBuilder md, String label, String value) {
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">        if (StringUtils.hasText(value)) {</span>
+<span class="fc" id="L294">            md.append(&quot;  - &quot;).append(label).append(&quot;: &quot;).append(value).append('\n');</span>
+        }
+<span class="fc" id="L296">    }</span>
+
+    private static String formatNumber(Double value, String unit) {
+<span class="pc bpc" id="L299" title="1 of 2 branches missed.">        if (value == null) return null;</span>
+<span class="fc" id="L300">        String rendered = String.format(Locale.ROOT, &quot;%.3f&quot;, value).replaceAll(&quot;\\.?0+$&quot;, &quot;&quot;);</span>
+<span class="pc bpc" id="L301" title="2 of 4 branches missed.">        return unit == null || unit.isBlank() ? rendered : rendered + &quot; &quot; + unit;</span>
+    }
+
+    private static List&lt;String&gt; sanitizeStrings(List&lt;String&gt; values) {
+<span class="pc bpc" id="L305" title="1 of 2 branches missed.">        return values == null ? List.of() : values.stream()</span>
+<span class="fc" id="L306">                .map(ExperimentController::trimToNull)</span>
+<span class="fc" id="L307">                .filter(StringUtils::hasText)</span>
+<span class="fc" id="L308">                .toList();</span>
+    }
+
+    private static String defaulted(String value, String fallback, String label) {
+<span class="pc bpc" id="L312" title="1 of 2 branches missed.">        String resolved = StringUtils.hasText(value) ? value.trim() : fallback;</span>
+<span class="pc bpc" id="L313" title="1 of 2 branches missed.">        if (!StringUtils.hasText(resolved)) {</span>
+<span class="nc" id="L314">            throw new IllegalArgumentException(&quot;experiment &quot; + label + &quot; must not be empty&quot;);</span>
+        }
+<span class="fc" id="L316">        return resolved;</span>
+    }
+
+    private static String trimToNull(String value) {
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">        if (!StringUtils.hasText(value)) return null;</span>
+<span class="fc" id="L321">        return value.trim();</span>
+    }
+
+    private static Double positiveOrNull(Double value, String label) {
+<span class="pc bpc" id="L325" title="1 of 2 branches missed.">        if (value == null) return null;</span>
+<span class="fc" id="L326">        return positive(value, label);</span>
+    }
+
+    private static Double positive(Double value, String label) {
+<span class="pc bpc" id="L330" title="3 of 6 branches missed.">        if (value == null || !Double.isFinite(value) || value &lt;= 0.0) {</span>
+<span class="nc" id="L331">            throw new IllegalArgumentException(label + &quot; must be a positive finite number&quot;);</span>
+        }
+<span class="fc" id="L333">        return value;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
