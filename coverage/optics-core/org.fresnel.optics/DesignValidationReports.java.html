@@ -1,0 +1,421 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesignValidationReports.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">DesignValidationReports.java</span></div><h1>DesignValidationReports.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+/** Factory methods for plugin-independent validation reports. */
+public final class DesignValidationReports {
+
+    private DesignValidationReports() {}
+
+    public static DesignValidationReport forZonePlate(SingleZonePlateParameters p) {
+<span class="fc" id="L18">        DesignMetrics m = DesignValidator.computeMetrics(p);</span>
+<span class="fc" id="L19">        OpticalQualityReport q = DesignValidator.computeOpticalQualityReport(p);</span>
+
+<span class="fc" id="L21">        Map&lt;String, String&gt; snapshot = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L22">        snapshot.put(&quot;apertureDiameterMm&quot;, fmt(p.apertureDiameterMm()));</span>
+<span class="fc" id="L23">        snapshot.put(&quot;focalLengthMm&quot;, fmt(p.focalLengthMm()));</span>
+<span class="fc" id="L24">        snapshot.put(&quot;wavelengthNm&quot;, fmt(p.wavelengthNm()));</span>
+<span class="fc" id="L25">        snapshot.put(&quot;dpi&quot;, fmt(p.dpi()));</span>
+<span class="fc" id="L26">        snapshot.put(&quot;targetOffsetXmm&quot;, fmt(p.targetOffsetXmm()));</span>
+<span class="fc" id="L27">        snapshot.put(&quot;targetOffsetYmm&quot;, fmt(p.targetOffsetYmm()));</span>
+<span class="fc" id="L28">        snapshot.put(&quot;maskType&quot;, p.maskType().name());</span>
+<span class="fc" id="L29">        snapshot.put(&quot;polarity&quot;, p.polarity().name());</span>
+
+<span class="fc" id="L31">        List&lt;ValidationMetric&gt; metrics = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L32">        metrics.add(new ValidationMetric(ValidationLayer.ANALYTICAL_OPTICS, &quot;NA&quot;, &quot;Numerical aperture&quot;, q.numericalAperture(), &quot;&quot;));</span>
+<span class="fc" id="L33">        metrics.add(new ValidationMetric(ValidationLayer.ANALYTICAL_OPTICS, &quot;F_NUMBER&quot;, &quot;f-number&quot;, q.fNumber(), &quot;&quot;));</span>
+<span class="fc" id="L34">        metrics.add(new ValidationMetric(ValidationLayer.ANALYTICAL_OPTICS, &quot;AIRY_DISK_UM&quot;, &quot;Airy disk diameter&quot;, q.airyDiskDiameterMicrons(), &quot;µm&quot;));</span>
+<span class="fc" id="L35">        metrics.add(new ValidationMetric(ValidationLayer.NUMERICAL_PROPAGATION, &quot;CHROMATIC_SHIFT_MM&quot;, &quot;Chromatic focal shift&quot;, q.chromaticFocalShiftMm(), &quot;mm&quot;));</span>
+<span class="fc" id="L36">        metrics.add(new ValidationMetric(ValidationLayer.MANUFACTURING_PRINTABILITY, &quot;OUTER_ZONE_UM&quot;, &quot;Outer zone width&quot;, m.outerZoneWidthMicrons(), &quot;µm&quot;));</span>
+<span class="fc" id="L37">        metrics.add(new ValidationMetric(ValidationLayer.MANUFACTURING_PRINTABILITY, &quot;PIXELS_PER_OUTER_ZONE&quot;, &quot;Pixels per outer zone&quot;, m.pixelsPerOuterZone(), &quot;px&quot;));</span>
+<span class="fc" id="L38">        metrics.add(new ValidationMetric(ValidationLayer.MANUFACTURING_PRINTABILITY, &quot;PRINTER_PIXEL_UM&quot;, &quot;Printer pixel size&quot;, m.printerPixelMicrons(), &quot;µm&quot;));</span>
+
+<span class="fc" id="L40">        List&lt;ValidationFinding&gt; findings = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L41">        ValidationResult base = DesignValidator.validate(p);</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        for (ValidationResult.Warning w : base.warnings()) {</span>
+<span class="fc" id="L43">            findings.add(new ValidationFinding(</span>
+                    ValidationLayer.MANUFACTURING_PRINTABILITY,
+<span class="fc" id="L45">                    w.code(),</span>
+<span class="fc" id="L46">                    w.message(),</span>
+<span class="pc bpc" id="L47" title="2 of 3 branches missed.">                    switch (w.severity()) {</span>
+<span class="nc" id="L48">                        case INFO -&gt; ValidationSeverity.INFO;</span>
+<span class="fc" id="L49">                        case WARNING -&gt; ValidationSeverity.WARNING;</span>
+<span class="pc" id="L50">                        case ERROR -&gt; ValidationSeverity.ERROR;</span>
+                    }
+            ));
+<span class="fc" id="L53">        }</span>
+<span class="fc" id="L54">        findings.add(notApplicableExperimentalFinding());</span>
+
+<span class="fc" id="L56">        List&lt;ValidationAssumption&gt; assumptions = List.of(</span>
+                new ValidationAssumption(ValidationLayer.ANALYTICAL_OPTICS,
+                        &quot;Paraxial scalar diffraction formulas are used (NA assumed small).&quot;, false),
+                new ValidationAssumption(ValidationLayer.NUMERICAL_PROPAGATION,
+                        &quot;Chromatic behavior is approximated by f(λ) ∝ 1/λ over the configured range.&quot;, false),
+                new ValidationAssumption(ValidationLayer.MANUFACTURING_PRINTABILITY,
+                        &quot;Printability heuristic uses pixels per outermost zone and does not model printer MTF.&quot;, true),
+                new ValidationAssumption(ValidationLayer.EXPERIMENTAL_HOOKS,
+                        &quot;Laboratory measurements are not part of deterministic validation yet.&quot;, true)
+        );
+
+<span class="fc" id="L67">        return new DesignValidationReport(</span>
+                &quot;zone-plate&quot;,
+<span class="fc" id="L69">                stableHash(snapshot),</span>
+                snapshot,
+<span class="fc" id="L71">                p.wavelengthNm(),</span>
+<span class="fc" id="L72">                p.wavelengthNm(),</span>
+<span class="fc" id="L73">                p.apertureDiameterMm(),</span>
+<span class="fc" id="L74">                List.of(p.focalLengthMm()),</span>
+<span class="fc" id="L75">                Units.pixelSizeMm(p.dpi()) * 1000.0,</span>
+                assumptions,
+                metrics,
+                findings
+        );
+    }
+
+    public static DesignValidationReport forRgbZonePlate(SingleZonePlateParameters base,
+                                                         double redNm, double greenNm, double blueNm) {
+<span class="fc" id="L84">        DesignMetrics m = DesignValidator.computeMetrics(base);</span>
+
+<span class="fc" id="L86">        double minNm = Math.min(redNm, Math.min(greenNm, blueNm));</span>
+<span class="fc" id="L87">        double maxNm = Math.max(redNm, Math.max(greenNm, blueNm));</span>
+<span class="fc" id="L88">        double fMin = DesignValidator.focalLengthAtWavelength(base.focalLengthMm(), base.wavelengthNm(), minNm);</span>
+<span class="fc" id="L89">        double fMax = DesignValidator.focalLengthAtWavelength(base.focalLengthMm(), base.wavelengthNm(), maxNm);</span>
+
+<span class="fc" id="L91">        Map&lt;String, String&gt; snapshot = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L92">        snapshot.put(&quot;apertureDiameterMm&quot;, fmt(base.apertureDiameterMm()));</span>
+<span class="fc" id="L93">        snapshot.put(&quot;focalLengthMm&quot;, fmt(base.focalLengthMm()));</span>
+<span class="fc" id="L94">        snapshot.put(&quot;wavelengthNm&quot;, fmt(base.wavelengthNm()));</span>
+<span class="fc" id="L95">        snapshot.put(&quot;dpi&quot;, fmt(base.dpi()));</span>
+<span class="fc" id="L96">        snapshot.put(&quot;targetOffsetXmm&quot;, fmt(base.targetOffsetXmm()));</span>
+<span class="fc" id="L97">        snapshot.put(&quot;targetOffsetYmm&quot;, fmt(base.targetOffsetYmm()));</span>
+<span class="fc" id="L98">        snapshot.put(&quot;maskType&quot;, base.maskType().name());</span>
+<span class="fc" id="L99">        snapshot.put(&quot;polarity&quot;, base.polarity().name());</span>
+<span class="fc" id="L100">        snapshot.put(&quot;redNm&quot;, fmt(redNm));</span>
+<span class="fc" id="L101">        snapshot.put(&quot;greenNm&quot;, fmt(greenNm));</span>
+<span class="fc" id="L102">        snapshot.put(&quot;blueNm&quot;, fmt(blueNm));</span>
+
+<span class="fc" id="L104">        List&lt;ValidationMetric&gt; metrics = List.of(</span>
+                new ValidationMetric(ValidationLayer.ANALYTICAL_OPTICS, &quot;CHANNEL_SPAN_NM&quot;, &quot;Wavelength span&quot;, maxNm - minNm, &quot;nm&quot;),
+<span class="fc" id="L106">                new ValidationMetric(ValidationLayer.NUMERICAL_PROPAGATION, &quot;FOCAL_SPREAD_MM&quot;, &quot;Estimated focal spread&quot;, Math.abs(fMin - fMax), &quot;mm&quot;),</span>
+<span class="fc" id="L107">                new ValidationMetric(ValidationLayer.MANUFACTURING_PRINTABILITY, &quot;PIXELS_PER_OUTER_ZONE&quot;, &quot;Pixels per outer zone&quot;, m.pixelsPerOuterZone(), &quot;px&quot;)</span>
+        );
+
+<span class="fc" id="L110">        List&lt;ValidationFinding&gt; findings = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        if ((maxNm - minNm) &gt; 220.0) {</span>
+<span class="nc" id="L112">            findings.add(new ValidationFinding(</span>
+                    ValidationLayer.NUMERICAL_PROPAGATION,
+                    &quot;LARGE_CHANNEL_SPAN&quot;,
+                    &quot;Large RGB wavelength span may increase chromatic blur.&quot;,
+                    ValidationSeverity.WARNING));
+        }
+<span class="fc" id="L118">        findings.add(notApplicableExperimentalFinding());</span>
+
+<span class="fc" id="L120">        List&lt;ValidationAssumption&gt; assumptions = List.of(</span>
+                new ValidationAssumption(ValidationLayer.ANALYTICAL_OPTICS,
+                        &quot;RGB channels are validated independently using one shared geometric base.&quot;, false),
+                new ValidationAssumption(ValidationLayer.NUMERICAL_PROPAGATION,
+                        &quot;Cross-channel coherence and sensor spectral response are not modeled.&quot;, true),
+                new ValidationAssumption(ValidationLayer.MANUFACTURING_PRINTABILITY,
+                        &quot;Manufacturing metrics use the base-zone geometry at design wavelength.&quot;, true),
+                new ValidationAssumption(ValidationLayer.EXPERIMENTAL_HOOKS,
+                        &quot;Experimental channel calibration hooks are placeholders only.&quot;, true)
+        );
+
+<span class="fc" id="L131">        return new DesignValidationReport(</span>
+                &quot;rgb-zone-plate&quot;,
+<span class="fc" id="L133">                stableHash(snapshot),</span>
+                snapshot,
+<span class="fc" id="L135">                minNm,</span>
+<span class="fc" id="L136">                maxNm,</span>
+<span class="fc" id="L137">                base.apertureDiameterMm(),</span>
+<span class="fc" id="L138">                List.of(base.focalLengthMm()),</span>
+<span class="fc" id="L139">                Units.pixelSizeMm(base.dpi()) * 1000.0,</span>
+                assumptions,
+                metrics,
+                findings
+        );
+    }
+
+    public static DesignValidationReport forMultiFocus(MultiFocusParameters p) {
+<span class="fc" id="L147">        Map&lt;String, String&gt; snapshot = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L148">        snapshot.put(&quot;apertureDiameterMm&quot;, fmt(p.apertureDiameterMm()));</span>
+<span class="fc" id="L149">        snapshot.put(&quot;wavelengthNm&quot;, fmt(p.wavelengthNm()));</span>
+<span class="fc" id="L150">        snapshot.put(&quot;dpi&quot;, fmt(p.dpi()));</span>
+<span class="fc" id="L151">        snapshot.put(&quot;maskType&quot;, p.maskType().name());</span>
+<span class="fc" id="L152">        snapshot.put(&quot;polarity&quot;, p.polarity().name());</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">        for (int i = 0; i &lt; p.focusPoints().size(); i++) {</span>
+<span class="fc" id="L154">            MultiFocusParameters.FocusPoint fp = p.focusPoints().get(i);</span>
+<span class="fc" id="L155">            snapshot.put(&quot;fp[&quot; + i + &quot;].x&quot;, fmt(fp.xMm()));</span>
+<span class="fc" id="L156">            snapshot.put(&quot;fp[&quot; + i + &quot;].y&quot;, fmt(fp.yMm()));</span>
+<span class="fc" id="L157">            snapshot.put(&quot;fp[&quot; + i + &quot;].z&quot;, fmt(fp.zMm()));</span>
+        }
+
+<span class="fc" id="L160">        List&lt;Double&gt; zValues = p.focusPoints().stream().map(MultiFocusParameters.FocusPoint::zMm).toList();</span>
+<span class="fc" id="L161">        double minZ = zValues.stream().mapToDouble(Double::doubleValue).min().orElse(0.0);</span>
+<span class="fc" id="L162">        double maxZ = zValues.stream().mapToDouble(Double::doubleValue).max().orElse(0.0);</span>
+
+<span class="fc" id="L164">        List&lt;ValidationMetric&gt; metrics = List.of(</span>
+<span class="fc" id="L165">                new ValidationMetric(ValidationLayer.ANALYTICAL_OPTICS, &quot;FOCUS_POINT_COUNT&quot;, &quot;Focus point count&quot;, p.focusPoints().size(), &quot;&quot;),</span>
+                new ValidationMetric(ValidationLayer.NUMERICAL_PROPAGATION, &quot;FOCUS_DEPTH_SPAN_MM&quot;, &quot;Focus depth span&quot;, maxZ - minZ, &quot;mm&quot;),
+<span class="fc" id="L167">                new ValidationMetric(ValidationLayer.MANUFACTURING_PRINTABILITY, &quot;PIXEL_SIZE_UM&quot;, &quot;Pixel size&quot;, Units.pixelSizeMm(p.dpi()) * 1000.0, &quot;µm&quot;)</span>
+        );
+
+<span class="fc" id="L170">        List&lt;ValidationFinding&gt; findings = List.of(</span>
+                new ValidationFinding(
+                        ValidationLayer.MANUFACTURING_PRINTABILITY,
+                        &quot;PRINTABILITY_PARTIAL&quot;,
+                        &quot;Detailed printability heuristics are not implemented for multi-focus splitting.&quot;,
+                        ValidationSeverity.INFO),
+<span class="fc" id="L176">                notApplicableExperimentalFinding()</span>
+        );
+
+<span class="fc" id="L179">        List&lt;ValidationAssumption&gt; assumptions = List.of(</span>
+                new ValidationAssumption(ValidationLayer.ANALYTICAL_OPTICS,
+                        &quot;Focus points are treated as independent targets sharing one aperture.&quot;, false),
+                new ValidationAssumption(ValidationLayer.NUMERICAL_PROPAGATION,
+                        &quot;Interference between split sub-apertures is not fully simulated here.&quot;, true),
+                new ValidationAssumption(ValidationLayer.MANUFACTURING_PRINTABILITY,
+                        &quot;Manufacturing feasibility depends on local fringe density not modeled by this report.&quot;, true),
+                new ValidationAssumption(ValidationLayer.EXPERIMENTAL_HOOKS,
+                        &quot;Experimental PSF measurements are out of scope for deterministic validation.&quot;, true)
+        );
+
+<span class="fc" id="L190">        return new DesignValidationReport(</span>
+                &quot;multi-focus&quot;,
+<span class="fc" id="L192">                stableHash(snapshot),</span>
+                snapshot,
+<span class="fc" id="L194">                p.wavelengthNm(),</span>
+<span class="fc" id="L195">                p.wavelengthNm(),</span>
+<span class="fc" id="L196">                p.apertureDiameterMm(),</span>
+                zValues,
+<span class="fc" id="L198">                Units.pixelSizeMm(p.dpi()) * 1000.0,</span>
+                assumptions,
+                metrics,
+                findings
+        );
+    }
+
+    public static DesignValidationReport forHexMacroCell(HexMacroCellParameters p) {
+<span class="fc" id="L206">        Map&lt;String, String&gt; snapshot = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L207">        snapshot.put(&quot;macroRadiusMm&quot;, fmt(p.macroRadiusMm()));</span>
+<span class="fc" id="L208">        snapshot.put(&quot;subDiameterMm&quot;, fmt(p.subDiameterMm()));</span>
+<span class="fc" id="L209">        snapshot.put(&quot;subPitchMm&quot;, fmt(p.subPitchMm()));</span>
+<span class="fc" id="L210">        snapshot.put(&quot;focalLengthMm&quot;, fmt(p.focalLengthMm()));</span>
+<span class="fc" id="L211">        snapshot.put(&quot;targetOffsetXmm&quot;, fmt(p.targetOffsetXmm()));</span>
+<span class="fc" id="L212">        snapshot.put(&quot;targetOffsetYmm&quot;, fmt(p.targetOffsetYmm()));</span>
+<span class="fc" id="L213">        snapshot.put(&quot;wavelengthNm&quot;, fmt(p.wavelengthNm()));</span>
+<span class="fc" id="L214">        snapshot.put(&quot;dpi&quot;, fmt(p.dpi()));</span>
+<span class="fc" id="L215">        snapshot.put(&quot;maskType&quot;, p.maskType().name());</span>
+<span class="fc" id="L216">        snapshot.put(&quot;polarity&quot;, p.polarity().name());</span>
+
+<span class="fc" id="L218">        List&lt;ValidationMetric&gt; metrics = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L219">        metrics.add(new ValidationMetric(ValidationLayer.ANALYTICAL_OPTICS, &quot;SUB_ELEMENT_COUNT&quot;, &quot;Sub-element count&quot;,</span>
+<span class="fc" id="L220">                HexMacroCellRenderer.countSubElements(p), &quot;&quot;));</span>
+<span class="fc" id="L221">        metrics.add(new ValidationMetric(ValidationLayer.NUMERICAL_PROPAGATION, &quot;PITCH_TO_DIAMETER&quot;, &quot;Sub-pitch / sub-diameter&quot;,</span>
+<span class="fc" id="L222">                p.subPitchMm() / p.subDiameterMm(), &quot;&quot;));</span>
+<span class="fc" id="L223">        metrics.add(new ValidationMetric(ValidationLayer.MANUFACTURING_PRINTABILITY, &quot;PIXEL_SIZE_UM&quot;, &quot;Pixel size&quot;,</span>
+<span class="fc" id="L224">                Units.pixelSizeMm(p.dpi()) * 1000.0, &quot;µm&quot;));</span>
+
+<span class="fc" id="L226">        List&lt;ValidationFinding&gt; findings = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L227" title="1 of 2 branches missed.">        if (p.subPitchMm() &lt; p.subDiameterMm()) {</span>
+<span class="nc" id="L228">            findings.add(new ValidationFinding(</span>
+                    ValidationLayer.MANUFACTURING_PRINTABILITY,
+                    &quot;SUB_ELEMENTS_OVERLAP&quot;,
+                    &quot;Sub-pitch is smaller than sub-diameter; neighboring sub-elements overlap.&quot;,
+                    ValidationSeverity.WARNING));
+        }
+<span class="fc" id="L234">        findings.add(notApplicableExperimentalFinding());</span>
+
+<span class="fc" id="L236">        List&lt;ValidationAssumption&gt; assumptions = List.of(</span>
+                new ValidationAssumption(ValidationLayer.ANALYTICAL_OPTICS,
+                        &quot;Sub-elements are assumed to contribute coherently to one nominal focal target.&quot;, false),
+                new ValidationAssumption(ValidationLayer.NUMERICAL_PROPAGATION,
+                        &quot;Only aggregate geometric proxies are used; no full-field propagation is run.&quot;, true),
+                new ValidationAssumption(ValidationLayer.MANUFACTURING_PRINTABILITY,
+                        &quot;Local printer process effects are not modeled for each sub-element boundary.&quot;, true),
+                new ValidationAssumption(ValidationLayer.EXPERIMENTAL_HOOKS,
+                        &quot;No measured macro-cell efficiency data is attached yet.&quot;, true)
+        );
+
+<span class="fc" id="L247">        return new DesignValidationReport(</span>
+                &quot;hex-macro-cell&quot;,
+<span class="fc" id="L249">                stableHash(snapshot),</span>
+                snapshot,
+<span class="fc" id="L251">                p.wavelengthNm(),</span>
+<span class="fc" id="L252">                p.wavelengthNm(),</span>
+<span class="fc" id="L253">                2.0 * p.macroRadiusMm(),</span>
+<span class="fc" id="L254">                List.of(p.focalLengthMm()),</span>
+<span class="fc" id="L255">                Units.pixelSizeMm(p.dpi()) * 1000.0,</span>
+                assumptions,
+                metrics,
+                findings
+        );
+    }
+
+    public static DesignValidationReport forWindowFoil(WindowFoilParameters p) {
+<span class="fc" id="L263">        Map&lt;String, String&gt; snapshot = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L264">        snapshot.put(&quot;sheetWidthMm&quot;, fmt(p.sheetWidthMm()));</span>
+<span class="fc" id="L265">        snapshot.put(&quot;sheetHeightMm&quot;, fmt(p.sheetHeightMm()));</span>
+<span class="fc" id="L266">        snapshot.put(&quot;macroRadiusMm&quot;, fmt(p.macroRadiusMm()));</span>
+<span class="fc" id="L267">        snapshot.put(&quot;subDiameterMm&quot;, fmt(p.subDiameterMm()));</span>
+<span class="fc" id="L268">        snapshot.put(&quot;subPitchMm&quot;, fmt(p.subPitchMm()));</span>
+<span class="fc" id="L269">        snapshot.put(&quot;wavelengthNm&quot;, fmt(p.wavelengthNm()));</span>
+<span class="fc" id="L270">        snapshot.put(&quot;dpi&quot;, fmt(p.dpi()));</span>
+<span class="fc" id="L271">        snapshot.put(&quot;maskType&quot;, p.maskType().name());</span>
+<span class="fc" id="L272">        snapshot.put(&quot;polarity&quot;, p.polarity().name());</span>
+<span class="fc" id="L273">        snapshot.put(&quot;drawCropMarks&quot;, String.valueOf(p.drawCropMarks()));</span>
+<span class="pc bpc" id="L274" title="1 of 2 branches missed.">        for (int i = 0; i &lt; p.cellSpecs().size(); i++) {</span>
+<span class="nc" id="L275">            WindowFoilParameters.CellSpec cs = p.cellSpecs().get(i);</span>
+<span class="nc" id="L276">            snapshot.put(&quot;cell[&quot; + i + &quot;].f&quot;, fmt(cs.focalLengthMm()));</span>
+<span class="nc" id="L277">            snapshot.put(&quot;cell[&quot; + i + &quot;].x&quot;, fmt(cs.targetOffsetXmm()));</span>
+<span class="nc" id="L278">            snapshot.put(&quot;cell[&quot; + i + &quot;].y&quot;, fmt(cs.targetOffsetYmm()));</span>
+        }
+
+<span class="pc bpc" id="L281" title="1 of 2 branches missed.">        List&lt;Double&gt; focalTargets = p.cellSpecs().isEmpty()</span>
+<span class="fc" id="L282">                ? List.of(p.defaultCellSpec().focalLengthMm())</span>
+<span class="nc" id="L283">                : p.cellSpecs().stream()</span>
+<span class="nc" id="L284">                        .map(WindowFoilParameters.CellSpec::focalLengthMm)</span>
+<span class="nc" id="L285">                        .distinct()</span>
+<span class="pc" id="L286">                        .toList();</span>
+
+<span class="fc" id="L288">        List&lt;ValidationMetric&gt; metrics = List.of(</span>
+                new ValidationMetric(ValidationLayer.ANALYTICAL_OPTICS, &quot;CELL_COUNT&quot;, &quot;Cell count&quot;,
+<span class="fc" id="L290">                        WindowFoilRenderer.countCells(p), &quot;&quot;),</span>
+                new ValidationMetric(ValidationLayer.NUMERICAL_PROPAGATION, &quot;SHEET_AREA_MM2&quot;, &quot;Sheet area&quot;,
+<span class="fc" id="L292">                        p.sheetWidthMm() * p.sheetHeightMm(), &quot;mm²&quot;),</span>
+                new ValidationMetric(ValidationLayer.MANUFACTURING_PRINTABILITY, &quot;PIXEL_SIZE_UM&quot;, &quot;Pixel size&quot;,
+<span class="fc" id="L294">                        Units.pixelSizeMm(p.dpi()) * 1000.0, &quot;µm&quot;)</span>
+        );
+
+<span class="fc" id="L297">        List&lt;ValidationFinding&gt; findings = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L298" title="1 of 2 branches missed.">        if (focalTargets.isEmpty()) {</span>
+<span class="nc" id="L299">            findings.add(new ValidationFinding(</span>
+                    ValidationLayer.ANALYTICAL_OPTICS,
+                    &quot;UNIFORM_DEFAULT_CELL_SPEC&quot;,
+                    &quot;No explicit cell specs supplied; default focal settings are implied.&quot;,
+                    ValidationSeverity.INFO));
+        }
+<span class="fc" id="L305">        findings.add(notApplicableExperimentalFinding());</span>
+
+<span class="fc" id="L307">        List&lt;ValidationAssumption&gt; assumptions = List.of(</span>
+                new ValidationAssumption(ValidationLayer.ANALYTICAL_OPTICS,
+                        &quot;Window-foil analysis treats each tile as repetition of hex macro cells.&quot;, false),
+                new ValidationAssumption(ValidationLayer.NUMERICAL_PROPAGATION,
+                        &quot;Global field stitching effects across tile boundaries are not simulated.&quot;, true),
+                new ValidationAssumption(ValidationLayer.MANUFACTURING_PRINTABILITY,
+                        &quot;Printability depends on local printer calibration over large sheets.&quot;, true),
+                new ValidationAssumption(ValidationLayer.EXPERIMENTAL_HOOKS,
+                        &quot;Environmental and mounting tests are represented as hooks only.&quot;, true)
+        );
+
+<span class="fc" id="L318">        return new DesignValidationReport(</span>
+                &quot;window-foil&quot;,
+<span class="fc" id="L320">                stableHash(snapshot),</span>
+                snapshot,
+<span class="fc" id="L322">                p.wavelengthNm(),</span>
+<span class="fc" id="L323">                p.wavelengthNm(),</span>
+<span class="fc" id="L324">                Math.max(p.sheetWidthMm(), p.sheetHeightMm()),</span>
+                focalTargets,
+<span class="fc" id="L326">                Units.pixelSizeMm(p.dpi()) * 1000.0,</span>
+                assumptions,
+                metrics,
+                findings
+        );
+    }
+
+    public static DesignValidationReport forHologram(int sidePx, int iterations, double dpi, double wavelengthNm) {
+<span class="fc" id="L334">        Map&lt;String, String&gt; snapshot = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L335">        snapshot.put(&quot;sidePx&quot;, String.valueOf(sidePx));</span>
+<span class="fc" id="L336">        snapshot.put(&quot;iterations&quot;, String.valueOf(iterations));</span>
+<span class="fc" id="L337">        snapshot.put(&quot;dpi&quot;, fmt(dpi));</span>
+<span class="fc" id="L338">        snapshot.put(&quot;wavelengthNm&quot;, fmt(wavelengthNm));</span>
+
+<span class="fc" id="L340">        double pixelUm = Units.pixelSizeMm(dpi) * 1000.0;</span>
+<span class="fc" id="L341">        double apertureMm = sidePx * Units.pixelSizeMm(dpi);</span>
+
+<span class="fc" id="L343">        List&lt;ValidationMetric&gt; metrics = List.of(</span>
+                new ValidationMetric(ValidationLayer.ANALYTICAL_OPTICS, &quot;GRID_SIDE_PX&quot;, &quot;Grid side&quot;, sidePx, &quot;px&quot;),
+                new ValidationMetric(ValidationLayer.NUMERICAL_PROPAGATION, &quot;GS_ITERATIONS&quot;, &quot;GS iterations&quot;, iterations, &quot;&quot;),
+                new ValidationMetric(ValidationLayer.MANUFACTURING_PRINTABILITY, &quot;PIXEL_SIZE_UM&quot;, &quot;Pixel size&quot;, pixelUm, &quot;µm&quot;)
+        );
+
+<span class="fc" id="L349">        List&lt;ValidationFinding&gt; findings = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">        if (iterations &lt; 20) {</span>
+<span class="nc" id="L351">            findings.add(new ValidationFinding(</span>
+                    ValidationLayer.NUMERICAL_PROPAGATION,
+                    &quot;LOW_ITERATION_COUNT&quot;,
+                    &quot;Low GS iteration count may reduce reconstruction quality.&quot;,
+                    ValidationSeverity.WARNING));
+        }
+<span class="fc" id="L357">        findings.add(notApplicableExperimentalFinding());</span>
+
+<span class="fc" id="L359">        List&lt;ValidationAssumption&gt; assumptions = List.of(</span>
+                new ValidationAssumption(ValidationLayer.ANALYTICAL_OPTICS,
+                        &quot;Hologram validation is based on grid and phase-iteration metadata.&quot;, false),
+                new ValidationAssumption(ValidationLayer.NUMERICAL_PROPAGATION,
+                        &quot;Convergence metrics are proxy-only and do not include detector noise.&quot;, true),
+                new ValidationAssumption(ValidationLayer.MANUFACTURING_PRINTABILITY,
+                        &quot;Printer/material phase response is not measured in deterministic mode.&quot;, true),
+                new ValidationAssumption(ValidationLayer.EXPERIMENTAL_HOOKS,
+                        &quot;Bench-top reconstruction measurements are exposed as future hooks.&quot;, true)
+        );
+
+<span class="fc" id="L370">        return new DesignValidationReport(</span>
+                &quot;hologram&quot;,
+<span class="fc" id="L372">                stableHash(snapshot),</span>
+                snapshot,
+<span class="fc" id="L374">                wavelengthNm,</span>
+<span class="fc" id="L375">                wavelengthNm,</span>
+<span class="fc" id="L376">                apertureMm,</span>
+<span class="fc" id="L377">                List.of(),</span>
+<span class="fc" id="L378">                pixelUm,</span>
+                assumptions,
+                metrics,
+                findings
+        );
+    }
+
+    private static ValidationFinding notApplicableExperimentalFinding() {
+<span class="fc" id="L386">        return new ValidationFinding(</span>
+                ValidationLayer.EXPERIMENTAL_HOOKS,
+                &quot;EXPERIMENTAL_VALIDATION_PENDING&quot;,
+                &quot;Experimental validation hooks are defined, but no measured data is attached.&quot;,
+                ValidationSeverity.INFO
+        );
+    }
+
+    private static String stableHash(Map&lt;String, String&gt; snapshot) {
+        try {
+<span class="fc" id="L396">            MessageDigest digest = MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
+<span class="fc" id="L397">            snapshot.entrySet().stream()</span>
+<span class="fc" id="L398">                    .sorted(Map.Entry.comparingByKey())</span>
+<span class="fc" id="L399">                    .forEach(e -&gt; {</span>
+<span class="fc" id="L400">                        digest.update(e.getKey().getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L401">                        digest.update((byte) '=');</span>
+<span class="fc" id="L402">                        digest.update(e.getValue().getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L403">                        digest.update((byte) '\n');</span>
+<span class="fc" id="L404">                    });</span>
+<span class="fc" id="L405">            byte[] bytes = digest.digest();</span>
+<span class="fc" id="L406">            StringBuilder sb = new StringBuilder(bytes.length * 2);</span>
+<span class="fc bfc" id="L407" title="All 2 branches covered.">            for (byte b : bytes) {</span>
+<span class="fc" id="L408">                sb.append(String.format(Locale.ROOT, &quot;%02x&quot;, b));</span>
+            }
+<span class="fc" id="L410">            return sb.toString();</span>
+<span class="nc" id="L411">        } catch (NoSuchAlgorithmException e) {</span>
+<span class="nc" id="L412">            throw new IllegalStateException(</span>
+                    &quot;SHA-256 unavailable in current runtime; deterministic validation hash cannot be computed.&quot;, e);
+        }
+    }
+
+    private static String fmt(double v) {
+<span class="fc" id="L418">        return String.format(Locale.ROOT, &quot;%.12g&quot;, v);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

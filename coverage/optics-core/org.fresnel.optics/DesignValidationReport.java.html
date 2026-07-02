@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesignValidationReport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">DesignValidationReport.java</span></div><h1>DesignValidationReport.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Plugin-independent deterministic validation report.
+ */
+public record DesignValidationReport(
+        String pluginId,
+        String parameterHash,
+        Map&lt;String, String&gt; parameterSnapshot,
+        Double wavelengthMinNm,
+        Double wavelengthMaxNm,
+        Double apertureDiameterMm,
+        List&lt;Double&gt; targetFocalDistancesMm,
+        Double pixelSizeMicrons,
+        List&lt;ValidationAssumption&gt; assumptions,
+        List&lt;ValidationMetric&gt; metrics,
+        List&lt;ValidationFinding&gt; findings
+) {
+<span class="fc" id="L23">    public DesignValidationReport {</span>
+<span class="fc" id="L24">        parameterSnapshot = java.util.Collections.unmodifiableMap(</span>
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">                parameterSnapshot == null ? Map.of() : new LinkedHashMap&lt;&gt;(parameterSnapshot));</span>
+<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        targetFocalDistancesMm = targetFocalDistancesMm == null ? List.of() : List.copyOf(targetFocalDistancesMm);</span>
+<span class="pc bpc" id="L27" title="1 of 2 branches missed.">        assumptions = assumptions == null ? List.of() : List.copyOf(assumptions);</span>
+<span class="pc bpc" id="L28" title="1 of 2 branches missed.">        metrics = metrics == null ? List.of() : List.copyOf(metrics);</span>
+<span class="pc bpc" id="L29" title="1 of 2 branches missed.">        findings = findings == null ? List.of() : List.copyOf(findings);</span>
+<span class="fc" id="L30">    }</span>
+
+    /** Returns {@code true} if no ERROR finding exists. */
+    public boolean valid() {
+<span class="nc bnc" id="L34" title="All 2 branches missed.">        return findings.stream().noneMatch(f -&gt; f.severity() == ValidationSeverity.ERROR);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
