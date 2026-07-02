@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import {
-  downloadMultiFocusPng, fetchMultiFocusPreviewPng,
-  type FocusPointDto, type MultiFocusRequest,
+  downloadMultiFocusPng, fetchMultiFocusPreviewPng, validatePlugin,
+  type DesignValidationReport, type FocusPointDto, type MultiFocusRequest,
 } from '../api';
-import { NumberField, PreviewPane, useBlobUrl } from './shared';
+import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: MultiFocusRequest = {
   apertureDiameterMm: 10,
@@ -21,6 +21,7 @@ export function MultiFocusPanel() {
   const [req, setReq] = useState<MultiFocusRequest>(DEFAULT);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
   const update = (p: Partial<MultiFocusRequest>) => setReq((r) => ({ ...r, ...p }));
@@ -38,7 +39,10 @@ export function MultiFocusPanel() {
 
   const renderPreview = async () => {
     setBusy(true); setError(null);
-    try { setPreview(await fetchMultiFocusPreviewPng(req)); }
+    try {
+      setPreview(await fetchMultiFocusPreviewPng(req));
+      setValidationReport(await validatePlugin('multi-focus', req));
+    }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
@@ -85,6 +89,7 @@ export function MultiFocusPanel() {
       {error && <p className="error-message">{error}</p>}
 
       <PreviewPane url={previewUrl} alt="Multi-focus preview" />
+      <ValidationReportView report={validationReport} />
     </>
   );
 }

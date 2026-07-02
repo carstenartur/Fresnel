@@ -1,6 +1,8 @@
 package org.fresnel.backend.api;
 
 import jakarta.validation.Valid;
+import org.fresnel.optics.DesignValidationReport;
+import org.fresnel.optics.DesignValidationReports;
 import org.fresnel.optics.DesignValidator;
 import org.fresnel.optics.MultiFocusRenderer;
 import org.fresnel.optics.PdfExporter;
@@ -21,10 +23,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,6 +49,11 @@ public class DesignController {
 
     /** Maximum image side (in pixels) allowed for synchronous PNG preview. */
     public static final long MAX_PREVIEW_PX = 4096;
+    private final ObjectMapper objectMapper;
+
+    public DesignController(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     // -------- Single zone plate (Use Case A) --------
 
@@ -54,6 +64,34 @@ public class DesignController {
         SingleZonePlateParameters params = req.toParameters();
         ValidationResult v = DesignValidator.validate(params);
         return ValidationResponse.from(v);
+    }
+
+    @PostMapping(value = "/{pluginId}/validation",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public DesignValidationReport validatePlugin(@PathVariable("pluginId") String pluginId,
+                                                 @RequestBody JsonNode payload) {
+        return switch (pluginId) {
+            case "zone-plate" -> DesignValidationReports.forZonePlate(
+                    objectMapper.convertValue(payload, SingleZonePlateRequest.class).toParameters());
+            case "rgb-zone-plate" -> {
+                RgbZonePlateRequest req = objectMapper.convertValue(payload, RgbZonePlateRequest.class);
+                yield DesignValidationReports.forRgbZonePlate(
+                        req.base().toParameters(), req.redNm(), req.greenNm(), req.blueNm());
+            }
+            case "multi-focus" -> DesignValidationReports.forMultiFocus(
+                    objectMapper.convertValue(payload, MultiFocusRequest.class).toParameters());
+            case "hex-macro-cell" -> DesignValidationReports.forHexMacroCell(
+                    objectMapper.convertValue(payload, HexMacroCellRequest.class).toParameters());
+            case "window-foil" -> DesignValidationReports.forWindowFoil(
+                    objectMapper.convertValue(payload, WindowFoilRequest.class).toParameters());
+            case "hologram" -> {
+                HologramRequest req = objectMapper.convertValue(payload, HologramRequest.class);
+                yield DesignValidationReports.forHologram(
+                        req.sidePx(), req.iterations(), req.dpi(), req.resolvedWavelengthNm());
+            }
+            default -> throw new IllegalArgumentException("unknown plugin id: " + pluginId);
+        };
     }
 
     @PostMapping(value = "/preview.png",

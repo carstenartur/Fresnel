@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
   downloadFoilPdf, fetchFoilPreviewPng, foilInfo,
-  type FoilInfo, type WindowFoilRequest,
+  validatePlugin,
+  type DesignValidationReport, type FoilInfo, type WindowFoilRequest,
 } from '../api';
-import { NumberField, PreviewPane, useBlobUrl } from './shared';
+import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: WindowFoilRequest = {
   sheetWidthMm: 200,
@@ -26,6 +27,7 @@ export function WindowFoilPanel() {
   const [sheet, setSheet] = useState('A4');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
   const update = (p: Partial<WindowFoilRequest>) => setReq((r) => ({ ...r, ...p }));
@@ -35,6 +37,7 @@ export function WindowFoilPanel() {
     try {
       setPreview(await fetchFoilPreviewPng(req));
       setInfo(await foilInfo(req));
+      setValidationReport(await validatePlugin('window-foil', req));
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
@@ -89,6 +92,7 @@ export function WindowFoilPanel() {
       {error && <p className="error-message">{error}</p>}
 
       <PreviewPane url={previewUrl} alt="Window foil preview" />
+      <ValidationReportView report={validationReport} />
     </>
   );
 }

@@ -4,10 +4,11 @@ import {
   downloadHexPng,
   fetchHexPreviewPng,
   hexInfo,
-  type HexInfo,
+  validatePlugin,
+  type DesignValidationReport, type HexInfo,
   type HexMacroCellRequest,
 } from '../api';
-import { NumberField, PreviewPane, useBlobUrl } from './shared';
+import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: HexMacroCellRequest = {
   macroRadiusMm: 30,
@@ -27,6 +28,7 @@ export function HexMacroCellPanel() {
   const [info, setInfo] = useState<HexInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
   const update = (p: Partial<HexMacroCellRequest>) => setReq((r) => ({ ...r, ...p }));
@@ -36,6 +38,7 @@ export function HexMacroCellPanel() {
     try {
       setPreview(await fetchHexPreviewPng(req));
       setInfo(await hexInfo(req));
+      setValidationReport(await validatePlugin('hex-macro-cell', req));
     }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
@@ -87,6 +90,7 @@ export function HexMacroCellPanel() {
       {error && <p className="error-message">{error}</p>}
 
       <PreviewPane url={previewUrl} alt="Hex macro cell preview" />
+      <ValidationReportView report={validationReport} />
     </>
   );
 }

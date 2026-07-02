@@ -1,9 +1,10 @@
 import { useState, type ChangeEvent } from 'react';
 import {
   downloadHologramPng, downloadHologramStl, fileToBase64, reconstructHologramPng, synthesizeHologramPng,
-  type HologramRequest,
+  validatePlugin,
+  type DesignValidationReport, type HologramRequest,
 } from '../api';
-import { NumberField, PreviewPane, useBlobUrl } from './shared';
+import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const SIDES = [64, 128, 256, 512, 1024];
 
@@ -15,6 +16,7 @@ export function HologramPanel() {
   const [dpi, setDpi] = useState(600);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [maskUrl, setMaskUrl] = useBlobUrl();
   const [reconUrl, setReconUrl] = useBlobUrl();
 
@@ -33,7 +35,10 @@ export function HologramPanel() {
   const synthesise = async () => {
     const req = build(); if (!req) return;
     setBusy(true); setError(null);
-    try { setMaskUrl(await synthesizeHologramPng(req)); }
+    try {
+      setMaskUrl(await synthesizeHologramPng(req));
+      setValidationReport(await validatePlugin('hologram', req));
+    }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
@@ -106,6 +111,7 @@ export function HologramPanel() {
           <PreviewPane url={reconUrl} alt="Reconstruction preview" />
         </>
       )}
+      <ValidationReportView report={validationReport} />
     </>
   );
 }

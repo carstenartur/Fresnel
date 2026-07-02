@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import {
-  downloadRgbPng, fetchRgbPreviewPng,
-  type RgbZonePlateRequest, type SingleZonePlateRequest,
+  downloadRgbPng, fetchRgbPreviewPng, validatePlugin,
+  type DesignValidationReport, type RgbZonePlateRequest, type SingleZonePlateRequest,
 } from '../api';
-import { NumberField, PreviewPane, useBlobUrl } from './shared';
+import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const BASE_DEFAULT: SingleZonePlateRequest = {
   apertureDiameterMm: 5,
@@ -21,6 +21,7 @@ export function RgbPanel() {
   const [blueNm, setBlue] = useState(450);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
   const updateBase = (p: Partial<SingleZonePlateRequest>) => setBase((b) => ({ ...b, ...p }));
@@ -29,7 +30,11 @@ export function RgbPanel() {
 
   const renderPreview = async () => {
     setBusy(true); setError(null);
-    try { setPreview(await fetchRgbPreviewPng(req())); }
+    try {
+      const payload = req();
+      setPreview(await fetchRgbPreviewPng(payload));
+      setValidationReport(await validatePlugin('rgb-zone-plate', payload));
+    }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
@@ -61,6 +66,7 @@ export function RgbPanel() {
       {error && <p className="error-message">{error}</p>}
 
       <PreviewPane url={previewUrl} alt="RGB zone plate preview" />
+      <ValidationReportView report={validationReport} />
     </>
   );
 }
