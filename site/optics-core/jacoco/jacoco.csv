@@ -9,6 +9,7 @@ Fresnel Optics Core,org.fresnel.optics,ValidationResult.Warning,0,12,0,0,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,DesignMetrics.ChromaticShift,0,9,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,RgbZonePlateRenderer,5,185,6,12,1,32,6,5,0,2
 Fresnel Optics Core,org.fresnel.optics,PropagationParameters,15,66,3,11,0,9,3,5,0,1
+Fresnel Optics Core,org.fresnel.optics,CalibrationSheetGenerator.CalibrationSheetParameters,12,78,8,16,2,10,8,6,0,2
 Fresnel Optics Core,org.fresnel.optics,PropagationSimulator,11,584,3,41,2,93,3,26,0,7
 Fresnel Optics Core,org.fresnel.optics,OpticalQualityReport,0,39,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,MultiFocusRenderer,35,275,9,19,3,53,7,9,0,2
@@ -16,6 +17,7 @@ Fresnel Optics Core,org.fresnel.optics,PdfExporter.SheetSize,0,62,0,0,0,8,0,2,0,
 Fresnel Optics Core,org.fresnel.optics,PdfExporter,5,361,3,15,1,53,3,9,0,3
 Fresnel Optics Core,org.fresnel.optics,PhaseReliefGenerator,10,81,3,9,0,16,3,4,0,1
 Fresnel Optics Core,org.fresnel.optics,PluginStabilityLevel,0,21,0,0,0,4,0,1,0,1
+Fresnel Optics Core,org.fresnel.optics,CalibrationSheetGenerator,0,901,0,16,0,117,0,21,0,13
 Fresnel Optics Core,org.fresnel.optics,DesignValidationReports,89,1264,8,13,14,188,8,13,0,10
 Fresnel Optics Core,org.fresnel.optics,HologramSynthesizer,27,504,8,40,4,82,7,20,0,3
 Fresnel Optics Core,org.fresnel.optics,MaskType,0,15,0,0,0,3,0,1,0,1
@@ -26,7 +28,7 @@ Fresnel Optics Core,org.fresnel.optics,Fft2,6,365,1,25,0,52,1,16,0,4
 Fresnel Optics Core,org.fresnel.optics,DesignValidator,23,359,3,13,3,52,3,11,0,6
 Fresnel Optics Core,org.fresnel.optics,Units,0,29,0,2,0,6,0,5,0,4
 Fresnel Optics Core,org.fresnel.optics,DesignMetrics.DefocusEntry,0,9,0,0,0,1,0,1,0,1
-Fresnel Optics Core,org.fresnel.optics,SvgExporter,4,280,4,10,0,44,4,7,0,4
+Fresnel Optics Core,org.fresnel.optics,SvgExporter,10,305,5,13,2,47,6,9,1,5
 Fresnel Optics Core,org.fresnel.optics,ValidationSeverity,0,21,0,0,0,4,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,WindowFoilParameters.CellSpec,5,23,1,1,0,4,1,2,0,2
 Fresnel Optics Core,org.fresnel.optics,ValidationMetric,0,18,0,0,0,1,0,1,0,1
