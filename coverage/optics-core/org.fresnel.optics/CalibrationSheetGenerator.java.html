@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CalibrationSheetGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">CalibrationSheetGenerator.java</span></div><h1>CalibrationSheetGenerator.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.util.Locale;
+
+/**
+ * Generates printable calibration sheets for verifying print scale, alignment and feature size.
+ */
+public final class CalibrationSheetGenerator {
+
+    private static final double DEFAULT_SCALE = 1.0;
+    private static final double SCALE_COMPARISON_EPSILON = 1e-9;
+    private static final String METADATA_PREFIX = &quot;Fresnel Calibration&quot;;
+
+    private CalibrationSheetGenerator() {}
+
+    public record CalibrationSheetParameters(
+            double dpi,
+            PdfExporter.SheetSize sheetSize,
+            double printScale,
+            Double wavelengthNm,
+            Double focalLengthMm
+    ) {
+<span class="fc" id="L29">        public CalibrationSheetParameters {</span>
+<span class="pc bpc" id="L30" title="2 of 4 branches missed.">            if (!Double.isFinite(dpi) || dpi &lt;= 0.0) throw new IllegalArgumentException(&quot;dpi must be &gt; 0&quot;);</span>
+<span class="pc bpc" id="L31" title="2 of 4 branches missed.">            if (sheetSize == null || sheetSize == PdfExporter.SheetSize.FIT) {</span>
+<span class="nc" id="L32">                sheetSize = PdfExporter.SheetSize.A4;</span>
+            }
+<span class="pc bpc" id="L34" title="2 of 4 branches missed.">            if (!Double.isFinite(printScale) || printScale &lt;= 0.0) {</span>
+<span class="nc" id="L35">                throw new IllegalArgumentException(&quot;printScale must be &gt; 0&quot;);</span>
+            }
+<span class="pc bpc" id="L37" title="1 of 6 branches missed.">            if (wavelengthNm != null &amp;&amp; (!Double.isFinite(wavelengthNm) || wavelengthNm &lt;= 0.0)) {</span>
+<span class="fc" id="L38">                throw new IllegalArgumentException(&quot;wavelengthNm must be &gt; 0 when provided&quot;);</span>
+            }
+<span class="pc bpc" id="L40" title="1 of 6 branches missed.">            if (focalLengthMm != null &amp;&amp; (!Double.isFinite(focalLengthMm) || focalLengthMm &lt;= 0.0)) {</span>
+<span class="fc" id="L41">                throw new IllegalArgumentException(&quot;focalLengthMm must be &gt; 0 when provided&quot;);</span>
+            }
+<span class="fc" id="L43">        }</span>
+
+        public static CalibrationSheetParameters of(double dpi, PdfExporter.SheetSize sheetSize) {
+<span class="fc" id="L46">            return new CalibrationSheetParameters(dpi, sheetSize, DEFAULT_SCALE, null, null);</span>
+        }
+    }
+
+    public static RenderResult render(CalibrationSheetParameters p) {
+<span class="fc" id="L51">        double pixelMm = 25.4 / p.dpi();</span>
+<span class="fc" id="L52">        int widthPx = (int) Math.max(1, Math.round(p.sheetSize.widthMm / pixelMm));</span>
+<span class="fc" id="L53">        int heightPx = (int) Math.max(1, Math.round(p.sheetSize.heightMm / pixelMm));</span>
+<span class="fc" id="L54">        BufferedImage img = new BufferedImage(widthPx, heightPx, BufferedImage.TYPE_BYTE_GRAY);</span>
+<span class="fc" id="L55">        Graphics2D g = img.createGraphics();</span>
+        try {
+<span class="fc" id="L57">            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);</span>
+<span class="fc" id="L58">            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);</span>
+<span class="fc" id="L59">            g.setColor(Color.WHITE);</span>
+<span class="fc" id="L60">            g.fillRect(0, 0, widthPx, heightPx);</span>
+<span class="fc" id="L61">            g.setColor(Color.BLACK);</span>
+<span class="fc" id="L62">            g.setStroke(new BasicStroke(1f));</span>
+<span class="fc" id="L63">            g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, Math.max(10, mmToPx(2.2, p.dpi()))));</span>
+
+<span class="fc" id="L65">            drawFrame(g, p, widthPx, heightPx);</span>
+<span class="fc" id="L66">            drawCenterMark(g, p, widthPx, heightPx);</span>
+<span class="fc" id="L67">            drawScaleBars(g, p);</span>
+<span class="fc" id="L68">            drawDpiFields(g, p);</span>
+<span class="fc" id="L69">            drawLineSpaceTargets(g, p);</span>
+<span class="fc" id="L70">            drawDensityPatches(g, p);</span>
+<span class="fc" id="L71">            drawCircularApertures(g, p, widthPx);</span>
+<span class="fc" id="L72">            drawMetadata(g, p, widthPx, heightPx);</span>
+        } finally {
+<span class="fc" id="L74">            g.dispose();</span>
+        }
+<span class="fc" id="L76">        return new RenderResult(img, pixelMm);</span>
+    }
+
+    public static String metadataText(CalibrationSheetParameters p) {
+<span class="fc" id="L80">        StringBuilder meta = new StringBuilder()</span>
+<span class="fc" id="L81">                .append(String.format(Locale.ROOT, &quot;%s | DPI: %.1f | scale: %.3f&quot;, METADATA_PREFIX, p.dpi(), p.printScale()));</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        if (p.wavelengthNm != null) meta.append(String.format(Locale.ROOT, &quot; | λ: %.1f nm&quot;, p.wavelengthNm));</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        if (p.focalLengthMm != null) meta.append(String.format(Locale.ROOT, &quot; | f: %.1f mm&quot;, p.focalLengthMm));</span>
+<span class="fc" id="L84">        return meta.toString();</span>
+    }
+
+    static String printInstructionText(CalibrationSheetParameters p) {
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (Math.abs(p.printScale() - DEFAULT_SCALE) &lt; SCALE_COMPARISON_EPSILON) {</span>
+<span class="fc" id="L89">            return &quot;Print at 100% / actual size. Disable fit-to-page.&quot;;</span>
+        }
+<span class="fc" id="L91">        return String.format(Locale.ROOT, &quot;Print at %.1f%% scale. Disable fit-to-page.&quot;, p.printScale() * 100.0);</span>
+    }
+
+    private static void drawFrame(Graphics2D g, CalibrationSheetParameters p, int widthPx, int heightPx) {
+<span class="fc" id="L95">        int margin = mmToPx(5, p.dpi());</span>
+<span class="fc" id="L96">        g.drawRect(margin, margin, widthPx - 2 * margin, heightPx - 2 * margin);</span>
+<span class="fc" id="L97">        int reg = mmToPx(6, p.dpi());</span>
+<span class="fc" id="L98">        g.fillRect(margin - reg / 2, margin - reg / 2, reg, reg);</span>
+<span class="fc" id="L99">        g.fillRect(widthPx - margin - reg / 2, margin - reg / 2, reg, reg);</span>
+<span class="fc" id="L100">        g.fillRect(margin - reg / 2, heightPx - margin - reg / 2, reg, reg);</span>
+<span class="fc" id="L101">        g.fillRect(widthPx - margin - reg / 2, heightPx - margin - reg / 2, reg, reg);</span>
+<span class="fc" id="L102">    }</span>
+
+    private static void drawCenterMark(Graphics2D g, CalibrationSheetParameters p, int widthPx, int heightPx) {
+<span class="fc" id="L105">        int cx = widthPx / 2;</span>
+<span class="fc" id="L106">        int cy = heightPx / 2;</span>
+<span class="fc" id="L107">        int arm = mmToPx(12, p.dpi());</span>
+<span class="fc" id="L108">        int gap = mmToPx(2, p.dpi());</span>
+<span class="fc" id="L109">        g.drawLine(cx - arm, cy, cx - gap, cy);</span>
+<span class="fc" id="L110">        g.drawLine(cx + gap, cy, cx + arm, cy);</span>
+<span class="fc" id="L111">        g.drawLine(cx, cy - arm, cx, cy - gap);</span>
+<span class="fc" id="L112">        g.drawLine(cx, cy + gap, cx, cy + arm);</span>
+<span class="fc" id="L113">        int r = mmToPx(1.5, p.dpi());</span>
+<span class="fc" id="L114">        g.drawOval(cx - r, cy - r, 2 * r, 2 * r);</span>
+<span class="fc" id="L115">    }</span>
+
+    private static void drawScaleBars(Graphics2D g, CalibrationSheetParameters p) {
+<span class="fc" id="L118">        int x0 = mmToPx(15, p.dpi());</span>
+<span class="fc" id="L119">        int y = mmToPx(28, p.dpi());</span>
+<span class="fc" id="L120">        int width = mmToPx(100, p.dpi());</span>
+<span class="fc" id="L121">        g.drawLine(x0, y, x0 + width, y);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        for (int mm = 0; mm &lt;= 100; mm += 10) {</span>
+<span class="fc" id="L123">            int x = x0 + mmToPx(mm, p.dpi());</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">            int tick = mm % 50 == 0 ? mmToPx(4, p.dpi()) : mmToPx(2.2, p.dpi());</span>
+<span class="fc" id="L125">            g.drawLine(x, y - tick, x, y + tick);</span>
+        }
+<span class="fc" id="L127">        g.drawString(&quot;Scale bar 0-100 mm&quot;, x0, y - mmToPx(3, p.dpi()));</span>
+<span class="fc" id="L128">    }</span>
+
+    private static void drawDpiFields(Graphics2D g, CalibrationSheetParameters p) {
+<span class="fc" id="L131">        int x = mmToPx(15, p.dpi());</span>
+<span class="fc" id="L132">        int y = mmToPx(40, p.dpi());</span>
+<span class="fc" id="L133">        int w = mmToPx(22, p.dpi());</span>
+<span class="fc" id="L134">        int h = mmToPx(12, p.dpi());</span>
+<span class="fc" id="L135">        g.drawString(&quot;DPI / pixel pitch targets&quot;, x, y - mmToPx(2, p.dpi()));</span>
+<span class="fc" id="L136">        drawStripePatch(g, x, y, w, h, 1);</span>
+<span class="fc" id="L137">        drawStripePatch(g, x + w + mmToPx(3, p.dpi()), y, w, h, 2);</span>
+<span class="fc" id="L138">        drawStripePatch(g, x + 2 * (w + mmToPx(3, p.dpi())), y, w, h, 3);</span>
+<span class="fc" id="L139">        g.drawString(&quot;1px&quot;, x, y + h + mmToPx(4, p.dpi()));</span>
+<span class="fc" id="L140">        g.drawString(&quot;2px&quot;, x + w + mmToPx(3, p.dpi()), y + h + mmToPx(4, p.dpi()));</span>
+<span class="fc" id="L141">        g.drawString(&quot;3px&quot;, x + 2 * (w + mmToPx(3, p.dpi())), y + h + mmToPx(4, p.dpi()));</span>
+<span class="fc" id="L142">    }</span>
+
+    private static void drawLineSpaceTargets(Graphics2D g, CalibrationSheetParameters p) {
+<span class="fc" id="L145">        int x = mmToPx(15, p.dpi());</span>
+<span class="fc" id="L146">        int y = mmToPx(66, p.dpi());</span>
+<span class="fc" id="L147">        int w = mmToPx(15, p.dpi());</span>
+<span class="fc" id="L148">        int h = mmToPx(18, p.dpi());</span>
+<span class="fc" id="L149">        g.drawString(&quot;Line-space targets&quot;, x, y - mmToPx(2, p.dpi()));</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">        for (int i = 0; i &lt; 4; i++) {</span>
+<span class="fc" id="L151">            int lp = i + 1;</span>
+<span class="fc" id="L152">            int px = x + i * (w + mmToPx(3, p.dpi()));</span>
+<span class="fc" id="L153">            drawStripePatch(g, px, y, w, h, lp);</span>
+<span class="fc" id="L154">            g.drawString(lp + &quot;px&quot;, px, y + h + mmToPx(4, p.dpi()));</span>
+        }
+<span class="fc" id="L156">    }</span>
+
+    private static void drawDensityPatches(Graphics2D g, CalibrationSheetParameters p) {
+<span class="fc" id="L159">        int x = mmToPx(15, p.dpi());</span>
+<span class="fc" id="L160">        int y = mmToPx(95, p.dpi());</span>
+<span class="fc" id="L161">        int s = mmToPx(12, p.dpi());</span>
+<span class="fc" id="L162">        g.drawString(&quot;Density patches&quot;, x, y - mmToPx(2, p.dpi()));</span>
+<span class="fc" id="L163">        g.setColor(Color.BLACK);</span>
+<span class="fc" id="L164">        g.fillRect(x, y, s, s);</span>
+<span class="fc" id="L165">        g.setColor(Color.WHITE);</span>
+<span class="fc" id="L166">        g.fillRect(x + s + mmToPx(3, p.dpi()), y, s, s);</span>
+<span class="fc" id="L167">        g.setColor(Color.BLACK);</span>
+<span class="fc" id="L168">        g.drawRect(x + s + mmToPx(3, p.dpi()), y, s, s);</span>
+<span class="fc" id="L169">    }</span>
+
+    private static void drawCircularApertures(Graphics2D g, CalibrationSheetParameters p, int widthPx) {
+<span class="fc" id="L172">        int cx = widthPx - mmToPx(45, p.dpi());</span>
+<span class="fc" id="L173">        int y = mmToPx(40, p.dpi());</span>
+<span class="fc" id="L174">        g.drawString(&quot;Aperture refs&quot;, cx - mmToPx(8, p.dpi()), y - mmToPx(3, p.dpi()));</span>
+<span class="fc" id="L175">        int[] diametersMm = {5, 10, 20};</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">        for (int i = 0; i &lt; diametersMm.length; i++) {</span>
+<span class="fc" id="L177">            int d = mmToPx(diametersMm[i], p.dpi());</span>
+<span class="fc" id="L178">            int oy = y + i * mmToPx(24, p.dpi());</span>
+<span class="fc" id="L179">            g.drawOval(cx - d / 2, oy, d, d);</span>
+<span class="fc" id="L180">            g.drawString(diametersMm[i] + &quot; mm&quot;, cx + mmToPx(14, p.dpi()), oy + d / 2);</span>
+        }
+<span class="fc" id="L182">    }</span>
+
+    private static void drawMetadata(Graphics2D g, CalibrationSheetParameters p, int widthPx, int heightPx) {
+<span class="fc" id="L185">        int x = mmToPx(15, p.dpi());</span>
+<span class="fc" id="L186">        int y = heightPx - mmToPx(16, p.dpi());</span>
+<span class="fc" id="L187">        g.drawString(metadataText(p), x, y);</span>
+<span class="fc" id="L188">        g.drawString(printInstructionText(p), x, y + mmToPx(4, p.dpi()));</span>
+<span class="fc" id="L189">        g.drawString(&quot;Common errors: shrink/expand, blur/bleed, anisotropic scaling, offset registration.&quot;,</span>
+<span class="fc" id="L190">                x, y + mmToPx(8, p.dpi()));</span>
+<span class="fc" id="L191">        g.drawString(&quot;https://github.com/carstenartur/Fresnel&quot;, widthPx - mmToPx(70, p.dpi()), heightPx - mmToPx(5, p.dpi()));</span>
+<span class="fc" id="L192">    }</span>
+
+    private static void drawStripePatch(Graphics2D g, int x, int y, int w, int h, int linePx) {
+<span class="fc" id="L195">        g.drawRect(x, y, w, h);</span>
+<span class="fc" id="L196">        int period = Math.max(1, linePx * 2);</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">        for (int cx = x; cx &lt; x + w; cx += period) {</span>
+<span class="fc" id="L198">            g.fillRect(cx, y + 1, Math.min(linePx, x + w - cx), Math.max(1, h - 1));</span>
+        }
+<span class="fc" id="L200">    }</span>
+
+    private static int mmToPx(double mm, double dpi) {
+<span class="fc" id="L203">        return (int) Math.max(1, Math.round(mm * dpi / 25.4));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
