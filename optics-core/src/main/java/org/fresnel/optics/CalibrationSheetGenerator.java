@@ -14,6 +14,7 @@ import java.util.Locale;
 public final class CalibrationSheetGenerator {
 
     private static final double DEFAULT_SCALE = 1.0;
+    private static final double SCALE_COMPARISON_EPSILON = 1e-9;
     private static final String METADATA_PREFIX = "Fresnel Calibration";
 
     private CalibrationSheetGenerator() {}
@@ -84,7 +85,7 @@ public final class CalibrationSheetGenerator {
     }
 
     static String printInstructionText(CalibrationSheetParameters p) {
-        if (Math.abs(p.printScale() - DEFAULT_SCALE) < 1e-9) {
+        if (Math.abs(p.printScale() - DEFAULT_SCALE) < SCALE_COMPARISON_EPSILON) {
             return "Print at 100% / actual size. Disable fit-to-page.";
         }
         return String.format(Locale.ROOT, "Print at %.1f%% scale. Disable fit-to-page.", p.printScale() * 100.0);
