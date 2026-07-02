@@ -91,7 +91,12 @@ public final class DesignValidationReports {
         Map<String, String> snapshot = new LinkedHashMap<>();
         snapshot.put("apertureDiameterMm", fmt(base.apertureDiameterMm()));
         snapshot.put("focalLengthMm", fmt(base.focalLengthMm()));
+        snapshot.put("wavelengthNm", fmt(base.wavelengthNm()));
         snapshot.put("dpi", fmt(base.dpi()));
+        snapshot.put("targetOffsetXmm", fmt(base.targetOffsetXmm()));
+        snapshot.put("targetOffsetYmm", fmt(base.targetOffsetYmm()));
+        snapshot.put("maskType", base.maskType().name());
+        snapshot.put("polarity", base.polarity().name());
         snapshot.put("redNm", fmt(redNm));
         snapshot.put("greenNm", fmt(greenNm));
         snapshot.put("blueNm", fmt(blueNm));
@@ -141,9 +146,16 @@ public final class DesignValidationReports {
     public static DesignValidationReport forMultiFocus(MultiFocusParameters p) {
         Map<String, String> snapshot = new LinkedHashMap<>();
         snapshot.put("apertureDiameterMm", fmt(p.apertureDiameterMm()));
-        snapshot.put("focusPoints", String.valueOf(p.focusPoints().size()));
         snapshot.put("wavelengthNm", fmt(p.wavelengthNm()));
         snapshot.put("dpi", fmt(p.dpi()));
+        snapshot.put("maskType", p.maskType().name());
+        snapshot.put("polarity", p.polarity().name());
+        for (int i = 0; i < p.focusPoints().size(); i++) {
+            MultiFocusParameters.FocusPoint fp = p.focusPoints().get(i);
+            snapshot.put("fp[" + i + "].x", fmt(fp.xMm()));
+            snapshot.put("fp[" + i + "].y", fmt(fp.yMm()));
+            snapshot.put("fp[" + i + "].z", fmt(fp.zMm()));
+        }
 
         List<Double> zValues = p.focusPoints().stream().map(MultiFocusParameters.FocusPoint::zMm).toList();
         double minZ = zValues.stream().mapToDouble(Double::doubleValue).min().orElse(0.0);
@@ -196,8 +208,12 @@ public final class DesignValidationReports {
         snapshot.put("subDiameterMm", fmt(p.subDiameterMm()));
         snapshot.put("subPitchMm", fmt(p.subPitchMm()));
         snapshot.put("focalLengthMm", fmt(p.focalLengthMm()));
+        snapshot.put("targetOffsetXmm", fmt(p.targetOffsetXmm()));
+        snapshot.put("targetOffsetYmm", fmt(p.targetOffsetYmm()));
         snapshot.put("wavelengthNm", fmt(p.wavelengthNm()));
         snapshot.put("dpi", fmt(p.dpi()));
+        snapshot.put("maskType", p.maskType().name());
+        snapshot.put("polarity", p.polarity().name());
 
         List<ValidationMetric> metrics = new ArrayList<>();
         metrics.add(new ValidationMetric(ValidationLayer.ANALYTICAL_OPTICS, "SUB_ELEMENT_COUNT", "Sub-element count",
@@ -252,11 +268,22 @@ public final class DesignValidationReports {
         snapshot.put("subPitchMm", fmt(p.subPitchMm()));
         snapshot.put("wavelengthNm", fmt(p.wavelengthNm()));
         snapshot.put("dpi", fmt(p.dpi()));
+        snapshot.put("maskType", p.maskType().name());
+        snapshot.put("polarity", p.polarity().name());
+        snapshot.put("drawCropMarks", String.valueOf(p.drawCropMarks()));
+        for (int i = 0; i < p.cellSpecs().size(); i++) {
+            WindowFoilParameters.CellSpec cs = p.cellSpecs().get(i);
+            snapshot.put("cell[" + i + "].f", fmt(cs.focalLengthMm()));
+            snapshot.put("cell[" + i + "].x", fmt(cs.targetOffsetXmm()));
+            snapshot.put("cell[" + i + "].y", fmt(cs.targetOffsetYmm()));
+        }
 
-        List<Double> focalTargets = p.cellSpecs().stream()
-                .map(WindowFoilParameters.CellSpec::focalLengthMm)
-                .distinct()
-                .toList();
+        List<Double> focalTargets = p.cellSpecs().isEmpty()
+                ? List.of(p.defaultCellSpec().focalLengthMm())
+                : p.cellSpecs().stream()
+                        .map(WindowFoilParameters.CellSpec::focalLengthMm)
+                        .distinct()
+                        .toList();
 
         List<ValidationMetric> metrics = List.of(
                 new ValidationMetric(ValidationLayer.ANALYTICAL_OPTICS, "CELL_COUNT", "Cell count",

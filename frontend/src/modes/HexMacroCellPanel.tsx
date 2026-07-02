@@ -40,7 +40,7 @@ export function HexMacroCellPanel() {
       setInfo(await hexInfo(req));
       setValidationReport(await validatePlugin('hex-macro-cell', req));
     }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    catch (e) { setValidationReport(null); setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
 

@@ -38,7 +38,7 @@ export function WindowFoilPanel() {
       setPreview(await fetchFoilPreviewPng(req));
       setInfo(await foilInfo(req));
       setValidationReport(await validatePlugin('window-foil', req));
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { setValidationReport(null); setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
 

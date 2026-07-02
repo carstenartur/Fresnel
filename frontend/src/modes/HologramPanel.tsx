@@ -39,7 +39,7 @@ export function HologramPanel() {
       setMaskUrl(await synthesizeHologramPng(req));
       setValidationReport(await validatePlugin('hologram', req));
     }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    catch (e) { setValidationReport(null); setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
 

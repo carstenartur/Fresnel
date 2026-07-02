@@ -1,6 +1,7 @@
 package org.fresnel.backend.api;
 
 import jakarta.validation.Valid;
+import jakarta.validation.Validator;
 import org.fresnel.optics.DesignValidationReport;
 import org.fresnel.optics.DesignValidationReports;
 import org.fresnel.optics.DesignValidator;
@@ -50,9 +51,11 @@ public class DesignController {
     /** Maximum image side (in pixels) allowed for synchronous PNG preview. */
     public static final long MAX_PREVIEW_PX = 4096;
     private final ObjectMapper objectMapper;
+    private final Validator validator;
 
-    public DesignController(ObjectMapper objectMapper) {
+    public DesignController(ObjectMapper objectMapper, Validator validator) {
         this.objectMapper = objectMapper;
+        this.validator = validator;
     }
 
     // -------- Single zone plate (Use Case A) --------
@@ -73,20 +76,20 @@ public class DesignController {
                                                  @RequestBody JsonNode payload) {
         return switch (pluginId) {
             case "zone-plate" -> DesignValidationReports.forZonePlate(
-                    objectMapper.convertValue(payload, SingleZonePlateRequest.class).toParameters());
+                    validated(objectMapper.convertValue(payload, SingleZonePlateRequest.class)).toParameters());
             case "rgb-zone-plate" -> {
-                RgbZonePlateRequest req = objectMapper.convertValue(payload, RgbZonePlateRequest.class);
+                RgbZonePlateRequest req = validated(objectMapper.convertValue(payload, RgbZonePlateRequest.class));
                 yield DesignValidationReports.forRgbZonePlate(
                         req.base().toParameters(), req.redNm(), req.greenNm(), req.blueNm());
             }
             case "multi-focus" -> DesignValidationReports.forMultiFocus(
-                    objectMapper.convertValue(payload, MultiFocusRequest.class).toParameters());
+                    validated(objectMapper.convertValue(payload, MultiFocusRequest.class)).toParameters());
             case "hex-macro-cell" -> DesignValidationReports.forHexMacroCell(
-                    objectMapper.convertValue(payload, HexMacroCellRequest.class).toParameters());
+                    validated(objectMapper.convertValue(payload, HexMacroCellRequest.class)).toParameters());
             case "window-foil" -> DesignValidationReports.forWindowFoil(
-                    objectMapper.convertValue(payload, WindowFoilRequest.class).toParameters());
+                    validated(objectMapper.convertValue(payload, WindowFoilRequest.class)).toParameters());
             case "hologram" -> {
-                HologramRequest req = objectMapper.convertValue(payload, HologramRequest.class);
+                HologramRequest req = validated(objectMapper.convertValue(payload, HologramRequest.class));
                 yield DesignValidationReports.forHologram(
                         req.sidePx(), req.iterations(), req.dpi(), req.resolvedWavelengthNm());
             }
@@ -327,6 +330,18 @@ public class DesignController {
     }
 
     // -------- Helpers --------
+
+    /** Programmatically validates a request DTO, throwing {@link IllegalArgumentException} (→ HTTP 400) on violations. */
+    private <T> T validated(T req) {
+        var violations = validator.validate(req);
+        if (!violations.isEmpty()) {
+            throw new IllegalArgumentException(violations.stream()
+                    .map(v -> v.getPropertyPath() + " " + v.getMessage())
+                    .sorted()
+                    .collect(java.util.stream.Collectors.joining("; ")));
+        }
+        return req;
+    }
 
     private static long estimateSizePx(SingleZonePlateParameters p) {
         double pixelMm = 25.4 / p.dpi();

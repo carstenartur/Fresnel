@@ -43,7 +43,7 @@ export function MultiFocusPanel() {
       setPreview(await fetchMultiFocusPreviewPng(req));
       setValidationReport(await validatePlugin('multi-focus', req));
     }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    catch (e) { setValidationReport(null); setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
 
