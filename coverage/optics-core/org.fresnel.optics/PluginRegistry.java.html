@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginRegistry.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">PluginRegistry.java</span></div><h1>PluginRegistry.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+/**
+ * Static registry of all Fresnel plugins.
+ *
+ * &lt;p&gt;This is the single machine-readable source of truth for plugin metadata.
+ * It replaces the previously duplicated lists scattered across Java code,
+ * TypeScript UI definitions and documentation.
+ *
+ * &lt;h2&gt;Adding a new plugin&lt;/h2&gt;
+ * &lt;ol&gt;
+ *   &lt;li&gt;Create the parameter record and renderer in {@code optics-core}.&lt;/li&gt;
+ *   &lt;li&gt;Add a {@link PluginDescriptor} constant below.&lt;/li&gt;
+ *   &lt;li&gt;Register it in {@link #ALL}.&lt;/li&gt;
+ * &lt;/ol&gt;
+ *
+ * &lt;h2&gt;Usage&lt;/h2&gt;
+ * &lt;pre&gt;{@code
+ * PluginDescriptor zp = PluginRegistry.findById(&quot;zone-plate&quot;).orElseThrow();
+ * boolean hasPdf = zp.supportsExport(PluginCapability.EXPORT_PDF);
+ * List&lt;PluginDescriptor&gt; pdfPlugins = PluginRegistry.withCapability(PluginCapability.EXPORT_PDF);
+ * }&lt;/pre&gt;
+ */
+public final class PluginRegistry {
+
+    // -----------------------------------------------------------------------
+    // Plugin descriptors
+    // -----------------------------------------------------------------------
+
+    /** Single Fresnel zone plate — binary amplitude or greyscale phase. */
+<span class="fc" id="L38">    public static final PluginDescriptor ZONE_PLATE = new PluginDescriptor(</span>
+            &quot;zone-plate&quot;,
+            &quot;Zone Plate&quot;,
+            &quot;Single Fresnel zone plate — binary amplitude or greyscale phase&quot;,
+            &quot;ZonePlateRenderer&quot;,
+            &quot;SingleZonePlateParameters&quot;,
+            &quot;single&quot;,
+            &quot;docs/plugins/zone-plate.md&quot;,
+            PluginStabilityLevel.STABLE,
+<span class="fc" id="L47">            Set.of(</span>
+                    PluginCapability.EXPORT_PNG,
+                    PluginCapability.EXPORT_SVG,
+                    PluginCapability.EXPORT_PDF,
+                    PluginCapability.EXPORT_DXF,
+                    PluginCapability.EXPORT_GERBER,
+                    PluginCapability.PREVIEW_PNG,
+                    PluginCapability.PROPAGATION_PREVIEW,
+                    PluginCapability.PRINTABILITY_ANALYSIS,
+                    PluginCapability.OPTICAL_QUALITY_REPORT
+            ),
+<span class="fc" id="L58">            Set.of(PropagationMode.FRESNEL_TF, PropagationMode.FRAUNHOFER)</span>
+    );
+
+    /** Zone plate rendered at three wavelengths and composited into one RGB image. */
+<span class="fc" id="L62">    public static final PluginDescriptor RGB_ZONE_PLATE = new PluginDescriptor(</span>
+            &quot;rgb-zone-plate&quot;,
+            &quot;RGB Zone Plate&quot;,
+            &quot;Zone plate rendered at three wavelengths and composited into one RGB image&quot;,
+            &quot;RgbZonePlateRenderer&quot;,
+            &quot;RgbZonePlateParameters&quot;,
+            &quot;rgb&quot;,
+            &quot;docs/plugins/rgb-zone-plate.md&quot;,
+            PluginStabilityLevel.STABLE,
+<span class="fc" id="L71">            Set.of(</span>
+                    PluginCapability.EXPORT_PNG,
+                    PluginCapability.PREVIEW_PNG
+            ),
+<span class="fc" id="L75">            Set.of()</span>
+    );
+
+    /** Aperture divided among multiple focal targets. */
+<span class="fc" id="L79">    public static final PluginDescriptor MULTI_FOCUS = new PluginDescriptor(</span>
+            &quot;multi-focus&quot;,
+            &quot;Multi-Focus&quot;,
+            &quot;Aperture divided among multiple focal targets&quot;,
+            &quot;MultiFocusRenderer&quot;,
+            &quot;MultiFocusParameters&quot;,
+            &quot;multi&quot;,
+            &quot;docs/plugins/multi-focus.md&quot;,
+            PluginStabilityLevel.STABLE,
+<span class="fc" id="L88">            Set.of(</span>
+                    PluginCapability.EXPORT_PNG,
+                    PluginCapability.PREVIEW_PNG
+            ),
+<span class="fc" id="L92">            Set.of()</span>
+    );
+
+    /** Hexagonal array of sub-zone-plates focusing to a common image point. */
+<span class="fc" id="L96">    public static final PluginDescriptor HEX_MACRO_CELL = new PluginDescriptor(</span>
+            &quot;hex-macro-cell&quot;,
+            &quot;Hex Macro Cell&quot;,
+            &quot;Hexagonal array of sub-zone-plates focusing to a common image point&quot;,
+            &quot;HexMacroCellRenderer&quot;,
+            &quot;HexMacroCellParameters&quot;,
+            &quot;hex&quot;,
+            &quot;docs/plugins/hex-macro-cell.md&quot;,
+            PluginStabilityLevel.STABLE,
+<span class="fc" id="L105">            Set.of(</span>
+                    PluginCapability.EXPORT_PNG,
+                    PluginCapability.EXPORT_SVG,
+                    PluginCapability.EXPORT_PDF,
+                    PluginCapability.PREVIEW_PNG
+            ),
+<span class="fc" id="L111">            Set.of()</span>
+    );
+
+    /** Rectangular sheet tiled with hex macro cells. */
+<span class="fc" id="L115">    public static final PluginDescriptor WINDOW_FOIL = new PluginDescriptor(</span>
+            &quot;window-foil&quot;,
+            &quot;Window Foil&quot;,
+            &quot;Rectangular sheet tiled with hex macro cells&quot;,
+            &quot;WindowFoilRenderer&quot;,
+            &quot;WindowFoilParameters&quot;,
+            &quot;foil&quot;,
+            &quot;docs/plugins/window-foil.md&quot;,
+            PluginStabilityLevel.STABLE,
+<span class="fc" id="L124">            Set.of(</span>
+                    PluginCapability.EXPORT_PDF,
+                    PluginCapability.PREVIEW_PNG
+            ),
+<span class="fc" id="L128">            Set.of()</span>
+    );
+
+    /** Computer-generated hologram via the Gerchberg–Saxton algorithm. */
+<span class="fc" id="L132">    public static final PluginDescriptor HOLOGRAM = new PluginDescriptor(</span>
+            &quot;hologram&quot;,
+            &quot;Hologram (GS)&quot;,
+            &quot;Computer-generated hologram via the Gerchberg–Saxton algorithm&quot;,
+            &quot;HologramSynthesizer&quot;,
+            &quot;HologramParameters&quot;,
+            &quot;hologram&quot;,
+            &quot;docs/plugins/hologram.md&quot;,
+            PluginStabilityLevel.STABLE,
+<span class="fc" id="L141">            Set.of(</span>
+                    PluginCapability.EXPORT_PNG,
+                    PluginCapability.EXPORT_STL,
+                    PluginCapability.PREVIEW_PNG
+            ),
+<span class="fc" id="L146">            Set.of()</span>
+    );
+
+    // -----------------------------------------------------------------------
+    // Registry
+    // -----------------------------------------------------------------------
+
+    /**
+     * Immutable ordered list of all registered plugins.
+     * The order matches the frontend tab order in {@code App.tsx}:
+     * single, hex, foil, multi, rgb, hologram.
+     */
+<span class="fc" id="L158">    public static final List&lt;PluginDescriptor&gt; ALL = List.of(</span>
+            ZONE_PLATE,
+            HEX_MACRO_CELL,
+            WINDOW_FOIL,
+            MULTI_FOCUS,
+            RGB_ZONE_PLATE,
+            HOLOGRAM
+    );
+
+<span class="fc" id="L167">    private static final Map&lt;String, PluginDescriptor&gt; BY_ID =</span>
+<span class="fc" id="L168">            ALL.stream().collect(Collectors.toUnmodifiableMap(PluginDescriptor::id, Function.identity()));</span>
+
+    private PluginRegistry() {}
+
+    // -----------------------------------------------------------------------
+    // Lookup
+    // -----------------------------------------------------------------------
+
+    /**
+     * Returns the plugin with the given id, or {@link Optional#empty()} if none
+     * is registered under that id.
+     *
+     * @param id stable plugin id (e.g. {@code &quot;zone-plate&quot;})
+     */
+    public static Optional&lt;PluginDescriptor&gt; findById(String id) {
+<span class="fc" id="L183">        return Optional.ofNullable(BY_ID.get(id));</span>
+    }
+
+    /**
+     * Returns the plugin with the given id.
+     *
+     * @param id stable plugin id
+     * @throws IllegalArgumentException if no plugin is registered under {@code id}
+     */
+    public static PluginDescriptor requireById(String id) {
+<span class="fc" id="L193">        PluginDescriptor d = BY_ID.get(id);</span>
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">        if (d == null) throw new IllegalArgumentException(&quot;unknown plugin id: &quot; + id);</span>
+<span class="nc" id="L195">        return d;</span>
+    }
+
+    /** Returns {@code true} if a plugin with the given id is registered. */
+    public static boolean hasPlugin(String id) {
+<span class="fc" id="L200">        return BY_ID.containsKey(id);</span>
+    }
+
+    // -----------------------------------------------------------------------
+    // Capability queries
+    // -----------------------------------------------------------------------
+
+    /**
+     * Returns all plugins that support the given capability.
+     *
+     * @param capability the capability to filter by
+     * @return immutable list of matching descriptors, preserving registration order
+     */
+    public static List&lt;PluginDescriptor&gt; withCapability(PluginCapability capability) {
+<span class="fc" id="L214">        return ALL.stream()</span>
+<span class="fc" id="L215">                .filter(d -&gt; d.supports(capability))</span>
+<span class="fc" id="L216">                .collect(Collectors.toUnmodifiableList());</span>
+    }
+
+    // -----------------------------------------------------------------------
+    // Integrity check (called from tests)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Verifies that all registered plugin ids are unique and non-blank.
+     * Throws {@link IllegalStateException} if the registry is inconsistent.
+     * Called from unit tests to guard against accidental duplicate registrations.
+     */
+    static void verifyIntegrity() {
+<span class="fc" id="L229">        long distinctIds = ALL.stream().map(PluginDescriptor::id).distinct().count();</span>
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">        if (distinctIds != ALL.size()) {</span>
+<span class="nc" id="L231">            throw new IllegalStateException(&quot;Duplicate plugin ids detected in PluginRegistry&quot;);</span>
+        }
+<span class="fc bfc" id="L233" title="All 2 branches covered.">        for (PluginDescriptor d : ALL) {</span>
+<span class="pc bpc" id="L234" title="1 of 2 branches missed.">            if (!BY_ID.containsKey(d.id())) {</span>
+<span class="nc" id="L235">                throw new IllegalStateException(&quot;BY_ID index is out of sync for id: &quot; + d.id());</span>
+            }
+<span class="fc" id="L237">        }</span>
+<span class="fc" id="L238">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

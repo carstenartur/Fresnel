@@ -9,12 +9,14 @@ Fresnel Backend,org.fresnel.backend.jobs,RenderJobService,127,230,17,9,29,53,18,
 Fresnel Backend,org.fresnel.backend.jobs,RenderJob.State,0,27,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,DesignController,147,436,11,15,21,95,18,24,7,22
 Fresnel Backend,org.fresnel.backend.api,DesignDocument,0,40,5,7,0,7,5,3,0,2
+Fresnel Backend,org.fresnel.backend.api,PluginController,0,20,0,0,0,8,0,3,0,3
 Fresnel Backend,org.fresnel.backend.api,RgbZonePlateRequest,0,15,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,HologramController,63,289,6,14,9,63,6,16,1,11
 Fresnel Backend,org.fresnel.backend.api,ValidationResponse.WarningDto,0,12,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,SingleZonePlateRequest,8,65,3,5,0,10,3,3,0,2
 Fresnel Backend,org.fresnel.backend.api,ParameterDifference,0,12,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,ComparisonController,44,953,21,74,4,169,21,48,0,20
+Fresnel Backend,org.fresnel.backend.api,PluginController.PluginMetadata,0,87,0,0,0,20,0,2,0,2
 Fresnel Backend,org.fresnel.backend.api,DesignComparisonResult,0,9,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,HologramRequest,9,45,3,3,0,4,3,4,0,4
 Fresnel Backend,org.fresnel.backend.api,DesignVariant,0,15,0,0,0,1,0,1,0,1

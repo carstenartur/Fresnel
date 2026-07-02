@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginDescriptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">PluginDescriptor.java</span></div><h1>PluginDescriptor.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.util.Set;
+
+/**
+ * Machine-readable metadata record for one Fresnel plugin.
+ *
+ * &lt;p&gt;A descriptor is the single source of truth for everything that was
+ * previously duplicated across Java code, TypeScript UI definitions and
+ * documentation: renderer class name, frontend mode key, documentation URL,
+ * supported export formats, validation support, etc.
+ *
+ * &lt;p&gt;Instances are immutable; use {@link PluginRegistry} to obtain them.
+ *
+ * @param id               stable, lowercase, hyphen-separated identifier suitable
+ *                         for use in API URLs (e.g. {@code &quot;zone-plate&quot;})
+ * @param displayName      human-readable name shown in the UI
+ *                         (e.g. {@code &quot;Zone Plate&quot;})
+ * @param description      one-line description of the optical element
+ * @param rendererClass    simple class name of the Java renderer or synthesiser
+ *                         (e.g. {@code &quot;ZonePlateRenderer&quot;})
+ * @param parameterType    simple class name of the parameter record
+ *                         (e.g. {@code &quot;SingleZonePlateParameters&quot;})
+ * @param frontendModeId   key used in the React {@code MODES} array / route
+ *                         (e.g. {@code &quot;single&quot;})
+ * @param documentationUrl relative path to the plugin's Markdown doc page
+ * @param stability        maturity classification of this plugin
+ * @param capabilities     set of {@link PluginCapability} values advertised by
+ *                         this plugin; never {@code null}, may be empty
+ * @param propagationModes supported {@link PropagationMode} values; empty for
+ *                         plugins that do not offer propagation preview
+ */
+public record PluginDescriptor(
+        String id,
+        String displayName,
+        String description,
+        String rendererClass,
+        String parameterType,
+        String frontendModeId,
+        String documentationUrl,
+        PluginStabilityLevel stability,
+        Set&lt;PluginCapability&gt; capabilities,
+        Set&lt;PropagationMode&gt; propagationModes
+) {
+
+    /** Defensive copy — ensures the sets stored in the record are immutable. */
+<span class="fc" id="L47">    public PluginDescriptor {</span>
+<span class="pc bpc" id="L48" title="2 of 4 branches missed.">        if (id == null || id.isBlank()) throw new IllegalArgumentException(&quot;id must not be blank&quot;);</span>
+<span class="pc bpc" id="L49" title="2 of 4 branches missed.">        if (displayName == null || displayName.isBlank())</span>
+<span class="nc" id="L50">            throw new IllegalArgumentException(&quot;displayName must not be blank&quot;);</span>
+<span class="pc bpc" id="L51" title="2 of 4 branches missed.">        if (description == null || description.isBlank())</span>
+<span class="nc" id="L52">            throw new IllegalArgumentException(&quot;description must not be blank&quot;);</span>
+<span class="pc bpc" id="L53" title="2 of 4 branches missed.">        if (rendererClass == null || rendererClass.isBlank())</span>
+<span class="nc" id="L54">            throw new IllegalArgumentException(&quot;rendererClass must not be blank&quot;);</span>
+<span class="pc bpc" id="L55" title="2 of 4 branches missed.">        if (parameterType == null || parameterType.isBlank())</span>
+<span class="nc" id="L56">            throw new IllegalArgumentException(&quot;parameterType must not be blank&quot;);</span>
+<span class="pc bpc" id="L57" title="2 of 4 branches missed.">        if (frontendModeId == null || frontendModeId.isBlank())</span>
+<span class="nc" id="L58">            throw new IllegalArgumentException(&quot;frontendModeId must not be blank&quot;);</span>
+<span class="pc bpc" id="L59" title="2 of 4 branches missed.">        if (documentationUrl == null || documentationUrl.isBlank())</span>
+<span class="nc" id="L60">            throw new IllegalArgumentException(&quot;documentationUrl must not be blank&quot;);</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        if (stability == null) throw new IllegalArgumentException(&quot;stability must not be null&quot;);</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">        capabilities = capabilities == null ? Set.of() : Set.copyOf(capabilities);</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">        propagationModes = propagationModes == null ? Set.of() : Set.copyOf(propagationModes);</span>
+<span class="fc" id="L64">    }</span>
+
+    // ---- Convenience capability queries ----
+
+    /** Returns {@code true} if this plugin supports the given capability. */
+    public boolean supports(PluginCapability capability) {
+<span class="fc" id="L70">        return capabilities.contains(capability);</span>
+    }
+
+    /** Returns {@code true} if this plugin can export in at least the given format. */
+    public boolean supportsExport(PluginCapability exportCapability) {
+<span class="nc" id="L75">        return capabilities.contains(exportCapability);</span>
+    }
+
+    /** Returns {@code true} if this plugin provides printability analysis. */
+    public boolean supportsPrintabilityAnalysis() {
+<span class="fc" id="L80">        return capabilities.contains(PluginCapability.PRINTABILITY_ANALYSIS);</span>
+    }
+
+    /** Returns {@code true} if this plugin provides an optical quality report. */
+    public boolean supportsOpticalQualityReport() {
+<span class="fc" id="L85">        return capabilities.contains(PluginCapability.OPTICAL_QUALITY_REPORT);</span>
+    }
+
+    /** Returns {@code true} if this plugin provides experimental validation. */
+    public boolean supportsExperimentalValidation() {
+<span class="fc" id="L90">        return capabilities.contains(PluginCapability.EXPERIMENTAL_VALIDATION);</span>
+    }
+
+    /** Returns {@code true} if this plugin supports propagation preview. */
+    public boolean supportsPropagationPreview() {
+<span class="nc" id="L95">        return capabilities.contains(PluginCapability.PROPAGATION_PREVIEW);</span>
+    }
+
+    /** Returns {@code true} if this plugin supports the given propagation mode. */
+    public boolean supports(PropagationMode mode) {
+<span class="fc" id="L100">        return propagationModes.contains(mode);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
