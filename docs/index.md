@@ -46,6 +46,11 @@ Validation layers are represented by `ValidationLayer`:
 - manufacturing and printability checks
 - experimental validation hooks
 
+The first form-based experimental measurement workflow is documented in
+[experimental-validation.md](experimental-validation.md). It captures the
+print setup, illumination conditions, measured focus, evidence references and a
+computed theory-versus-experiment comparison for export as JSON or Markdown.
+
 Each plugin exposes a report through:
 
 `POST /api/designs/{pluginId}/validation`

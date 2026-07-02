@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  compareExperiment,
   downloadExportDxf,
   downloadExportGerber,
   downloadExportPdf,
   downloadExportPng,
   downloadExportSvg,
+  downloadExperimentJson,
+  downloadExperimentMarkdown,
   downloadCalibrationPdf,
   fetchPreviewPng,
   fetchPropagatePng,
@@ -14,6 +17,11 @@ import {
   validatePlugin,
   type DesignValidationReport,
   type DesignMetrics,
+  type ExperimentRecord,
+  type ExperimentalComparison,
+  type ExperimentSetup,
+  type MeasurementResult,
+  type MeasuredFocus,
   type OpticalQualityReport,
   type PropagationMode,
   type SingleZonePlateRequest,
@@ -35,6 +43,27 @@ const DEFAULT_REQ: SingleZonePlateRequest = {
   polarity: 'POSITIVE',
 };
 
+const DEFAULT_EXPERIMENT_SETUP: ExperimentSetup = {
+  printerModel: '',
+  nominalDpi: DEFAULT_REQ.dpi,
+  effectiveDpi: DEFAULT_REQ.dpi,
+  materialType: '',
+  exposureSettings: '',
+  lightSourceType: '',
+  wavelengthNm: DEFAULT_REQ.wavelengthNm,
+  spectrumEstimate: '',
+  environmentalNotes: '',
+  photoReferences: [],
+};
+
+const DEFAULT_MEASURED_FOCUS: MeasuredFocus = {
+  label: 'Primary focus',
+  measuredFocalLengthMm: DEFAULT_REQ.focalLengthMm,
+  measuredSpotSizeMicrons: undefined,
+  focusRating: '',
+  notes: '',
+};
+
 export function SingleZonePlatePanel() {
   const [req, setReq] = useState<SingleZonePlateRequest>(DEFAULT_REQ);
   const [metrics, setMetrics] = useState<DesignMetrics | null>(null);
@@ -46,6 +75,13 @@ export function SingleZonePlatePanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState('FIT');
+  const [experimentDesignId, setExperimentDesignId] = useState('');
+  const [experimentSetup, setExperimentSetup] = useState<ExperimentSetup>(DEFAULT_EXPERIMENT_SETUP);
+  const [measuredFocus, setMeasuredFocus] = useState<MeasuredFocus>(DEFAULT_MEASURED_FOCUS);
+  const [photoReferenceText, setPhotoReferenceText] = useState('');
+  const [comparison, setComparison] = useState<ExperimentalComparison | null>(null);
+  const [experimentError, setExperimentError] = useState<string | null>(null);
+  const [comparingExperiment, setComparingExperiment] = useState(false);
   const lastReqId = useRef(0);
 
   useEffect(() => {
@@ -86,11 +122,67 @@ export function SingleZonePlatePanel() {
   useEffect(() => { void renderPreview(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const update = (patch: Partial<SingleZonePlateRequest>) => setReq((r) => ({ ...r, ...patch }));
+  const updateExperimentSetup = (patch: Partial<ExperimentSetup>) =>
+    setExperimentSetup((current) => ({ ...current, ...patch }));
+  const updateMeasuredFocus = (patch: Partial<MeasuredFocus>) =>
+    setMeasuredFocus((current) => ({ ...current, ...patch }));
 
   const sizeEstimatePx = useMemo(() => {
     const pixelMm = 25.4 / req.dpi;
     return Math.round(req.apertureDiameterMm / pixelMm);
   }, [req.apertureDiameterMm, req.dpi]);
+
+  useEffect(() => {
+    setExperimentSetup((current) => ({
+      ...current,
+      nominalDpi: req.dpi,
+      wavelengthNm: current.wavelengthNm ?? req.wavelengthNm,
+    }));
+  }, [req.dpi, req.wavelengthNm]);
+
+  useEffect(() => {
+    setMeasuredFocus((current) => ({
+      ...current,
+      measuredFocalLengthMm: current.measuredFocalLengthMm ?? req.focalLengthMm,
+    }));
+  }, [req.focalLengthMm]);
+
+  const buildExperimentRecord = (): ExperimentRecord => {
+    if (!validationReport) {
+      throw new Error('Validation report is not ready yet.');
+    }
+    const photoReferences = photoReferenceText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const measurement: MeasurementResult = {
+      targetFocalLengthMm: req.focalLengthMm,
+      measuredFoci: [measuredFocus],
+    };
+    return {
+      designId: experimentDesignId.trim() || undefined,
+      pluginId: validationReport.pluginId,
+      parameterHash: validationReport.parameterHash,
+      designDocument: { kind: 'single', version: 1, payload: req },
+      validationReport,
+      setup: { ...experimentSetup, nominalDpi: req.dpi, photoReferences },
+      measurement,
+    };
+  };
+
+  const runExperimentComparison = async () => {
+    setComparingExperiment(true);
+    setExperimentError(null);
+    try {
+      const record = await compareExperiment(buildExperimentRecord());
+      setComparison(record.comparison ?? null);
+    } catch (e) {
+      setExperimentError(e instanceof Error ? e.message : String(e));
+      setComparison(null);
+    } finally {
+      setComparingExperiment(false);
+    }
+  };
 
   return (
     <>
@@ -220,6 +312,38 @@ export function SingleZonePlatePanel() {
       {metrics && <Metrics m={metrics} />}
       {qualityReport && <QualityReport r={qualityReport} />}
       <ValidationReportView report={validationReport} />
+      <ExperimentValidationPanel
+        req={req}
+        validationReport={validationReport}
+        designId={experimentDesignId}
+        setDesignId={setExperimentDesignId}
+        setup={experimentSetup}
+        updateSetup={updateExperimentSetup}
+        measuredFocus={measuredFocus}
+        updateMeasuredFocus={updateMeasuredFocus}
+        photoReferenceText={photoReferenceText}
+        setPhotoReferenceText={setPhotoReferenceText}
+        comparison={comparison}
+        error={experimentError}
+        loading={comparingExperiment}
+        onCompare={runExperimentComparison}
+        onExportJson={async () => {
+          try {
+            setExperimentError(null);
+            await downloadExperimentJson(buildExperimentRecord());
+          } catch (e) {
+            setExperimentError(e instanceof Error ? e.message : String(e));
+          }
+        }}
+        onExportMarkdown={async () => {
+          try {
+            setExperimentError(null);
+            await downloadExperimentMarkdown(buildExperimentRecord());
+          } catch (e) {
+            setExperimentError(e instanceof Error ? e.message : String(e));
+          }
+        }}
+      />
 
       <PropagationPanel req={req} />
     </>
@@ -331,6 +455,150 @@ function QualityReport({ r }: { r: OpticalQualityReport }) {
         </dt>
         <dd>{r.chromaticFocalShiftMm.toFixed(2)} mm</dd>
       </dl>
+    </div>
+  );
+}
+
+function ExperimentValidationPanel({
+  req,
+  validationReport,
+  designId,
+  setDesignId,
+  setup,
+  updateSetup,
+  measuredFocus,
+  updateMeasuredFocus,
+  photoReferenceText,
+  setPhotoReferenceText,
+  comparison,
+  error,
+  loading,
+  onCompare,
+  onExportJson,
+  onExportMarkdown,
+}: {
+  req: SingleZonePlateRequest;
+  validationReport: DesignValidationReport | null;
+  designId: string;
+  setDesignId: (value: string) => void;
+  setup: ExperimentSetup;
+  updateSetup: (patch: Partial<ExperimentSetup>) => void;
+  measuredFocus: MeasuredFocus;
+  updateMeasuredFocus: (patch: Partial<MeasuredFocus>) => void;
+  photoReferenceText: string;
+  setPhotoReferenceText: (value: string) => void;
+  comparison: ExperimentalComparison | null;
+  error: string | null;
+  loading: boolean;
+  onCompare: () => Promise<void>;
+  onExportJson: () => Promise<void>;
+  onExportMarkdown: () => Promise<void>;
+}) {
+  return (
+    <div className="metrics" style={{ marginTop: 24 }}>
+      <h3>Experimental validation</h3>
+      <p style={{ margin: '0 0 12px', fontSize: 12, color: '#6b7280' }}>
+        Uses the currently selected single-zone-plate design as the experiment source.
+        {validationReport && (
+          <>
+            {' '}Parameter hash: <code>{validationReport.parameterHash.slice(0, 12)}</code>
+          </>
+        )}
+      </p>
+
+      <div className="field">
+        <label htmlFor="experiment-design-id">Design id (optional)</label>
+        <input id="experiment-design-id" value={designId}
+               onChange={(e) => setDesignId(e.target.value)}
+               placeholder="saved design UUID or lab notebook id" />
+      </div>
+
+      <h4 style={{ margin: '8px 0 8px', fontSize: 13 }}>Print and illumination setup</h4>
+      <div className="field">
+        <label htmlFor="experiment-printer-model">Printer model</label>
+        <input id="experiment-printer-model" value={setup.printerModel ?? ''}
+               onChange={(e) => updateSetup({ printerModel: e.target.value })} />
+      </div>
+      <NumberField label="Nominal DPI"
+        value={setup.nominalDpi ?? req.dpi} min={1} step={1}
+        onChange={(v) => updateSetup({ nominalDpi: v })} />
+      <NumberField label="Effective DPI"
+        value={setup.effectiveDpi ?? req.dpi} min={1} step={1}
+        onChange={(v) => updateSetup({ effectiveDpi: v })} />
+      <div className="field">
+        <label htmlFor="experiment-material">Material / foil type</label>
+        <input id="experiment-material" value={setup.materialType ?? ''}
+               onChange={(e) => updateSetup({ materialType: e.target.value })} />
+      </div>
+      <div className="field">
+        <label htmlFor="experiment-exposure">Exposure / print settings</label>
+        <input id="experiment-exposure" value={setup.exposureSettings ?? ''}
+               onChange={(e) => updateSetup({ exposureSettings: e.target.value })} />
+      </div>
+      <div className="field">
+        <label htmlFor="experiment-light-source">Light source type</label>
+        <input id="experiment-light-source" value={setup.lightSourceType ?? ''}
+               onChange={(e) => updateSetup({ lightSourceType: e.target.value })} />
+      </div>
+      <NumberField label="Measured wavelength estimate (nm)"
+        value={setup.wavelengthNm ?? req.wavelengthNm} min={1} step={1}
+        onChange={(v) => updateSetup({ wavelengthNm: v })} />
+      <div className="field">
+        <label htmlFor="experiment-spectrum">Spectrum estimate</label>
+        <input id="experiment-spectrum" value={setup.spectrumEstimate ?? ''}
+               onChange={(e) => updateSetup({ spectrumEstimate: e.target.value })} />
+      </div>
+
+      <h4 style={{ margin: '16px 0 8px', fontSize: 13 }}>Measured result</h4>
+      <p style={{ margin: '0 0 8px', fontSize: 12, color: '#6b7280' }}>
+        Target focal length from the selected design: {req.focalLengthMm.toFixed(2)} mm
+      </p>
+      <NumberField label="Measured focal length (mm)"
+        value={measuredFocus.measuredFocalLengthMm ?? req.focalLengthMm} min={0.001} step={0.1}
+        onChange={(v) => updateMeasuredFocus({ measuredFocalLengthMm: v })} />
+      <NumberField label="Measured spot size (µm)"
+        value={measuredFocus.measuredSpotSizeMicrons ?? 100} min={0.001} step={1}
+        onChange={(v) => updateMeasuredFocus({ measuredSpotSizeMicrons: v })} />
+      <div className="field">
+        <label htmlFor="experiment-focus-rating">Qualitative focus rating</label>
+        <input id="experiment-focus-rating" value={measuredFocus.focusRating ?? ''}
+               onChange={(e) => updateMeasuredFocus({ focusRating: e.target.value })} />
+      </div>
+      <div className="field">
+        <label htmlFor="experiment-environment">Environmental notes</label>
+        <textarea id="experiment-environment" rows={3} value={setup.environmentalNotes ?? ''}
+                  onChange={(e) => updateSetup({ environmentalNotes: e.target.value })} />
+      </div>
+      <div className="field">
+        <label htmlFor="experiment-photo-refs">Photo references (one per line)</label>
+        <textarea id="experiment-photo-refs" rows={3} value={photoReferenceText}
+                  onChange={(e) => setPhotoReferenceText(e.target.value)}
+                  placeholder={'focus-setup.jpg\nspot-closeup.jpg'} />
+      </div>
+      <div className="field">
+        <label htmlFor="experiment-notes">Measurement notes</label>
+        <textarea id="experiment-notes" rows={3} value={measuredFocus.notes ?? ''}
+                  onChange={(e) => updateMeasuredFocus({ notes: e.target.value })} />
+      </div>
+
+      <div className="actions">
+        <button className="secondary" onClick={() => void onCompare()} disabled={!validationReport || loading}>
+          {loading ? 'Comparing…' : 'Compare with theory'}
+        </button>
+        <button className="secondary" onClick={() => void onExportJson()} disabled={!validationReport || loading}>
+          Export JSON
+        </button>
+        <button className="secondary" onClick={() => void onExportMarkdown()} disabled={!validationReport || loading}>
+          Export Markdown
+        </button>
+      </div>
+
+      {error && <p className="error-message" style={{ marginTop: 8 }}>{error}</p>}
+      {comparison && (
+        <div className="warning info" style={{ marginTop: 12, marginBottom: 0 }}>
+          <strong>Comparison:</strong> {comparison.summary}
+        </div>
+      )}
     </div>
   );
 }
