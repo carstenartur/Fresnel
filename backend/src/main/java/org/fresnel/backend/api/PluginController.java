@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Read-only metadata endpoint for all registered Fresnel plugins.
@@ -54,6 +54,10 @@ public class PluginController {
      *
      * <p>Using a dedicated view record keeps the HTTP response contract decoupled
      * from the optics-core model, making future additions non-breaking.
+     *
+     * <p>{@code capabilities} and {@code propagationModes} are returned as sorted
+     * lists (alphabetical by name) so that the JSON array order is deterministic
+     * across JDK versions and runs.
      */
     public record PluginMetadata(
             String id,
@@ -64,8 +68,8 @@ public class PluginController {
             String frontendModeId,
             String documentationUrl,
             PluginStabilityLevel stability,
-            Set<PluginCapability> capabilities,
-            Set<PropagationMode> propagationModes,
+            List<PluginCapability> capabilities,
+            List<PropagationMode> propagationModes,
             boolean supportsPrintabilityAnalysis,
             boolean supportsOpticalQualityReport,
             boolean supportsExperimentalValidation,
@@ -81,8 +85,12 @@ public class PluginController {
                     d.frontendModeId(),
                     d.documentationUrl(),
                     d.stability(),
-                    d.capabilities(),
-                    d.propagationModes(),
+                    d.capabilities().stream()
+                            .sorted(Comparator.comparing(Enum::name))
+                            .toList(),
+                    d.propagationModes().stream()
+                            .sorted(Comparator.comparing(Enum::name))
+                            .toList(),
                     d.supportsPrintabilityAnalysis(),
                     d.supportsOpticalQualityReport(),
                     d.supportsExperimentalValidation(),

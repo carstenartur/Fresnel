@@ -152,14 +152,15 @@ public final class PluginRegistry {
 
     /**
      * Immutable ordered list of all registered plugins.
-     * The order matches the frontend tab order in {@code App.tsx}.
+     * The order matches the frontend tab order in {@code App.tsx}:
+     * single, hex, foil, multi, rgb, hologram.
      */
     public static final List<PluginDescriptor> ALL = List.of(
             ZONE_PLATE,
-            RGB_ZONE_PLATE,
-            MULTI_FOCUS,
             HEX_MACRO_CELL,
             WINDOW_FOIL,
+            MULTI_FOCUS,
+            RGB_ZONE_PLATE,
             HOLOGRAM
     );
 

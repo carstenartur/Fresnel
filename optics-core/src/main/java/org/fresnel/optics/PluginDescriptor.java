@@ -48,6 +48,16 @@ public record PluginDescriptor(
         if (id == null || id.isBlank()) throw new IllegalArgumentException("id must not be blank");
         if (displayName == null || displayName.isBlank())
             throw new IllegalArgumentException("displayName must not be blank");
+        if (description == null || description.isBlank())
+            throw new IllegalArgumentException("description must not be blank");
+        if (rendererClass == null || rendererClass.isBlank())
+            throw new IllegalArgumentException("rendererClass must not be blank");
+        if (parameterType == null || parameterType.isBlank())
+            throw new IllegalArgumentException("parameterType must not be blank");
+        if (frontendModeId == null || frontendModeId.isBlank())
+            throw new IllegalArgumentException("frontendModeId must not be blank");
+        if (documentationUrl == null || documentationUrl.isBlank())
+            throw new IllegalArgumentException("documentationUrl must not be blank");
         if (stability == null) throw new IllegalArgumentException("stability must not be null");
         capabilities = capabilities == null ? Set.of() : Set.copyOf(capabilities);
         propagationModes = propagationModes == null ? Set.of() : Set.copyOf(propagationModes);
