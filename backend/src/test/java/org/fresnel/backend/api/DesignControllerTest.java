@@ -367,6 +367,36 @@ class DesignControllerTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_PDF));
     }
 
+    @Test
+    void calibrationExportsSupportPngSvgAndPdf() throws Exception {
+        String body = """
+                {
+                  "dpi": 600.0,
+                  "printScale": 1.0,
+                  "wavelengthNm": 550.0,
+                  "focalLengthMm": 1000.0
+                }
+                """;
+        mvc.perform(post("/api/designs/calibration/export.png?sheet=A4")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG));
+
+        mvc.perform(post("/api/designs/calibration/export.svg?sheet=A4")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.parseMediaType("image/svg+xml")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<svg")));
+
+        mvc.perform(post("/api/designs/calibration/export.pdf?sheet=A4")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF));
+    }
+
     // -------- Propagation preview --------
 
     @Test

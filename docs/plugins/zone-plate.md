@@ -116,3 +116,27 @@ SingleZonePlateParameters p2 = new SingleZonePlateParameters(
 ```bash
 mvn -pl optics-core test -Dtest=PluginDocImagesTest#zonePlate_generateDocImages -Dfresnel.docs=generate
 ```
+
+## Print calibration sheet
+
+Before printing optical masks, download **Calibration PDF** from the Zone Plate panel.
+The sheet contains:
+
+- 0–100 mm scale bar
+- centring cross and corner registration marks
+- DPI/pixel-pitch stripe fields
+- 1–4 px line-space targets
+- density patches and circular aperture references
+- metadata line with intended DPI and print scale
+
+Always print at **100% / actual size** (disable fit-to-page).
+
+### Interpreting common print errors
+
+| Observation | Likely cause |
+|---|---|
+| Scale bar too short/long | driver or viewer scaling not at 100% |
+| Horizontal and vertical scales differ | non-uniform scaling in print pipeline |
+| 1 px / 2 px fields blur together | printer/material cannot resolve requested DPI |
+| Corner marks offset between passes | registration/feed alignment error |
+| Filled patch looks streaky or porous | insufficient density/ink or uneven toner transfer |
