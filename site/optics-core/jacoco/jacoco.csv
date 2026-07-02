@@ -4,8 +4,10 @@ Fresnel Optics Core,org.fresnel.optics,PropagationMode,0,15,0,0,0,3,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,HologramParameters,20,123,6,20,0,19,6,9,0,2
 Fresnel Optics Core,org.fresnel.optics,DxfExporter,1,111,1,3,0,26,1,6,0,5
 Fresnel Optics Core,org.fresnel.optics,HexMacroCellParameters,30,96,6,12,0,14,6,5,0,2
+Fresnel Optics Core,org.fresnel.optics,PluginCapability,0,69,0,0,0,12,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,StlExporter,39,871,14,36,5,126,14,20,0,9
 Fresnel Optics Core,org.fresnel.optics,DesignMetrics,15,37,2,2,3,4,3,1,1,1
+Fresnel Optics Core,org.fresnel.optics,PluginRegistry,14,191,3,5,3,34,3,8,0,7
 Fresnel Optics Core,org.fresnel.optics,HexMacroCellRenderer,35,492,10,40,3,85,8,21,0,4
 Fresnel Optics Core,org.fresnel.optics,StlExporter.Vec3,0,12,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,PngExporter,0,96,0,0,0,24,0,3,0,3
@@ -16,6 +18,7 @@ Fresnel Optics Core,org.fresnel.optics,RgbZonePlateRenderer,5,185,6,12,1,32,6,5,
 Fresnel Optics Core,org.fresnel.optics,PropagationParameters,15,66,3,11,0,9,3,5,0,1
 Fresnel Optics Core,org.fresnel.optics,PropagationSimulator,11,584,3,41,2,93,3,26,0,7
 Fresnel Optics Core,org.fresnel.optics,ReliefParameters,0,48,3,9,0,8,3,4,0,1
+Fresnel Optics Core,org.fresnel.optics,PluginDescriptor,54,105,17,17,8,17,19,6,2,6
 Fresnel Optics Core,org.fresnel.optics,WindowFoilRenderer,40,650,21,49,3,108,19,22,0,6
 Fresnel Optics Core,org.fresnel.optics,OpticalQualityReport,0,39,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,MultiFocusRenderer,35,275,9,19,3,53,7,9,0,2
@@ -27,6 +30,7 @@ Fresnel Optics Core,org.fresnel.optics,PdfExporter,5,361,3,15,1,53,3,9,0,3
 Fresnel Optics Core,org.fresnel.optics,SingleZonePlateParameters,30,59,6,6,0,9,6,2,0,2
 Fresnel Optics Core,org.fresnel.optics,WindowFoilParameters,58,93,12,12,3,15,13,2,1,2
 Fresnel Optics Core,org.fresnel.optics,PhaseReliefGenerator,10,81,3,9,0,16,3,4,0,1
+Fresnel Optics Core,org.fresnel.optics,PluginStabilityLevel,0,21,0,0,0,4,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,ValidationResult.Warning.Severity,0,21,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,HologramSynthesizer,27,504,8,40,4,82,7,20,0,3
 Fresnel Optics Core,org.fresnel.optics,MaskType,0,15,0,0,0,3,0,1,0,1
