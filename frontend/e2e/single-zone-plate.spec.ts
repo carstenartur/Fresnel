@@ -12,9 +12,9 @@ test('single zone plate preview renders and PNG export downloads', async ({ page
   await expect(page.getByRole('tab', { name: 'Single ZP' })).toHaveAttribute('aria-selected', 'true');
 
   // Tweak a couple of fields.
-  await page.getByLabel('Aperture diameter (mm)').fill('8');
-  await page.getByLabel('Focal length (mm)').fill('500');
-  await page.getByLabel('Wavelength (nm)').fill('632');
+  await page.getByLabel('Aperture diameter (mm)', { exact: true }).fill('8');
+  await page.getByLabel('Focal length (mm)', { exact: true }).fill('500');
+  await page.getByLabel('Wavelength (nm)', { exact: true }).fill('632');
 
   // Render preview.
   await page.getByRole('button', { name: /Render preview/ }).click();
