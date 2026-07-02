@@ -62,8 +62,9 @@ workflow:
 - [Experimental validation workflow docs](../experimental-validation.md)
 - [Experimental records tracking issue #55](https://github.com/carstenartur/Fresnel/issues/55)
 
-Then export JSON/Markdown from `/api/experiments/export.json` and
-`/api/experiments/export.md` for reproducible lab notes.
+Then use the UI export buttons from that workflow, or `POST` the same
+`ExperimentRecord` payload to `/api/experiments/export.json` and
+`/api/experiments/export.md`, for reproducible lab notes.
 
 ## Next steps
 
