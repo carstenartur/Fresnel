@@ -51,6 +51,9 @@ The first form-based experimental measurement workflow is documented in
 print setup, illumination conditions, measured focus, evidence references and a
 computed theory-versus-experiment comparison for export as JSON or Markdown.
 
+For practical, step-by-step print/measure workflows, see the
+[experiments handbook](experiments/first-zone-plate.md).
+
 Each plugin exposes a report through:
 
 `POST /api/designs/{pluginId}/validation`

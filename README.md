@@ -236,6 +236,9 @@ Fresnel supports six diffractive element types, each an independent plugin.
 See **[docs/index.md](docs/index.md)** for the full plugin overview including
 example images and API references.
 
+For practical, reproducible lab workflows, see the
+**[Experiments handbook](docs/experiments/first-zone-plate.md)**.
+
 | Plugin | Description |
 |--------|-------------|
 | [Zone Plate](docs/plugins/zone-plate.md) | Single Fresnel zone plate — binary amplitude or greyscale phase |
