@@ -184,9 +184,9 @@ public final class DesignAssistant {
     // -------------------------------------------------------------------------
 
     private static SingleZonePlateParameters onAxis(
-            double dMm, double fMm, double wNm, double dpi) {
+            double apertureDiameterMm, double focalLengthMm, double wavelengthNm, double dpi) {
         return new SingleZonePlateParameters(
-                dMm, fMm, wNm, dpi, 0.0, 0.0,
+                apertureDiameterMm, focalLengthMm, wavelengthNm, dpi, 0.0, 0.0,
                 MaskType.BINARY_AMPLITUDE, Polarity.POSITIVE);
     }
 
