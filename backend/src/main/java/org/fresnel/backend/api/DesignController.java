@@ -51,6 +51,7 @@ public class DesignController {
 
     /** Maximum image side (in pixels) allowed for synchronous PNG preview. */
     public static final long MAX_PREVIEW_PX = 4096;
+    private static final String CALIBRATION_FILENAME_BASE = "fresnel-calibration-sheet";
     private final ObjectMapper objectMapper;
     private final Validator validator;
 
@@ -155,7 +156,7 @@ public class DesignController {
             throws IOException {
         CalibrationSheetGenerator.CalibrationSheetParameters p = req.toParameters(parseSheetSize(sheet));
         RenderResult r = CalibrationSheetGenerator.render(p);
-        return pngResponse(PngExporter.toPngBytes(r, p.dpi()), "attachment", "fresnel-calibration-sheet.png");
+        return pngResponse(PngExporter.toPngBytes(r, p.dpi()), "attachment", CALIBRATION_FILENAME_BASE + ".png");
     }
 
     @PostMapping(value = "/calibration/export.svg",
@@ -166,7 +167,8 @@ public class DesignController {
             throws IOException {
         CalibrationSheetGenerator.CalibrationSheetParameters p = req.toParameters(parseSheetSize(sheet));
         RenderResult r = CalibrationSheetGenerator.render(p);
-        return svgResponse(SvgExporter.toSvgRasterBytes(r, p.dpi()), "fresnel-calibration-sheet.svg");
+        return svgResponse(SvgExporter.toSvgRasterBytes(r, p.dpi(), CalibrationSheetGenerator.metadataText(p)),
+                CALIBRATION_FILENAME_BASE + ".svg");
     }
 
     @PostMapping(value = "/calibration/export.pdf",
@@ -178,7 +180,7 @@ public class DesignController {
         PdfExporter.SheetSize size = parseSheetSize(sheet);
         CalibrationSheetGenerator.CalibrationSheetParameters p = req.toParameters(size);
         RenderResult r = CalibrationSheetGenerator.render(p);
-        return pdfResponse(PdfExporter.toPdfBytes(r, size), "fresnel-calibration-sheet.pdf");
+        return pdfResponse(PdfExporter.toPdfBytes(r, size), CALIBRATION_FILENAME_BASE + ".pdf");
     }
 
     @PostMapping(value = "/export.dxf",

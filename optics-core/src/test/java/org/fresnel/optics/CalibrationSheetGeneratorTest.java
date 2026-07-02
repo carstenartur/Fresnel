@@ -27,9 +27,12 @@ class CalibrationSheetGeneratorTest {
                         600.0, PdfExporter.SheetSize.A4, 1.0, 550.0, 1000.0);
         RenderResult r = CalibrationSheetGenerator.render(p);
 
-        byte[] svg = SvgExporter.toSvgRasterBytes(r, p.dpi());
+        byte[] svg = SvgExporter.toSvgRasterBytes(r, p.dpi(), CalibrationSheetGenerator.metadataText(p));
         String s = new String(svg, StandardCharsets.UTF_8);
         assertTrue(s.contains("DPI: 600.00"));
+        assertTrue(s.contains("scale: 1.000"));
+        assertTrue(s.contains("λ: 550.0 nm"));
+        assertTrue(s.contains("f: 1000.0 mm"));
 
         byte[] pdf = PdfExporter.toPdfBytes(r, PdfExporter.SheetSize.A4);
         try (PDDocument doc = Loader.loadPDF(pdf)) {

@@ -14,6 +14,7 @@ import java.util.Locale;
 public final class CalibrationSheetGenerator {
 
     private static final double DEFAULT_SCALE = 1.0;
+    private static final String METADATA_PREFIX = "Fresnel Calibration";
 
     private CalibrationSheetGenerator() {}
 
@@ -66,6 +67,14 @@ public final class CalibrationSheetGenerator {
             g.dispose();
         }
         return new RenderResult(img, pixelMm);
+    }
+
+    public static String metadataText(CalibrationSheetParameters p) {
+        StringBuilder meta = new StringBuilder()
+                .append(String.format(Locale.ROOT, "%s | DPI: %.1f | scale: %.3f", METADATA_PREFIX, p.dpi(), p.printScale()));
+        if (p.wavelengthNm != null) meta.append(String.format(Locale.ROOT, " | λ: %.1f nm", p.wavelengthNm));
+        if (p.focalLengthMm != null) meta.append(String.format(Locale.ROOT, " | f: %.1f mm", p.focalLengthMm));
+        return meta.toString();
     }
 
     private static void drawFrame(Graphics2D g, CalibrationSheetParameters p, int widthPx, int heightPx) {
@@ -161,11 +170,7 @@ public final class CalibrationSheetGenerator {
     private static void drawMetadata(Graphics2D g, CalibrationSheetParameters p, int widthPx, int heightPx) {
         int x = mmToPx(15, p.dpi());
         int y = heightPx - mmToPx(16, p.dpi());
-        StringBuilder meta = new StringBuilder()
-                .append(String.format(Locale.ROOT, "Fresnel calibration | DPI=%.1f | scale=%.3f", p.dpi(), p.printScale()));
-        if (p.wavelengthNm != null) meta.append(String.format(Locale.ROOT, " | λ=%.1f nm", p.wavelengthNm));
-        if (p.focalLengthMm != null) meta.append(String.format(Locale.ROOT, " | f=%.1f mm", p.focalLengthMm));
-        g.drawString(meta.toString(), x, y);
+        g.drawString(metadataText(p), x, y);
         g.drawString("Print at 100% / actual size. Disable fit-to-page.", x, y + mmToPx(4, p.dpi()));
         g.drawString("Common errors: shrink/expand, blur/bleed, anisotropic scaling, offset registration.",
                 x, y + mmToPx(8, p.dpi()));
