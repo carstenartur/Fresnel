@@ -59,7 +59,7 @@ export function ValidationReportView({ report }: { report: DesignValidationRepor
         {report.metrics.map((m) => (
           <div key={`${m.layer}:${m.key}`} style={{ display: 'contents' }}>
             <dt>{m.label} <span style={{ color: '#9ca3af' }}>({LAYER_LABELS[m.layer]})</span></dt>
-            <dd>{Number.isFinite(m.value) ? m.value.toFixed(3).replace(/\.?0+$/, '') : String(m.value)} {m.unit}</dd>
+            <dd>{formatMetricValue(m.value, m.unit)}</dd>
           </div>
         ))}
       </dl>
@@ -86,4 +86,9 @@ export function ValidationReportView({ report }: { report: DesignValidationRepor
       </ul>
     </div>
   );
+}
+
+function formatMetricValue(value: number, unit: string): string {
+  const rendered = Number.isFinite(value) ? value.toFixed(3).replace(/\.?0+$/, '') : String(value);
+  return unit ? `${rendered} ${unit}` : rendered;
 }

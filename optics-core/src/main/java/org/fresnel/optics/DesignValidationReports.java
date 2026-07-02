@@ -382,7 +382,8 @@ public final class DesignValidationReports {
             }
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
+            throw new IllegalStateException(
+                    "SHA-256 unavailable in current runtime; deterministic validation hash cannot be computed.", e);
         }
     }
 
