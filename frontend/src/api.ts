@@ -335,7 +335,7 @@ export async function loadDesignFromFile<T = unknown>(file: File): Promise<Desig
 // --- Experimental validation ---
 
 export async function compareExperiment(record: ExperimentRecord): Promise<ExperimentRecord> {
-  return postJson('/api/experiments/compare', record);
+  return postJson<ExperimentRecord>('/api/experiments/compare', record);
 }
 
 export async function downloadExperimentJson(record: ExperimentRecord, filename?: string): Promise<void> {

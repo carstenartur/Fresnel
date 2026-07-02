@@ -121,7 +121,7 @@ class ExperimentControllerTest {
                 .andExpect(content().contentType("text/markdown;charset=UTF-8"))
                 .andExpect(content().string(containsString("# Experimental validation record")))
                 .andExpect(content().string(containsString("Measured focal length: 1025 mm")))
-                .andExpect(content().string(containsString("Focal-length error: 2.5 %")));
+                .andExpect(content().string(containsString("Focal-length error (%): 2.5 %")));
     }
 
     @Test

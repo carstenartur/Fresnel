@@ -45,12 +45,9 @@ const DEFAULT_REQ: SingleZonePlateRequest = {
 
 const DEFAULT_EXPERIMENT_SETUP: ExperimentSetup = {
   printerModel: '',
-  nominalDpi: DEFAULT_REQ.dpi,
-  effectiveDpi: DEFAULT_REQ.dpi,
   materialType: '',
   exposureSettings: '',
   lightSourceType: '',
-  wavelengthNm: DEFAULT_REQ.wavelengthNm,
   spectrumEstimate: '',
   environmentalNotes: '',
   photoReferences: [],
@@ -58,8 +55,6 @@ const DEFAULT_EXPERIMENT_SETUP: ExperimentSetup = {
 
 const DEFAULT_MEASURED_FOCUS: MeasuredFocus = {
   label: 'Primary focus',
-  measuredFocalLengthMm: DEFAULT_REQ.focalLengthMm,
-  measuredSpotSizeMicrons: undefined,
   focusRating: '',
   notes: '',
 };
@@ -132,21 +127,6 @@ export function SingleZonePlatePanel() {
     return Math.round(req.apertureDiameterMm / pixelMm);
   }, [req.apertureDiameterMm, req.dpi]);
 
-  useEffect(() => {
-    setExperimentSetup((current) => ({
-      ...current,
-      nominalDpi: req.dpi,
-      wavelengthNm: current.wavelengthNm ?? req.wavelengthNm,
-    }));
-  }, [req.dpi, req.wavelengthNm]);
-
-  useEffect(() => {
-    setMeasuredFocus((current) => ({
-      ...current,
-      measuredFocalLengthMm: current.measuredFocalLengthMm ?? req.focalLengthMm,
-    }));
-  }, [req.focalLengthMm]);
-
   const buildExperimentRecord = (): ExperimentRecord => {
     if (!validationReport) {
       throw new Error('Validation report is not ready yet.');
@@ -157,7 +137,10 @@ export function SingleZonePlatePanel() {
       .filter(Boolean);
     const measurement: MeasurementResult = {
       targetFocalLengthMm: req.focalLengthMm,
-      measuredFoci: [measuredFocus],
+      measuredFoci: [{
+        ...measuredFocus,
+        measuredFocalLengthMm: measuredFocus.measuredFocalLengthMm ?? req.focalLengthMm,
+      }],
     };
     return {
       designId: experimentDesignId.trim() || undefined,
@@ -165,7 +148,11 @@ export function SingleZonePlatePanel() {
       parameterHash: validationReport.parameterHash,
       designDocument: { kind: 'single', version: 1, payload: req },
       validationReport,
-      setup: { ...experimentSetup, nominalDpi: req.dpi, photoReferences },
+      setup: {
+        ...experimentSetup,
+        nominalDpi: experimentSetup.nominalDpi ?? req.dpi,
+        photoReferences,
+      },
       measurement,
     };
   };
@@ -556,9 +543,15 @@ function ExperimentValidationPanel({
       <NumberField label="Measured focal length (mm)"
         value={measuredFocus.measuredFocalLengthMm ?? req.focalLengthMm} min={0.001} step={0.1}
         onChange={(v) => updateMeasuredFocus({ measuredFocalLengthMm: v })} />
-      <NumberField label="Measured spot size (µm)"
-        value={measuredFocus.measuredSpotSizeMicrons ?? 100} min={0.001} step={1}
-        onChange={(v) => updateMeasuredFocus({ measuredSpotSizeMicrons: v })} />
+      <div className="field">
+        <label htmlFor="experiment-spot-size">Measured spot size (µm)</label>
+        <input id="experiment-spot-size" type="number"
+          value={measuredFocus.measuredSpotSizeMicrons ?? ''} min={0.001} step={1}
+          onChange={(e) => {
+            const parsed = parseFloat(e.target.value);
+            updateMeasuredFocus({ measuredSpotSizeMicrons: e.target.value === '' || isNaN(parsed) ? undefined : parsed });
+          }} />
+      </div>
       <div className="field">
         <label htmlFor="experiment-focus-rating">Qualitative focus rating</label>
         <input id="experiment-focus-rating" value={measuredFocus.focusRating ?? ''}

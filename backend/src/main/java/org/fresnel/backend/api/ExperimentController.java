@@ -46,7 +46,7 @@ public class ExperimentController {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set(HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"fresnel-experiment-" + normalized.pluginId() + ".json\"");
+                "attachment; filename=\"fresnel-experiment-" + sanitizeFilename(normalized.pluginId()) + ".json\"");
         return ResponseEntity.ok().headers(headers).body(body);
     }
 
@@ -59,8 +59,16 @@ public class ExperimentController {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(TEXT_MARKDOWN);
         headers.set(HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"fresnel-experiment-" + normalized.pluginId() + ".md\"");
+                "attachment; filename=\"fresnel-experiment-" + sanitizeFilename(normalized.pluginId()) + ".md\"");
         return ResponseEntity.ok().headers(headers).body(body);
+    }
+
+    /** Restricts a value to safe filename characters (alphanumerics, hyphens, underscores). */
+    private static String sanitizeFilename(String value) {
+        if (value == null || value.isBlank()) {
+            return "export";
+        }
+        return value.replaceAll("[^A-Za-z0-9_-]", "_");
     }
 
     private static ExperimentRecord normalize(ExperimentRecord record) {
@@ -255,8 +263,8 @@ public class ExperimentController {
 
         md.append("## Theory versus experiment\n\n");
         appendField(md, "Measured focal length", formatNumber(record.comparison().measuredFocalLengthMm(), "mm"));
-        appendField(md, "Focal-length error", formatNumber(record.comparison().focalLengthErrorMm(), "mm"));
-        appendField(md, "Focal-length error", formatNumber(record.comparison().focalLengthErrorPercent(), "%"));
+        appendField(md, "Focal-length error (mm)", formatNumber(record.comparison().focalLengthErrorMm(), "mm"));
+        appendField(md, "Focal-length error (%)", formatNumber(record.comparison().focalLengthErrorPercent(), "%"));
         appendField(md, "Measured spot size", formatNumber(record.comparison().measuredSpotSizeMicrons(), "µm"));
         appendField(md, "Focus rating", record.comparison().focusRating());
         appendField(md, "Summary", record.comparison().summary());
