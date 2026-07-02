@@ -77,6 +77,10 @@ public final class SvgExporter {
      * base64-encoded PNG, sized to its physical extent in millimetres.
      */
     public static void writeSvgRaster(RenderResult r, double dpi, OutputStream out) throws IOException {
+        writeSvgRaster(r, dpi, null, out);
+    }
+
+    public static void writeSvgRaster(RenderResult r, double dpi, String metadata, OutputStream out) throws IOException {
         BufferedImage img = r.image();
         ByteArrayOutputStream png = new ByteArrayOutputStream();
         // Use plain PNG (without DPI metadata — the SVG provides physical size).
@@ -97,13 +101,20 @@ public final class SvgExporter {
                             + "xlink:href=\"data:image/png;base64,%s\"/>\n",
                     img.getWidth(), img.getHeight(), b64));
             w.write(String.format(Locale.ROOT, "  <!-- DPI: %.2f -->\n", dpi));
+            if (metadata != null && !metadata.isBlank()) {
+                w.write(String.format(Locale.ROOT, "  <!-- %s -->\n", metadata.replace("--", "—")));
+            }
             w.write("</svg>\n");
         }
     }
 
     public static byte[] toSvgRasterBytes(RenderResult r, double dpi) throws IOException {
+        return toSvgRasterBytes(r, dpi, null);
+    }
+
+    public static byte[] toSvgRasterBytes(RenderResult r, double dpi, String metadata) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        writeSvgRaster(r, dpi, baos);
+        writeSvgRaster(r, dpi, metadata, baos);
         return baos.toByteArray();
     }
 }

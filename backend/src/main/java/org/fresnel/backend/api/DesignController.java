@@ -5,6 +5,7 @@ import jakarta.validation.Validator;
 import org.fresnel.optics.DesignValidationReport;
 import org.fresnel.optics.DesignValidationReports;
 import org.fresnel.optics.DesignValidator;
+import org.fresnel.optics.CalibrationSheetGenerator;
 import org.fresnel.optics.MultiFocusRenderer;
 import org.fresnel.optics.PdfExporter;
 import org.fresnel.optics.PngExporter;
@@ -50,6 +51,7 @@ public class DesignController {
 
     /** Maximum image side (in pixels) allowed for synchronous PNG preview. */
     public static final long MAX_PREVIEW_PX = 4096;
+    private static final String CALIBRATION_FILENAME_BASE = "fresnel-calibration-sheet";
     private final ObjectMapper objectMapper;
     private final Validator validator;
 
@@ -144,6 +146,41 @@ public class DesignController {
         RenderResult r = org.fresnel.optics.ZonePlateRenderer.render(req.toParameters());
         byte[] pdf = PdfExporter.toPdfBytes(r, size);
         return pdfResponse(pdf, "fresnel-zone-plate.pdf");
+    }
+
+    @PostMapping(value = "/calibration/export.png",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> exportCalibrationPng(@Valid @RequestBody CalibrationSheetRequest req,
+                                                        @RequestParam(value = "sheet", defaultValue = "A4") String sheet)
+            throws IOException {
+        CalibrationSheetGenerator.CalibrationSheetParameters p = req.toParameters(parseSheetSize(sheet));
+        RenderResult r = CalibrationSheetGenerator.render(p);
+        return pngResponse(PngExporter.toPngBytes(r, p.dpi()), "attachment", CALIBRATION_FILENAME_BASE + ".png");
+    }
+
+    @PostMapping(value = "/calibration/export.svg",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = "image/svg+xml")
+    public ResponseEntity<byte[]> exportCalibrationSvg(@Valid @RequestBody CalibrationSheetRequest req,
+                                                        @RequestParam(value = "sheet", defaultValue = "A4") String sheet)
+            throws IOException {
+        CalibrationSheetGenerator.CalibrationSheetParameters p = req.toParameters(parseSheetSize(sheet));
+        RenderResult r = CalibrationSheetGenerator.render(p);
+        return svgResponse(SvgExporter.toSvgRasterBytes(r, p.dpi(), CalibrationSheetGenerator.metadataText(p)),
+                CALIBRATION_FILENAME_BASE + ".svg");
+    }
+
+    @PostMapping(value = "/calibration/export.pdf",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> exportCalibrationPdf(@Valid @RequestBody CalibrationSheetRequest req,
+                                                        @RequestParam(value = "sheet", defaultValue = "A4") String sheet)
+            throws IOException {
+        PdfExporter.SheetSize size = parseSheetSize(sheet);
+        CalibrationSheetGenerator.CalibrationSheetParameters p = req.toParameters(size);
+        RenderResult r = CalibrationSheetGenerator.render(p);
+        return pdfResponse(PdfExporter.toPdfBytes(r, size), CALIBRATION_FILENAME_BASE + ".pdf");
     }
 
     @PostMapping(value = "/export.dxf",

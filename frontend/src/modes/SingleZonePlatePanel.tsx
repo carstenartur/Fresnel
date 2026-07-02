@@ -5,6 +5,7 @@ import {
   downloadExportPdf,
   downloadExportPng,
   downloadExportSvg,
+  downloadCalibrationPdf,
   fetchPreviewPng,
   fetchPropagatePng,
   loadDesignFromFile,
@@ -162,6 +163,15 @@ export function SingleZonePlatePanel() {
         <button className="secondary" disabled={!valid || loading}
                 onClick={() => downloadExportPdf(req, sheet, 'fresnel-zone-plate.pdf')}>
           PDF
+        </button>
+        <button className="secondary" disabled={!valid || loading}
+                onClick={() => downloadCalibrationPdf({
+                  dpi: req.dpi,
+                  printScale: 1,
+                  wavelengthNm: req.wavelengthNm,
+                  focalLengthMm: req.focalLengthMm,
+                }, sheet, 'fresnel-calibration-sheet.pdf')}>
+          Calibration PDF
         </button>
         <button className="secondary" disabled={!valid || loading}
                 onClick={() => downloadExportDxf(req, 'fresnel-zone-plate.dxf')}

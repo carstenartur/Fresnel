@@ -14,6 +14,13 @@ export interface SingleZonePlateRequest {
   polarity?: Polarity;
 }
 
+export interface CalibrationSheetRequest {
+  dpi: number;
+  printScale?: number;
+  wavelengthNm?: number;
+  focalLengthMm?: number;
+}
+
 export interface ChromaticShift { wavelengthNm: number; focalLengthMm: number; }
 export interface DefocusEntry { wallDistanceMm: number; blurDiameterMm: number; }
 
@@ -235,6 +242,10 @@ export async function downloadExportDxf(req: SingleZonePlateRequest, filename: s
 }
 export async function downloadExportGerber(req: SingleZonePlateRequest, filename: string): Promise<void> {
   const blob = await postBlob('/api/designs/export.gbr', req, 'application/vnd.gerber');
+  downloadBlob(blob, filename);
+}
+export async function downloadCalibrationPdf(req: CalibrationSheetRequest, sheet: string, filename: string): Promise<void> {
+  const blob = await postBlob(`/api/designs/calibration/export.pdf?sheet=${sheet}`, req, 'application/pdf');
   downloadBlob(blob, filename);
 }
 
