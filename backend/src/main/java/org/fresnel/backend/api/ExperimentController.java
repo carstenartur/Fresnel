@@ -22,7 +22,7 @@ import java.util.Locale;
 @RequestMapping("/api/experiments")
 public class ExperimentController {
 
-    private static final MediaType TEXT_MARKDOWN = MediaType.parseMediaType("text/markdown");
+    private static final MediaType TEXT_MARKDOWN = new MediaType("text", "markdown", StandardCharsets.UTF_8);
 
     private final ObjectMapper mapper;
 

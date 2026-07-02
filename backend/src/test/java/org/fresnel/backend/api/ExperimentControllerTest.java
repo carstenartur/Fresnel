@@ -118,9 +118,9 @@ class ExperimentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition",
                         containsString("fresnel-experiment-zone-plate.md")))
-                .andExpect(content().contentType("text/markdown"))
+                .andExpect(content().contentType("text/markdown;charset=UTF-8"))
                 .andExpect(content().string(containsString("# Experimental validation record")))
-                .andExpect(content().string(containsString("Measured focal length 1025 mm")))
+                .andExpect(content().string(containsString("Measured focal length: 1025 mm")))
                 .andExpect(content().string(containsString("Focal-length error: 2.5 %")));
     }
 
@@ -128,7 +128,7 @@ class ExperimentControllerTest {
     void compareRejectsMismatchedParameterHash() throws Exception {
         mvc.perform(post("/api/experiments/compare")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(RECORD.replace("\"parameterHash\": \"zp-demo-hash\"",
+                        .content(RECORD.replaceFirst("\"parameterHash\": \"zp-demo-hash\"",
                                 "\"parameterHash\": \"other-hash\"")))
                 .andExpect(status().isBadRequest());
     }
