@@ -81,11 +81,11 @@ public final class DesignAssistant {
         dBalanced = Math.min(dBalanced, maxAperture);
         dWide     = Math.min(dWide,     maxAperture);
 
-        // If all are degenerate (page is very small) spread evenly in [1mm, maxAperture]
-        if (dCompact < 1.0) {
-            dCompact  = Math.max(1.0, maxAperture / 3.0);
-            dBalanced = Math.max(1.0, maxAperture * 2.0 / 3.0);
-            dWide     = Math.max(1.0, maxAperture);
+        // If clamping collapsed all candidates to the same maximum, spread evenly in [maxAperture/3, maxAperture]
+        if (dCompact >= dBalanced) {
+            dCompact  = maxAperture / 3.0;
+            dBalanced = maxAperture * 2.0 / 3.0;
+            dWide     = maxAperture;
         }
 
         // Round apertures to 0.1 mm for readability
@@ -158,10 +158,9 @@ public final class DesignAssistant {
                     scores[i], reasons, warnings, validations[i]));
         }
 
-        // Sort descending by composite score; ties: lower index wins (stable)
+        // Sort descending by composite score; ties preserve generation order (List.sort is stable)
         unranked.sort(Comparator.<CandidateDesign>comparingDouble(CandidateDesign::compositeScore)
-                .reversed()
-                .thenComparingInt(unranked::indexOf));
+                .reversed());
 
         List<CandidateDesign> ranked = new ArrayList<>();
         for (int r = 0; r < unranked.size(); r++) {

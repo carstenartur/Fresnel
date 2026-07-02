@@ -205,11 +205,10 @@ class DesignAssistantTest {
     // -------------------------------------------------------------------------
 
     @Test
-    void fabricationRiskOneForValidDesign() {
+    void fabricationRiskInUnitIntervalForValidDesign() {
         SingleZonePlateParameters p = SingleZonePlateParameters.onAxis(5.0, 2000.0, 532.0, 600.0);
         ValidationResult v = DesignValidator.validate(p);
         double risk = DesignAssistant.fabricationRisk(v);
-        // At 600 dpi, D=5mm this should be near printability threshold; risk is 1.0 or 0.5
         assertTrue(risk >= 0.0 && risk <= 1.0);
     }
 

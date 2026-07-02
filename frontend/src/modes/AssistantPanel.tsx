@@ -34,9 +34,10 @@ export function AssistantPanel() {
     setError(null);
     setResult(null);
     try {
+      const parsed = Number(maxAperture);
       const req: DesignGoalRequest = {
         ...goal,
-        maxApertureMm: maxAperture !== '' ? Number(maxAperture) : undefined,
+        maxApertureMm: maxAperture !== '' && isFinite(parsed) && parsed > 0 ? parsed : undefined,
       };
       setResult(await getRecommendation(req));
     } catch (e) {
