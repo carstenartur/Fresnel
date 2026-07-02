@@ -127,6 +127,74 @@ class DesignControllerTest {
     }
 
     @Test
+    void pluginValidationZonePlateIncludesAllLayers() throws Exception {
+        String body = """
+                {
+                  "apertureDiameterMm": 20.0,
+                  "focalLengthMm": 5000.0,
+                  "wavelengthNm": 550.0,
+                  "dpi": 2400.0
+                }
+                """;
+        mvc.perform(post("/api/designs/zone-plate/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pluginId").value("zone-plate"))
+                .andExpect(jsonPath("$.metrics[?(@.layer=='ANALYTICAL_OPTICS')]").exists())
+                .andExpect(jsonPath("$.metrics[?(@.layer=='NUMERICAL_PROPAGATION')]").exists())
+                .andExpect(jsonPath("$.metrics[?(@.layer=='MANUFACTURING_PRINTABILITY')]").exists())
+                .andExpect(jsonPath("$.findings[?(@.layer=='EXPERIMENTAL_HOOKS')]").exists());
+    }
+
+    @Test
+    void pluginValidationSupportsAllCurrentPluginIds() throws Exception {
+        mvc.perform(post("/api/designs/rgb-zone-plate/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"base":{"apertureDiameterMm":10.0,"focalLengthMm":1000.0,"wavelengthNm":550.0,"dpi":1200.0},
+                                 "redNm":630.0,"greenNm":532.0,"blueNm":450.0}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pluginId").value("rgb-zone-plate"));
+
+        mvc.perform(post("/api/designs/multi-focus/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"apertureDiameterMm":10.0,"focusPoints":[{"xMm":-2.0,"yMm":0.0,"zMm":900.0},{"xMm":2.0,"yMm":0.0,"zMm":1100.0}],
+                                 "wavelengthNm":550.0,"dpi":1200.0}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pluginId").value("multi-focus"));
+
+        mvc.perform(post("/api/designs/hex-macro-cell/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"macroRadiusMm":10.0,"subDiameterMm":4.0,"subPitchMm":4.5,"focalLengthMm":1000.0,
+                                 "wavelengthNm":550.0,"dpi":300.0}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pluginId").value("hex-macro-cell"));
+
+        mvc.perform(post("/api/designs/window-foil/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"sheetWidthMm":100.0,"sheetHeightMm":60.0,"macroRadiusMm":15.0,"subDiameterMm":4.0,"subPitchMm":4.5,
+                                 "wavelengthNm":550.0,"dpi":150.0}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pluginId").value("window-foil"));
+
+        mvc.perform(post("/api/designs/hologram/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"targetImageBase64":"AA==","sidePx":128,"iterations":40,"dpi":600.0}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pluginId").value("hologram"));
+    }
+
+    @Test
     void hexPreviewReturnsPng() throws Exception {
         String body = """
                 {
