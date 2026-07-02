@@ -35,6 +35,11 @@ class SecurityIntegrationTest {
                            "wavelengthNm": 550.0, "dpi": 300.0 } }
             """;
 
+    private static final String GOAL_BODY = """
+            { "dpi": 600.0, "pageSizeWidthMm": 210.0, "pageSizeHeightMm": 297.0,
+              "wavelengthNm": 532.0, "targetFocusMm": 2000.0 }
+            """;
+
     // --- 401 paths (anonymous, mutating) -----------------------------------
 
     @Test
@@ -85,6 +90,14 @@ class SecurityIntegrationTest {
         // GET /api/designs/persist is permitAll; returns an empty list when no
         // user is authenticated and no designs exist for that owner.
         mvc.perform(get("/api/designs/persist"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithAnonymousUser
+    void anonymousAssistantRecommendIsAllowed() throws Exception {
+        mvc.perform(post("/api/assistant/recommend")
+                        .contentType(MediaType.APPLICATION_JSON).content(GOAL_BODY))
                 .andExpect(status().isOk());
     }
 

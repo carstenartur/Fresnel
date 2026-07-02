@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AssistantPanel } from './modes/AssistantPanel';
 import { ComparisonPanel } from './modes/ComparisonPanel';
 import { HexMacroCellPanel } from './modes/HexMacroCellPanel';
 import { HologramPanel } from './modes/HologramPanel';
@@ -7,16 +8,17 @@ import { RgbPanel } from './modes/RgbPanel';
 import { SingleZonePlatePanel } from './modes/SingleZonePlatePanel';
 import { WindowFoilPanel } from './modes/WindowFoilPanel';
 
-type ModeKey = 'single' | 'hex' | 'foil' | 'multi' | 'rgb' | 'hologram' | 'compare';
+type ModeKey = 'single' | 'hex' | 'foil' | 'multi' | 'rgb' | 'hologram' | 'compare' | 'assistant';
 
 const MODES: ReadonlyArray<{ key: ModeKey; label: string; component: () => JSX.Element }> = [
-  { key: 'single',   label: 'Single ZP',     component: SingleZonePlatePanel },
-  { key: 'hex',      label: 'Hex macro',     component: HexMacroCellPanel },
-  { key: 'foil',     label: 'Window foil',   component: WindowFoilPanel },
-  { key: 'multi',    label: 'Multi-focus',   component: MultiFocusPanel },
-  { key: 'rgb',      label: 'RGB',           component: RgbPanel },
-  { key: 'hologram', label: 'Hologram (GS)', component: HologramPanel },
-  { key: 'compare',  label: 'Compare',       component: ComparisonPanel },
+  { key: 'single',    label: 'Single ZP',     component: SingleZonePlatePanel },
+  { key: 'hex',       label: 'Hex macro',     component: HexMacroCellPanel },
+  { key: 'foil',      label: 'Window foil',   component: WindowFoilPanel },
+  { key: 'multi',     label: 'Multi-focus',   component: MultiFocusPanel },
+  { key: 'rgb',       label: 'RGB',           component: RgbPanel },
+  { key: 'hologram',  label: 'Hologram (GS)', component: HologramPanel },
+  { key: 'compare',   label: 'Compare',       component: ComparisonPanel },
+  { key: 'assistant', label: 'Assistant',     component: AssistantPanel },
 ];
 
 export function App() {

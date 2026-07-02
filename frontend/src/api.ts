@@ -418,6 +418,47 @@ export async function downloadHologramStl(req: HologramRequest, filename: string
   downloadBlob(blob, filename);
 }
 
+// --- Optical Design Assistant ---
+
+export interface DesignGoalRequest {
+  dpi: number;
+  pageSizeWidthMm: number;
+  pageSizeHeightMm: number;
+  wavelengthNm: number;
+  targetFocusMm: number;
+  maxApertureMm?: number;
+}
+
+export interface AssistantWarning {
+  code: string;
+  message: string;
+}
+
+export interface RecommendationReason {
+  dimension: string;
+  description: string;
+}
+
+export interface CandidateDesign {
+  label: string;
+  parameters: SingleZonePlateRequest;
+  rank: number;
+  compositeScore: number;
+  reasons: RecommendationReason[];
+  warnings: AssistantWarning[];
+  validation: ValidationResponse;
+}
+
+export interface DesignRecommendation {
+  recommended: CandidateDesign;
+  alternatives: CandidateDesign[];
+  globalWarnings: AssistantWarning[];
+}
+
+export async function getRecommendation(req: DesignGoalRequest): Promise<DesignRecommendation> {
+  return postJson('/api/assistant/recommend', req);
+}
+
 // --- Design comparison ---
 
 export type ComparisonPluginId = 'single' | 'rgb';
