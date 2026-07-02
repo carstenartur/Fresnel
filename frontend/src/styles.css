@@ -77,11 +77,13 @@ body { margin: 0; }
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   padding: 6px 8px;
   border: 1px solid #cbd5e1;
   border-radius: 4px;
   font-size: 14px;
+  font-family: inherit;
 }
 
 .preview {
@@ -146,5 +148,5 @@ button {
 button:disabled { opacity: 0.6; cursor: not-allowed; }
 button.secondary { background: #fff; color: #2563eb; }
 
-.actions { display: flex; gap: 8px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .error-message { color: #b91c1c; font-size: 13px; }

@@ -106,6 +106,53 @@ export interface DesignValidationReport {
   valid: boolean;
 }
 
+export interface ExperimentSetup {
+  printerModel?: string;
+  nominalDpi?: number;
+  effectiveDpi?: number;
+  materialType?: string;
+  exposureSettings?: string;
+  lightSourceType?: string;
+  wavelengthNm?: number;
+  spectrumEstimate?: string;
+  environmentalNotes?: string;
+  photoReferences?: string[];
+}
+
+export interface MeasuredFocus {
+  label?: string;
+  measuredFocalLengthMm?: number;
+  measuredSpotSizeMicrons?: number;
+  focusRating?: string;
+  notes?: string;
+}
+
+export interface MeasurementResult {
+  targetFocalLengthMm?: number;
+  measuredFoci: MeasuredFocus[];
+}
+
+export interface ExperimentalComparison {
+  targetFocalLengthMm: number;
+  measuredFocalLengthMm: number;
+  focalLengthErrorMm: number;
+  focalLengthErrorPercent: number;
+  measuredSpotSizeMicrons?: number;
+  focusRating?: string;
+  summary: string;
+}
+
+export interface ExperimentRecord {
+  designId?: string;
+  pluginId?: string;
+  parameterHash?: string;
+  designDocument: DesignDocument;
+  validationReport: DesignValidationReport;
+  setup: ExperimentSetup;
+  measurement: MeasurementResult;
+  comparison?: ExperimentalComparison;
+}
+
 // --- Hex macro cell (Use Case B) ---
 export interface HexMacroCellRequest {
   macroRadiusMm: number;
@@ -283,6 +330,22 @@ export async function loadDesignFromFile<T = unknown>(file: File): Promise<Desig
   const parsed = JSON.parse(text) as DesignDocument<T>;
   // Round-trip through the backend to validate shape & schema version.
   return postJson<DesignDocument<T>>('/api/designs/load', parsed);
+}
+
+// --- Experimental validation ---
+
+export async function compareExperiment(record: ExperimentRecord): Promise<ExperimentRecord> {
+  return postJson<ExperimentRecord>('/api/experiments/compare', record);
+}
+
+export async function downloadExperimentJson(record: ExperimentRecord, filename?: string): Promise<void> {
+  const blob = await postBlob('/api/experiments/export.json', record, 'application/json');
+  downloadBlob(blob, filename ?? `fresnel-experiment-${record.validationReport.pluginId}.json`);
+}
+
+export async function downloadExperimentMarkdown(record: ExperimentRecord, filename?: string): Promise<void> {
+  const blob = await postBlob('/api/experiments/export.md', record, 'text/markdown');
+  downloadBlob(blob, filename ?? `fresnel-experiment-${record.validationReport.pluginId}.md`);
 }
 
 // --- Hex macro cell ---
