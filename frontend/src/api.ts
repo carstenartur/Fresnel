@@ -56,6 +56,49 @@ export interface ValidationResponse {
   qualityReport?: OpticalQualityReport;
 }
 
+export type ValidationLayer =
+  | 'ANALYTICAL_OPTICS'
+  | 'NUMERICAL_PROPAGATION'
+  | 'MANUFACTURING_PRINTABILITY'
+  | 'EXPERIMENTAL_HOOKS';
+export type ValidationSeverity = 'INFO' | 'WARNING' | 'ERROR';
+
+export interface ValidationAssumption {
+  layer: ValidationLayer;
+  statement: string;
+  limitation: boolean;
+}
+
+export interface ValidationMetricEntry {
+  layer: ValidationLayer;
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+}
+
+export interface ValidationFindingEntry {
+  layer: ValidationLayer;
+  code: string;
+  message: string;
+  severity: ValidationSeverity;
+}
+
+export interface DesignValidationReport {
+  pluginId: string;
+  parameterHash: string;
+  parameterSnapshot: Record<string, string>;
+  wavelengthMinNm?: number;
+  wavelengthMaxNm?: number;
+  apertureDiameterMm?: number;
+  targetFocalDistancesMm: number[];
+  pixelSizeMicrons?: number;
+  assumptions: ValidationAssumption[];
+  metrics: ValidationMetricEntry[];
+  findings: ValidationFindingEntry[];
+  valid: boolean;
+}
+
 // --- Hex macro cell (Use Case B) ---
 export interface HexMacroCellRequest {
   macroRadiusMm: number;
@@ -167,6 +210,9 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export async function validate(req: SingleZonePlateRequest): Promise<ValidationResponse> {
   return postJson('/api/designs/validate', req);
+}
+export async function validatePlugin(pluginId: string, payload: unknown): Promise<DesignValidationReport> {
+  return postJson(`/api/designs/${pluginId}/validation`, payload);
 }
 export async function fetchPreviewPng(req: SingleZonePlateRequest): Promise<Blob> {
   return postBlob('/api/designs/preview.png', req);

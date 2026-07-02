@@ -1,6 +1,9 @@
 package org.fresnel.backend.api;
 
 import jakarta.validation.Valid;
+import jakarta.validation.Validator;
+import org.fresnel.optics.DesignValidationReport;
+import org.fresnel.optics.DesignValidationReports;
 import org.fresnel.optics.DesignValidator;
 import org.fresnel.optics.MultiFocusRenderer;
 import org.fresnel.optics.PdfExporter;
@@ -21,10 +24,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,6 +50,13 @@ public class DesignController {
 
     /** Maximum image side (in pixels) allowed for synchronous PNG preview. */
     public static final long MAX_PREVIEW_PX = 4096;
+    private final ObjectMapper objectMapper;
+    private final Validator validator;
+
+    public DesignController(ObjectMapper objectMapper, Validator validator) {
+        this.objectMapper = objectMapper;
+        this.validator = validator;
+    }
 
     // -------- Single zone plate (Use Case A) --------
 
@@ -54,6 +67,34 @@ public class DesignController {
         SingleZonePlateParameters params = req.toParameters();
         ValidationResult v = DesignValidator.validate(params);
         return ValidationResponse.from(v);
+    }
+
+    @PostMapping(value = "/{pluginId}/validation",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public DesignValidationReport validatePlugin(@PathVariable("pluginId") String pluginId,
+                                                 @RequestBody JsonNode payload) {
+        return switch (pluginId) {
+            case "zone-plate" -> DesignValidationReports.forZonePlate(
+                    validated(objectMapper.convertValue(payload, SingleZonePlateRequest.class)).toParameters());
+            case "rgb-zone-plate" -> {
+                RgbZonePlateRequest req = validated(objectMapper.convertValue(payload, RgbZonePlateRequest.class));
+                yield DesignValidationReports.forRgbZonePlate(
+                        req.base().toParameters(), req.redNm(), req.greenNm(), req.blueNm());
+            }
+            case "multi-focus" -> DesignValidationReports.forMultiFocus(
+                    validated(objectMapper.convertValue(payload, MultiFocusRequest.class)).toParameters());
+            case "hex-macro-cell" -> DesignValidationReports.forHexMacroCell(
+                    validated(objectMapper.convertValue(payload, HexMacroCellRequest.class)).toParameters());
+            case "window-foil" -> DesignValidationReports.forWindowFoil(
+                    validated(objectMapper.convertValue(payload, WindowFoilRequest.class)).toParameters());
+            case "hologram" -> {
+                HologramRequest req = validated(objectMapper.convertValue(payload, HologramRequest.class));
+                yield DesignValidationReports.forHologram(
+                        req.sidePx(), req.iterations(), req.dpi(), req.resolvedWavelengthNm());
+            }
+            default -> throw new IllegalArgumentException("unknown plugin id: " + pluginId);
+        };
     }
 
     @PostMapping(value = "/preview.png",
@@ -289,6 +330,18 @@ public class DesignController {
     }
 
     // -------- Helpers --------
+
+    /** Programmatically validates a request DTO, throwing {@link IllegalArgumentException} (→ HTTP 400) on violations. */
+    private <T> T validated(T req) {
+        var violations = validator.validate(req);
+        if (!violations.isEmpty()) {
+            throw new IllegalArgumentException(violations.stream()
+                    .map(v -> v.getPropertyPath() + " " + v.getMessage())
+                    .sorted()
+                    .collect(java.util.stream.Collectors.joining("; ")));
+        }
+        return req;
+    }
 
     private static long estimateSizePx(SingleZonePlateParameters p) {
         double pixelMm = 25.4 / p.dpi();

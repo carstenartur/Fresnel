@@ -10,13 +10,15 @@ import {
   loadDesignFromFile,
   saveDesign,
   validate,
+  validatePlugin,
+  type DesignValidationReport,
   type DesignMetrics,
   type OpticalQualityReport,
   type PropagationMode,
   type SingleZonePlateRequest,
   type Warning,
 } from '../api';
-import { NumberField, PreviewPane, useBlobUrl } from './shared';
+import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DPI_PRESETS = [600, 1200, 2400, 4800];
 const SHEETS = ['FIT', 'A4', 'A3', 'A2', 'A1', 'A0'];
@@ -37,6 +39,7 @@ export function SingleZonePlatePanel() {
   const [metrics, setMetrics] = useState<DesignMetrics | null>(null);
   const [qualityReport, setQualityReport] = useState<OpticalQualityReport | null>(null);
   const [warnings, setWarnings] = useState<Warning[]>([]);
+  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [valid, setValid] = useState(true);
   const [previewUrl, setPreview] = useBlobUrl();
   const [loading, setLoading] = useState(false);
@@ -50,16 +53,20 @@ export function SingleZonePlatePanel() {
       try {
         const v = await validate(req);
         if (id !== lastReqId.current) return;
+        const report = await validatePlugin('zone-plate', req);
+        if (id !== lastReqId.current) return;
         setMetrics(v.metrics);
         setQualityReport(v.qualityReport ?? null);
         setWarnings(v.warnings);
         setValid(v.valid);
+        setValidationReport(report);
         setError(null);
       } catch (e) {
         if (id !== lastReqId.current) return;
         setMetrics(null);
         setQualityReport(null);
         setWarnings([]);
+        setValidationReport(null);
         setValid(false);
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -202,6 +209,7 @@ export function SingleZonePlatePanel() {
       <PreviewPane url={previewUrl} alt="Fresnel zone plate preview" />
       {metrics && <Metrics m={metrics} />}
       {qualityReport && <QualityReport r={qualityReport} />}
+      <ValidationReportView report={validationReport} />
 
       <PropagationPanel req={req} />
     </>

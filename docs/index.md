@@ -29,6 +29,32 @@ Each plugin consists of:
 5. **Doc-image test** (`PluginDocImagesTest`) — renders example images and writes
    them to `docs/assets/plugins/<plugin>/`.
 
+## Shared validation model
+
+Deterministic, plugin-independent validation is modeled in `optics-core` with:
+
+- `DesignValidationReport`
+- `ValidationMetric`
+- `ValidationFinding`
+- `ValidationSeverity`
+- `ValidationAssumption`
+
+Validation layers are represented by `ValidationLayer`:
+
+- analytical optics checks
+- numerical / propagation-derived checks
+- manufacturing and printability checks
+- experimental validation hooks
+
+Each plugin exposes a report through:
+
+`POST /api/designs/{pluginId}/validation`
+
+Plugin authors should implement a report factory in `DesignValidationReports`
+for new plugins. If a layer cannot be computed yet, return an explicit
+informational finding (not silently omitted) so downstream UIs can still render
+the layer consistently.
+
 ## Regenerating all documentation images
 
 ```bash
