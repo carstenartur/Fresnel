@@ -239,6 +239,17 @@ example images and API references.
 For practical, reproducible lab workflows, see the
 **[Experiments handbook](docs/experiments/first-zone-plate.md)**.
 
+Validation and experiment references:
+
+- Shared plugin validation model: `POST /api/designs/{pluginId}/validation`
+- Legacy single-zone validation: `POST /api/designs/validate`
+- Print calibration sheet export: `POST /api/designs/calibration/export.pdf`
+- Experimental measurement comparison/export:
+  `POST /api/experiments/compare`, `POST /api/experiments/export.json`,
+  `POST /api/experiments/export.md`
+- End-to-end example (design → calibration print → experiment → theory comparison):
+  [docs/experiments/first-zone-plate.md](docs/experiments/first-zone-plate.md)
+
 | Plugin | Description |
 |--------|-------------|
 | [Zone Plate](docs/plugins/zone-plate.md) | Single Fresnel zone plate — binary amplitude or greyscale phase |
@@ -253,8 +264,11 @@ For practical, reproducible lab workflows, see the
 - **`optics-core/`** – Pure Java library (no Spring dependency) with the
   optical math, validators and renderers. All numerical computations use
   IEEE‑754 `double` precision; see the note in `ZonePlateRenderer`.
-- **`backend/`** – Spring Boot 4 REST API exposing `/api/designs/validate`,
-  `/api/designs/preview.png` and `/api/designs/export.png`. Persists
+- **`backend/`** – Spring Boot 4 REST API exposing validation, preview, export,
+  assistant and experiment endpoints (for example:
+  `/api/designs/{pluginId}/validation`, `/api/designs/preview.png`,
+  `/api/designs/export.png`, `/api/assistant/recommend`,
+  `/api/experiments/compare`). Persists
   designs / render-job state via Spring Data JPA (H2 by default,
   PostgreSQL via the `postgres` profile) and protects mutating endpoints
   with HTTP Basic auth.  Also serves the bundled React frontend as static
@@ -266,8 +280,9 @@ For practical, reproducible lab workflows, see the
 
 Mutating endpoints (`POST /api/designs/save`, `POST /api/jobs/**`,
 `POST /api/holograms/**`, etc.) require HTTP Basic auth. Read-only
-endpoints (`/api/designs/validate`, `/api/designs/preview*`) remain
-publicly accessible.
+endpoints (for example `/api/designs/validate`,
+`/api/designs/{pluginId}/validation`, `/api/designs/preview*`,
+`/api/assistant/recommend`) remain publicly accessible.
 
 Two users are seeded in memory by default:
 

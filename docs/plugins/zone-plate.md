@@ -48,12 +48,20 @@ a larger phase shift.
 Every transparent zone becomes opaque and vice versa.  The first-order focal spot
 is the same; only the zero-order background changes.
 
-## Optical quality report
+## Validation workflow
 
-Calling `DesignValidator.validate(p)` (or the `/api/designs/validate` REST endpoint)
-returns an `OpticalQualityReport` alongside the printability metrics.
+Zone plate designs support two deterministic validation surfaces:
 
-### Fields and formulas
+- `POST /api/designs/validate` (legacy single-zone response as `ValidationResponse`)
+- `POST /api/designs/zone-plate/validation` (zone-plate instance of the
+  shared plugin validation route `POST /api/designs/{pluginId}/validation`,
+  returning `DesignValidationReport`)
+
+Both include optical and printability signals with explicit units and assumptions.
+The plugin-independent report additionally keeps validation layers/finding semantics
+consistent with the experimental workflow and export payloads.
+
+### Optical quality fields and formulas
 
 All formulas assume a paraxial diffractive optic working in air (n = 1).
 
