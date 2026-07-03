@@ -63,24 +63,25 @@ import org.springframework.security.web.SecurityFilterChain;
                                 &quot;/api/designs/preview.png&quot;,
                                 &quot;/api/designs/load&quot;,
                                 &quot;/api/designs/*/info&quot;,
-<span class="fc" id="L66">                                &quot;/api/designs/*/preview.png&quot;).permitAll()</span>
+                                &quot;/api/designs/*/preview.png&quot;,
+<span class="fc" id="L67">                                &quot;/api/assistant/recommend&quot;).permitAll()</span>
                         // Mutating endpoints require an authenticated user.
-<span class="fc" id="L68">                        .requestMatchers(HttpMethod.POST,</span>
+<span class="fc" id="L69">                        .requestMatchers(HttpMethod.POST,</span>
                                 &quot;/api/designs/save&quot;,
                                 &quot;/api/designs/persist&quot;,
                                 &quot;/api/designs/export*&quot;,
                                 &quot;/api/designs/*/export*&quot;,
                                 &quot;/api/jobs/**&quot;,
-<span class="fc" id="L74">                                &quot;/api/holograms/**&quot;).authenticated()</span>
-<span class="fc" id="L75">                        .requestMatchers(HttpMethod.DELETE, &quot;/api/**&quot;).authenticated()</span>
-<span class="fc" id="L76">                        .anyRequest().permitAll())</span>
-<span class="fc" id="L77">                .httpBasic(basic -&gt; {});</span>
-<span class="fc" id="L78">        return http.build();</span>
+<span class="fc" id="L75">                                &quot;/api/holograms/**&quot;).authenticated()</span>
+<span class="fc" id="L76">                        .requestMatchers(HttpMethod.DELETE, &quot;/api/**&quot;).authenticated()</span>
+<span class="fc" id="L77">                        .anyRequest().permitAll())</span>
+<span class="fc" id="L78">                .httpBasic(basic -&gt; {});</span>
+<span class="fc" id="L79">        return http.build();</span>
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-<span class="fc" id="L83">        return PasswordEncoderFactories.createDelegatingPasswordEncoder();</span>
+<span class="fc" id="L84">        return PasswordEncoderFactories.createDelegatingPasswordEncoder();</span>
     }
 
     @Bean
@@ -90,15 +91,15 @@ import org.springframework.security.web.SecurityFilterChain;
             @Value(&quot;${fresnel.security.user.password:user}&quot;) String userPassword,
             @Value(&quot;${fresnel.security.admin.username:admin}&quot;) String adminName,
             @Value(&quot;${fresnel.security.admin.password:admin}&quot;) String adminPassword) {
-<span class="fc" id="L93">        UserDetails user = User.withUsername(userName)</span>
-<span class="fc" id="L94">                .password(encoder.encode(userPassword))</span>
-<span class="fc" id="L95">                .roles(&quot;USER&quot;)</span>
-<span class="fc" id="L96">                .build();</span>
-<span class="fc" id="L97">        UserDetails admin = User.withUsername(adminName)</span>
-<span class="fc" id="L98">                .password(encoder.encode(adminPassword))</span>
-<span class="fc" id="L99">                .roles(&quot;USER&quot;, &quot;ADMIN&quot;)</span>
-<span class="fc" id="L100">                .build();</span>
-<span class="fc" id="L101">        return new InMemoryUserDetailsManager(user, admin);</span>
+<span class="fc" id="L94">        UserDetails user = User.withUsername(userName)</span>
+<span class="fc" id="L95">                .password(encoder.encode(userPassword))</span>
+<span class="fc" id="L96">                .roles(&quot;USER&quot;)</span>
+<span class="fc" id="L97">                .build();</span>
+<span class="fc" id="L98">        UserDetails admin = User.withUsername(adminName)</span>
+<span class="fc" id="L99">                .password(encoder.encode(adminPassword))</span>
+<span class="fc" id="L100">                .roles(&quot;USER&quot;, &quot;ADMIN&quot;)</span>
+<span class="fc" id="L101">                .build();</span>
+<span class="fc" id="L102">        return new InMemoryUserDetailsManager(user, admin);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

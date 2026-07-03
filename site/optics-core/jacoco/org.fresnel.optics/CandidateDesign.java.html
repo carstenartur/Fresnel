@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CandidateDesign.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">CandidateDesign.java</span></div><h1>CandidateDesign.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.util.List;
+
+/**
+ * A generated and evaluated design candidate produced by the Optical Design Assistant.
+ *
+ * @param label          short human-readable label (e.g. &quot;Compact Zone Plate&quot;)
+ * @param parameters     zone plate parameters for this candidate
+ * @param rank           1-based rank among all candidates (1 = best)
+ * @param compositeScore normalized composite score in [0, 1]; higher is better
+ * @param reasons        per-dimension scoring notes explaining the rank
+ * @param warnings       design-specific assistant warnings (e.g. near printability limit)
+ * @param validation     full validation result including metrics and optical quality
+ */
+<span class="fc" id="L16">public record CandidateDesign(</span>
+        String label,
+        SingleZonePlateParameters parameters,
+        int rank,
+        double compositeScore,
+        List&lt;RecommendationReason&gt; reasons,
+        List&lt;AssistantWarning&gt; warnings,
+        ValidationResult validation
+) {}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

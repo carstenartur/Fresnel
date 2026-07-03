@@ -1,10 +1,13 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 Fresnel Optics Core,org.fresnel.optics,PropagationMode,0,15,0,0,0,3,0,1,0,1
+Fresnel Optics Core,org.fresnel.optics,DesignAssistant,49,783,11,45,9,131,11,29,0,12
 Fresnel Optics Core,org.fresnel.optics,HologramParameters,20,123,6,20,0,19,6,9,0,2
 Fresnel Optics Core,org.fresnel.optics,PluginCapability,0,69,0,0,0,12,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,DesignMetrics,15,37,2,2,3,4,3,1,1,1
 Fresnel Optics Core,org.fresnel.optics,ValidationLayer,0,27,0,0,0,5,0,1,0,1
+Fresnel Optics Core,org.fresnel.optics,DesignRecommendation,0,12,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,PngExporter,0,96,0,0,0,24,0,3,0,3
+Fresnel Optics Core,org.fresnel.optics,RecommendationReason,0,9,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,ValidationResult.Warning,0,12,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,DesignMetrics.ChromaticShift,0,9,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,RgbZonePlateRenderer,5,185,6,12,1,32,6,5,0,2
@@ -25,7 +28,7 @@ Fresnel Optics Core,org.fresnel.optics,ValidationAssumption,0,12,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,StlExporter.Grid,0,18,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,GerberExporter,2,179,1,15,0,32,1,9,0,2
 Fresnel Optics Core,org.fresnel.optics,Fft2,6,365,1,25,0,52,1,16,0,4
-Fresnel Optics Core,org.fresnel.optics,DesignValidator,23,359,3,13,3,52,3,11,0,6
+Fresnel Optics Core,org.fresnel.optics,DesignValidator,5,377,2,14,0,55,2,12,0,6
 Fresnel Optics Core,org.fresnel.optics,Units,0,29,0,2,0,6,0,5,0,4
 Fresnel Optics Core,org.fresnel.optics,DesignMetrics.DefocusEntry,0,9,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,SvgExporter,10,305,5,13,2,47,6,9,1,5
@@ -33,6 +36,7 @@ Fresnel Optics Core,org.fresnel.optics,ValidationSeverity,0,21,0,0,0,4,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,WindowFoilParameters.CellSpec,5,23,1,1,0,4,1,2,0,2
 Fresnel Optics Core,org.fresnel.optics,ValidationMetric,0,18,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,DxfExporter,1,111,1,3,0,26,1,6,0,5
+Fresnel Optics Core,org.fresnel.optics,AssistantWarning,0,9,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,HexMacroCellParameters,30,96,6,12,0,14,6,5,0,2
 Fresnel Optics Core,org.fresnel.optics,StlExporter,39,871,14,36,5,126,14,20,0,9
 Fresnel Optics Core,org.fresnel.optics,PluginRegistry,14,191,3,5,3,34,3,8,0,7
@@ -48,7 +52,9 @@ Fresnel Optics Core,org.fresnel.optics,HologramParameters.OutputType,0,15,0,0,0,
 Fresnel Optics Core,org.fresnel.optics,DesignValidationReport,24,64,7,5,1,8,8,1,2,1
 Fresnel Optics Core,org.fresnel.optics,SingleZonePlateParameters,30,59,6,6,0,9,6,2,0,2
 Fresnel Optics Core,org.fresnel.optics,WindowFoilParameters,55,96,12,12,2,16,12,3,0,3
+Fresnel Optics Core,org.fresnel.optics,CandidateDesign,0,24,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,ValidationResult.Warning.Severity,0,21,0,0,0,1,0,1,0,1
+Fresnel Optics Core,org.fresnel.optics,DesignGoal,20,58,4,10,1,8,4,4,0,1
 Fresnel Optics Core,org.fresnel.optics,MultiFocusParameters.FocusPoint,5,16,1,1,0,3,1,1,0,1
 Fresnel Optics Core,org.fresnel.optics,Polarity,0,15,0,0,0,3,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,ValidationFinding,0,15,0,0,0,1,0,1,0,1

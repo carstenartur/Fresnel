@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesignAssistant.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">DesignAssistant.java</span></div><h1>DesignAssistant.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+/**
+ * Goal-driven Optical Design Assistant for Fresnel diffractive optics.
+ *
+ * &lt;p&gt;Given a {@link DesignGoal} the assistant generates several plausible Zone Plate candidate
+ * designs, evaluates them and returns a ranked {@link DesignRecommendation} with human-readable
+ * explanations.
+ *
+ * &lt;h2&gt;Candidate generation strategy (Zone Plate)&lt;/h2&gt;
+ * &lt;p&gt;Three aperture diameters are chosen that span the printability range for the given
+ * DPI/wavelength/focal-length combination:
+ * &lt;ol&gt;
+ *   &lt;li&gt;&lt;em&gt;Compact&lt;/em&gt; — aperture at exactly 5 px per outermost zone (recommended lower bound);
+ *       best printability, fewest zones.&lt;/li&gt;
+ *   &lt;li&gt;&lt;em&gt;Balanced&lt;/em&gt; — aperture at ~3.5 px per outermost zone; medium trade-off.&lt;/li&gt;
+ *   &lt;li&gt;&lt;em&gt;Wide-aperture&lt;/em&gt; — aperture at ~2.5 px per outermost zone; most zones and highest
+ *       NA, but near the printability warning limit.&lt;/li&gt;
+ * &lt;/ol&gt;
+ * &lt;p&gt;All candidates are clamped to the smallest of: the page dimension and the optional
+ * {@link DesignGoal#maxApertureMm()} constraint.
+ *
+ * &lt;h2&gt;Scoring&lt;/h2&gt;
+ * &lt;p&gt;A composite score in [0, 1] is computed from four dimensions, normalized across the
+ * candidate set so that each run is deterministic:
+ * &lt;ul&gt;
+ *   &lt;li&gt;40 % printability   — pixels per outermost zone, normalized&lt;/li&gt;
+ *   &lt;li&gt;30 % focus quality  — numerical aperture, normalized&lt;/li&gt;
+ *   &lt;li&gt;20 % zone adequacy  — number of Fresnel zones, normalized&lt;/li&gt;
+ *   &lt;li&gt;10 % fabrication risk — 1.0 (no warnings), 0.5 (warnings), 0.0 (errors)&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;h2&gt;Advisory disclaimer&lt;/h2&gt;
+ * &lt;p&gt;The returned recommendation is advisory and based on the stated physical assumptions.
+ * The assistant does not perform wave-optical simulation; it uses the paraxial thin-lens
+ * approximation throughout.
+ */
+public final class DesignAssistant {
+
+    /** Number of Zone Plate candidates generated per recommendation. */
+    static final int CANDIDATE_COUNT = 3;
+
+    /** Target pixels per outer zone for the &quot;compact&quot; candidate. */
+    private static final double TARGET_PX_COMPACT = 5.0;
+    /** Target pixels per outer zone for the &quot;balanced&quot; candidate. */
+    private static final double TARGET_PX_BALANCED = 3.5;
+    /** Target pixels per outer zone for the &quot;wide&quot; candidate. */
+    private static final double TARGET_PX_WIDE = 2.5;
+
+    private DesignAssistant() {}
+
+    /**
+     * Generate candidate Zone Plate designs for the given goal and return a ranked recommendation.
+     *
+     * @param goal user-provided design goal and constraints
+     * @return ranked recommendation with the best candidate, alternatives and global warnings
+     * @throws IllegalArgumentException if the goal parameters are invalid
+     */
+    public static DesignRecommendation recommend(DesignGoal goal) {
+<span class="fc" id="L64">        double pixelMm = Units.pixelSizeMm(goal.dpi());</span>
+<span class="fc" id="L65">        double lambdaMm = Units.nmToMm(goal.wavelengthNm());</span>
+<span class="fc" id="L66">        double focalMm = goal.targetFocusMm();</span>
+
+        // Physical aperture constraints
+<span class="fc" id="L69">        double maxByPage = Math.min(goal.pageSizeWidthMm(), goal.pageSizeHeightMm());</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        double maxAperture = (goal.maxApertureMm() != null)</span>
+<span class="fc" id="L71">                ? Math.min(maxByPage, goal.maxApertureMm())</span>
+<span class="fc" id="L72">                : maxByPage;</span>
+
+        // Aperture diameters at the target pixels-per-outer-zone thresholds
+<span class="fc" id="L75">        double dCompact   = lambdaMm * focalMm / (TARGET_PX_COMPACT   * pixelMm);</span>
+<span class="fc" id="L76">        double dBalanced  = lambdaMm * focalMm / (TARGET_PX_BALANCED  * pixelMm);</span>
+<span class="fc" id="L77">        double dWide      = lambdaMm * focalMm / (TARGET_PX_WIDE      * pixelMm);</span>
+
+        // Clamp to the effective maximum (page or explicit cap)
+<span class="fc" id="L80">        dCompact  = Math.min(dCompact,  maxAperture);</span>
+<span class="fc" id="L81">        dBalanced = Math.min(dBalanced, maxAperture);</span>
+<span class="fc" id="L82">        dWide     = Math.min(dWide,     maxAperture);</span>
+
+        // If clamping collapsed all candidates to the same maximum, spread evenly in [maxAperture/3, maxAperture]
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">        if (dCompact &gt;= dBalanced) {</span>
+<span class="nc" id="L86">            dCompact  = maxAperture / 3.0;</span>
+<span class="nc" id="L87">            dBalanced = maxAperture * 2.0 / 3.0;</span>
+<span class="nc" id="L88">            dWide     = maxAperture;</span>
+        }
+
+        // Round apertures to 0.1 mm for readability
+<span class="fc" id="L92">        dCompact  = round1(dCompact);</span>
+<span class="fc" id="L93">        dBalanced = round1(dBalanced);</span>
+<span class="fc" id="L94">        dWide     = round1(dWide);</span>
+
+<span class="fc" id="L96">        double wavelengthNm = goal.wavelengthNm();</span>
+<span class="fc" id="L97">        double dpi = goal.dpi();</span>
+
+<span class="fc" id="L99">        SingleZonePlateParameters pCompact  = onAxis(dCompact,  focalMm, wavelengthNm, dpi);</span>
+<span class="fc" id="L100">        SingleZonePlateParameters pBalanced = onAxis(dBalanced, focalMm, wavelengthNm, dpi);</span>
+<span class="fc" id="L101">        SingleZonePlateParameters pWide     = onAxis(dWide,     focalMm, wavelengthNm, dpi);</span>
+
+<span class="fc" id="L103">        ValidationResult vCompact  = DesignValidator.validate(pCompact);</span>
+<span class="fc" id="L104">        ValidationResult vBalanced = DesignValidator.validate(pBalanced);</span>
+<span class="fc" id="L105">        ValidationResult vWide     = DesignValidator.validate(pWide);</span>
+
+        // --- Score each candidate ---
+<span class="fc" id="L108">        double[] pixPerZone = {</span>
+<span class="fc" id="L109">                vCompact.metrics().pixelsPerOuterZone(),</span>
+<span class="fc" id="L110">                vBalanced.metrics().pixelsPerOuterZone(),</span>
+<span class="fc" id="L111">                vWide.metrics().pixelsPerOuterZone()</span>
+        };
+<span class="fc" id="L113">        double[] naValues = {</span>
+<span class="fc" id="L114">                naFrom(vCompact),</span>
+<span class="fc" id="L115">                naFrom(vBalanced),</span>
+<span class="fc" id="L116">                naFrom(vWide)</span>
+        };
+<span class="fc" id="L118">        double[] zoneValues = {</span>
+<span class="fc" id="L119">                vCompact.metrics().numberOfZones(),</span>
+<span class="fc" id="L120">                vBalanced.metrics().numberOfZones(),</span>
+<span class="fc" id="L121">                vWide.metrics().numberOfZones()</span>
+        };
+<span class="fc" id="L123">        double[] riskValues = {</span>
+<span class="fc" id="L124">                fabricationRisk(vCompact),</span>
+<span class="fc" id="L125">                fabricationRisk(vBalanced),</span>
+<span class="fc" id="L126">                fabricationRisk(vWide)</span>
+        };
+
+<span class="fc" id="L129">        double maxPpz   = max(pixPerZone);</span>
+<span class="fc" id="L130">        double maxNA    = max(naValues);</span>
+<span class="fc" id="L131">        double maxZones = max(zoneValues);</span>
+
+<span class="fc" id="L133">        double[] scores = new double[CANDIDATE_COUNT];</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        for (int i = 0; i &lt; CANDIDATE_COUNT; i++) {</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">            double pPrint = maxPpz   &gt; 0 ? pixPerZone[i] / maxPpz   : 0.0;</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">            double pNA    = maxNA    &gt; 0 ? naValues[i]   / maxNA    : 0.0;</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">            double pZones = maxZones &gt; 0 ? zoneValues[i] / maxZones : 0.0;</span>
+<span class="fc" id="L138">            scores[i] = 0.40 * pPrint + 0.30 * pNA + 0.20 * pZones + 0.10 * riskValues[i];</span>
+        }
+
+        // --- Build candidate objects ---
+<span class="fc" id="L142">        String[] labels = {</span>
+<span class="fc" id="L143">                &quot;Compact Zone Plate (D = &quot; + fmt(dCompact) + &quot; mm)&quot;,</span>
+<span class="fc" id="L144">                &quot;Balanced Zone Plate (D = &quot; + fmt(dBalanced) + &quot; mm)&quot;,</span>
+<span class="fc" id="L145">                &quot;Wide-Aperture Zone Plate (D = &quot; + fmt(dWide) + &quot; mm)&quot;</span>
+        };
+<span class="fc" id="L147">        SingleZonePlateParameters[] params = { pCompact, pBalanced, pWide };</span>
+<span class="fc" id="L148">        ValidationResult[] validations = { vCompact, vBalanced, vWide };</span>
+
+<span class="fc" id="L150">        List&lt;CandidateDesign&gt; unranked = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        for (int i = 0; i &lt; CANDIDATE_COUNT; i++) {</span>
+<span class="fc" id="L152">            List&lt;RecommendationReason&gt; reasons = buildReasons(</span>
+                    params[i], validations[i], scores[i],
+                    pixPerZone[i], naValues[i], zoneValues[i], riskValues[i]);
+<span class="fc" id="L155">            List&lt;AssistantWarning&gt; warnings = buildWarnings(validations[i]);</span>
+<span class="fc" id="L156">            unranked.add(new CandidateDesign(</span>
+                    labels[i], params[i], 0 /* rank assigned below */,
+                    scores[i], reasons, warnings, validations[i]));
+        }
+
+        // Sort descending by composite score; ties preserve generation order (List.sort is stable)
+<span class="fc" id="L162">        unranked.sort(Comparator.&lt;CandidateDesign&gt;comparingDouble(CandidateDesign::compositeScore)</span>
+<span class="fc" id="L163">                .reversed());</span>
+
+<span class="fc" id="L165">        List&lt;CandidateDesign&gt; ranked = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">        for (int r = 0; r &lt; unranked.size(); r++) {</span>
+<span class="fc" id="L167">            CandidateDesign c = unranked.get(r);</span>
+<span class="fc" id="L168">            ranked.add(new CandidateDesign(</span>
+<span class="fc" id="L169">                    c.label(), c.parameters(), r + 1,</span>
+<span class="fc" id="L170">                    c.compositeScore(), c.reasons(), c.warnings(), c.validation()));</span>
+        }
+
+<span class="fc" id="L173">        List&lt;AssistantWarning&gt; globalWarnings = buildGlobalWarnings(goal, ranked);</span>
+
+<span class="fc" id="L175">        return new DesignRecommendation(</span>
+<span class="fc" id="L176">                ranked.get(0),</span>
+<span class="fc" id="L177">                ranked.subList(1, ranked.size()),</span>
+                globalWarnings);
+    }
+
+    // -------------------------------------------------------------------------
+    // Internal helpers
+    // -------------------------------------------------------------------------
+
+    private static SingleZonePlateParameters onAxis(
+            double apertureDiameterMm, double focalLengthMm, double wavelengthNm, double dpi) {
+<span class="fc" id="L187">        return new SingleZonePlateParameters(</span>
+                apertureDiameterMm, focalLengthMm, wavelengthNm, dpi, 0.0, 0.0,
+                MaskType.BINARY_AMPLITUDE, Polarity.POSITIVE);
+    }
+
+    private static double naFrom(ValidationResult v) {
+<span class="fc" id="L193">        OpticalQualityReport qr = v.qualityReport();</span>
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">        return qr != null ? qr.numericalAperture() : 0.0;</span>
+    }
+
+    /**
+     * Fabrication risk score: 1.0 if no warnings, 0.5 if any WARNING, 0.0 if any ERROR.
+     */
+    static double fabricationRisk(ValidationResult v) {
+<span class="fc" id="L201">        boolean hasError = v.warnings().stream()</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">                .anyMatch(w -&gt; w.severity() == ValidationResult.Warning.Severity.ERROR);</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">        if (hasError) return 0.0;</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        boolean hasWarning = !v.warnings().isEmpty();</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">        return hasWarning ? 0.5 : 1.0;</span>
+    }
+
+    private static List&lt;RecommendationReason&gt; buildReasons(
+            SingleZonePlateParameters p,
+            ValidationResult v,
+            double compositeScore,
+            double ppz, double na, double zones, double risk) {
+
+<span class="fc" id="L214">        List&lt;RecommendationReason&gt; reasons = new ArrayList&lt;&gt;();</span>
+
+        // Printability
+        String printDesc;
+<span class="fc bfc" id="L218" title="All 2 branches covered.">        if (ppz &gt;= 5.0) {</span>
+<span class="fc" id="L219">            printDesc = String.format(&quot;%.1f px per outer zone — good printability at %.0f dpi&quot;, ppz, p.dpi());</span>
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">        } else if (ppz &gt;= 2.0) {</span>
+<span class="fc" id="L221">            printDesc = String.format(&quot;%.1f px per outer zone — marginal at %.0f dpi; verify printer calibration&quot;,</span>
+<span class="fc" id="L222">                    ppz, p.dpi());</span>
+        } else {
+<span class="nc" id="L224">            printDesc = String.format(&quot;%.1f px per outer zone — below minimum at %.0f dpi; design is not printable&quot;,</span>
+<span class="nc" id="L225">                    ppz, p.dpi());</span>
+        }
+<span class="fc" id="L227">        reasons.add(new RecommendationReason(&quot;printability&quot;, printDesc));</span>
+
+        // Focus quality
+<span class="fc" id="L230">        OpticalQualityReport qr = v.qualityReport();</span>
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">        if (qr != null) {</span>
+<span class="fc" id="L232">            reasons.add(new RecommendationReason(&quot;focus_quality&quot;,</span>
+<span class="fc" id="L233">                    String.format(&quot;NA = %.5f, Airy disk = %.0f µm, depth of focus = %.0f µm&quot;,</span>
+<span class="fc" id="L234">                            qr.numericalAperture(),</span>
+<span class="fc" id="L235">                            qr.airyDiskDiameterMicrons(),</span>
+<span class="fc" id="L236">                            qr.depthOfFocusMicrons())));</span>
+        }
+
+        // Zone adequacy
+<span class="fc" id="L240">        int nZones = v.metrics().numberOfZones();</span>
+        String zoneDesc;
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">        if (nZones &gt;= 50) {</span>
+<span class="nc" id="L243">            zoneDesc = nZones + &quot; Fresnel zones — high-quality diffraction&quot;;</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">        } else if (nZones &gt;= 10) {</span>
+<span class="fc" id="L245">            zoneDesc = nZones + &quot; Fresnel zones — adequate diffraction quality&quot;;</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">        } else if (nZones &gt;= 5) {</span>
+<span class="fc" id="L247">            zoneDesc = nZones + &quot; Fresnel zones — minimal but functional&quot;;</span>
+        } else {
+<span class="fc" id="L249">            zoneDesc = nZones + &quot; Fresnel zones — too few; focus quality will be poor&quot;;</span>
+        }
+<span class="fc" id="L251">        reasons.add(new RecommendationReason(&quot;zone_adequacy&quot;, zoneDesc));</span>
+
+        // Fabrication risk
+        String riskDesc;
+<span class="fc bfc" id="L255" title="All 2 branches covered.">        if (risk == 1.0) {</span>
+<span class="fc" id="L256">            riskDesc = &quot;No printability warnings — low fabrication risk&quot;;</span>
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">        } else if (risk == 0.5) {</span>
+<span class="fc" id="L258">            riskDesc = &quot;Printability warnings present — moderate fabrication risk&quot;;</span>
+        } else {
+<span class="nc" id="L260">            riskDesc = &quot;Printability error — high fabrication risk; design may not reproduce&quot;;</span>
+        }
+<span class="fc" id="L262">        reasons.add(new RecommendationReason(&quot;fabrication_risk&quot;, riskDesc));</span>
+
+        // Physical size
+<span class="fc" id="L265">        reasons.add(new RecommendationReason(&quot;physical_size&quot;,</span>
+<span class="fc" id="L266">                String.format(&quot;Aperture diameter %.1f mm fits on the specified page&quot;, p.apertureDiameterMm())));</span>
+
+<span class="fc" id="L268">        return List.copyOf(reasons);</span>
+    }
+
+    private static List&lt;AssistantWarning&gt; buildWarnings(ValidationResult v) {
+<span class="fc" id="L272">        List&lt;AssistantWarning&gt; warnings = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L273" title="All 2 branches covered.">        for (ValidationResult.Warning w : v.warnings()) {</span>
+<span class="fc" id="L274">            warnings.add(new AssistantWarning(w.code(), w.message()));</span>
+<span class="fc" id="L275">        }</span>
+<span class="fc" id="L276">        return List.copyOf(warnings);</span>
+    }
+
+    private static List&lt;AssistantWarning&gt; buildGlobalWarnings(
+            DesignGoal goal, List&lt;CandidateDesign&gt; ranked) {
+
+<span class="fc" id="L282">        List&lt;AssistantWarning&gt; warnings = new ArrayList&lt;&gt;();</span>
+
+        // Always include the advisory disclaimer
+<span class="fc" id="L285">        warnings.add(new AssistantWarning(&quot;ADVISORY&quot;,</span>
+                &quot;This recommendation is advisory and based on stated physical assumptions &quot;
+                + &quot;(paraxial thin-lens approximation). Verify designs experimentally before use.&quot;));
+
+        // Warn if even the best candidate has printability errors
+<span class="fc" id="L290">        if (ranked.get(0).warnings().stream()</span>
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">                .anyMatch(w -&gt; w.code().equals(&quot;OUTER_ZONE_TOO_SMALL&quot;))) {</span>
+<span class="nc" id="L292">            warnings.add(new AssistantWarning(&quot;ALL_CANDIDATES_CRITICAL&quot;,</span>
+                    &quot;All candidates have outer zones smaller than 2 printer pixels at &quot;
+<span class="nc" id="L294">                    + (int) goal.dpi() + &quot; dpi. Consider reducing the aperture or &quot;</span>
+                    + &quot;increasing the focal length.&quot;));
+        }
+
+        // Warn if wavelength is outside the visible range
+<span class="fc" id="L299">        double wl = goal.wavelengthNm();</span>
+<span class="pc bpc" id="L300" title="1 of 4 branches missed.">        if (wl &lt; 380 || wl &gt; 780) {</span>
+<span class="fc" id="L301">            warnings.add(new AssistantWarning(&quot;NON_VISIBLE_WAVELENGTH&quot;,</span>
+<span class="fc" id="L302">                    String.format(&quot;Wavelength %.0f nm is outside the visible range (380–780 nm). &quot;</span>
+<span class="fc" id="L303">                            + &quot;Ensure the material and printer are suitable.&quot;, wl)));</span>
+        }
+
+<span class="fc" id="L306">        return List.copyOf(warnings);</span>
+    }
+
+    private static double max(double[] arr) {
+<span class="fc" id="L310">        double m = arr[0];</span>
+<span class="fc bfc" id="L311" title="All 4 branches covered.">        for (double v : arr) if (v &gt; m) m = v;</span>
+<span class="fc" id="L312">        return m;</span>
+    }
+
+    private static double round1(double v) {
+<span class="fc" id="L316">        return Math.round(v * 10.0) / 10.0;</span>
+    }
+
+    private static String fmt(double v) {
+<span class="fc bfc" id="L320" title="All 2 branches covered.">        return v == Math.floor(v) ? String.valueOf((long) v) : String.valueOf(v);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
