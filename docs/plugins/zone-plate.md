@@ -53,8 +53,9 @@ is the same; only the zero-order background changes.
 Zone plate designs support two deterministic validation surfaces:
 
 - `POST /api/designs/validate` (legacy single-zone response as `ValidationResponse`)
-- `POST /api/designs/zone-plate/validation` (plugin-independent
-  `DesignValidationReport` used across all plugins)
+- `POST /api/designs/zone-plate/validation` (zone-plate instance of the
+  shared plugin validation route `POST /api/designs/{pluginId}/validation`,
+  returning `DesignValidationReport`)
 
 Both include optical and printability signals with explicit units and assumptions.
 The plugin-independent report additionally keeps validation layers/finding semantics
