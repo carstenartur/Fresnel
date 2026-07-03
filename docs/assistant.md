@@ -109,11 +109,9 @@ Each `CandidateDesignDto` contains:
 
 ## Scoring model
 
-The composite score is rule-based and deterministic. Four dimensions are computed for
-every candidate, normalized to [0, 1] across the candidate set, and combined:
-
-Candidate scoring consumes deterministic validation data (`ValidationResult`) for every
-generated design, including printability metrics and warning severities.
+The composite score is rule-based and deterministic: four dimensions are computed for
+every candidate from deterministic validation data (`ValidationResult`), normalized to
+[0, 1] across the candidate set, and combined.
 
 | Dimension          | Weight | Metric                                     |
 |--------------------|--------|--------------------------------------------|
