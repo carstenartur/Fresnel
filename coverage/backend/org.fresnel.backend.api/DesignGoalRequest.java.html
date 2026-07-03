@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesignGoalRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">DesignGoalRequest.java</span></div><h1>DesignGoalRequest.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import org.fresnel.optics.DesignGoal;
+
+/**
+ * REST request body for {@code POST /api/assistant/recommend}.
+ *
+ * @param dpi              printer resolution in dots per inch
+ * @param pageSizeWidthMm  printable page width in millimetres (e.g. 210 for A4 portrait)
+ * @param pageSizeHeightMm printable page height in millimetres (e.g. 297 for A4 portrait)
+ * @param wavelengthNm     design wavelength in nanometres (e.g. 532 for green laser)
+ * @param targetFocusMm    desired focal distance in millimetres (e.g. 2000 for 2 m)
+ * @param maxApertureMm    optional hard cap on aperture diameter in millimetres
+ */
+<span class="fc" id="L17">public record DesignGoalRequest(</span>
+        @NotNull @Positive Double dpi,
+        @NotNull @Positive Double pageSizeWidthMm,
+        @NotNull @Positive Double pageSizeHeightMm,
+        @NotNull @Positive Double wavelengthNm,
+        @NotNull @Positive Double targetFocusMm,
+        @Positive Double maxApertureMm
+) {
+    /** Convert to the optics-core domain model. */
+    public DesignGoal toGoal() {
+<span class="fc" id="L27">        return new DesignGoal(dpi, pageSizeWidthMm, pageSizeHeightMm,</span>
+<span class="fc" id="L28">                wavelengthNm, targetFocusMm, maxApertureMm);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
