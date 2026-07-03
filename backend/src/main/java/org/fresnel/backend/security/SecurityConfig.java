@@ -63,7 +63,8 @@ public class SecurityConfig {
                                 "/api/designs/preview.png",
                                 "/api/designs/load",
                                 "/api/designs/*/info",
-                                "/api/designs/*/preview.png").permitAll()
+                                "/api/designs/*/preview.png",
+                                "/api/assistant/recommend").permitAll()
                         // Mutating endpoints require an authenticated user.
                         .requestMatchers(HttpMethod.POST,
                                 "/api/designs/save",
