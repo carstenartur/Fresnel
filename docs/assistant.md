@@ -112,6 +112,9 @@ Each `CandidateDesignDto` contains:
 The composite score is rule-based and deterministic. Four dimensions are computed for
 every candidate, normalized to [0, 1] across the candidate set, and combined:
 
+Candidate scoring consumes deterministic validation data (`ValidationResult`) for every
+generated design, including printability metrics and warning severities.
+
 | Dimension          | Weight | Metric                                     |
 |--------------------|--------|--------------------------------------------|
 | Printability       | 40 %   | Pixels per outermost Fresnel zone          |
@@ -143,10 +146,10 @@ All apertures are clamped to `min(pageSizeWidthMm, pageSizeHeightMm)` and
 - **Printer fidelity** — a pixel is assumed to be a perfect square dot. Real printers
   may have lower effective resolution due to dot gain and ink spread.
 - **No wave-optical simulation** — propagation is not simulated; use the
-  [Propagation Preview](../plugins/zone-plate.md) for that.
+  [Propagation Preview](plugins/zone-plate.md) for that.
 
 ## Related
 
 - Plugin metadata: [PluginRegistry](../../optics-core/src/main/java/org/fresnel/optics/PluginRegistry.java)
-- Comparison and ranking primitives: [Design comparison](../compare.md) (issue #42)
-- Validation reports: [Design validation](../validation.md) (issue #54)
+- Comparison and ranking primitives: [issue #42](https://github.com/carstenartur/Fresnel/issues/42)
+- Validation reports: [Shared validation model](index.md#shared-validation-model) (issue #54)
