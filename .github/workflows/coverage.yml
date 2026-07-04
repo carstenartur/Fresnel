@@ -17,11 +17,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: gh-pages-${{ github.ref }}
-  cancel-in-progress: false
+  contents: read
 
 jobs:
   coverage:
@@ -41,7 +37,6 @@ jobs:
         run: mvn -B -ntp verify -Pno-frontend
 
       - name: Stage coverage reports, badge and summary for Pages
-        if: always()
         run: |
           python3 - <<'PY'
           import csv
@@ -99,6 +94,8 @@ jobs:
 
           total = covered + missed
           pct = (covered / total * 100.0) if total else None
+          if pct is None:
+              raise SystemExit("No JaCoCo CSV coverage data was generated.")
           message = f"{pct:.1f}%" if pct is not None else "no data"
 
           write_json(coverage_dir / "badge.json", {
@@ -142,15 +139,30 @@ jobs:
           PY
 
       - name: Upload coverage artifact
-        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: jacoco-coverage
           path: site/coverage
           retention-days: 14
 
+  deploy-coverage:
+    name: Deploy coverage report
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.coverage.result == 'success'
+    needs: coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: gh-pages-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: jacoco-coverage
+          path: site/coverage
+
       - name: Deploy coverage to GitHub Pages
-        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
