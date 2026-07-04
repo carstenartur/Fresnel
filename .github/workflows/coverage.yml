@@ -96,7 +96,7 @@ jobs:
           pct = (covered / total * 100.0) if total else None
           if pct is None:
               raise SystemExit("No JaCoCo CSV coverage data was generated.")
-          message = f"{pct:.1f}%" if pct is not None else "no data"
+          message = f"{pct:.1f}%"
 
           write_json(coverage_dir / "badge.json", {
               "schemaVersion": 1,
@@ -118,13 +118,11 @@ jobs:
               )
 
           table_rows = "\n".join(rows) or '<tr><td colspan="3">No JaCoCo reports were generated.</td></tr>'
-          total_text = message if pct is not None else "No coverage data available."
-
           (coverage_dir / "index.html").write_text(f'''<!doctype html>
           <html lang="en"><head><meta charset="utf-8"><title>Fresnel Coverage</title>
           <style>body{{font-family:system-ui,sans-serif;margin:2rem;max-width:960px}}table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #ddd;padding:.5rem;text-align:left}}th{{background:#f6f8fa}}</style>
           </head><body><h1>Fresnel Coverage</h1>
-          <p>Total instruction coverage: <strong>{total_text}</strong></p>
+          <p>Total instruction coverage: <strong>{message}</strong></p>
           <table><thead><tr><th>Module</th><th>Instruction coverage</th><th>Covered/total instructions</th></tr></thead><tbody>{table_rows}</tbody></table>
           </body></html>\n''', encoding="utf-8")
 
