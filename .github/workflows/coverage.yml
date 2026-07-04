@@ -95,7 +95,7 @@ jobs:
           total = covered + missed
           pct = (covered / total * 100.0) if total else None
           if pct is None:
-              raise SystemExit("No JaCoCo CSV coverage data was generated.")
+              raise SystemExit("No JaCoCo CSV coverage data was generated. Ensure the Maven build succeeded and still produces JaCoCo reports.")
           message = f"{pct:.1f}%"
 
           write_json(coverage_dir / "badge.json", {
