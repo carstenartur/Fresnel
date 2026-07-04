@@ -148,8 +148,10 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.coverage.result == 'success'
     needs: coverage
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       contents: write
+      actions: read
     concurrency:
       group: gh-pages-${{ github.ref }}
       cancel-in-progress: false
@@ -158,12 +160,14 @@ jobs:
 
       - name: Download coverage artifact
         uses: actions/download-artifact@v8.0.1
+        continue-on-error: true
         with:
           name: jacoco-coverage
           path: site/coverage
 
       - name: Deploy coverage to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
+        continue-on-error: true
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./site/coverage
