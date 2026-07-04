@@ -75,8 +75,15 @@ jobs:
       - name: Stage coverage reports for artifact
         run: |
           mkdir -p site/coverage/optics-core site/coverage/backend
-          cp -r optics-core/target/site/jacoco/. site/coverage/optics-core/
-          cp -r backend/target/site/jacoco/.     site/coverage/backend/
+          for module in optics-core backend; do
+            src="${module}/target/site/jacoco"
+            dst="site/coverage/${module}"
+            if [ -d "${src}" ]; then
+              cp -r "${src}/." "${dst}/"
+            else
+              echo "::warning::JaCoCo report directory '${src}' not found – skipping copy for ${module}"
+            fi
+          done
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v7
