@@ -1,9 +1,8 @@
 name: Tests
 
 # Runs the JUnit / Surefire test suites for every Maven module and renders the
-# results both as a workflow summary (via dorny/test-reporter) and as a PR
-# comment, so reviewers see test deltas without digging through logs. On main,
-# it also publishes a Shields-compatible test badge and HTML summary to Pages.
+# results as a workflow summary (via dorny/test-reporter). README metric badge
+# JSON is generated and published centrally by the Maven Site workflow.
 
 on:
   push:
@@ -38,102 +37,6 @@ jobs:
       - name: Run tests
         run: mvn -B -ntp test
 
-      - name: Generate test badge and report page
-        if: always()
-        run: |
-          python3 - <<'PY'
-          import html
-          import json
-          import os
-          from pathlib import Path
-          import xml.etree.ElementTree as ET
-
-          def write_json(path: Path, payload: dict) -> None:
-              path.parent.mkdir(parents=True, exist_ok=True)
-              path.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
-
-          def esc(value) -> str:
-              return html.escape(str(value), quote=True)
-
-          tests = failures = errors = skipped = 0
-          suites = []
-
-          for path in sorted(Path(".").glob("**/target/surefire-reports/TEST-*.xml")):
-              try:
-                  root = ET.parse(path).getroot()
-              except ET.ParseError as exc:
-                  print(f"Skipping malformed JUnit XML {path}: {exc}")
-                  continue
-
-              suite_tests = int(root.get("tests", 0))
-              suite_failures = int(root.get("failures", 0))
-              suite_errors = int(root.get("errors", 0))
-              suite_skipped = int(root.get("skipped", 0))
-
-              tests += suite_tests
-              failures += suite_failures
-              errors += suite_errors
-              skipped += suite_skipped
-
-              parts = path.parts
-              module = parts[0] if parts and parts[0] != "target" else "root"
-              suites.append((module, root.get("name", path.stem), suite_tests, suite_failures + suite_errors, suite_skipped))
-
-          failed = failures + errors
-          passed = max(tests - failed - skipped, 0)
-
-          if tests == 0:
-              message = "no reports"
-              color = "lightgrey"
-          elif failed:
-              message = f"{failed}/{tests} failed"
-              color = "red"
-          elif skipped:
-              message = f"{passed} passed, {skipped} skipped"
-              color = "yellowgreen"
-          else:
-              message = f"{passed} passed"
-              color = "brightgreen"
-
-          tests_dir = Path("site/tests")
-          write_json(tests_dir / "badge.json", {
-              "schemaVersion": 1,
-              "label": "tests",
-              "message": message,
-              "color": color,
-          })
-
-          rows = "\n".join(
-              "<tr>"
-              f"<td>{esc(module)}</td>"
-              f"<td>{esc(name)}</td>"
-              f"<td>{suite_tests}</td>"
-              f"<td>{suite_failed}</td>"
-              f"<td>{suite_skipped}</td>"
-              "</tr>"
-              for module, name, suite_tests, suite_failed, suite_skipped in suites
-          ) or '<tr><td colspan="5">No JUnit XML reports were generated.</td></tr>'
-
-          tests_dir.mkdir(parents=True, exist_ok=True)
-          (tests_dir / "index.html").write_text(f'''<!doctype html>
-          <html lang="en"><head><meta charset="utf-8"><title>Fresnel Tests</title>
-          <style>body{{font-family:system-ui,sans-serif;margin:2rem;max-width:1200px}}table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #ddd;padding:.5rem;text-align:left}}th{{background:#f6f8fa}}</style>
-          </head><body><h1>Fresnel Tests</h1>
-          <p><strong>{passed}</strong> passed, <strong>{failed}</strong> failed, <strong>{skipped}</strong> skipped, <strong>{tests}</strong> total.</p>
-          <table><thead><tr><th>Module</th><th>Suite</th><th>Tests</th><th>Failed</th><th>Skipped</th></tr></thead><tbody>{rows}</tbody></table>
-          </body></html>\n''', encoding="utf-8")
-
-          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-          if summary_path:
-              with open(summary_path, "a", encoding="utf-8") as summary:
-                  summary.write("### 🧪 JUnit tests\n")
-                  summary.write(f"- Badge message: **{message}**\n")
-                  summary.write(f"- Passed: **{passed}**\n")
-                  summary.write(f"- Failed: **{failed}**\n")
-                  summary.write(f"- Skipped: **{skipped}**\n")
-                  summary.write(f"- Total: **{tests}**\n")
-          PY
-
       - name: Publish JUnit test report
         if: always()
         uses: dorny/test-reporter@v3
@@ -150,45 +53,3 @@ jobs:
           name: surefire-reports
           path: '**/target/surefire-reports'
           retention-days: 14
-
-      - name: Upload generated test badge page
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: tests-pages
-          path: site/tests
-          retention-days: 14
-
-  deploy-tests:
-    name: Deploy test badge and report
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.tests.result == 'success'
-    needs: tests
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      contents: write
-      actions: read
-    concurrency:
-      group: gh-pages-${{ github.ref }}
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Download generated test badge page
-        uses: actions/download-artifact@v8.0.1
-        continue-on-error: true
-        with:
-          name: tests-pages
-          path: site/tests
-
-      - name: Deploy test badge and report to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        continue-on-error: true
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site/tests
-          destination_dir: tests
-          keep_files: true
-          user_name: 'github-actions[bot]'
-          user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: 'Deploy JUnit test badge and report'
