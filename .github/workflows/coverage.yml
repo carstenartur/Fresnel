@@ -1,7 +1,7 @@
 name: Coverage
 
 # Generates JaCoCo coverage reports for both Maven modules and publishes the
-# aggregated HTML to GitHub Pages so the README badge can link to a live report.
+# aggregated HTML plus a Shields-compatible badge JSON to GitHub Pages.
 #
 # Runs on every push to main, on PRs (report uploaded as artifact only — gh-pages
 # is reserved for main), and on a daily schedule to keep the published report
@@ -40,52 +40,109 @@ jobs:
       - name: Build & test with coverage
         run: mvn -B -ntp verify -Pno-frontend
 
-      - name: Stage coverage reports for Pages
+      - name: Stage coverage reports, badge and summary for Pages
+        if: always()
         run: |
-          mkdir -p site/coverage/optics-core site/coverage/backend
-          cp -r optics-core/target/site/jacoco/. site/coverage/optics-core/
-          cp -r backend/target/site/jacoco/.     site/coverage/backend/
-          # Tiny landing page that links to both module reports.
-          cat > site/coverage/index.html <<'HTML'
-          <!doctype html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <title>Fresnel — JaCoCo coverage</title>
-            <style>
-              body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2em auto; padding: 0 1em; }
-              h1 { color: #0066cc; }
-              li { margin: .5em 0; }
-              a { color: #0066cc; }
-            </style>
-          </head>
-          <body>
-            <h1>Fresnel — JaCoCo coverage</h1>
-            <p>Per-module HTML coverage reports, regenerated from the
-              <a href="https://github.com/carstenartur/Fresnel/actions/workflows/coverage.yml">Coverage workflow</a>.</p>
-            <ul>
-              <li><a href="optics-core/index.html">optics-core</a></li>
-              <li><a href="backend/index.html">backend</a></li>
-            </ul>
-          </body>
-          </html>
-          HTML
+          python3 - <<'PY'
+          import csv
+          import html
+          import json
+          import os
+          import shutil
+          from pathlib import Path
 
-      - name: Coverage summary
-        run: |
-          echo "### 📊 JaCoCo coverage" >> "$GITHUB_STEP_SUMMARY"
-          for csv in optics-core/target/site/jacoco/jacoco.csv backend/target/site/jacoco/jacoco.csv; do
-            module=$(echo "$csv" | cut -d/ -f1)
-            covered=$(awk -F',' 'NR>1 {c+=$5} END {print c}' "$csv")
-            missed=$(awk  -F',' 'NR>1 {m+=$4} END {print m}' "$csv")
-            total=$((covered + missed))
-            if [ "$total" -gt 0 ]; then
-              pct=$(awk -v c="$covered" -v t="$total" 'BEGIN { printf "%.1f", (c/t)*100 }')
-              echo "- **${module}**: ${pct}% line coverage (${covered}/${total})" >> "$GITHUB_STEP_SUMMARY"
-            fi
-          done
+          GREEN, YELLOW = 80.0, 60.0
+
+          def colour(pct: float | None) -> str:
+              if pct is None:
+                  return "lightgrey"
+              if pct >= GREEN:
+                  return "brightgreen"
+              if pct >= YELLOW:
+                  return "yellow"
+              return "red"
+
+          def write_json(path: Path, payload: dict) -> None:
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
+
+          def esc(value) -> str:
+              return html.escape(str(value), quote=True)
+
+          coverage_dir = Path("site/coverage")
+          coverage_dir.mkdir(parents=True, exist_ok=True)
+
+          covered = missed = 0
+          module_rows = []
+
+          for module in ("optics-core", "backend"):
+              report_dir = Path(module) / "target" / "site" / "jacoco"
+              target_dir = coverage_dir / module
+              if report_dir.is_dir():
+                  shutil.copytree(report_dir, target_dir, dirs_exist_ok=True)
+
+              csv_path = report_dir / "jacoco.csv"
+              module_covered = module_missed = 0
+              if csv_path.is_file():
+                  with csv_path.open(newline="", encoding="utf-8") as handle:
+                      reader = csv.DictReader(handle)
+                      for row in reader:
+                          module_covered += int(row.get("INSTRUCTION_COVERED", 0) or 0)
+                          module_missed += int(row.get("INSTRUCTION_MISSED", 0) or 0)
+
+              covered += module_covered
+              missed += module_missed
+              module_total = module_covered + module_missed
+              module_pct = (module_covered / module_total * 100.0) if module_total else None
+              link = f"{module}/index.html" if (target_dir / "index.html").is_file() else ""
+              module_rows.append((module, module_pct, module_covered, module_total, link))
+
+          total = covered + missed
+          pct = (covered / total * 100.0) if total else None
+          message = f"{pct:.1f}%" if pct is not None else "no data"
+
+          write_json(coverage_dir / "badge.json", {
+              "schemaVersion": 1,
+              "label": "coverage",
+              "message": message,
+              "color": colour(pct),
+          })
+
+          rows = []
+          for module, module_pct, module_covered, module_total, link in module_rows:
+              pct_text = f"{module_pct:.1f}%" if module_pct is not None else "n/a"
+              module_text = f'<a href="{esc(link)}">{esc(module)}</a>' if link else esc(module)
+              rows.append(
+                  "<tr>"
+                  f"<td>{module_text}</td>"
+                  f"<td>{pct_text}</td>"
+                  f"<td>{module_covered}/{module_total}</td>"
+                  "</tr>"
+              )
+
+          table_rows = "\n".join(rows) or '<tr><td colspan="3">No JaCoCo reports were generated.</td></tr>'
+          total_text = message if pct is not None else "No coverage data available."
+
+          (coverage_dir / "index.html").write_text(f'''<!doctype html>
+          <html lang="en"><head><meta charset="utf-8"><title>Fresnel Coverage</title>
+          <style>body{{font-family:system-ui,sans-serif;margin:2rem;max-width:960px}}table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #ddd;padding:.5rem;text-align:left}}th{{background:#f6f8fa}}</style>
+          </head><body><h1>Fresnel Coverage</h1>
+          <p>Total instruction coverage: <strong>{total_text}</strong></p>
+          <table><thead><tr><th>Module</th><th>Instruction coverage</th><th>Covered/total instructions</th></tr></thead><tbody>{table_rows}</tbody></table>
+          </body></html>\n''', encoding="utf-8")
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as summary:
+                  summary.write("### 📊 JaCoCo coverage\n")
+                  summary.write(f"- Badge message: **{message}**\n")
+                  for module, module_pct, module_covered, module_total, _ in module_rows:
+                      pct_text = f"{module_pct:.1f}%" if module_pct is not None else "n/a"
+                      summary.write(f"- **{module}**: {pct_text} ({module_covered}/{module_total} instructions)\n")
+          PY
 
       - name: Upload coverage artifact
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: jacoco-coverage
@@ -93,7 +150,7 @@ jobs:
           retention-days: 14
 
       - name: Deploy coverage to GitHub Pages
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -102,4 +159,4 @@ jobs:
           keep_files: true
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: 'Deploy JaCoCo coverage report'
+          commit_message: 'Deploy JaCoCo coverage report and badge'
