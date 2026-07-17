@@ -1,0 +1,32 @@
+{
+  "formatVersion": 1,
+  "pluginId": "zone-plate",
+  "parameterSchemaVersion": 1,
+  "groups": [
+    {
+      "id": "geometry",
+      "title": "Geometry",
+      "fields": ["apertureDiameterMm", "focalLengthMm", "wavelengthNm"]
+    },
+    {
+      "id": "off-axis-target",
+      "title": "Off-axis target",
+      "fields": ["targetOffsetXmm", "targetOffsetYmm"],
+      "collapsible": true
+    },
+    {
+      "id": "production",
+      "title": "Print",
+      "fields": ["dpi", "maskType", "polarity"]
+    }
+  ],
+  "widgets": {
+    "dpi": {
+      "type": "number-with-presets",
+      "presets": [600, 1200, 2400, 4800]
+    },
+    "maskType": { "type": "select" },
+    "polarity": { "type": "select" }
+  },
+  "extensions": ["production-actions", "validation", "experiment", "propagation"]
+}
