@@ -6,12 +6,15 @@ function fileInput(page: import('@playwright/test').Page) {
   return page.locator('input[type="file"][accept*=".fresnel"]');
 }
 
-test('saves the current zone plate as a canonical .fresnel job', async ({ page }) => {
+test('saves and reopens the current zone plate as a canonical .fresnel job', async ({ page }) => {
   await page.goto('/');
 
-  await page.getByLabel('Aperture diameter (mm)', { exact: true }).fill('8');
-  await page.getByLabel('Focal length (mm)', { exact: true }).fill('500');
-  await page.getByLabel('Wavelength (nm)', { exact: true }).fill('632');
+  const aperture = page.getByLabel('Aperture diameter (mm)', { exact: true });
+  const focalLength = page.getByLabel('Focal length (mm)', { exact: true });
+  const wavelength = page.getByLabel('Wavelength (nm)', { exact: true });
+  await aperture.fill('8');
+  await focalLength.fill('500');
+  await wavelength.fill('632');
 
   const save = page.getByRole('button', { name: 'Save job (.fresnel)' });
   await expect(save).toBeEnabled();
@@ -22,6 +25,7 @@ test('saves the current zone plate as a canonical .fresnel job', async ({ page }
   ]);
 
   expect(download.suggestedFilename()).toMatch(/\.fresnel$/);
+  const savedPath = await download.path();
   const stream = await download.createReadStream();
   let json = '';
   for await (const chunk of stream) json += chunk.toString();
@@ -34,6 +38,15 @@ test('saves the current zone plate as a canonical .fresnel job', async ({ page }
   expect(job.parameters.focalLengthMm).toBe(500);
   expect(job.parameters.wavelengthNm).toBe(632);
   expect(job.provenance.parameterSha256).toMatch(/^[0-9a-f]{64}$/);
+
+  // Prove that the downloaded public artifact is also accepted by the GUI and
+  // restores the normalized parameter state.
+  await aperture.fill('5');
+  await focalLength.fill('250');
+  await fileInput(page).setInputFiles(savedPath);
+  await expect(aperture).toHaveValue('8');
+  await expect(focalLength).toHaveValue('500');
+  await expect(wavelength).toHaveValue('632');
 });
 
 test('opens a job in the editor selected by its stable plugin id', async ({ page }) => {
@@ -100,4 +113,39 @@ test('migrates a legacy design JSON before populating the editor', async ({ page
   await expect(page.getByLabel('Aperture diameter (mm)', { exact: true })).toHaveValue('12');
   await expect(page.getByLabel('Focal length (mm)', { exact: true })).toHaveValue('750');
   await expect(page.getByRole('status')).toContainText('Migrated legacy design');
+});
+
+test('rejects a future job version without replacing the current editor state', async ({ page }) => {
+  await page.goto('/');
+
+  const aperture = page.getByLabel('Aperture diameter (mm)', { exact: true });
+  await aperture.fill('7');
+
+  const futureJob = {
+    format: 'io.github.carstenartur.fresnel.job',
+    formatVersion: 999,
+    plugin: {
+      id: 'zone-plate',
+      parameterSchemaVersion: 1,
+      algorithmVersion: 'zone-plate/1',
+    },
+    parameters: {
+      apertureDiameterMm: 99,
+      focalLengthMm: 1000,
+      wavelengthNm: 550,
+      dpi: 1200,
+    },
+  };
+
+  await fileInput(page).setInputFiles({
+    name: 'future.fresnel',
+    mimeType: MEDIA_TYPE,
+    buffer: Buffer.from(JSON.stringify(futureJob)),
+  });
+
+  await expect(page.locator('.error-message').filter({ hasText: 'newer than supported' }))
+    .toBeVisible();
+  await expect(aperture).toHaveValue('7');
+  await expect(page.getByRole('tab', { name: 'Single ZP' }))
+    .toHaveAttribute('aria-selected', 'true');
 });
