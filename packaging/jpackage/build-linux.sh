@@ -5,6 +5,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TARGET_DIR="$REPO_ROOT/backend/target"
+FILE_ASSOCIATION="$REPO_ROOT/packaging/jpackage/fresnel-job.properties"
 
 APP_JAR="${APP_JAR:-}"
 if [ -z "$APP_JAR" ]; then
@@ -12,6 +13,10 @@ if [ -z "$APP_JAR" ]; then
 fi
 if [ -z "$APP_JAR" ] || [ ! -f "$APP_JAR" ]; then
   echo "build-linux.sh: cannot find backend jar; run 'mvn -B -ntp package' first" >&2
+  exit 1
+fi
+if [ ! -f "$FILE_ASSOCIATION" ]; then
+  echo "build-linux.sh: missing file association properties: $FILE_ASSOCIATION" >&2
   exit 1
 fi
 
@@ -57,6 +62,8 @@ echo "build-linux.sh: building $JPACKAGE_TYPE for Fresnel $APP_VERSION_NUM"
   --main-class org.springframework.boot.loader.launch.JarLauncher \
   --java-options "-Dspring.profiles.active=standalone" \
   --java-options "-Dspring.config.additional-location=optional:file:\$APPDIR/config/" \
+  --java-options "-Dfresnel.desktop.enabled=true" \
+  --file-associations "$FILE_ASSOCIATION" \
   --dest "$OUTPUT_DIR" \
   --linux-shortcut \
   --linux-menu-group "Graphics"
