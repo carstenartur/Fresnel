@@ -51,8 +51,22 @@ class FresnelJobStrictValidationTest {
 
     @Test
     void requiresExplicitPluginSchemaAndAlgorithmVersions() throws Exception {
-        String withoutParameterVersion = zonePlateJob("", "")
-                .replace("\"parameterSchemaVersion\": 1,", "");
+        String withoutParameterVersion = """
+                {
+                  "format": "io.github.carstenartur.fresnel.job",
+                  "formatVersion": 1,
+                  "plugin": {
+                    "id": "zone-plate",
+                    "algorithmVersion": "zone-plate/1"
+                  },
+                  "parameters": {
+                    "apertureDiameterMm": 10,
+                    "focalLengthMm": 200,
+                    "wavelengthNm": 550,
+                    "dpi": 600
+                  }
+                }
+                """;
         mvc.perform(post("/api/designs/job/load")
                         .contentType(FRESNEL_JOB)
                         .content(withoutParameterVersion))
@@ -60,8 +74,22 @@ class FresnelJobStrictValidationTest {
                 .andExpect(content().string(containsString(
                         "plugin.parameterSchemaVersion must be at least 1")));
 
-        String withoutAlgorithmVersion = zonePlateJob("", "")
-                .replace(",\n                    \"algorithmVersion\": \"zone-plate/1\"", "");
+        String withoutAlgorithmVersion = """
+                {
+                  "format": "io.github.carstenartur.fresnel.job",
+                  "formatVersion": 1,
+                  "plugin": {
+                    "id": "zone-plate",
+                    "parameterSchemaVersion": 1
+                  },
+                  "parameters": {
+                    "apertureDiameterMm": 10,
+                    "focalLengthMm": 200,
+                    "wavelengthNm": 550,
+                    "dpi": 600
+                  }
+                }
+                """;
         mvc.perform(post("/api/designs/job/load")
                         .contentType(FRESNEL_JOB)
                         .content(withoutAlgorithmVersion))
