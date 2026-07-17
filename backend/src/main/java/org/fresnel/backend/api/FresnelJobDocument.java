@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.JsonNode;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -39,13 +41,33 @@ public record FresnelJobDocument(
             String id,
             int parameterSchemaVersion,
             String algorithmVersion
-    ) {}
+    ) {
+        public PluginRef {
+            if (id == null || id.isBlank()) {
+                throw new IllegalArgumentException("Fresnel job plugin.id must not be empty");
+            }
+            if (parameterSchemaVersion < 1) {
+                throw new IllegalArgumentException(
+                        "Fresnel job plugin.parameterSchemaVersion must be at least 1");
+            }
+            if (algorithmVersion == null || algorithmVersion.isBlank()) {
+                throw new IllegalArgumentException(
+                        "Fresnel job plugin.algorithmVersion must not be empty");
+            }
+            id = id.trim();
+            algorithmVersion = algorithmVersion.trim();
+        }
+    }
 
     /** Optional non-empty list of outputs requested from the design. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ProductionPlan(List<ProductionOutput> outputs) {
         public ProductionPlan {
-            outputs = outputs == null ? null : List.copyOf(outputs);
+            // Keep null entries until the canonical service can report their exact
+            // array index instead of failing inside List.copyOf during JSON binding.
+            outputs = outputs == null
+                    ? null
+                    : Collections.unmodifiableList(new ArrayList<>(outputs));
         }
     }
 
