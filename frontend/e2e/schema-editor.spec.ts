@@ -73,6 +73,36 @@ test('trusted focus-point widget edits a schema-owned array', async ({ page }) =
     .toBeVisible({ timeout: 30_000 });
 });
 
+test('trusted Window Foil widget round-trips optional per-cell overrides', async ({ page }) => {
+  await page.goto('/plugins/window-foil');
+  const form = page.locator('[data-plugin-schema="window-foil"]');
+  await expect(form).toBeVisible();
+  await expect(page.getByLabel('Draw crop marks')).toBeChecked();
+
+  await page.getByText('Per-cell layout', { exact: true }).click();
+  await page.getByRole('button', { name: '+ Add cell specification' }).click();
+  await page.getByLabel('Cell 1 focal length (mm)').fill('750');
+  await page.getByLabel('Cell 1 target X (mm)').fill('2');
+  await page.getByLabel('Cell 1 target Y (mm)').fill('-3');
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Save job (.fresnel)' }).click(),
+  ]);
+  const stream = await download.createReadStream();
+  let json = '';
+  for await (const chunk of stream) json += chunk.toString();
+  const job = JSON.parse(json);
+
+  expect(job.plugin.id).toBe('window-foil');
+  expect(job.parameters.drawCropMarks).toBe(true);
+  expect(job.parameters.cellSpecs).toEqual([{
+    focalLengthMm: 750,
+    targetOffsetXmm: 2,
+    targetOffsetYmm: -3,
+  }]);
+});
+
 test('tab navigation and browser history use stable plugin-id routes', async ({ page }) => {
   await page.goto('/plugins/hex-macro-cell');
   await expect(page.locator('[data-plugin-schema="hex-macro-cell"]')).toBeVisible();
