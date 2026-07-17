@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   downloadHexPdf,
   downloadHexPng,
@@ -13,7 +13,9 @@ import {
   SaveJobControl,
   type JobPanelProps,
 } from '../jobs/JobFileControls';
-import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
+import { fetchPluginSchema, type PluginSchemaDocument } from '../pluginSchemaApi';
+import { SchemaForm } from '../schema/SchemaForm';
+import { PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: HexMacroCellRequest = {
   macroRadiusMm: 30,
@@ -31,13 +33,29 @@ const DEFAULT: HexMacroCellRequest = {
 export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
   const [req, setReq] = useState<HexMacroCellRequest>(() =>
     initialJobParameters(initialJob, 'hex-macro-cell', DEFAULT));
+  const [schema, setSchema] = useState<PluginSchemaDocument<HexMacroCellRequest> | null>(null);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
   const [info, setInfo] = useState<HexInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
-  const update = (p: Partial<HexMacroCellRequest>) => setReq((r) => ({ ...r, ...p }));
+  useEffect(() => {
+    let active = true;
+    fetchPluginSchema<HexMacroCellRequest>('hex-macro-cell')
+      .then((loaded) => {
+        if (!active) return;
+        setSchema(loaded);
+        setSchemaError(null);
+      })
+      .catch((loadError: unknown) => {
+        if (!active) return;
+        setSchema(null);
+        setSchemaError(loadError instanceof Error ? loadError.message : String(loadError));
+      });
+    return () => { active = false; };
+  }, []);
 
   const renderPreview = async () => {
     setBusy(true); setError(null);
@@ -46,33 +64,28 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
       setInfo(await hexInfo(req));
       setValidationReport(await validatePlugin('hex-macro-cell', req));
     }
-    catch (e) { setValidationReport(null); setError(e instanceof Error ? e.message : String(e)); }
+    catch (renderError) {
+      setValidationReport(null);
+      setError(renderError instanceof Error ? renderError.message : String(renderError));
+    }
     finally { setBusy(false); }
   };
 
   return (
     <>
       <h2>Hex macro cell</h2>
-      <NumberField label="Macro radius (mm)" value={req.macroRadiusMm} min={1} step={1}
-        onChange={(v) => update({ macroRadiusMm: v })} />
-      <NumberField label="Sub-element diameter (mm)" value={req.subDiameterMm} min={0.1} step={0.1}
-        onChange={(v) => update({ subDiameterMm: v })} />
-      <NumberField label="Sub-element pitch (mm)" value={req.subPitchMm} min={0.1} step={0.1}
-        onChange={(v) => update({ subPitchMm: v })} />
-      <NumberField label="Focal length (mm)" value={req.focalLengthMm} min={1} step={1}
-        onChange={(v) => update({ focalLengthMm: v })} />
-
-      <h2>Target offset</h2>
-      <NumberField label="Target X (mm)" value={req.targetOffsetXmm ?? 0} step={1}
-        onChange={(v) => update({ targetOffsetXmm: v })} />
-      <NumberField label="Target Y (mm)" value={req.targetOffsetYmm ?? 0} step={1}
-        onChange={(v) => update({ targetOffsetYmm: v })} />
-
-      <h2>Print</h2>
-      <NumberField label="Wavelength (nm)" value={req.wavelengthNm} min={100} max={2000} step={1}
-        onChange={(v) => update({ wavelengthNm: v })} />
-      <NumberField label="DPI" value={req.dpi} min={50} step={50}
-        onChange={(v) => update({ dpi: v })} />
+      {schema ? (
+        <SchemaForm
+          parameterSchema={schema.parameterSchema}
+          uiSchema={schema.uiSchema}
+          value={req}
+          onChange={setReq}
+          disabled={busy}
+        />
+      ) : !schemaError ? (
+        <p role="status" style={{ fontSize: 12, color: '#6b7280' }}>Loading plugin schema…</p>
+      ) : null}
+      {schemaError && <p className="error-message">Could not load editor schema: {schemaError}</p>}
 
       {info && (
         <p style={{ fontSize: 12, color: '#6b7280' }}>
@@ -81,19 +94,19 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
       )}
 
       <div className="actions">
-        <button onClick={renderPreview} disabled={busy}>
+        <button onClick={renderPreview} disabled={busy || !schema}>
           {busy ? 'Rendering…' : 'Render preview'}
         </button>
-        <button className="secondary" disabled={busy}
+        <button className="secondary" disabled={busy || !schema}
                 onClick={() => downloadHexPng(req, 'fresnel-hex-macro.png')}>
           PNG
         </button>
-        <button className="secondary" disabled={busy}
+        <button className="secondary" disabled={busy || !schema}
                 onClick={() => downloadHexPdf(req, 'FIT', 'fresnel-hex-macro.pdf')}>
           PDF
         </button>
       </div>
-      <SaveJobControl pluginId="hex-macro-cell" parameters={req} disabled={busy} />
+      <SaveJobControl pluginId="hex-macro-cell" parameters={req} disabled={busy || !schema} />
       {error && <p className="error-message">{error}</p>}
 
       <PreviewPane url={previewUrl} alt="Hex macro cell preview" />
