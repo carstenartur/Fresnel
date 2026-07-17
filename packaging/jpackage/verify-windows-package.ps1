@@ -90,30 +90,45 @@ function Get-MsiRows {
 $tables = Get-MsiRows -Database $database -Query "SELECT ``Name`` FROM ``_Tables``" -FieldCount 1 |
     ForEach-Object { $_[0] }
 
-foreach ($requiredTable in @("Extension", "MIME")) {
-    if ($tables -notcontains $requiredTable) {
-        throw "MSI is missing required Windows Installer table: $requiredTable"
-    }
+# Current jpackage/WiX versions model file associations through Registry rows.
+# Older toolchains may additionally populate Extension/MIME tables, but those are
+# not a portable invariant and must not be required here.
+if ($tables -notcontains "Registry") {
+    throw "MSI is missing the Registry table required for the .fresnel association"
 }
 
-$extensionRows = Get-MsiRows -Database $database `
-    -Query "SELECT ``Extension``, ``MIME_`` FROM ``Extension``" -FieldCount 2
-$association = $extensionRows | Where-Object {
-    $_[0] -eq "fresnel" -and $_[1] -eq "application/vnd.carstenartur.fresnel.job+json"
+$registryRows = Get-MsiRows -Database $database `
+    -Query "SELECT ``Key``, ``Name``, ``Value`` FROM ``Registry``" -FieldCount 3
+$mimeType = "application/vnd.carstenartur.fresnel.job+json"
+
+$mimeMapping = $registryRows | Where-Object {
+    $_[0] -eq "MIME\Database\Content Type\$mimeType" -and
+    $_[1] -eq "Extension" -and
+    $_[2] -eq ".fresnel"
 } | Select-Object -First 1
-if ($null -eq $association) {
-    $rendered = ($extensionRows | ForEach-Object { "$($_[0]) -> $($_[1])" }) -join "; "
-    throw "MSI Extension table does not contain the canonical .fresnel association. Rows: $rendered"
+if ($null -eq $mimeMapping) {
+    throw "MSI Registry table does not map the canonical Fresnel media type to .fresnel"
 }
 
-$mimeRows = Get-MsiRows -Database $database `
-    -Query "SELECT ``ContentType``, ``Extension_`` FROM ``MIME``" -FieldCount 2
-$mime = $mimeRows | Where-Object {
-    $_[0] -eq "application/vnd.carstenartur.fresnel.job+json" -and $_[1] -eq "fresnel"
+$contentType = $registryRows | Where-Object {
+    $_[1] -eq "Content Type" -and $_[2] -eq $mimeType
 } | Select-Object -First 1
-if ($null -eq $mime) {
-    $rendered = ($mimeRows | ForEach-Object { "$($_[0]) -> $($_[1])" }) -join "; "
-    throw "MSI MIME table does not contain the canonical Fresnel media type. Rows: $rendered"
+if ($null -eq $contentType) {
+    throw "MSI Registry table does not assign the canonical media type to the Fresnel file class"
 }
 
-Write-Host "Verified Windows .fresnel association metadata in $MsiPath"
+$openCommand = $registryRows | Where-Object {
+    $_[0] -like "*\shell\open\command" -and $_[2] -match '"%1"'
+} | Select-Object -First 1
+if ($null -eq $openCommand) {
+    throw "MSI Registry table does not forward an opened file path through the shell command"
+}
+
+$userChoice = $registryRows | Where-Object {
+    ($_[0] -like "*\UserChoice*") -or ($_[1] -eq "ProgId" -and $_[0] -like "*FileExts*")
+} | Select-Object -First 1
+if ($null -ne $userChoice) {
+    throw "MSI must advertise a capable handler without overriding the user's default application"
+}
+
+Write-Host "Verified Windows .fresnel MIME mapping and shell-open command in $MsiPath"
