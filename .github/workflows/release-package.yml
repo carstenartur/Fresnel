@@ -164,6 +164,15 @@ jobs:
           JPACKAGE_TYPE: ${{ matrix.jpackage_type }}
         run: ${{ matrix.script }}
 
+      # Upload before verification so a failing metadata/smoke check still leaves
+      # the exact native package available for diagnosis in the workflow artifacts.
+      - name: Upload installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: fresnel-installer-${{ matrix.label }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
+
       - name: Verify Linux installer metadata
         if: matrix.label == 'linux'
         shell: bash
@@ -178,13 +187,6 @@ jobs:
         if: matrix.label == 'windows'
         shell: pwsh
         run: ./packaging/jpackage/verify-windows-package.ps1
-
-      - name: Upload installer
-        uses: actions/upload-artifact@v7
-        with:
-          name: fresnel-installer-${{ matrix.label }}
-          path: ${{ matrix.artifact_glob }}
-          if-no-files-found: error
 
       - name: Attach installer to GitHub Release
         if: github.event_name == 'release'
