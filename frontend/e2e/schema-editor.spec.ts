@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test';
 
 test('stable plugin route renders and edits the Hex schema form', async ({ page }) => {
-  const schemaResponse = page.waitForResponse((response) =>
+  const schemaResponsePromise = page.waitForResponse((response) =>
     response.url().endsWith('/api/plugins/hex-macro-cell/schema'));
 
   await page.goto('/plugins/hex-macro-cell');
-  await expect(await schemaResponse).toBeOK();
+  const schemaResponse = await schemaResponsePromise;
+  expect(schemaResponse.ok()).toBeTruthy();
   await expect(page).toHaveURL(/\/plugins\/hex-macro-cell$/);
   await expect(page.getByRole('tab', { name: 'Hex macro' }))
     .toHaveAttribute('aria-selected', 'true');
@@ -31,6 +32,25 @@ test('stable plugin route renders and edits the Hex schema form', async ({ page 
 
   await page.getByRole('button', { name: 'Render preview' }).click();
   await expect(page.getByText(/sub-elements ·.*px per side/)).toBeVisible({ timeout: 30_000 });
+});
+
+test('nested RGB schema paths update the request used for rendering', async ({ page }) => {
+  await page.goto('/plugins/rgb-zone-plate');
+  const form = page.locator('[data-plugin-schema="rgb-zone-plate"]');
+  await expect(form).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'RGB' }))
+    .toHaveAttribute('aria-selected', 'true');
+
+  await page.getByLabel('Aperture diameter (mm)').fill('7');
+  await page.getByLabel('Focal length (mm)').fill('250');
+  await page.getByLabel('Printer DPI').fill('900');
+  await page.getByLabel('Red wavelength (nm)').fill('650');
+  await page.getByLabel('Green wavelength (nm)').fill('540');
+  await page.getByLabel('Blue wavelength (nm)').fill('460');
+
+  await page.getByRole('button', { name: 'Render preview' }).click();
+  await expect(page.getByRole('img', { name: 'RGB zone plate preview' }))
+    .toBeVisible({ timeout: 30_000 });
 });
 
 test('tab navigation and browser history use stable plugin-id routes', async ({ page }) => {
