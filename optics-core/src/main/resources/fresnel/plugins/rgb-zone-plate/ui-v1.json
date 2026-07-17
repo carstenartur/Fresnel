@@ -1,0 +1,35 @@
+{
+  "formatVersion": 1,
+  "pluginId": "rgb-zone-plate",
+  "parameterSchemaVersion": 1,
+  "groups": [
+    {
+      "id": "geometry",
+      "title": "Geometry",
+      "fields": ["base.apertureDiameterMm", "base.focalLengthMm", "base.dpi"]
+    },
+    {
+      "id": "channels",
+      "title": "Channel wavelengths",
+      "fields": ["redNm", "greenNm", "blueNm"]
+    },
+    {
+      "id": "advanced",
+      "title": "Advanced base parameters",
+      "fields": [
+        "base.wavelengthNm",
+        "base.targetOffsetXmm",
+        "base.targetOffsetYmm",
+        "base.maskType",
+        "base.polarity"
+      ],
+      "collapsible": true,
+      "advanced": true
+    }
+  ],
+  "widgets": {
+    "base.maskType": { "type": "select" },
+    "base.polarity": { "type": "select" }
+  },
+  "extensions": ["production-actions", "validation"]
+}
