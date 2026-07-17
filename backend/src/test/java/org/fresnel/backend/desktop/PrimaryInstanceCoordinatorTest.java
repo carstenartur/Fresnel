@@ -60,6 +60,10 @@ class PrimaryInstanceCoordinatorTest {
                 PrimaryInstanceCoordinator.tryAcquire(tempDir).orElseThrow();
         coordinator.close();
         coordinator.close();
-        assertTrue(PrimaryInstanceCoordinator.tryAcquire(tempDir).isPresent());
+        try (PrimaryInstanceCoordinator reacquired =
+                     PrimaryInstanceCoordinator.tryAcquire(tempDir).orElseThrow()) {
+            assertTrue(Files.isRegularFile(tempDir.resolve(
+                    PrimaryInstanceCoordinator.LOCK_FILENAME)));
+        }
     }
 }
