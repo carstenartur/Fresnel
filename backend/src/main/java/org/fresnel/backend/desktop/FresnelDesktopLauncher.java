@@ -8,6 +8,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.event.ContextClosedEvent;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
@@ -34,19 +35,24 @@ public final class FresnelDesktopLauncher {
             Optional<PrimaryInstanceCoordinator> ownership =
                     PrimaryInstanceCoordinator.tryAcquire(dataDirectory);
             if (ownership.isPresent()) {
-                startPrimary(request, ownership.orElseThrow(), client, browser);
+                startPrimary(request, ownership.orElseThrow(), client, browser, dataDirectory);
                 return;
             }
 
             try {
-                handOffToPrimary(request, awaitPrimary(dataDirectory, client), client, browser);
+                handOffToPrimary(
+                        request,
+                        awaitPrimary(dataDirectory, client),
+                        client,
+                        browser,
+                        dataDirectory);
                 return;
             } catch (PrimaryNotReadyException firstFailure) {
                 // The former primary may have crashed while this invocation was
                 // waiting. A second lock attempt safely recovers stale metadata.
                 ownership = PrimaryInstanceCoordinator.tryAcquire(dataDirectory);
                 if (ownership.isPresent()) {
-                    startPrimary(request, ownership.orElseThrow(), client, browser);
+                    startPrimary(request, ownership.orElseThrow(), client, browser, dataDirectory);
                     return;
                 }
                 throw firstFailure;
@@ -64,11 +70,18 @@ public final class FresnelDesktopLauncher {
             DesktopLaunchRequest request,
             PrimaryInstanceCoordinator coordinator,
             DesktopOpenClient client,
-            DesktopBrowser browser) {
+            DesktopBrowser browser,
+            Path dataDirectory) {
         ConfigurableApplicationContext context = null;
         try {
             String sessionSecret = randomSecret();
-            configureDesktopSystemProperties(sessionSecret);
+            DesktopDiagnostics.append(
+                    dataDirectory,
+                    request.jobFile().isPresent()
+                            ? "Starting primary Fresnel desktop instance with a job"
+                            : "Starting primary Fresnel desktop instance",
+                    null);
+            configureDesktopSystemProperties(sessionSecret, dataDirectory, request);
 
             SpringApplication application = new SpringApplication(FresnelBackendApplication.class);
             context = application.run(request.springArguments().toArray(String[]::new));
@@ -95,9 +108,10 @@ public final class FresnelDesktopLauncher {
 
             coordinator.publish(metadata);
             System.out.println("Fresnel desktop instance ready on http://127.0.0.1:" + port);
-            browser.open(importId == null
+            URI uri = importId == null
                     ? client.baseBrowserUri(metadata)
-                    : client.browserUri(metadata, importId));
+                    : client.browserUri(metadata, importId);
+            openBrowser(browser, uri, dataDirectory);
         } catch (RuntimeException | IOException e) {
             if (context != null) {
                 try {
@@ -116,19 +130,22 @@ public final class FresnelDesktopLauncher {
             DesktopLaunchRequest request,
             DesktopInstanceMetadata metadata,
             DesktopOpenClient client,
-            DesktopBrowser browser) throws IOException, InterruptedException {
+            DesktopBrowser browser,
+            Path dataDirectory) throws IOException, InterruptedException {
         if (!request.springArguments().isEmpty()) {
             throw new IllegalArgumentException(
                     "Spring Boot arguments cannot be applied while Fresnel is already running");
         }
 
+        final URI uri;
         if (request.jobFile().isPresent()) {
             byte[] jobBytes = Files.readAllBytes(request.jobFile().orElseThrow());
             String importId = client.submit(metadata, jobBytes);
-            browser.open(client.browserUri(metadata, importId));
+            uri = client.browserUri(metadata, importId);
         } else {
-            browser.open(client.baseBrowserUri(metadata));
+            uri = client.baseBrowserUri(metadata);
         }
+        openBrowser(browser, uri, dataDirectory);
     }
 
     private static DesktopInstanceMetadata awaitPrimary(
@@ -167,6 +184,15 @@ public final class FresnelDesktopLauncher {
         }
     }
 
+    private static void openBrowser(DesktopBrowser browser, URI uri, Path dataDirectory) {
+        if (!browser.open(uri)) {
+            DesktopDiagnostics.append(
+                    dataDirectory,
+                    "Could not open the default browser. Open this local URL manually: " + uri,
+                    null);
+        }
+    }
+
     private static int actualPort(ConfigurableApplicationContext context) {
         if (!(context instanceof WebServerApplicationContext webContext)) {
             throw new IllegalStateException("Fresnel did not start as a web server application");
@@ -178,12 +204,27 @@ public final class FresnelDesktopLauncher {
         return webServer.getPort();
     }
 
-    private static void configureDesktopSystemProperties(String sessionSecret) {
+    private static void configureDesktopSystemProperties(
+            String sessionSecret,
+            Path dataDirectory,
+            DesktopLaunchRequest request) {
         System.setProperty("fresnel.desktop.enabled", "true");
         System.setProperty("fresnel.desktop.instance-secret", sessionSecret);
+        System.setProperty("FRESNEL_DATA_DIR", dataDirectory.toString());
+
         // Desktop IPC and public one-time imports must never become network-visible,
         // even if an external standalone configuration contains another address.
         System.setProperty("server.address", "127.0.0.1");
+
+        boolean externalLogConfigured = System.getProperty("logging.file.name") != null
+                || System.getenv("LOGGING_FILE_NAME") != null
+                || request.springArguments().stream()
+                .anyMatch(argument -> argument.startsWith("--logging.file.name="));
+        if (!externalLogConfigured) {
+            System.setProperty(
+                    "logging.file.name",
+                    DesktopDiagnostics.applicationLog(dataDirectory).toString());
+        }
     }
 
     private static String randomSecret() {
