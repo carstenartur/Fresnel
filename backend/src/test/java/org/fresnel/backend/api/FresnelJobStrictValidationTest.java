@@ -50,6 +50,27 @@ class FresnelJobStrictValidationTest {
     }
 
     @Test
+    void requiresExplicitPluginSchemaAndAlgorithmVersions() throws Exception {
+        String withoutParameterVersion = zonePlateJob("", "")
+                .replace("\"parameterSchemaVersion\": 1,", "");
+        mvc.perform(post("/api/designs/job/load")
+                        .contentType(FRESNEL_JOB)
+                        .content(withoutParameterVersion))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString(
+                        "plugin.parameterSchemaVersion must be at least 1")));
+
+        String withoutAlgorithmVersion = zonePlateJob("", "")
+                .replace(",\n                    \"algorithmVersion\": \"zone-plate/1\"", "");
+        mvc.perform(post("/api/designs/job/load")
+                        .contentType(FRESNEL_JOB)
+                        .content(withoutAlgorithmVersion))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString(
+                        "plugin.algorithmVersion must not be empty")));
+    }
+
+    @Test
     void rejectsUnknownNestedProductionFields() throws Exception {
         String job = zonePlateJob("""
                 , "production": {
@@ -81,6 +102,17 @@ class FresnelJobStrictValidationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string(containsString(
                         "production.outputs must contain at least one output")));
+    }
+
+    @Test
+    void rejectsNullProductionOutputWithItsArrayIndex() throws Exception {
+        mvc.perform(post("/api/designs/job/load")
+                        .contentType(FRESNEL_JOB)
+                        .content(zonePlateJob(
+                                ", \"production\": {\"outputs\": [null]}", "")))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString(
+                        "production.outputs[0] must not be null")));
     }
 
     @Test
