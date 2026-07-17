@@ -31,7 +31,7 @@ class SpaControllerTest {
     }
 
     @Test
-    voidPluginApiRoutesRemainApiResponses() throws Exception {
+    void pluginApiRoutesRemainApiResponses() throws Exception {
         mvc.perform(get("/api/plugins/hex-macro-cell"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("hex-macro-cell"));
