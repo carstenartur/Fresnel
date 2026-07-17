@@ -3,20 +3,17 @@ package org.fresnel.backend.desktop;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@AutoConfigureMockMvc
 class DesktopModeIsolationTest {
 
     @Autowired ApplicationContext context;
-    @Autowired MockMvc mvc;
+    @Autowired RequestMappingHandlerMapping handlerMapping;
 
     @Test
     void ordinaryServerContextDoesNotCreateDesktopBeans() {
@@ -25,10 +22,9 @@ class DesktopModeIsolationTest {
     }
 
     @Test
-    void ordinaryServerContextDoesNotExposeDesktopTokenEndpoints() throws Exception {
-        mvc.perform(get("/api/desktop/open/{token}", "A".repeat(43)))
-                .andExpect(status().isNotFound());
-        mvc.perform(get("/api/internal/desktop/ping"))
-                .andExpect(status().isNotFound());
+    void ordinaryServerContextDoesNotRegisterDesktopHandlers() {
+        assertTrue(handlerMapping.getHandlerMethods().values().stream()
+                .map(HandlerMethod::getBeanType)
+                .noneMatch(DesktopOpenController.class::equals));
     }
 }
