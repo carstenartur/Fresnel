@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   downloadRgbPng, fetchRgbPreviewPng, validatePlugin,
   type DesignValidationReport, type RgbZonePlateRequest, type SingleZonePlateRequest,
@@ -8,13 +8,17 @@ import {
   SaveJobControl,
   type JobPanelProps,
 } from '../jobs/JobFileControls';
-import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
+import { fetchPluginSchema, type PluginSchemaDocument } from '../pluginSchemaApi';
+import { SchemaForm } from '../schema/SchemaForm';
+import { PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const BASE_DEFAULT: SingleZonePlateRequest = {
   apertureDiameterMm: 5,
   focalLengthMm: 100,
-  wavelengthNm: 550,    // ignored by RGB renderer
+  wavelengthNm: 550,
   dpi: 600,
+  targetOffsetXmm: 0,
+  targetOffsetYmm: 0,
   maskType: 'BINARY_AMPLITUDE',
   polarity: 'POSITIVE',
 };
@@ -31,15 +35,28 @@ export function RgbPanel({ initialJob }: JobPanelProps) {
     const loaded = initialJobParameters(initialJob, 'rgb-zone-plate', DEFAULT);
     return { ...loaded, base: { ...BASE_DEFAULT, ...loaded.base } };
   });
+  const [schema, setSchema] = useState<PluginSchemaDocument<RgbZonePlateRequest> | null>(null);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
-  const updateBase = (patch: Partial<SingleZonePlateRequest>) =>
-    setRequest((current) => ({ ...current, base: { ...current.base, ...patch } }));
-  const update = (patch: Partial<RgbZonePlateRequest>) =>
-    setRequest((current) => ({ ...current, ...patch }));
+  useEffect(() => {
+    let active = true;
+    fetchPluginSchema<RgbZonePlateRequest>('rgb-zone-plate')
+      .then((loaded) => {
+        if (!active) return;
+        setSchema(loaded);
+        setSchemaError(null);
+      })
+      .catch((loadError: unknown) => {
+        if (!active) return;
+        setSchema(null);
+        setSchemaError(loadError instanceof Error ? loadError.message : String(loadError));
+      });
+    return () => { active = false; };
+  }, []);
 
   const renderPreview = async () => {
     setBusy(true); setError(null);
@@ -47,38 +64,39 @@ export function RgbPanel({ initialJob }: JobPanelProps) {
       setPreview(await fetchRgbPreviewPng(request));
       setValidationReport(await validatePlugin('rgb-zone-plate', request));
     }
-    catch (e) { setValidationReport(null); setError(e instanceof Error ? e.message : String(e)); }
+    catch (renderError) {
+      setValidationReport(null);
+      setError(renderError instanceof Error ? renderError.message : String(renderError));
+    }
     finally { setBusy(false); }
   };
 
   return (
     <>
-      <h2>Geometry</h2>
-      <NumberField label="Aperture (mm)" value={request.base.apertureDiameterMm} min={0.1} step={0.1}
-        onChange={(v) => updateBase({ apertureDiameterMm: v })} />
-      <NumberField label="Focal length (mm)" value={request.base.focalLengthMm} min={1} step={1}
-        onChange={(v) => updateBase({ focalLengthMm: v })} />
-      <NumberField label="DPI" value={request.base.dpi} min={50} step={50}
-        onChange={(v) => updateBase({ dpi: v })} />
-
-      <h2>Channel wavelengths (nm)</h2>
-      <NumberField label="Red" value={request.redNm} min={100} max={2000} step={1}
-        onChange={(redNm) => update({ redNm })} />
-      <NumberField label="Green" value={request.greenNm} min={100} max={2000} step={1}
-        onChange={(greenNm) => update({ greenNm })} />
-      <NumberField label="Blue" value={request.blueNm} min={100} max={2000} step={1}
-        onChange={(blueNm) => update({ blueNm })} />
+      <h2>RGB zone plate</h2>
+      {schema ? (
+        <SchemaForm
+          parameterSchema={schema.parameterSchema}
+          uiSchema={schema.uiSchema}
+          value={request}
+          onChange={setRequest}
+          disabled={busy}
+        />
+      ) : !schemaError ? (
+        <p role="status" style={{ fontSize: 12, color: '#6b7280' }}>Loading plugin schema…</p>
+      ) : null}
+      {schemaError && <p className="error-message">Could not load editor schema: {schemaError}</p>}
 
       <div className="actions">
-        <button onClick={renderPreview} disabled={busy}>
+        <button onClick={renderPreview} disabled={busy || !schema}>
           {busy ? 'Rendering…' : 'Render preview'}
         </button>
-        <button className="secondary" disabled={busy}
+        <button className="secondary" disabled={busy || !schema}
                 onClick={() => downloadRgbPng(request, 'fresnel-rgb.png')}>
           PNG
         </button>
       </div>
-      <SaveJobControl pluginId="rgb-zone-plate" parameters={request} disabled={busy} />
+      <SaveJobControl pluginId="rgb-zone-plate" parameters={request} disabled={busy || !schema} />
       {error && <p className="error-message">{error}</p>}
 
       <PreviewPane url={previewUrl} alt="RGB zone plate preview" />
