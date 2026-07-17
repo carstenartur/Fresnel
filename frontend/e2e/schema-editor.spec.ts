@@ -51,6 +51,26 @@ test('nested RGB schema paths update the request used for rendering', async ({ p
   await page.getByRole('button', { name: 'Render preview' }).click();
   await expect(page.getByRole('img', { name: 'RGB zone plate preview' }))
     .toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'PDF' })).toHaveCount(0);
+});
+
+test('trusted focus-point widget edits a schema-owned array', async ({ page }) => {
+  await page.goto('/plugins/multi-focus');
+  const form = page.locator('[data-plugin-schema="multi-focus"]');
+  await expect(form).toBeVisible();
+
+  await expect(page.getByLabel('x1 (mm)')).toHaveValue('-5');
+  await expect(page.getByLabel('x2 (mm)')).toHaveValue('5');
+  await page.getByRole('button', { name: '+ Add focus point' }).click();
+  await expect(page.getByLabel('x3 (mm)')).toHaveValue('0');
+  await page.getByLabel('x3 (mm)').fill('12');
+  await page.getByLabel('z3 (mm)').fill('800');
+  await page.getByRole('button', { name: 'Remove focus 2' }).click();
+  await expect(page.getByLabel('x2 (mm)')).toHaveValue('12');
+
+  await page.getByRole('button', { name: 'Render preview' }).click();
+  await expect(page.getByRole('img', { name: 'Multi-focus preview' }))
+    .toBeVisible({ timeout: 30_000 });
 });
 
 test('tab navigation and browser history use stable plugin-id routes', async ({ page }) => {
