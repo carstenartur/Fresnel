@@ -33,6 +33,7 @@ public record DesktopLaunchRequest(Optional<Path> jobFile, List<String> springAr
         for (int i = 0; i < args.length; i++) {
             String argument = args[i];
             if (springSection) {
+                validateSpringArgument(argument);
                 springArguments.add(argument);
                 continue;
             }
@@ -62,6 +63,18 @@ public record DesktopLaunchRequest(Optional<Path> jobFile, List<String> springAr
         }
 
         return new DesktopLaunchRequest(Optional.ofNullable(jobFile), springArguments);
+    }
+
+    private static void validateSpringArgument(String argument) {
+        if (argument == null) {
+            throw new IllegalArgumentException("Spring Boot arguments must not be null");
+        }
+        String normalized = argument.toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("--fresnel.desktop.")
+                || normalized.startsWith("--server.address")) {
+            throw new IllegalArgumentException(
+                    "The packaged desktop launcher reserves this Spring property: " + argument);
+        }
     }
 
     private static Path validateJobFile(String rawPath) {
