@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test';
 
+const ONE_PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
+
 test('stable plugin route renders and edits the Hex schema form', async ({ page }) => {
   const schemaResponsePromise = page.waitForResponse((response) =>
     response.url().endsWith('/api/plugins/hex-macro-cell/schema'));
@@ -101,6 +106,38 @@ test('trusted Window Foil widget round-trips optional per-cell overrides', async
     targetOffsetXmm: 2,
     targetOffsetYmm: -3,
   }]);
+});
+
+test('trusted Hologram image widget embeds only local file data', async ({ page }) => {
+  await page.goto('/plugins/hologram');
+  const form = page.locator('[data-plugin-schema="hologram"]');
+  await expect(form).toBeVisible();
+
+  await page.getByLabel('Target image').setInputFiles({
+    name: 'target.png',
+    mimeType: 'image/png',
+    buffer: ONE_PIXEL_PNG,
+  });
+  await expect(page.getByRole('status')).toContainText('Loaded target.png');
+  await page.getByLabel('Side (px)').fill('64');
+  await page.getByLabel('Gerchberg–Saxton iterations').fill('5');
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Save job (.fresnel)' }).click(),
+  ]);
+  const stream = await download.createReadStream();
+  let json = '';
+  for await (const chunk of stream) json += chunk.toString();
+  const job = JSON.parse(json);
+
+  expect(job.plugin.id).toBe('hologram');
+  expect(job.parameters.targetImageBase64).toBe(ONE_PIXEL_PNG.toString('base64'));
+  expect(job.parameters.sidePx).toBe(64);
+  expect(job.parameters.iterations).toBe(5);
+
+  await page.getByRole('button', { name: 'Clear image' }).click();
+  await expect(page.getByRole('button', { name: 'Save job (.fresnel)' })).toBeDisabled();
 });
 
 test('tab navigation and browser history use stable plugin-id routes', async ({ page }) => {
