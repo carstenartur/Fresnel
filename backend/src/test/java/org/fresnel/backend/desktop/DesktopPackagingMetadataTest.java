@@ -38,6 +38,21 @@ class DesktopPackagingMetadataTest {
             assertTrue(content.contains("-Dfresnel.desktop.enabled=true"), script);
             assertTrue(content.contains("fresnel-job.properties"), script);
         }
+
+        String linuxBuild = Files.readString(repositoryFile(
+                "packaging/jpackage/build-linux.sh"));
+        assertTrue(linuxBuild.contains("--resource-dir"));
+        assertTrue(linuxBuild.contains("Fresnel.desktop"));
+    }
+
+    @Test
+    void linuxDesktopEntryForwardsExactlyOneAssociatedFile() throws Exception {
+        String desktop = Files.readString(repositoryFile(
+                "packaging/jpackage/resources/Fresnel.desktop"));
+        assertTrue(desktop.contains("Exec=/opt/fresnel/bin/Fresnel %f"));
+        assertTrue(desktop.contains(
+                "MimeType=" + FresnelJobDocument.MEDIA_TYPE + ";"));
+        assertTrue(desktop.contains("Terminal=false"));
     }
 
     private static Path repositoryFile(String relativePath) {
