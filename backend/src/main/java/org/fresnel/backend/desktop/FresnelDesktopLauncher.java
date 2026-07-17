@@ -74,8 +74,8 @@ public final class FresnelDesktopLauncher {
             context = application.run(request.springArguments().toArray(String[]::new));
             ConfigurableApplicationContext startedContext = context;
             context.addApplicationListener(event -> {
-                if (event instanceof ContextClosedEvent
-                        && event.getApplicationContext() == startedContext) {
+                if (event instanceof ContextClosedEvent closedEvent
+                        && closedEvent.getApplicationContext() == startedContext) {
                     coordinator.close();
                 }
             });
