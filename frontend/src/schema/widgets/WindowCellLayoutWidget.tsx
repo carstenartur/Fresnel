@@ -34,6 +34,7 @@ export function WindowCellLayoutWidget({
       {cells.map((cell, index) => (
         <fieldset
           key={index}
+          disabled={disabled}
           style={{
             border: '1px solid #e5e7eb',
             borderRadius: 4,
