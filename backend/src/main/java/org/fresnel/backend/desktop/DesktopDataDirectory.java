@@ -4,20 +4,33 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
 
-/** Resolves the per-user directory shared by the standalone database and desktop lock files. */
+/** Resolves the per-user directory shared by database, logs and desktop coordination. */
 public final class DesktopDataDirectory {
 
     private DesktopDataDirectory() {}
 
     public static Path resolve() {
-        return resolve(System.getenv(), System.getProperty("os.name", ""),
+        return resolve(System.getProperty("FRESNEL_DATA_DIR"), System.getenv(),
+                System.getProperty("os.name", ""),
                 Path.of(System.getProperty("user.home", ".")));
     }
 
     static Path resolve(Map<String, String> environment, String osName, Path userHome) {
-        String override = environment.get("FRESNEL_DATA_DIR");
-        if (override != null && !override.isBlank()) {
-            return Path.of(override).toAbsolutePath().normalize();
+        return resolve(null, environment, osName, userHome);
+    }
+
+    static Path resolve(
+            String systemOverride,
+            Map<String, String> environment,
+            String osName,
+            Path userHome) {
+        if (systemOverride != null && !systemOverride.isBlank()) {
+            return Path.of(systemOverride).toAbsolutePath().normalize();
+        }
+
+        String environmentOverride = environment.get("FRESNEL_DATA_DIR");
+        if (environmentOverride != null && !environmentOverride.isBlank()) {
+            return Path.of(environmentOverride).toAbsolutePath().normalize();
         }
 
         String os = osName == null ? "" : osName.toLowerCase(Locale.ROOT);
