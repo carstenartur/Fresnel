@@ -49,6 +49,26 @@ while the vendor media type distinguishes it from unrelated JSON documents.
 A complete checked-in example is available at
 [`jobs/zone-plate/on-axis.fresnel`](jobs/zone-plate/on-axis.fresnel).
 
+## Using job files in the graphical interface
+
+The **Open job…** control at the top of the application accepts both current
+`.fresnel` files and legacy design `.json` files. Fresnel validates and normalizes
+the document through the backend, selects the editor identified by `plugin.id`,
+and populates that editor only after the import succeeds.
+
+Each design editor provides **Save job (.fresnel)**. The downloaded file contains
+the current normalized parameters and is suitable for reopening in any supported
+editor. Opening another job for the same plugin recreates the editor with the new
+parameter state; opening a job for another plugin switches to the corresponding
+editor automatically.
+
+When an old `{kind, version, payload}` document is opened, the interface displays
+a migration notice. The original local file is not modified. Saving afterward
+creates a new `.fresnel` v1 file.
+
+Invalid, oversized, unknown-plugin and unsupported-future-version files are shown
+as import errors and do not replace the current editor state.
+
 ## Stable plugin identifiers
 
 Jobs use IDs from `PluginRegistry`, not frontend tab names or Java class names:
