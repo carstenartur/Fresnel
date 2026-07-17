@@ -89,6 +89,11 @@ public class DesktopOpenQueue {
         return store(result);
     }
 
+    /** Stores a launcher-side read failure without exposing its source path. */
+    public synchronized String enqueueError(String code, String message) {
+        return store(DesktopOpenResult.invalid(code, message));
+    }
+
     /** Removes and returns a token exactly once; expired and unknown tokens are absent. */
     public synchronized Optional<DesktopOpenResult> consume(String token) {
         cleanupExpired();
