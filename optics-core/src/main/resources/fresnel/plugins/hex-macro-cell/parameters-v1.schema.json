@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Fresnel/schemas/plugins/hex-macro-cell/parameters-v1.schema.json",
+  "title": "Hex Macro Cell parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "macroRadiusMm",
+    "subDiameterMm",
+    "subPitchMm",
+    "focalLengthMm",
+    "wavelengthNm",
+    "dpi"
+  ],
+  "default": {
+    "macroRadiusMm": 30.0,
+    "subDiameterMm": 10.0,
+    "subPitchMm": 11.0,
+    "focalLengthMm": 1000.0,
+    "targetOffsetXmm": 0.0,
+    "targetOffsetYmm": 0.0,
+    "wavelengthNm": 550.0,
+    "dpi": 600.0,
+    "maskType": "BINARY_AMPLITUDE",
+    "polarity": "POSITIVE"
+  },
+  "properties": {
+    "macroRadiusMm": {
+      "type": "number",
+      "title": "Macro radius",
+      "exclusiveMinimum": 0,
+      "default": 30.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 1.0
+    },
+    "subDiameterMm": {
+      "type": "number",
+      "title": "Sub-element diameter",
+      "exclusiveMinimum": 0,
+      "default": 10.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 0.1
+    },
+    "subPitchMm": {
+      "type": "number",
+      "title": "Sub-element pitch",
+      "exclusiveMinimum": 0,
+      "default": 11.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 0.1
+    },
+    "focalLengthMm": {
+      "type": "number",
+      "title": "Focal length",
+      "exclusiveMinimum": 0,
+      "default": 1000.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 1.0
+    },
+    "targetOffsetXmm": {
+      "type": "number",
+      "title": "Target offset X",
+      "default": 0.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 1.0
+    },
+    "targetOffsetYmm": {
+      "type": "number",
+      "title": "Target offset Y",
+      "default": 0.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 1.0
+    },
+    "wavelengthNm": {
+      "type": "number",
+      "title": "Wavelength",
+      "minimum": 100,
+      "maximum": 2000,
+      "default": 550.0,
+      "x-fresnel-unit": "nm",
+      "x-fresnel-step": 1.0
+    },
+    "dpi": {
+      "type": "number",
+      "title": "Printer DPI",
+      "minimum": 50,
+      "default": 600.0,
+      "x-fresnel-unit": "dpi",
+      "x-fresnel-step": 50.0
+    },
+    "maskType": {
+      "type": "string",
+      "title": "Mask type",
+      "enum": ["BINARY_AMPLITUDE", "GREYSCALE_PHASE"],
+      "default": "BINARY_AMPLITUDE"
+    },
+    "polarity": {
+      "type": "string",
+      "title": "Polarity",
+      "enum": ["POSITIVE", "NEGATIVE"],
+      "default": "POSITIVE"
+    }
+  }
+}
