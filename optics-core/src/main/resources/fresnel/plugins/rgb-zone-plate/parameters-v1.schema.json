@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Fresnel/schemas/plugins/rgb-zone-plate/parameters-v1.schema.json",
+  "title": "RGB Zone Plate parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["base", "redNm", "greenNm", "blueNm"],
+  "default": {
+    "base": {
+      "apertureDiameterMm": 5.0,
+      "focalLengthMm": 100.0,
+      "wavelengthNm": 550.0,
+      "dpi": 600.0,
+      "targetOffsetXmm": 0.0,
+      "targetOffsetYmm": 0.0,
+      "maskType": "BINARY_AMPLITUDE",
+      "polarity": "POSITIVE"
+    },
+    "redNm": 630.0,
+    "greenNm": 532.0,
+    "blueNm": 450.0
+  },
+  "properties": {
+    "base": {
+      "type": "object",
+      "title": "Base geometry",
+      "additionalProperties": false,
+      "required": ["apertureDiameterMm", "focalLengthMm", "wavelengthNm", "dpi"],
+      "properties": {
+        "apertureDiameterMm": {
+          "type": "number",
+          "title": "Aperture diameter",
+          "exclusiveMinimum": 0,
+          "default": 5.0,
+          "x-fresnel-unit": "mm",
+          "x-fresnel-step": 0.1
+        },
+        "focalLengthMm": {
+          "type": "number",
+          "title": "Focal length",
+          "exclusiveMinimum": 0,
+          "default": 100.0,
+          "x-fresnel-unit": "mm",
+          "x-fresnel-step": 1.0
+        },
+        "wavelengthNm": {
+          "type": "number",
+          "title": "Reference wavelength",
+          "description": "Retained for compatibility; channel wavelengths drive RGB rendering.",
+          "minimum": 100,
+          "maximum": 2000,
+          "default": 550.0,
+          "x-fresnel-unit": "nm",
+          "x-fresnel-step": 1.0
+        },
+        "dpi": {
+          "type": "number",
+          "title": "Printer DPI",
+          "minimum": 50,
+          "default": 600.0,
+          "x-fresnel-unit": "dpi",
+          "x-fresnel-step": 50.0
+        },
+        "targetOffsetXmm": {
+          "type": "number",
+          "title": "Target offset X",
+          "default": 0.0,
+          "x-fresnel-unit": "mm"
+        },
+        "targetOffsetYmm": {
+          "type": "number",
+          "title": "Target offset Y",
+          "default": 0.0,
+          "x-fresnel-unit": "mm"
+        },
+        "maskType": {
+          "type": "string",
+          "title": "Mask type",
+          "enum": ["BINARY_AMPLITUDE", "GREYSCALE_PHASE"],
+          "default": "BINARY_AMPLITUDE"
+        },
+        "polarity": {
+          "type": "string",
+          "title": "Polarity",
+          "enum": ["POSITIVE", "NEGATIVE"],
+          "default": "POSITIVE"
+        }
+      }
+    },
+    "redNm": {
+      "type": "number",
+      "title": "Red wavelength",
+      "minimum": 100,
+      "maximum": 2000,
+      "default": 630.0,
+      "x-fresnel-unit": "nm",
+      "x-fresnel-step": 1.0
+    },
+    "greenNm": {
+      "type": "number",
+      "title": "Green wavelength",
+      "minimum": 100,
+      "maximum": 2000,
+      "default": 532.0,
+      "x-fresnel-unit": "nm",
+      "x-fresnel-step": 1.0
+    },
+    "blueNm": {
+      "type": "number",
+      "title": "Blue wavelength",
+      "minimum": 100,
+      "maximum": 2000,
+      "default": 450.0,
+      "x-fresnel-unit": "nm",
+      "x-fresnel-step": 1.0
+    }
+  }
+}
