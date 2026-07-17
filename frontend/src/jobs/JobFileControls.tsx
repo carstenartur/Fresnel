@@ -1,4 +1,10 @@
-import { useState, type ChangeEvent } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from 'react';
 import {
   FRESNEL_JOB_EXTENSION,
   FRESNEL_JOB_MEDIA_TYPE,
@@ -9,11 +15,27 @@ import {
   type LoadedFresnelJob,
 } from '../jobApi';
 
+const JobSourceContext = createContext<FresnelJobDocument<unknown> | null>(null);
+
 export interface JobPanelProps {
   initialJob?: FresnelJobDocument<unknown> | null;
 }
 
 export type OpenJobHandler = (loaded: LoadedFresnelJob) => void;
+
+export function JobSourceProvider({
+  job,
+  children,
+}: {
+  job: FresnelJobDocument<unknown> | null;
+  children: ReactNode;
+}) {
+  return (
+    <JobSourceContext.Provider value={job}>
+      {children}
+    </JobSourceContext.Provider>
+  );
+}
 
 export function initialJobParameters<T extends object>(
   job: FresnelJobDocument<unknown> | null | undefined,
@@ -74,6 +96,7 @@ export function SaveJobControl<T>({
   disabled?: boolean;
   filename?: string;
 }) {
+  const sourceJob = useContext(JobSourceContext);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,7 +105,7 @@ export function SaveJobControl<T>({
     setBusy(true);
     setError(null);
     try {
-      await saveFresnelJob(pluginId, parameters, filename);
+      await saveFresnelJob(pluginId, parameters, filename, sourceJob);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError));
     } finally {
