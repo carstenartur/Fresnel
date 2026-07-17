@@ -164,6 +164,21 @@ jobs:
           JPACKAGE_TYPE: ${{ matrix.jpackage_type }}
         run: ${{ matrix.script }}
 
+      - name: Verify Linux installer metadata
+        if: matrix.label == 'linux'
+        shell: bash
+        run: bash packaging/jpackage/verify-linux-package.sh
+
+      - name: Smoke-test Linux desktop runtime
+        if: matrix.label == 'linux'
+        shell: bash
+        run: bash packaging/jpackage/verify-linux-desktop-runtime.sh
+
+      - name: Verify Windows installer metadata
+        if: matrix.label == 'windows'
+        shell: pwsh
+        run: ./packaging/jpackage/verify-windows-package.ps1
+
       - name: Upload installer
         uses: actions/upload-artifact@v7
         with:
