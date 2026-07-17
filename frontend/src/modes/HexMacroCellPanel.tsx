@@ -14,6 +14,7 @@ import {
   type JobPanelProps,
 } from '../jobs/JobFileControls';
 import { fetchPluginSchema, type PluginSchemaDocument } from '../pluginSchemaApi';
+import { PluginActionBar } from '../schema/PluginActionBar';
 import { SchemaForm } from '../schema/SchemaForm';
 import { PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
@@ -93,19 +94,25 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
         </p>
       )}
 
-      <div className="actions">
-        <button onClick={renderPreview} disabled={busy || !schema}>
-          {busy ? 'Rendering…' : 'Render preview'}
-        </button>
-        <button className="secondary" disabled={busy || !schema}
-                onClick={() => downloadHexPng(req, 'fresnel-hex-macro.png')}>
-          PNG
-        </button>
-        <button className="secondary" disabled={busy || !schema}
-                onClick={() => downloadHexPdf(req, 'FIT', 'fresnel-hex-macro.pdf')}>
-          PDF
-        </button>
-      </div>
+      <PluginActionBar
+        capabilities={schema?.capabilities ?? []}
+        busy={busy}
+        actions={{
+          PREVIEW_PNG: {
+            label: busy ? 'Rendering…' : 'Render preview',
+            primary: true,
+            run: renderPreview,
+          },
+          EXPORT_PNG: {
+            label: 'PNG',
+            run: () => downloadHexPng(req, 'fresnel-hex-macro.png'),
+          },
+          EXPORT_PDF: {
+            label: 'PDF',
+            run: () => downloadHexPdf(req, 'FIT', 'fresnel-hex-macro.pdf'),
+          },
+        }}
+      />
       <SaveJobControl pluginId="hex-macro-cell" parameters={req} disabled={busy || !schema} />
       {error && <p className="error-message">{error}</p>}
 
