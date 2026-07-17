@@ -29,7 +29,7 @@ class DesktopPackagingMetadataTest {
     }
 
     @Test
-    voidWindowsAndLinuxPackagesEnableTheLauncherAndAssociation() throws Exception {
+    void windowsAndLinuxPackagesEnableTheLauncherAndAssociation() throws Exception {
         for (String script : List.of(
                 "packaging/jpackage/build-linux.sh",
                 "packaging/jpackage/build-windows.cmd")) {
