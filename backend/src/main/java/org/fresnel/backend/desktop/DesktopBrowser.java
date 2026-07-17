@@ -58,7 +58,8 @@ public final class DesktopBrowser {
         }
     }
 
-    private List<String> platformCommand(URI uri) {
+    List<String> platformCommand(URI uri) {
+        requireLoopbackHttpUri(uri);
         String os = osName.toLowerCase(Locale.ROOT);
         if (os.contains("win")) {
             return List.of("rundll32", "url.dll,FileProtocolHandler", uri.toASCIIString());
