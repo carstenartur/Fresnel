@@ -54,7 +54,7 @@ public final class FresnelDesktopLauncher {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Desktop launch was interrupted", e);
-        } catch (IOException e) {
+        } catch (IOException | PrimaryNotReadyException e) {
             throw new IllegalStateException("Could not coordinate the Fresnel desktop instance: "
                     + concise(e), e);
         }
