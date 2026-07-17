@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { type FresnelJobDocument, type FresnelPluginId, type LoadedFresnelJob } from './jobApi';
-import { OpenJobControl } from './jobs/JobFileControls';
+import { JobSourceProvider, OpenJobControl } from './jobs/JobFileControls';
 import { AssistantPanel } from './modes/AssistantPanel';
 import { ComparisonPanel } from './modes/ComparisonPanel';
 import { HexMacroCellPanel } from './modes/HexMacroCellPanel';
@@ -115,7 +115,9 @@ export function App() {
             </button>
           ))}
         </div>
-        {panel}
+        <JobSourceProvider job={initialJob}>
+          {panel}
+        </JobSourceProvider>
       </aside>
       <main className="preview" />
     </div>
