@@ -31,7 +31,7 @@ export function SchemaForm<T extends object>({
   disabled?: boolean;
   customWidgets?: Readonly<Record<string, SchemaCustomWidget>>;
 }) {
-  const formId = useId().replaceAll(':', '');
+  const formId = useId().replace(/:/g, '');
 
   const changeField = (path: string, fieldValue: unknown) => {
     const next = setValueAtPath(value as Record<string, unknown>, path, fieldValue);
@@ -464,17 +464,19 @@ function numericText(value: unknown, fallback: unknown): string {
 }
 
 function fieldLabel(schema: ParameterFieldSchema, path: string): string {
-  const base = schema.title ?? path.split('.').at(-1) ?? path;
-  return schema['x-fresnel-unit'] ? `${base} (${schema['x-fresnel-unit']})` : base;
+  const segments = path.split('.');
+  const base = schema.title ?? segments[segments.length - 1] ?? path;
+  const unit = schema['x-fresnel-unit'];
+  return unit && !base.toLowerCase().includes(unit.toLowerCase()) ? `${base} (${unit})` : base;
 }
 
 function humanizeEnum(value: string): string {
-  const lower = value.toLowerCase().replaceAll('_', ' ');
+  const lower = value.toLowerCase().replace(/_/g, ' ');
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
 function toDomId(path: string): string {
-  return path.replaceAll(/[^a-zA-Z0-9_-]/g, '-');
+  return path.replace(/[^a-zA-Z0-9_-]/g, '-');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
