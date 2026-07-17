@@ -41,11 +41,11 @@ public record FresnelJobDocument(
             String algorithmVersion
     ) {}
 
-    /** Optional list of outputs requested from the design. */
+    /** Optional non-empty list of outputs requested from the design. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ProductionPlan(List<ProductionOutput> outputs) {
         public ProductionPlan {
-            outputs = outputs == null ? List.of() : List.copyOf(outputs);
+            outputs = outputs == null ? null : List.copyOf(outputs);
         }
     }
 
