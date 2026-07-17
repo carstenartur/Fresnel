@@ -11,8 +11,6 @@ import {
   downloadCalibrationPdf,
   fetchPreviewPng,
   fetchPropagatePng,
-  loadDesignFromFile,
-  saveDesign,
   validate,
   validatePlugin,
   type DesignValidationReport,
@@ -27,6 +25,11 @@ import {
   type SingleZonePlateRequest,
   type Warning,
 } from '../api';
+import {
+  initialJobParameters,
+  SaveJobControl,
+  type JobPanelProps,
+} from '../jobs/JobFileControls';
 import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DPI_PRESETS = [600, 1200, 2400, 4800];
@@ -59,8 +62,9 @@ const DEFAULT_MEASURED_FOCUS: MeasuredFocus = {
   notes: '',
 };
 
-export function SingleZonePlatePanel() {
-  const [req, setReq] = useState<SingleZonePlateRequest>(DEFAULT_REQ);
+export function SingleZonePlatePanel({ initialJob }: JobPanelProps) {
+  const [req, setReq] = useState<SingleZonePlateRequest>(() =>
+    initialJobParameters(initialJob, 'zone-plate', DEFAULT_REQ));
   const [metrics, setMetrics] = useState<DesignMetrics | null>(null);
   const [qualityReport, setQualityReport] = useState<OpticalQualityReport | null>(null);
   const [warnings, setWarnings] = useState<Warning[]>([]);
@@ -264,34 +268,7 @@ export function SingleZonePlatePanel() {
         </button>
       </div>
 
-      <h2 style={{ marginTop: 16 }}>Save / load design</h2>
-      <div className="actions">
-        <button className="secondary"
-                onClick={() => saveDesign({ kind: 'single', version: 1, payload: req })}>
-          Save (.json)
-        </button>
-        <label className="secondary" style={{ cursor: 'pointer' }}>
-          Load…
-          <input type="file" accept="application/json,.json" style={{ display: 'none' }}
-                 onChange={async (e) => {
-                   const f = e.target.files?.[0];
-                   if (!f) return;
-                   try {
-                     const doc = await loadDesignFromFile<SingleZonePlateRequest>(f);
-                     if (doc.kind !== 'single') {
-                       setError(`Loaded file is for "${doc.kind}" mode, not single.`);
-                       return;
-                     }
-                     setReq({ ...DEFAULT_REQ, ...doc.payload });
-                     setError(null);
-                   } catch (err) {
-                     setError(err instanceof Error ? err.message : String(err));
-                   } finally {
-                     e.target.value = '';
-                   }
-                 }} />
-        </label>
-      </div>
+      <SaveJobControl pluginId="zone-plate" parameters={req} disabled={!valid || loading} />
       {error && <p className="error-message">{error}</p>}
 
       <Warnings warnings={warnings} valid={valid} />
