@@ -49,6 +49,70 @@ test('saves and reopens the current zone plate as a canonical .fresnel job', asy
   await expect(wavelength).toHaveValue('632');
 });
 
+test('preserves production and compatibility metadata while editing a loaded job', async ({ page }) => {
+  await page.goto('/');
+
+  const sourceJob = {
+    $schema: 'https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json',
+    format: 'io.github.carstenartur.fresnel.job',
+    formatVersion: 1,
+    plugin: {
+      id: 'zone-plate',
+      parameterSchemaVersion: 1,
+      algorithmVersion: 'zone-plate/2026.07',
+    },
+    parameters: {
+      apertureDiameterMm: 10,
+      focalLengthMm: 1000,
+      wavelengthNm: 550,
+      dpi: 1200,
+      targetOffsetXmm: 0,
+      targetOffsetYmm: 0,
+      maskType: 'BINARY_AMPLITUDE',
+      polarity: 'POSITIVE',
+    },
+    production: {
+      outputs: [
+        {
+          id: 'print-sheet',
+          format: 'pdf',
+          filename: 'zone-plate-print.pdf',
+          sheet: 'A4',
+          printScale: 1,
+        },
+      ],
+    },
+    provenance: {
+      createdWith: 'Fresnel laboratory template',
+      applicationVersion: '1.2.3',
+    },
+  };
+
+  await fileInput(page).setInputFiles({
+    name: 'production-job.fresnel',
+    mimeType: MEDIA_TYPE,
+    buffer: Buffer.from(JSON.stringify(sourceJob)),
+  });
+  await page.getByLabel('Focal length (mm)', { exact: true }).fill('1250');
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Save job (.fresnel)' }).click(),
+  ]);
+  const stream = await download.createReadStream();
+  let json = '';
+  for await (const chunk of stream) json += chunk.toString();
+  const saved = JSON.parse(json);
+
+  expect(saved.plugin.algorithmVersion).toBe('zone-plate/2026.07');
+  expect(saved.plugin.parameterSchemaVersion).toBe(1);
+  expect(saved.parameters.focalLengthMm).toBe(1250);
+  expect(saved.production).toEqual(sourceJob.production);
+  expect(saved.provenance.createdWith).toBe('Fresnel laboratory template');
+  expect(saved.provenance.applicationVersion).toBe('1.2.3');
+  expect(saved.provenance.parameterSha256).toMatch(/^[0-9a-f]{64}$/);
+});
+
 test('opens a job in the editor selected by its stable plugin id', async ({ page }) => {
   await page.goto('/');
 
