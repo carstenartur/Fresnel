@@ -62,6 +62,11 @@ editor. Opening another job for the same plugin recreates the editor with the ne
 parameter state; opening a job for another plugin switches to the corresponding
 editor automatically.
 
+When a loaded job is edited and saved, Fresnel preserves its compatible
+`parameterSchemaVersion`, `algorithmVersion`, `production` plan and creator
+provenance. The parameter hash is deliberately not copied: the backend recomputes
+it from the edited, normalized parameter object before returning the download.
+
 When an old `{kind, version, payload}` document is opened, the interface displays
 a migration notice. The original local file is not modified. Saving afterward
 creates a new `.fresnel` v1 file.
@@ -109,7 +114,9 @@ embedding an output directory:
 
 Each format is checked against the capabilities advertised by the selected
 plugin. Filenames must be portable basenames; absolute paths, path separators and
-parent-directory traversal are rejected.
+parent-directory traversal are rejected. If a production plan is present, it
+must contain at least one output. Missing output IDs, filenames and PDF defaults
+are normalized deterministically.
 
 ## HTTP round-trip
 
@@ -122,7 +129,7 @@ POST /api/designs/job/load
 
 Both consume the dedicated media type and also accept `application/json`. The
 load endpoint accepts either a current job or a legacy design document. Both
-return a normalized v1 job with resolved Zone Plate defaults and a stable
+return a normalized v1 job with resolved plugin defaults and a stable
 `provenance.parameterSha256` calculated from normalized parameter JSON.
 
 The save endpoint additionally returns a download filename ending in
@@ -146,6 +153,10 @@ Three versions have separate meanings:
 - `parameterSchemaVersion` versions the selected plugin's parameter object.
 - `algorithmVersion` identifies intentional numerical/rendering behavior.
 
+All three compatibility fields are explicit in a v1 job. A missing plugin schema
+or algorithm version is rejected rather than silently guessed. Legacy design
+JSON is the exception: its migration supplies explicit v1 compatibility values.
+
 A file using a newer unsupported envelope or parameter schema is rejected rather
 than partially interpreted. Future migrations should be explicit and covered by
 fixtures.
@@ -167,6 +178,7 @@ Imported jobs are untrusted input:
 
 - input is limited to 1 MiB before JSON parsing;
 - the plugin ID must exist in `PluginRegistry`;
+- unknown v1 envelope, plugin, production and parameter fields are rejected;
 - plugin parameters are converted to and validated as the corresponding backend
   request type;
 - requested output formats must be supported by the plugin;
