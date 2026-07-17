@@ -1,0 +1,35 @@
+{
+  "formatVersion": 1,
+  "pluginId": "window-foil",
+  "parameterSchemaVersion": 1,
+  "groups": [
+    {
+      "id": "sheet",
+      "title": "Sheet",
+      "fields": ["sheetWidthMm", "sheetHeightMm"]
+    },
+    {
+      "id": "macro-cells",
+      "title": "Macro cells",
+      "fields": ["macroRadiusMm", "subDiameterMm", "subPitchMm"]
+    },
+    {
+      "id": "production",
+      "title": "Print",
+      "fields": ["wavelengthNm", "dpi", "maskType", "polarity", "drawCropMarks"]
+    },
+    {
+      "id": "cell-layout",
+      "title": "Per-cell layout",
+      "fields": ["cellSpecs"],
+      "collapsible": true,
+      "advanced": true
+    }
+  ],
+  "widgets": {
+    "maskType": { "type": "select" },
+    "polarity": { "type": "select" },
+    "cellSpecs": { "type": "window-cell-layout" }
+  },
+  "extensions": ["preview-info", "production-actions", "validation"]
+}
