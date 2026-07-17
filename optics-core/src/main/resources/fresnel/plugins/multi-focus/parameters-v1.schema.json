@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Fresnel/schemas/plugins/multi-focus/parameters-v1.schema.json",
+  "title": "Multi-Focus parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apertureDiameterMm", "focusPoints", "wavelengthNm", "dpi"],
+  "default": {
+    "apertureDiameterMm": 10.0,
+    "focusPoints": [
+      { "xMm": -5.0, "yMm": 0.0, "zMm": 1000.0 },
+      { "xMm": 5.0, "yMm": 0.0, "zMm": 1000.0 }
+    ],
+    "wavelengthNm": 550.0,
+    "dpi": 1200.0,
+    "maskType": "BINARY_AMPLITUDE",
+    "polarity": "POSITIVE"
+  },
+  "properties": {
+    "apertureDiameterMm": {
+      "type": "number",
+      "title": "Aperture diameter",
+      "exclusiveMinimum": 0,
+      "default": 10.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 0.1
+    },
+    "focusPoints": {
+      "type": "array",
+      "title": "Focus points",
+      "minItems": 1,
+      "default": [
+        { "xMm": -5.0, "yMm": 0.0, "zMm": 1000.0 },
+        { "xMm": 5.0, "yMm": 0.0, "zMm": 1000.0 }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["xMm", "yMm", "zMm"],
+        "properties": {
+          "xMm": {
+            "type": "number",
+            "title": "X",
+            "x-fresnel-unit": "mm",
+            "x-fresnel-step": 0.5
+          },
+          "yMm": {
+            "type": "number",
+            "title": "Y",
+            "x-fresnel-unit": "mm",
+            "x-fresnel-step": 0.5
+          },
+          "zMm": {
+            "type": "number",
+            "title": "Z",
+            "exclusiveMinimum": 0,
+            "x-fresnel-unit": "mm",
+            "x-fresnel-step": 10.0
+          }
+        }
+      }
+    },
+    "wavelengthNm": {
+      "type": "number",
+      "title": "Wavelength",
+      "minimum": 100,
+      "maximum": 2000,
+      "default": 550.0,
+      "x-fresnel-unit": "nm",
+      "x-fresnel-step": 1.0
+    },
+    "dpi": {
+      "type": "number",
+      "title": "Printer DPI",
+      "minimum": 50,
+      "default": 1200.0,
+      "x-fresnel-unit": "dpi",
+      "x-fresnel-step": 50.0
+    },
+    "maskType": {
+      "type": "string",
+      "title": "Mask type",
+      "enum": ["BINARY_AMPLITUDE", "GREYSCALE_PHASE"],
+      "default": "BINARY_AMPLITUDE"
+    },
+    "polarity": {
+      "type": "string",
+      "title": "Polarity",
+      "enum": ["POSITIVE", "NEGATIVE"],
+      "default": "POSITIVE"
+    }
+  }
+}
