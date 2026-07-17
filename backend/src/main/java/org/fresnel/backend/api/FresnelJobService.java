@@ -2,6 +2,7 @@ package org.fresnel.backend.api;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.fresnel.optics.HologramParameters;
 import org.fresnel.optics.MaskType;
 import org.fresnel.optics.PluginCapability;
 import org.fresnel.optics.PluginDescriptor;
@@ -42,6 +43,38 @@ public class FresnelJobService {
             DesignDocument.KIND_HOLOGRAM, "hologram"
     );
 
+    private static final Set<String> JOB_FIELDS = Set.of(
+            "$schema", "format", "formatVersion", "plugin", "parameters", "production", "provenance");
+    private static final Set<String> LEGACY_JOB_FIELDS = Set.of("kind", "version", "payload");
+    private static final Set<String> PLUGIN_FIELDS = Set.of(
+            "id", "parameterSchemaVersion", "algorithmVersion");
+    private static final Set<String> PRODUCTION_FIELDS = Set.of("outputs");
+    private static final Set<String> OUTPUT_FIELDS = Set.of(
+            "id", "format", "filename", "sheet", "printScale", "options");
+    private static final Set<String> PROVENANCE_FIELDS = Set.of(
+            "createdWith", "applicationVersion", "parameterSha256");
+
+    private static final Set<String> SINGLE_PARAMETER_FIELDS = Set.of(
+            "apertureDiameterMm", "focalLengthMm", "wavelengthNm", "dpi",
+            "targetOffsetXmm", "targetOffsetYmm", "maskType", "polarity");
+    private static final Set<String> HEX_PARAMETER_FIELDS = Set.of(
+            "macroRadiusMm", "subDiameterMm", "subPitchMm", "focalLengthMm",
+            "targetOffsetXmm", "targetOffsetYmm", "wavelengthNm", "dpi",
+            "maskType", "polarity");
+    private static final Set<String> FOIL_PARAMETER_FIELDS = Set.of(
+            "sheetWidthMm", "sheetHeightMm", "macroRadiusMm", "subDiameterMm",
+            "subPitchMm", "wavelengthNm", "dpi", "maskType", "polarity",
+            "cellSpecs", "drawCropMarks");
+    private static final Set<String> MULTI_PARAMETER_FIELDS = Set.of(
+            "apertureDiameterMm", "focusPoints", "wavelengthNm", "dpi", "maskType", "polarity");
+    private static final Set<String> RGB_PARAMETER_FIELDS = Set.of("base", "redNm", "greenNm", "blueNm");
+    private static final Set<String> HOLOGRAM_PARAMETER_FIELDS = Set.of(
+            "targetImageBase64", "sidePx", "iterations", "outputType", "dpi",
+            "wavelengthNm", "refractiveIndexDelta", "maxPhaseShiftRad");
+    private static final Set<String> FOCUS_POINT_FIELDS = Set.of("xMm", "yMm", "zMm");
+    private static final Set<String> CELL_SPEC_FIELDS = Set.of(
+            "focalLengthMm", "targetOffsetXmm", "targetOffsetYmm");
+
     private static final Set<String> PDF_SHEETS = Set.of("FIT", "A4", "A3", "A2", "A1", "A0");
 
     private final ObjectMapper mapper;
@@ -72,10 +105,18 @@ public class FresnelJobService {
             throw new IllegalArgumentException("Fresnel job root must be a JSON object");
         }
 
-        if (root.has("kind") && !root.has("format")) {
-            return migrateLegacy(mapper.convertValue(root, DesignDocument.class));
+        boolean legacy = root.has("kind") && !root.has("format");
+        validateEnvelopeShape(root, legacy);
+        try {
+            if (legacy) {
+                return migrateLegacy(mapper.convertValue(root, DesignDocument.class));
+            }
+            return normalize(mapper.convertValue(root, FresnelJobDocument.class));
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid Fresnel job: " + conciseMessage(e), e);
         }
-        return normalize(mapper.convertValue(root, FresnelJobDocument.class));
     }
 
     /** Serialize a normalized job with stable pretty printing. */
@@ -102,8 +143,8 @@ public class FresnelJobService {
         if (pluginId == null) {
             throw new IllegalArgumentException("Unknown legacy design kind: " + legacy.kind());
         }
-        if (legacy.payload() == null || legacy.payload().isNull()) {
-            throw new IllegalArgumentException("Legacy design payload must not be empty");
+        if (legacy.payload() == null || !legacy.payload().isObject()) {
+            throw new IllegalArgumentException("Legacy design payload must be a JSON object");
         }
 
         FresnelJobDocument converted = new FresnelJobDocument(
@@ -170,7 +211,7 @@ public class FresnelJobService {
                 : job.plugin().algorithmVersion().trim();
 
         return new FresnelJobDocument(
-                isBlank(job.schema()) ? FresnelJobDocument.SCHEMA_URL : job.schema().trim(),
+                FresnelJobDocument.SCHEMA_URL,
                 FresnelJobDocument.FORMAT_IDENTIFIER,
                 FresnelJobDocument.CURRENT_FORMAT_VERSION,
                 new FresnelJobDocument.PluginRef(pluginId, parameterSchemaVersion, algorithmVersion),
@@ -183,6 +224,7 @@ public class FresnelJobService {
         if (parameters == null || !parameters.isObject()) {
             throw new IllegalArgumentException("Fresnel job parameters must be a JSON object");
         }
+        validateParameterShape(pluginId, parameters);
 
         Class<?> requestType = switch (pluginId) {
             case "zone-plate" -> SingleZonePlateRequest.class;
@@ -202,20 +244,67 @@ public class FresnelJobService {
                     "Invalid parameters for plugin " + pluginId + ": " + conciseMessage(e), e);
         }
         validateBean(pluginId, request);
+        validateNestedBeans(pluginId, request);
 
+        Object normalizedRequest;
         if (request instanceof SingleZonePlateRequest r) {
-            SingleZonePlateRequest normalized = new SingleZonePlateRequest(
-                    r.apertureDiameterMm(),
-                    r.focalLengthMm(),
-                    r.wavelengthNm(),
-                    r.dpi(),
+            normalizedRequest = normalizeSingle(r);
+        } else if (request instanceof RgbZonePlateRequest r) {
+            normalizedRequest = new RgbZonePlateRequest(normalizeSingle(r.base()), r.redNm(), r.greenNm(), r.blueNm());
+        } else if (request instanceof HexMacroCellRequest r) {
+            normalizedRequest = new HexMacroCellRequest(
+                    r.macroRadiusMm(), r.subDiameterMm(), r.subPitchMm(), r.focalLengthMm(),
                     r.targetOffsetXmm() == null ? 0.0 : r.targetOffsetXmm(),
                     r.targetOffsetYmm() == null ? 0.0 : r.targetOffsetYmm(),
+                    r.wavelengthNm(), r.dpi(),
                     r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),
                     r.polarity() == null ? Polarity.POSITIVE : r.polarity());
-            return mapper.valueToTree(normalized);
+        } else if (request instanceof MultiFocusRequest r) {
+            normalizedRequest = new MultiFocusRequest(
+                    r.apertureDiameterMm(), List.copyOf(r.focusPoints()), r.wavelengthNm(), r.dpi(),
+                    r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),
+                    r.polarity() == null ? Polarity.POSITIVE : r.polarity());
+        } else if (request instanceof WindowFoilRequest r) {
+            List<WindowFoilRequest.CellSpecDto> specs = r.cellSpecs() == null
+                    ? List.of()
+                    : r.cellSpecs().stream()
+                    .map(spec -> new WindowFoilRequest.CellSpecDto(
+                            spec.focalLengthMm(),
+                            spec.targetOffsetXmm() == null ? 0.0 : spec.targetOffsetXmm(),
+                            spec.targetOffsetYmm() == null ? 0.0 : spec.targetOffsetYmm()))
+                    .toList();
+            normalizedRequest = new WindowFoilRequest(
+                    r.sheetWidthMm(), r.sheetHeightMm(), r.macroRadiusMm(),
+                    r.subDiameterMm(), r.subPitchMm(), r.wavelengthNm(), r.dpi(),
+                    r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),
+                    r.polarity() == null ? Polarity.POSITIVE : r.polarity(),
+                    specs, Boolean.TRUE.equals(r.drawCropMarks()));
+        } else if (request instanceof HologramRequest r) {
+            normalizedRequest = new HologramRequest(
+                    r.targetImageBase64(), r.sidePx(), r.iterations(),
+                    r.outputType() == null
+                            ? HologramParameters.OutputType.GREYSCALE_PHASE
+                            : r.outputType(),
+                    r.dpi(),
+                    r.resolvedWavelengthNm(),
+                    r.resolvedRefractiveIndexDelta(),
+                    r.resolvedMaxPhaseShiftRad());
+        } else {
+            throw new IllegalArgumentException("No parameter normalizer for plugin " + pluginId);
         }
-        return mapper.valueToTree(request);
+        return mapper.valueToTree(normalizedRequest);
+    }
+
+    private static SingleZonePlateRequest normalizeSingle(SingleZonePlateRequest r) {
+        return new SingleZonePlateRequest(
+                r.apertureDiameterMm(),
+                r.focalLengthMm(),
+                r.wavelengthNm(),
+                r.dpi(),
+                r.targetOffsetXmm() == null ? 0.0 : r.targetOffsetXmm(),
+                r.targetOffsetYmm() == null ? 0.0 : r.targetOffsetYmm(),
+                r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),
+                r.polarity() == null ? Polarity.POSITIVE : r.polarity());
     }
 
     private void validateBean(String pluginId, Object request) {
@@ -230,11 +319,105 @@ public class FresnelJobService {
         throw new IllegalArgumentException("Invalid parameters for plugin " + pluginId + ": " + details);
     }
 
+    private void validateNestedBeans(String pluginId, Object request) {
+        if (request instanceof MultiFocusRequest multi && multi.focusPoints() != null) {
+            for (int i = 0; i < multi.focusPoints().size(); i++) {
+                validateBean(pluginId + ".focusPoints[" + i + "]", multi.focusPoints().get(i));
+            }
+        }
+        if (request instanceof WindowFoilRequest foil && foil.cellSpecs() != null) {
+            for (int i = 0; i < foil.cellSpecs().size(); i++) {
+                validateBean(pluginId + ".cellSpecs[" + i + "]", foil.cellSpecs().get(i));
+            }
+        }
+    }
+
+    private void validateEnvelopeShape(JsonNode root, boolean legacy) {
+        if (legacy) {
+            rejectUnknownFields(root, LEGACY_JOB_FIELDS, "legacy job");
+            return;
+        }
+
+        rejectUnknownFields(root, JOB_FIELDS, "job");
+        rejectUnknownFields(root.get("plugin"), PLUGIN_FIELDS, "plugin");
+        rejectUnknownFields(root.get("provenance"), PROVENANCE_FIELDS, "provenance");
+
+        JsonNode production = root.get("production");
+        if (production == null || production.isNull()) {
+            return;
+        }
+        rejectUnknownFields(production, PRODUCTION_FIELDS, "production");
+        JsonNode outputs = production.get("outputs");
+        if (outputs != null && !outputs.isNull()) {
+            if (!outputs.isArray()) {
+                throw new IllegalArgumentException("production.outputs must be a JSON array");
+            }
+            for (int i = 0; i < outputs.size(); i++) {
+                rejectUnknownFields(outputs.get(i), OUTPUT_FIELDS, "production.outputs[" + i + "]");
+            }
+        }
+    }
+
+    private void validateParameterShape(String pluginId, JsonNode parameters) {
+        Set<String> fields = switch (pluginId) {
+            case "zone-plate" -> SINGLE_PARAMETER_FIELDS;
+            case "hex-macro-cell" -> HEX_PARAMETER_FIELDS;
+            case "window-foil" -> FOIL_PARAMETER_FIELDS;
+            case "multi-focus" -> MULTI_PARAMETER_FIELDS;
+            case "rgb-zone-plate" -> RGB_PARAMETER_FIELDS;
+            case "hologram" -> HOLOGRAM_PARAMETER_FIELDS;
+            default -> throw new IllegalArgumentException("Unknown plugin id: " + pluginId);
+        };
+        rejectUnknownFields(parameters, fields, "parameters");
+
+        switch (pluginId) {
+            case "rgb-zone-plate" ->
+                    rejectUnknownFields(parameters.get("base"), SINGLE_PARAMETER_FIELDS, "parameters.base");
+            case "multi-focus" ->
+                    rejectArrayObjectFields(parameters.get("focusPoints"), FOCUS_POINT_FIELDS, "parameters.focusPoints");
+            case "window-foil" ->
+                    rejectArrayObjectFields(parameters.get("cellSpecs"), CELL_SPEC_FIELDS, "parameters.cellSpecs");
+            default -> {
+                // No nested parameter object for this plugin.
+            }
+        }
+    }
+
+    private static void rejectArrayObjectFields(JsonNode array, Set<String> fields, String path) {
+        if (array == null || array.isNull()) {
+            return;
+        }
+        if (!array.isArray()) {
+            throw new IllegalArgumentException(path + " must be a JSON array");
+        }
+        for (int i = 0; i < array.size(); i++) {
+            rejectUnknownFields(array.get(i), fields, path + "[" + i + "]");
+        }
+    }
+
+    private static void rejectUnknownFields(JsonNode object, Set<String> allowed, String path) {
+        if (object == null || object.isNull()) {
+            return;
+        }
+        if (!object.isObject()) {
+            throw new IllegalArgumentException(path + " must be a JSON object");
+        }
+        for (Map.Entry<String, JsonNode> property : object.properties()) {
+            if (!allowed.contains(property.getKey())) {
+                throw new IllegalArgumentException(
+                        "Unknown field " + path + "." + property.getKey() + " for Fresnel job v1");
+            }
+        }
+    }
+
     private FresnelJobDocument.ProductionPlan normalizeProduction(
             PluginDescriptor descriptor,
             FresnelJobDocument.ProductionPlan production) {
-        if (production == null || production.outputs().isEmpty()) {
+        if (production == null) {
             return null;
+        }
+        if (production.outputs() == null || production.outputs().isEmpty()) {
+            throw new IllegalArgumentException("production.outputs must contain at least one output");
         }
 
         List<FresnelJobDocument.ProductionOutput> normalized = new ArrayList<>();
@@ -275,10 +458,16 @@ public class FresnelJobService {
                 if (!PDF_SHEETS.contains(sheet)) {
                     throw new IllegalArgumentException("Unsupported PDF sheet size: " + sheet);
                 }
+            } else if ("pdf".equals(format)) {
+                sheet = "FIT";
             }
-            if (output.printScale() != null
-                    && (!Double.isFinite(output.printScale()) || output.printScale() <= 0.0)) {
+
+            Double printScale = output.printScale();
+            if (printScale != null && (!Double.isFinite(printScale) || printScale <= 0.0)) {
                 throw new IllegalArgumentException("production output printScale must be finite and positive");
+            }
+            if (printScale == null && "pdf".equals(format)) {
+                printScale = 1.0;
             }
             if (output.options() != null && !output.options().isObject()) {
                 throw new IllegalArgumentException("production output options must be a JSON object");
@@ -289,7 +478,7 @@ public class FresnelJobService {
                     format,
                     filename,
                     sheet,
-                    output.printScale(),
+                    printScale,
                     output.options()));
         }
         return new FresnelJobDocument.ProductionPlan(normalized);
