@@ -13,7 +13,18 @@ class DesktopDataDirectoryTest {
     @TempDir Path tempDir;
 
     @Test
-    void explicitOverrideWinsOnEveryPlatform() {
+    void systemPropertyOverrideWinsOverTheEnvironment() {
+        Path systemOverride = tempDir.resolve("system data");
+        Path environmentOverride = tempDir.resolve("environment data");
+        assertEquals(systemOverride.toAbsolutePath().normalize(), DesktopDataDirectory.resolve(
+                systemOverride.toString(),
+                Map.of("FRESNEL_DATA_DIR", environmentOverride.toString()),
+                "Windows 11",
+                tempDir));
+    }
+
+    @Test
+    void explicitEnvironmentOverrideWinsOnEveryPlatform() {
         Path override = tempDir.resolve("custom data");
         assertEquals(override.toAbsolutePath().normalize(), DesktopDataDirectory.resolve(
                 Map.of("FRESNEL_DATA_DIR", override.toString()), "Windows 11", tempDir));
