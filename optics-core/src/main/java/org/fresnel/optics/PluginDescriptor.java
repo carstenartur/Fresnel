@@ -8,7 +8,7 @@ import java.util.Set;
  * <p>A descriptor is the single source of truth for everything that was
  * previously duplicated across Java code, TypeScript UI definitions and
  * documentation: renderer class name, frontend mode key, documentation URL,
- * supported export formats, validation support, etc.
+ * supported export formats, validation support, schema resources, etc.
  *
  * <p>Instances are immutable; use {@link PluginRegistry} to obtain them.
  *
@@ -21,14 +21,15 @@ import java.util.Set;
  *                         (e.g. {@code "ZonePlateRenderer"})
  * @param parameterType    simple class name of the parameter record
  *                         (e.g. {@code "SingleZonePlateParameters"})
- * @param frontendModeId   key used in the React {@code MODES} array / route
- *                         (e.g. {@code "single"})
+ * @param frontendModeId   legacy key used in the React mode list; stable plugin-id
+ *                         routes supersede it as editors migrate
  * @param documentationUrl relative path to the plugin's Markdown doc page
  * @param stability        maturity classification of this plugin
  * @param capabilities     set of {@link PluginCapability} values advertised by
  *                         this plugin; never {@code null}, may be empty
  * @param propagationModes supported {@link PropagationMode} values; empty for
  *                         plugins that do not offer propagation preview
+ * @param schema           versioned parameter/UI schema resources and editor mode
  */
 public record PluginDescriptor(
         String id,
@@ -40,7 +41,8 @@ public record PluginDescriptor(
         String documentationUrl,
         PluginStabilityLevel stability,
         Set<PluginCapability> capabilities,
-        Set<PropagationMode> propagationModes
+        Set<PropagationMode> propagationModes,
+        PluginSchemaDescriptor schema
 ) {
 
     /** Defensive copy — ensures the sets stored in the record are immutable. */
@@ -59,6 +61,7 @@ public record PluginDescriptor(
         if (documentationUrl == null || documentationUrl.isBlank())
             throw new IllegalArgumentException("documentationUrl must not be blank");
         if (stability == null) throw new IllegalArgumentException("stability must not be null");
+        if (schema == null) throw new IllegalArgumentException("schema must not be null");
         capabilities = capabilities == null ? Set.of() : Set.copyOf(capabilities);
         propagationModes = propagationModes == null ? Set.of() : Set.copyOf(propagationModes);
     }
