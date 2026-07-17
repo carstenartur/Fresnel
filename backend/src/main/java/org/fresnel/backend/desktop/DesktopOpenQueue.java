@@ -80,7 +80,7 @@ public class DesktopOpenQueue {
                             + FresnelJobDocument.MAX_FILE_BYTES + " bytes");
         }
 
-        final DesktopOpenResult result;
+        DesktopOpenResult result;
         try {
             result = DesktopOpenResult.valid(jobService.parseAndNormalize(jobBytes));
         } catch (IllegalArgumentException e) {
