@@ -4,7 +4,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.fresnel.backend.api.FresnelJobDocument;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -21,7 +20,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Duration;
 
 /**
  * Loopback-only hand-off surface used by packaged desktop launcher invocations.
@@ -122,7 +120,8 @@ public class DesktopOpenController {
     private static <T> ResponseEntity<T> noStore(ResponseEntity<T> response) {
         HttpHeaders headers = new HttpHeaders();
         headers.putAll(response.getHeaders());
-        headers.setCacheControl(CacheControl.noStore().mustRevalidate().sMaxAge(Duration.ZERO));
+        headers.setCacheControl("no-store, max-age=0, must-revalidate");
+        headers.setPragma("no-cache");
         return new ResponseEntity<>(response.getBody(), headers, response.getStatusCode());
     }
 }
