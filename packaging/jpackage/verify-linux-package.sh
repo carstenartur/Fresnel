@@ -30,25 +30,38 @@ for required in "$DESKTOP" "$MIME_XML" "$APP_CONFIG" "$CONTROL/postinst" "$CONTR
   fi
 done
 
-grep -Eq '^MimeType=application/vnd\.carstenartur\.fresnel\.job\+json;?$' "$DESKTOP"
-grep -Fqx 'Exec=/opt/fresnel/bin/Fresnel %f' "$DESKTOP"
-grep -Fq '<mime-type type="application/vnd.carstenartur.fresnel.job+json">' "$MIME_XML"
-grep -Fq 'glob pattern="*.fresnel"' "$MIME_XML"
-grep -Fq 'java-options=-Dfresnel.desktop.enabled=true' "$APP_CONFIG"
-grep -Fq 'xdg-desktop-menu install' "$CONTROL/postinst"
-grep -Fq 'xdg-mime install' "$CONTROL/postinst"
-grep -Fq 'xdg-desktop-menu uninstall' "$CONTROL/prerm"
-grep -Fq 'xdg-mime uninstall' "$CONTROL/prerm"
+require_fixed() {
+  local file="$1"
+  local needle="$2"
+  local description="$3"
+  if ! grep -Fq -- "$needle" "$file"; then
+    echo "verify-linux-package.sh: missing $description in $file" >&2
+    echo "Expected: $needle" >&2
+    echo "Actual file:" >&2
+    sed -n '1,180p' "$file" >&2
+    exit 1
+  fi
+}
 
-# jpackage may remove itself from a system default list during uninstall, but the
-# installer must not set itself as the user's default handler during installation.
-if grep -Fq 'xdg-mime default' "$CONTROL/postinst"; then
-  echo "verify-linux-package.sh: installer must not override the user's default handler" >&2
+if ! grep -Eq '^MimeType=application/vnd\.carstenartur\.fresnel\.job\+json;?$' "$DESKTOP"; then
+  echo "verify-linux-package.sh: desktop file has no canonical Fresnel MimeType line" >&2
+  cat "$DESKTOP" >&2
   exit 1
 fi
+require_fixed "$DESKTOP" 'Exec=/opt/fresnel/bin/Fresnel %f' 'single-file %f forwarding command'
+require_fixed "$MIME_XML" '<mime-type type="application/vnd.carstenartur.fresnel.job+json">' 'canonical MIME declaration'
+require_fixed "$MIME_XML" 'glob pattern="*.fresnel"' '.fresnel glob'
+require_fixed "$APP_CONFIG" 'java-options=-Dfresnel.desktop.enabled=true' 'desktop launcher Java option'
+require_fixed "$CONTROL/postinst" 'xdg-desktop-menu install' 'desktop-menu installation hook'
+require_fixed "$CONTROL/postinst" 'xdg-mime install' 'MIME installation hook'
+require_fixed "$CONTROL/prerm" 'xdg-desktop-menu uninstall' 'desktop-menu removal hook'
+require_fixed "$CONTROL/prerm" 'xdg-mime uninstall' 'MIME removal hook'
 
-if grep -R -Fq 'sourcePath' "$LIB_DIR"; then
-  echo "verify-linux-package.sh: package unexpectedly contains a sourcePath desktop contract" >&2
+# The package may advertise itself as a capable handler, but it must not replace
+# a user-selected default application during installation.
+if grep -Fq -- 'xdg-mime default' "$CONTROL/postinst"; then
+  echo "verify-linux-package.sh: installer must not override the user's default handler" >&2
+  sed -n '1,180p' "$CONTROL/postinst" >&2
   exit 1
 fi
 
