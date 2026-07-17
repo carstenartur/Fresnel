@@ -1,5 +1,7 @@
 package org.fresnel.backend;
 
+import org.fresnel.backend.desktop.DesktopDataDirectory;
+import org.fresnel.backend.desktop.DesktopDiagnostics;
 import org.fresnel.backend.desktop.FresnelDesktopLauncher;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -11,8 +13,14 @@ public class FresnelBackendApplication {
             try {
                 FresnelDesktopLauncher.launch(args);
             } catch (RuntimeException e) {
-                System.err.println("Fresnel desktop launch failed: "
-                        + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+                String message = e.getMessage() == null
+                        ? e.getClass().getSimpleName()
+                        : e.getMessage();
+                System.err.println("Fresnel desktop launch failed: " + message);
+                DesktopDiagnostics.append(
+                        DesktopDataDirectory.resolve(),
+                        "Fresnel desktop launch failed",
+                        e);
                 throw e;
             }
             return;
