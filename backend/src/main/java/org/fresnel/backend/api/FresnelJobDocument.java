@@ -39,14 +39,14 @@ public record FresnelJobDocument(
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PluginRef(
             String id,
-            int parameterSchemaVersion,
+            Integer parameterSchemaVersion,
             String algorithmVersion
     ) {
         public PluginRef {
             if (id == null || id.isBlank()) {
                 throw new IllegalArgumentException("Fresnel job plugin.id must not be empty");
             }
-            if (parameterSchemaVersion < 1) {
+            if (parameterSchemaVersion == null || parameterSchemaVersion < 1) {
                 throw new IllegalArgumentException(
                         "Fresnel job plugin.parameterSchemaVersion must be at least 1");
             }
