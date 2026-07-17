@@ -61,18 +61,29 @@ export interface LoadedFresnelJob {
 export function createFresnelJob<T>(
   pluginId: FresnelPluginId,
   parameters: T,
+  sourceJob?: FresnelJobDocument<unknown> | null,
 ): FresnelJobDocument<T> {
+  const reusableSource = sourceJob?.plugin.id === pluginId ? sourceJob : null;
+  const sourceProvenance = reusableSource?.provenance;
+
   return {
     $schema: FRESNEL_JOB_SCHEMA_URL,
     format: FRESNEL_JOB_FORMAT,
     formatVersion: FRESNEL_JOB_FORMAT_VERSION,
     plugin: {
       id: pluginId,
-      parameterSchemaVersion: FRESNEL_PARAMETER_SCHEMA_VERSION,
-      algorithmVersion: `${pluginId}/1`,
+      parameterSchemaVersion:
+        reusableSource?.plugin.parameterSchemaVersion ?? FRESNEL_PARAMETER_SCHEMA_VERSION,
+      algorithmVersion: reusableSource?.plugin.algorithmVersion ?? `${pluginId}/1`,
     },
     parameters,
-    provenance: { createdWith: 'Fresnel' },
+    production: reusableSource?.production,
+    provenance: {
+      createdWith: sourceProvenance?.createdWith ?? 'Fresnel',
+      applicationVersion: sourceProvenance?.applicationVersion,
+      // parameterSha256 is intentionally omitted. The backend recomputes it from
+      // the edited, normalized parameter object before returning the download.
+    },
   };
 }
 
@@ -80,6 +91,7 @@ export async function saveFresnelJob<T>(
   pluginId: FresnelPluginId,
   parameters: T,
   filename = `fresnel-${pluginId}${FRESNEL_JOB_EXTENSION}`,
+  sourceJob?: FresnelJobDocument<unknown> | null,
 ): Promise<void> {
   const response = await fetch(`${BASE}/api/designs/job/save`, {
     method: 'POST',
@@ -87,7 +99,7 @@ export async function saveFresnelJob<T>(
       'Content-Type': FRESNEL_JOB_MEDIA_TYPE,
       Accept: FRESNEL_JOB_MEDIA_TYPE,
     },
-    body: JSON.stringify(createFresnelJob(pluginId, parameters)),
+    body: JSON.stringify(createFresnelJob(pluginId, parameters, sourceJob)),
   });
   if (!response.ok) {
     throw new Error(await responseError(response));
