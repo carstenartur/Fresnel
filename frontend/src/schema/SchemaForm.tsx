@@ -418,7 +418,7 @@ function isRequired(root: PluginParameterSchema, path: string): boolean {
   let required = root.required ?? [];
   for (let index = 0; index < segments.length; index++) {
     const segment = segments[index];
-    const field = properties?.[segment];
+    const field: ParameterFieldSchema | undefined = properties?.[segment];
     if (!field) return false;
     if (index === segments.length - 1) return required.includes(segment);
     required = field.required ?? [];
