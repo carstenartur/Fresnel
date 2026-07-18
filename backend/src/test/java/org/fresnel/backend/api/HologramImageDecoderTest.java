@@ -38,8 +38,8 @@ class HologramImageDecoderTest {
 
         HologramParameters parameters = HologramController.decode(request(encoded));
 
-        assertEquals(16, parameters.target().getWidth());
-        assertEquals(16, parameters.target().getHeight());
+        assertEquals(16, parameters.targetImage().getWidth());
+        assertEquals(16, parameters.targetImage().getHeight());
     }
 
     @Test
