@@ -25,18 +25,18 @@ public record HologramRequest(
     private static final String LEGACY_EMPTY_TARGET_BASE64 = "AA==";
 
     public HologramRequest {
-        // Early Hologram design fixtures represented the not-yet-selected image as
-        // one zero byte. Normalize that exact legacy placeholder to the supported
-        // empty UI state; every real embedded source is still inspected below.
-        if (LEGACY_EMPTY_TARGET_BASE64.equals(targetImageBase64)) {
-            targetImageBase64 = "";
-        }
-
         // Empty data remains a valid UI default until the user chooses an image.
+        // Early Hologram design fixtures represented the same state as one zero
+        // byte. Preserve that exact harmless legacy value so old documents can be
+        // loaded and edited; a real render still routes through the strict decoder.
+        boolean legacyEmptyTarget = LEGACY_EMPTY_TARGET_BASE64.equals(targetImageBase64);
+
         // Every actual embedded source is format/dimension checked without reading
         // its pixel raster. This protects REST calls and canonical job execution,
         // including SOURCE outputs that later preserve the original dimensions.
-        if (targetImageBase64 != null && !targetImageBase64.isBlank()) {
+        if (targetImageBase64 != null
+                && !targetImageBase64.isBlank()
+                && !legacyEmptyTarget) {
             try {
                 HologramImageDecoder.validate(targetImageBase64);
             } catch (IOException e) {
