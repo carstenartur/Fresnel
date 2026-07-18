@@ -16,6 +16,7 @@ import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,7 +43,15 @@ public final class FresnelDocsCli {
             FresnelJobExecutor executor = new FresnelJobExecutor(jobService, mapper);
             FresnelDocumentationRenderer documentationRenderer =
                     new FresnelDocumentationRenderer(jobService, schemaService);
-            run(args, executor, jobService, documentationRenderer, System.out);
+            FresnelDocumentationManifestService manifestService =
+                    new FresnelDocumentationManifestService(executor, mapper);
+            run(
+                    args,
+                    executor,
+                    jobService,
+                    documentationRenderer,
+                    manifestService,
+                    System.out);
         }
     }
 
@@ -51,6 +60,7 @@ public final class FresnelDocsCli {
             FresnelJobExecutor executor,
             FresnelJobService jobService,
             FresnelDocumentationRenderer documentationRenderer,
+            FresnelDocumentationManifestService manifestService,
             PrintStream out) throws Exception {
         if (args == null || args.length == 0) throw usage();
         switch (args[0]) {
@@ -78,6 +88,24 @@ public final class FresnelDocsCli {
                 requireArguments(args, 2);
                 out.print(documentationRenderer.renderParameterTable(
                         Files.readAllBytes(Path.of(args[1]))));
+            }
+            case "manifest" -> {
+                requireArguments(args, 4);
+                writeManifest(
+                        manifestService,
+                        Path.of(args[1]),
+                        Path.of(args[2]),
+                        Path.of(args[3]),
+                        out);
+            }
+            case "verify-manifest" -> {
+                requireArguments(args, 4);
+                verifyManifest(
+                        manifestService,
+                        Path.of(args[1]),
+                        Path.of(args[2]),
+                        Path.of(args[3]),
+                        out);
             }
             default -> throw usage();
         }
@@ -163,6 +191,41 @@ public final class FresnelDocsCli {
                     document.plugin().id(),
                     filenames);
         }
+    }
+
+    private static void writeManifest(
+            FresnelDocumentationManifestService manifestService,
+            Path jobRoot,
+            Path assetRoot,
+            Path output,
+            PrintStream out) throws Exception {
+        byte[] content = manifestService.write(manifestService.generate(jobRoot, assetRoot));
+        Path normalizedOutput = output.toAbsolutePath().normalize();
+        if (normalizedOutput.getParent() != null) {
+            Files.createDirectories(normalizedOutput.getParent());
+        }
+        Files.write(normalizedOutput, content);
+        out.printf("wrote documentation manifest %s (%d bytes)%n",
+                output, content.length);
+    }
+
+    private static void verifyManifest(
+            FresnelDocumentationManifestService manifestService,
+            Path jobRoot,
+            Path assetRoot,
+            Path expected,
+            PrintStream out) throws Exception {
+        byte[] actual = manifestService.write(manifestService.generate(jobRoot, assetRoot));
+        if (!Files.isRegularFile(expected)) {
+            throw new IllegalStateException("Missing documentation manifest: " + expected);
+        }
+        byte[] checkedIn = Files.readAllBytes(expected);
+        if (!Arrays.equals(checkedIn, actual)) {
+            throw new IllegalStateException(
+                    "Documentation manifest is stale: " + expected
+                            + ". Regenerate it through the manifest command.");
+        }
+        out.printf("verified documentation manifest %s%n", expected);
     }
 
     private static void verifyArtifacts(
@@ -251,6 +314,8 @@ public final class FresnelDocsCli {
                   FresnelDocsCli verify-all <job-root> <asset-root>
                   FresnelDocsCli list <job-root>
                   FresnelDocsCli table <job.fresnel>
+                  FresnelDocsCli manifest <job-root> <asset-root> <output.json>
+                  FresnelDocsCli verify-manifest <job-root> <asset-root> <expected.json>
                 """);
     }
 }
