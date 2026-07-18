@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
  *
  * <p>This is the single machine-readable source of truth for plugin metadata.
  * It replaces duplicated lists scattered across Java code, TypeScript UI
- * definitions and documentation.
+ * definitions and documentation.</p>
  *
  * <h2>Adding a new plugin</h2>
  * <ol>
@@ -32,7 +32,6 @@ public final class PluginRegistry {
             "Single Fresnel zone plate — binary amplitude or greyscale phase",
             "ZonePlateRenderer",
             "SingleZonePlateParameters",
-            "single",
             "docs/plugins/zone-plate.md",
             PluginStabilityLevel.STABLE,
             Set.of(
@@ -57,7 +56,6 @@ public final class PluginRegistry {
             "Zone plate rendered at three wavelengths and composited into one RGB image",
             "RgbZonePlateRenderer",
             "RgbZonePlateParameters",
-            "rgb",
             "docs/plugins/rgb-zone-plate.md",
             PluginStabilityLevel.STABLE,
             Set.of(
@@ -75,7 +73,6 @@ public final class PluginRegistry {
             "Aperture divided among multiple focal targets",
             "MultiFocusRenderer",
             "MultiFocusParameters",
-            "multi",
             "docs/plugins/multi-focus.md",
             PluginStabilityLevel.STABLE,
             Set.of(
@@ -93,7 +90,6 @@ public final class PluginRegistry {
             "Hexagonal array of sub-zone-plates focusing to a common image point",
             "HexMacroCellRenderer",
             "HexMacroCellParameters",
-            "hex",
             "docs/plugins/hex-macro-cell.md",
             PluginStabilityLevel.STABLE,
             Set.of(
@@ -113,7 +109,6 @@ public final class PluginRegistry {
             "Rectangular sheet tiled with hex macro cells",
             "WindowFoilRenderer",
             "WindowFoilParameters",
-            "foil",
             "docs/plugins/window-foil.md",
             PluginStabilityLevel.STABLE,
             Set.of(
@@ -131,7 +126,6 @@ public final class PluginRegistry {
             "Computer-generated hologram via the Gerchberg–Saxton algorithm",
             "HologramSynthesizer",
             "HologramParameters",
-            "hologram",
             "docs/plugins/hologram.md",
             PluginStabilityLevel.STABLE,
             Set.of(
@@ -144,8 +138,8 @@ public final class PluginRegistry {
     );
 
     /**
-     * Immutable ordered list of all registered plugins. The order matches the
-     * current navigation order until navigation is generated from this registry.
+     * Immutable public plugin order. The frontend consumes this order directly
+     * from {@code GET /api/plugins}; no second tab/mode ordering is maintained.
      */
     public static final List<PluginDescriptor> ALL = List.of(
             ZONE_PLATE,
