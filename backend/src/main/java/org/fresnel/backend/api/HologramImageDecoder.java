@@ -11,7 +11,7 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Set;
 
-/** Safely decodes the bounded PNG/JPEG source embedded in a Hologram request. */
+/** Safely inspects and decodes the bounded PNG/JPEG source in a Hologram request. */
 final class HologramImageDecoder {
 
     static final int MAX_BASE64_CHARACTERS = 8 * 1024 * 1024;
@@ -22,7 +22,60 @@ final class HologramImageDecoder {
 
     private HologramImageDecoder() {}
 
+    /** Validates encoding, format and dimensions without allocating the pixel raster. */
+    static void validate(String encoded) throws IOException {
+        try (InspectedImage ignored = inspect(encoded)) {
+            // Metadata inspection in inspect() is the complete validation step.
+        }
+    }
+
+    /** Decodes pixels only after the reader has reported acceptable dimensions. */
     static BufferedImage decode(String encoded) throws IOException {
+        try (InspectedImage inspected = inspect(encoded)) {
+            BufferedImage image = inspected.reader().read(0);
+            if (image == null) {
+                throw new IllegalArgumentException(
+                        "Hologram target image could not be decoded");
+            }
+            requireBoundedDimensions(image.getWidth(), image.getHeight());
+            return image;
+        }
+    }
+
+    private static InspectedImage inspect(String encoded) throws IOException {
+        byte[] raw = decodeBase64(encoded);
+        ImageInputStream input = ImageIO.createImageInputStream(
+                new ByteArrayInputStream(raw));
+        if (input == null) {
+            throw new IllegalArgumentException(
+                    "Hologram target image could not be inspected");
+        }
+
+        ImageReader reader = null;
+        try {
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) {
+                throw new IllegalArgumentException(
+                        "Hologram target image is not a supported PNG or JPEG");
+            }
+            reader = readers.next();
+            String format = reader.getFormatName().toLowerCase(Locale.ROOT);
+            if (!ALLOWED_FORMATS.contains(format)) {
+                throw new IllegalArgumentException(
+                        "Hologram target image must be PNG or JPEG, not " + format);
+            }
+
+            reader.setInput(input, true, true);
+            requireBoundedDimensions(reader.getWidth(0), reader.getHeight(0));
+            return new InspectedImage(input, reader);
+        } catch (IOException | RuntimeException e) {
+            if (reader != null) reader.dispose();
+            input.close();
+            throw e;
+        }
+    }
+
+    private static byte[] decodeBase64(String encoded) {
         if (encoded == null || encoded.isBlank()) {
             throw new IllegalArgumentException("Hologram target image must not be empty");
         }
@@ -32,52 +85,11 @@ final class HologramImageDecoder {
                     "targetImageBase64 too large (>" + MAX_BASE64_CHARACTERS
                             + " characters); resize before upload");
         }
-
-        final byte[] raw;
         try {
-            raw = Base64.getDecoder().decode(base64);
+            return Base64.getDecoder().decode(base64);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                     "Hologram target image is not valid Base64", e);
-        }
-        return decodeBytes(raw);
-    }
-
-    private static BufferedImage decodeBytes(byte[] raw) throws IOException {
-        try (ImageInputStream input = ImageIO.createImageInputStream(
-                new ByteArrayInputStream(raw))) {
-            if (input == null) {
-                throw new IllegalArgumentException(
-                        "Hologram target image could not be inspected");
-            }
-            Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
-            if (!readers.hasNext()) {
-                throw new IllegalArgumentException(
-                        "Hologram target image is not a supported PNG or JPEG");
-            }
-
-            ImageReader reader = readers.next();
-            try {
-                String format = reader.getFormatName().toLowerCase(Locale.ROOT);
-                if (!ALLOWED_FORMATS.contains(format)) {
-                    throw new IllegalArgumentException(
-                            "Hologram target image must be PNG or JPEG, not " + format);
-                }
-                reader.setInput(input, true, true);
-                int width = reader.getWidth(0);
-                int height = reader.getHeight(0);
-                requireBoundedDimensions(width, height);
-
-                BufferedImage image = reader.read(0);
-                if (image == null) {
-                    throw new IllegalArgumentException(
-                            "Hologram target image could not be decoded");
-                }
-                requireBoundedDimensions(image.getWidth(), image.getHeight());
-                return image;
-            } finally {
-                reader.dispose();
-            }
         }
     }
 
@@ -109,5 +121,14 @@ final class HologramImageDecoder {
                     "Hologram target image data URL must contain Base64 PNG or JPEG data");
         }
         return encoded.substring(comma + 1);
+    }
+
+    private record InspectedImage(ImageInputStream input, ImageReader reader)
+            implements AutoCloseable {
+        @Override
+        public void close() throws IOException {
+            reader.dispose();
+            input.close();
+        }
     }
 }
