@@ -25,6 +25,11 @@ export interface PluginEditorShellProps<T extends object> {
   ) => ReactNode;
 }
 
+interface ValidationSnapshot<T extends object> {
+  fingerprint: string;
+  result: PluginParameterValidation<T>;
+}
+
 /**
  * Common lifecycle for every schema-backed plugin editor.
  *
@@ -45,12 +50,17 @@ export function PluginEditorShell<T extends object>({
 }: PluginEditorShellProps<T>) {
   const [schema, setSchema] = useState<PluginSchemaDocument<T> | null>(null);
   const [schemaError, setSchemaError] = useState<string | null>(null);
-  const [validation, setValidation] = useState<PluginParameterValidation<T> | null>(null);
+  const [validationSnapshot, setValidationSnapshot] =
+    useState<ValidationSnapshot<T> | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const defaultsApplied = useRef(false);
   const onChangeRef = useRef(onChange);
   const validationCallbackRef = useRef(onStructuralValidation);
   const validationRequestId = useRef(0);
+  const valueFingerprint = JSON.stringify(value);
+  const validation = validationSnapshot?.fingerprint === valueFingerprint
+    ? validationSnapshot.result
+    : null;
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -65,7 +75,7 @@ export function PluginEditorShell<T extends object>({
     defaultsApplied.current = false;
     setSchema(null);
     setSchemaError(null);
-    setValidation(null);
+    setValidationSnapshot(null);
     setValidationError(null);
     validationCallbackRef.current?.(null);
 
@@ -90,16 +100,24 @@ export function PluginEditorShell<T extends object>({
   useEffect(() => {
     if (!schema) return;
     const requestId = ++validationRequestId.current;
+    const fingerprint = valueFingerprint;
+
+    // The previous result belongs to a different public parameter object. Make
+    // actions invalid immediately instead of leaving a short stale-valid window
+    // during the debounce.
+    setValidationError(null);
+    validationCallbackRef.current?.(null);
+
     const timer = window.setTimeout(async () => {
       try {
         const result = await validatePluginParameters(pluginId, value);
         if (requestId !== validationRequestId.current) return;
-        setValidation(result);
+        setValidationSnapshot({ fingerprint, result });
         setValidationError(null);
         validationCallbackRef.current?.(result);
       } catch (requestError) {
         if (requestId !== validationRequestId.current) return;
-        setValidation(null);
+        setValidationSnapshot(null);
         setValidationError(requestError instanceof Error
           ? requestError.message
           : String(requestError));
@@ -108,7 +126,7 @@ export function PluginEditorShell<T extends object>({
     }, 200);
 
     return () => window.clearTimeout(timer);
-  }, [pluginId, schema, value]);
+  }, [pluginId, schema, value, valueFingerprint]);
 
   return (
     <div data-plugin-editor-shell={pluginId}>
