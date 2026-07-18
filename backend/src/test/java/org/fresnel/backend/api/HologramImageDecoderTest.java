@@ -43,14 +43,15 @@ class HologramImageDecoderTest {
     }
 
     @Test
-    void preservesLegacyNonImagePlaceholdersUntilARealRenderIsRequested() {
+    void normalizesTheLegacyPlaceholderAndStillRejectsRenderingWithoutAnImage() {
         HologramRequest placeholder = request("AA==");
+        assertEquals("", placeholder.targetImageBase64());
 
         IllegalArgumentException error = assertThrows(
                 IllegalArgumentException.class,
                 () -> HologramController.decode(placeholder));
 
-        assertTrue(error.getMessage().contains("supported PNG or JPEG"), error::getMessage);
+        assertTrue(error.getMessage().contains("must not be empty"), error::getMessage);
     }
 
     @Test
