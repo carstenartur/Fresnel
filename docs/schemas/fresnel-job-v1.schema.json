@@ -99,7 +99,14 @@
           "minLength": 1,
           "maxLength": 255,
           "not": {
-            "pattern": "[/\\\\:]"
+            "anyOf": [
+              {
+                "pattern": "[/\\\\:]"
+              },
+              {
+                "enum": [".", ".."]
+              }
+            ]
           }
         },
         "sheet": {

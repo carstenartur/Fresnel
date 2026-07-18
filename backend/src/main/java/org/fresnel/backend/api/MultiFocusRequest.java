@@ -13,7 +13,7 @@ import java.util.List;
 /** REST request body for a multi-point / line focus design. */
 public record MultiFocusRequest(
         @NotNull @Positive Double apertureDiameterMm,
-        @NotEmpty List<FocusPointDto> focusPoints,
+        @NotEmpty List<@NotNull FocusPointDto> focusPoints,
         @NotNull @Positive Double wavelengthNm,
         @NotNull @Positive Double dpi,
         MaskType maskType,
