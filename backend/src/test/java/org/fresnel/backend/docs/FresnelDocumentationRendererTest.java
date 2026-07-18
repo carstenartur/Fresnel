@@ -61,7 +61,8 @@ class FresnelDocumentationRendererTest {
 
     @Test
     void embeddedBase64DataIsSummarizedWithoutLeakingItIntoMarkdown() {
-        String embedded = "PHNjcmlwdD4=";
+        String embedded =
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNoAAAAggCBd81ytgAAAABJRU5ErkJggg==";
         byte[] job = ("""
                 {
                   "format": "io.github.carstenartur.fresnel.job",
@@ -86,9 +87,9 @@ class FresnelDocumentationRendererTest {
 
         String table = renderer.renderParameterTable(job);
 
-        assertTrue(table.contains("Embedded data (approximately 8 bytes decoded)"));
+        assertTrue(table.contains("Embedded data (approximately 67 bytes decoded)"));
         assertFalse(table.contains(embedded));
-        assertFalse(table.contains("<script>"));
+        assertFalse(table.contains("iVBORw0KGgo"));
     }
 
     private static Path repositoryFile(String relativePath) {
