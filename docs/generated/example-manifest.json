@@ -1,6 +1,78 @@
 {
   "formatVersion" : 1,
   "examples" : [ {
+    "id" : "hex-macro-cell/on-axis",
+    "pluginId" : "hex-macro-cell",
+    "job" : "docs/jobs/hex-macro-cell/on-axis.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "hex-macro-cell/1",
+    "parameterSha256" : "21185c872ed1edbfe4caf4d09fd6c2ba8e239936775e1a67c713b16b71884a73",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/hex-macro-cell/on-axis.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 17599,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 400.0,
+      "normalizedSha256" : "e59d37e81e000d079ce92a34f597b313035b431641f691570c8aab74775768e4"
+    } ]
+  }, {
+    "id" : "multi-focus/line-focus",
+    "pluginId" : "multi-focus",
+    "job" : "docs/jobs/multi-focus/line-focus.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "multi-focus/1",
+    "parameterSha256" : "32758bd6b14b812b1ce6e01c114fb0d18694c8d422fc7ec65647e2f8c2e5375d",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/multi-focus/line-focus.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 32641,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "061988d44aea85a247c46e5d62af6603177cd2ae724f9b14df55a07a96627fc1"
+    } ]
+  }, {
+    "id" : "multi-focus/two-foci",
+    "pluginId" : "multi-focus",
+    "job" : "docs/jobs/multi-focus/two-foci.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "multi-focus/1",
+    "parameterSha256" : "126eff8bf1246903ade27721d7852f3d328c9bc5c490c85b584c556f52a22593",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/multi-focus/two-foci.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 32287,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "c395279fc141a56e5209667e9b4332aaf76be0b5f0bc00c26c4eba74bd6388b4"
+    } ]
+  }, {
+    "id" : "rgb-zone-plate/rgb",
+    "pluginId" : "rgb-zone-plate",
+    "job" : "docs/jobs/rgb-zone-plate/rgb.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "rgb-zone-plate/1",
+    "parameterSha256" : "de81373aed260a00de1d90380b7fe01727d72e010933dabe4e56da7e5dc4b446",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/rgb-zone-plate/rgb.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 79146,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "57780a63a9359ab120b277fc582a6c4a2bbb4eda4719b2c4593fff8c8425b4a8"
+    } ]
+  }, {
     "id" : "zone-plate/greyscale-phase",
     "pluginId" : "zone-plate",
     "job" : "docs/jobs/zone-plate/greyscale-phase.fresnel",
@@ -12,7 +84,7 @@
       "id" : "documentation-preview",
       "path" : "docs/assets/plugins/zone-plate/greyscale-phase.png",
       "mediaType" : "image/png",
-      "sizeBytes" : 145511,
+      "sizeBytes" : 145490,
       "widthPx" : 473,
       "heightPx" : 473,
       "dpi" : 1200.0,
@@ -30,7 +102,7 @@
       "id" : "documentation-preview",
       "path" : "docs/assets/plugins/zone-plate/negative-polarity.png",
       "mediaType" : "image/png",
-      "sizeBytes" : 22013,
+      "sizeBytes" : 21992,
       "widthPx" : 473,
       "heightPx" : 473,
       "dpi" : 1200.0,
@@ -48,7 +120,7 @@
       "id" : "documentation-preview",
       "path" : "docs/assets/plugins/zone-plate/on-axis.png",
       "mediaType" : "image/png",
-      "sizeBytes" : 22009,
+      "sizeBytes" : 21988,
       "widthPx" : 473,
       "heightPx" : 473,
       "dpi" : 1200.0,
