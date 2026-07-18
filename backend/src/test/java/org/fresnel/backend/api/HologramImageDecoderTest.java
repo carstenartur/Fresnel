@@ -43,6 +43,17 @@ class HologramImageDecoderTest {
     }
 
     @Test
+    void preservesLegacyNonImagePlaceholdersUntilARealRenderIsRequested() {
+        HologramRequest placeholder = request("AA==");
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> HologramController.decode(placeholder));
+
+        assertTrue(error.getMessage().contains("supported PNG or JPEG"), error::getMessage);
+    }
+
+    @Test
     void rejectsImageFormatsOutsideThePublicPngJpegContract() throws Exception {
         String encoded = Base64.getEncoder().encodeToString(imageBytes("gif"));
 
