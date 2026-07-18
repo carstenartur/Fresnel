@@ -22,7 +22,16 @@ public record HologramRequest(
         @Positive Double refractiveIndexDelta,
         @Positive Double maxPhaseShiftRad
 ) {
+    private static final String LEGACY_EMPTY_TARGET_BASE64 = "AA==";
+
     public HologramRequest {
+        // Early Hologram design fixtures represented the not-yet-selected image as
+        // one zero byte. Normalize that exact legacy placeholder to the supported
+        // empty UI state; every real embedded source is still inspected below.
+        if (LEGACY_EMPTY_TARGET_BASE64.equals(targetImageBase64)) {
+            targetImageBase64 = "";
+        }
+
         // Empty data remains a valid UI default until the user chooses an image.
         // Every actual embedded source is format/dimension checked without reading
         // its pixel raster. This protects REST calls and canonical job execution,
