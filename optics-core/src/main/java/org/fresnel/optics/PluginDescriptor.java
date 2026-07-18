@@ -5,30 +5,23 @@ import java.util.Set;
 /**
  * Machine-readable metadata record for one Fresnel plugin.
  *
- * <p>A descriptor is the single source of truth for everything that was
- * previously duplicated across Java code, TypeScript UI definitions and
- * documentation: renderer class name, frontend mode key, documentation URL,
- * supported export formats, validation support, schema resources, etc.
+ * <p>A descriptor is the single source of truth for renderer metadata,
+ * documentation, supported capabilities and versioned editor schemas. Stable
+ * plugin IDs are also the public route and job-file contract; frontend-only mode
+ * aliases are deliberately not part of this model.</p>
  *
- * <p>Instances are immutable; use {@link PluginRegistry} to obtain them.
+ * <p>Instances are immutable; use {@link PluginRegistry} to obtain them.</p>
  *
  * @param id               stable, lowercase, hyphen-separated identifier suitable
  *                         for use in API URLs (e.g. {@code "zone-plate"})
  * @param displayName      human-readable name shown in the UI
- *                         (e.g. {@code "Zone Plate"})
  * @param description      one-line description of the optical element
  * @param rendererClass    simple class name of the Java renderer or synthesiser
- *                         (e.g. {@code "ZonePlateRenderer"})
  * @param parameterType    simple class name of the parameter record
- *                         (e.g. {@code "SingleZonePlateParameters"})
- * @param frontendModeId   legacy key used in the React mode list; stable plugin-id
- *                         routes supersede it as editors migrate
- * @param documentationUrl relative path to the plugin's Markdown doc page
+ * @param documentationUrl relative path to the plugin's Markdown documentation
  * @param stability        maturity classification of this plugin
- * @param capabilities     set of {@link PluginCapability} values advertised by
- *                         this plugin; never {@code null}, may be empty
- * @param propagationModes supported {@link PropagationMode} values; empty for
- *                         plugins that do not offer propagation preview
+ * @param capabilities     immutable advertised capability set
+ * @param propagationModes supported propagation modes, empty when unavailable
  * @param schema           versioned parameter/UI schema resources and editor mode
  */
 public record PluginDescriptor(
@@ -37,7 +30,6 @@ public record PluginDescriptor(
         String description,
         String rendererClass,
         String parameterType,
-        String frontendModeId,
         String documentationUrl,
         PluginStabilityLevel stability,
         Set<PluginCapability> capabilities,
@@ -45,7 +37,7 @@ public record PluginDescriptor(
         PluginSchemaDescriptor schema
 ) {
 
-    /** Defensive copy — ensures the sets stored in the record are immutable. */
+    /** Defensive validation and copies keep registry data immutable and complete. */
     public PluginDescriptor {
         if (id == null || id.isBlank()) throw new IllegalArgumentException("id must not be blank");
         if (displayName == null || displayName.isBlank())
@@ -56,8 +48,6 @@ public record PluginDescriptor(
             throw new IllegalArgumentException("rendererClass must not be blank");
         if (parameterType == null || parameterType.isBlank())
             throw new IllegalArgumentException("parameterType must not be blank");
-        if (frontendModeId == null || frontendModeId.isBlank())
-            throw new IllegalArgumentException("frontendModeId must not be blank");
         if (documentationUrl == null || documentationUrl.isBlank())
             throw new IllegalArgumentException("documentationUrl must not be blank");
         if (stability == null) throw new IllegalArgumentException("stability must not be null");
@@ -66,14 +56,12 @@ public record PluginDescriptor(
         propagationModes = propagationModes == null ? Set.of() : Set.copyOf(propagationModes);
     }
 
-    // ---- Convenience capability queries ----
-
     /** Returns {@code true} if this plugin supports the given capability. */
     public boolean supports(PluginCapability capability) {
         return capabilities.contains(capability);
     }
 
-    /** Returns {@code true} if this plugin can export in at least the given format. */
+    /** Returns {@code true} if this plugin can export in the requested format. */
     public boolean supportsExport(PluginCapability exportCapability) {
         return capabilities.contains(exportCapability);
     }
