@@ -68,30 +68,39 @@ export function RgbPanel({ initialJob }: JobPanelProps) {
         disabled={busy}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema) => (
-          <>
-            <PluginActionBar
-              capabilities={schema.capabilities}
-              busy={busy}
-              actions={{
-                PREVIEW_PNG: {
-                  label: busy ? 'Rendering…' : 'Render preview',
-                  primary: true,
-                  run: renderPreview,
-                },
-                EXPORT_PNG: {
-                  label: 'PNG',
-                  run: () => downloadRgbPng(request, 'fresnel-rgb.png'),
-                },
-              }}
-            />
-            <SaveJobControl pluginId="rgb-zone-plate" parameters={request} disabled={busy} />
-            {error && <p className="error-message">{error}</p>}
+        {(schema, structuralValidation) => {
+          const structurallyValid = structuralValidation?.valid === true;
+          return (
+            <>
+              <PluginActionBar
+                capabilities={schema.capabilities}
+                busy={busy}
+                actions={{
+                  PREVIEW_PNG: {
+                    label: busy ? 'Rendering…' : 'Render preview',
+                    primary: true,
+                    disabled: !structurallyValid,
+                    run: renderPreview,
+                  },
+                  EXPORT_PNG: {
+                    label: 'PNG',
+                    disabled: !structurallyValid,
+                    run: () => downloadRgbPng(request, 'fresnel-rgb.png'),
+                  },
+                }}
+              />
+              <SaveJobControl
+                pluginId="rgb-zone-plate"
+                parameters={request}
+                disabled={busy || !structurallyValid}
+              />
+              {error && <p className="error-message">{error}</p>}
 
-            <PreviewPane url={previewUrl} alt="RGB zone plate preview" />
-            <ValidationReportView report={validationReport} />
-          </>
-        )}
+              <PreviewPane url={previewUrl} alt="RGB zone plate preview" />
+              <ValidationReportView report={validationReport} />
+            </>
+          );
+        }}
       </PluginEditorShell>
     </>
   );
