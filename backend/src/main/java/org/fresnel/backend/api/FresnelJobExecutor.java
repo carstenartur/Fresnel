@@ -174,12 +174,14 @@ public class FresnelJobExecutor {
         requireNoOptions(output);
         WindowFoilRequest request = mapper.convertValue(
                 job.parameters(), WindowFoilRequest.class);
-        if (!"pdf".equals(output.format())) {
-            throw unsupported(job.plugin().id(), output.format());
-        }
         RenderResult rendered = WindowFoilRenderer.render(request.toParameters());
-        return new RenderedOutput(
-                PdfExporter.toPdfBytes(scaledForPdf(rendered, output), sheet(output)), PDF, null);
+        return switch (output.format()) {
+            case "png" -> new RenderedOutput(
+                    PngExporter.toPngBytes(rendered, request.dpi()), PNG, request.dpi());
+            case "pdf" -> new RenderedOutput(
+                    PdfExporter.toPdfBytes(scaledForPdf(rendered, output), sheet(output)), PDF, null);
+            default -> throw unsupported(job.plugin().id(), output.format());
+        };
     }
 
     private RenderedOutput renderMultiFocus(
