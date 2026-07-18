@@ -14,6 +14,8 @@ Usage:
   bash packaging/docs-jobs.sh verify-all <job-root> <asset-root>
   bash packaging/docs-jobs.sh list <job-root>
   bash packaging/docs-jobs.sh table <job.fresnel>
+  bash packaging/docs-jobs.sh manifest <job-root> <asset-root> <output.json>
+  bash packaging/docs-jobs.sh verify-manifest <job-root> <asset-root> <expected.json>
 USAGE
   exit 2
 fi
