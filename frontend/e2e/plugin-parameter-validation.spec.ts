@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('canonical validation reports nested paths and gates production actions', async ({ page }) => {
+test('canonical validation reports nested paths and gates all actions for structural errors', async ({ page }) => {
   await page.goto('/plugins/multi-focus');
   await expect(page.locator('[data-plugin-schema="multi-focus"]')).toBeVisible();
 
@@ -30,4 +30,49 @@ test('canonical validation reports nested paths and gates production actions', a
   await expect(validation).toHaveCount(0, { timeout: 30_000 });
   await expect(render).toBeEnabled();
   await expect(save).toBeEnabled();
+});
+
+test('a structurally valid draft can be previewed and saved while production stays gated', async ({ page }) => {
+  await page.goto('/plugins/zone-plate');
+  const form = page.locator('[data-plugin-schema="zone-plate"]');
+  await expect(form).toBeVisible();
+
+  // This geometry is structurally valid but intentionally undersampled at 600 DPI.
+  await form.getByRole('spinbutton', { name: /^Aperture diameter \(mm\)/ }).fill('8');
+  await form.getByRole('spinbutton', { name: /^Focal length \(mm\)/ }).fill('500');
+  await form.getByRole('spinbutton', { name: /^Wavelength \(nm\)/ }).fill('632');
+  await form.getByRole('spinbutton', { name: /^Printer DPI/ }).fill('600');
+
+  const render = page.getByRole('button', { name: 'Render preview' });
+  const save = page.getByRole('button', { name: 'Save job (.fresnel)' });
+  const png = page.getByRole('button', { name: 'PNG', exact: true });
+
+  await expect(page.getByRole('heading', { name: 'Design metrics' }))
+    .toBeVisible({ timeout: 30_000 });
+  await expect(render).toBeEnabled();
+  await expect(save).toBeEnabled();
+  await expect(png).toBeDisabled();
+
+  await render.click();
+  await expect(page.getByRole('img', { name: 'Fresnel zone plate preview' }))
+    .toBeVisible({ timeout: 30_000 });
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    save.click(),
+  ]);
+  const stream = await download.createReadStream();
+  let json = '';
+  for await (const chunk of stream) json += chunk.toString();
+  const job = JSON.parse(json);
+  expect(job.parameters).toMatchObject({
+    apertureDiameterMm: 8,
+    focalLengthMm: 500,
+    wavelengthNm: 632,
+    dpi: 600,
+    targetOffsetXmm: 0,
+    targetOffsetYmm: 0,
+    maskType: 'BINARY_AMPLITUDE',
+    polarity: 'POSITIVE',
+  });
 });
