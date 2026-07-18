@@ -47,13 +47,13 @@ export function WindowFoilPanel({ initialJob }: JobPanelProps) {
   const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
-  const renderPreview = async () => {
+  const renderPreview = async (parameters: WindowFoilRequest) => {
     setBusy(true);
     setError(null);
     try {
-      setPreview(await fetchFoilPreviewPng(request));
-      setInfo(await foilInfo(request));
-      setValidationReport(await validatePlugin('window-foil', request));
+      setPreview(await fetchFoilPreviewPng(parameters));
+      setInfo(await foilInfo(parameters));
+      setValidationReport(await validatePlugin('window-foil', parameters));
     } catch (renderError) {
       setValidationReport(null);
       setError(renderError instanceof Error ? renderError.message : String(renderError));
@@ -74,7 +74,10 @@ export function WindowFoilPanel({ initialJob }: JobPanelProps) {
         applyDefaultsOnLoad={!initialJob}
       >
         {(schema, structuralValidation) => {
-          const structurallyValid = structuralValidation?.valid === true;
+          const normalized = structuralValidation?.valid
+            ? structuralValidation.normalizedParameters
+            : undefined;
+          const structurallyValid = Boolean(normalized);
           return (
             <>
               <div className="field" data-editor-extension="production-actions">
@@ -104,18 +107,19 @@ export function WindowFoilPanel({ initialJob }: JobPanelProps) {
                     label: busy ? 'Rendering…' : 'Render preview',
                     primary: true,
                     disabled: !structurallyValid,
-                    run: renderPreview,
+                    run: () => normalized && renderPreview(normalized),
                   },
                   EXPORT_PDF: {
                     label: `PDF (${sheet})`,
                     disabled: !structurallyValid,
-                    run: () => downloadFoilPdf(request, sheet, 'fresnel-window-foil.pdf'),
+                    run: () => normalized
+                      && downloadFoilPdf(normalized, sheet, 'fresnel-window-foil.pdf'),
                   },
                 }}
               />
               <SaveJobControl
                 pluginId="window-foil"
-                parameters={request}
+                parameters={normalized ?? null}
                 disabled={busy || !structurallyValid}
               />
               {error && <p className="error-message">{error}</p>}
