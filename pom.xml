@@ -6,7 +6,7 @@
 
     <groupId>org.fresnel</groupId>
     <artifactId>fresnel-parent</artifactId>
-    <version>0.1.6</version>
+    <version>0.1.7-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Fresnel Zone Plate Designer (parent)</name>
