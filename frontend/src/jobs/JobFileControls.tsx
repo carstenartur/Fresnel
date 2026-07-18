@@ -14,6 +14,7 @@ import {
   type FresnelPluginId,
   type LoadedFresnelJob,
 } from '../jobApi';
+import { fetchPluginSchema } from '../pluginSchemaApi';
 
 const JobSourceContext = createContext<FresnelJobDocument<unknown> | null>(null);
 
@@ -105,7 +106,14 @@ export function SaveJobControl<T>({
     setBusy(true);
     setError(null);
     try {
-      await saveFresnelJob(pluginId, parameters, filename, sourceJob);
+      const schema = await fetchPluginSchema(pluginId);
+      await saveFresnelJob(
+        pluginId,
+        parameters,
+        schema.parameterSchemaVersion,
+        filename,
+        sourceJob,
+      );
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError));
     } finally {
