@@ -9,7 +9,7 @@
   },
   "parameters": {
     "apertureDiameterMm": 10.0,
-    "focalLengthMm": 1000.0,
+    "focalLengthMm": 250.0,
     "wavelengthNm": 550.0,
     "dpi": 1200.0,
     "targetOffsetXmm": 0.0,
@@ -27,7 +27,7 @@
     ]
   },
   "provenance": {
-    "createdWith": "Fresnel",
+    "createdWith": "Fresnel documentation",
     "applicationVersion": "development"
   }
 }
