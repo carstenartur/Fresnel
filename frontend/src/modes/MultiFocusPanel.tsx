@@ -3,6 +3,11 @@ import {
   downloadMultiFocusPng, fetchMultiFocusPreviewPng, validatePlugin,
   type DesignValidationReport, type FocusPointDto, type MultiFocusRequest,
 } from '../api';
+import {
+  initialJobParameters,
+  SaveJobControl,
+  type JobPanelProps,
+} from '../jobs/JobFileControls';
 import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: MultiFocusRequest = {
@@ -17,8 +22,9 @@ const DEFAULT: MultiFocusRequest = {
   polarity: 'POSITIVE',
 };
 
-export function MultiFocusPanel() {
-  const [req, setReq] = useState<MultiFocusRequest>(DEFAULT);
+export function MultiFocusPanel({ initialJob }: JobPanelProps) {
+  const [req, setReq] = useState<MultiFocusRequest>(() =>
+    initialJobParameters(initialJob, 'multi-focus', DEFAULT));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
@@ -86,6 +92,7 @@ export function MultiFocusPanel() {
           PNG
         </button>
       </div>
+      <SaveJobControl pluginId="multi-focus" parameters={req} disabled={busy} />
       {error && <p className="error-message">{error}</p>}
 
       <PreviewPane url={previewUrl} alt="Multi-focus preview" />

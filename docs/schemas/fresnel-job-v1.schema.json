@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json",
+  "title": "Fresnel production job",
+  "description": "Versioned, data-only design and production job for the Fresnel application.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "formatVersion",
+    "plugin",
+    "parameters"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri"
+    },
+    "format": {
+      "const": "io.github.carstenartur.fresnel.job"
+    },
+    "formatVersion": {
+      "const": 1
+    },
+    "plugin": {
+      "$ref": "#/$defs/plugin"
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Plugin-specific parameters. Versioned schemas will be linked here as they become available."
+    },
+    "production": {
+      "$ref": "#/$defs/production"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "$defs": {
+    "plugin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "parameterSchemaVersion",
+        "algorithmVersion"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "zone-plate",
+            "rgb-zone-plate",
+            "multi-focus",
+            "hex-macro-cell",
+            "window-foil",
+            "hologram"
+          ]
+        },
+        "parameterSchemaVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "algorithmVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "production": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputs"],
+      "properties": {
+        "outputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/output"
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "format": {
+          "type": "string",
+          "enum": ["png", "svg", "pdf", "dxf", "gerber", "gbr", "stl"]
+        },
+        "filename": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "not": {
+            "anyOf": [
+              {
+                "pattern": "[/\\\\:]"
+              },
+              {
+                "enum": [".", ".."]
+              }
+            ]
+          }
+        },
+        "sheet": {
+          "type": "string",
+          "enum": ["FIT", "A4", "A3", "A2", "A1", "A0"]
+        },
+        "printScale": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "options": {
+          "type": "object"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "createdWith": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applicationVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameterSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

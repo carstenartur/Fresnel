@@ -4,32 +4,52 @@ import {
   validatePlugin,
   type DesignValidationReport, type HologramRequest,
 } from '../api';
+import {
+  initialJobParameters,
+  SaveJobControl,
+  type JobPanelProps,
+} from '../jobs/JobFileControls';
 import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const SIDES = [64, 128, 256, 512, 1024];
 
-export function HologramPanel() {
-  const [b64, setB64] = useState<string | null>(null);
-  const [sidePx, setSide] = useState(128);
-  const [iterations, setIters] = useState(40);
-  const [outputType, setOut] = useState<'BINARY_PHASE' | 'GREYSCALE_PHASE'>('GREYSCALE_PHASE');
-  const [dpi, setDpi] = useState(600);
+const DEFAULT: HologramRequest = {
+  targetImageBase64: '',
+  sidePx: 128,
+  iterations: 40,
+  outputType: 'GREYSCALE_PHASE',
+  dpi: 600,
+};
+
+export function HologramPanel({ initialJob }: JobPanelProps) {
+  const [request, setRequest] = useState<HologramRequest>(() =>
+    initialJobParameters(initialJob, 'hologram', DEFAULT));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [maskUrl, setMaskUrl] = useBlobUrl();
   const [reconUrl, setReconUrl] = useBlobUrl();
 
-  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const update = (patch: Partial<HologramRequest>) =>
+    setRequest((current) => ({ ...current, ...patch }));
+
+  const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
-    try { setB64(await fileToBase64(file)); setError(null); }
-    catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    try {
+      update({ targetImageBase64: await fileToBase64(file) });
+      setError(null);
+    } catch (fileError) {
+      setError(fileError instanceof Error ? fileError.message : String(fileError));
+    }
   };
 
   const build = (): HologramRequest | null => {
-    if (!b64) { setError('please choose a target image'); return null; }
-    return { targetImageBase64: b64, sidePx, iterations, outputType, dpi };
+    if (!request.targetImageBase64) {
+      setError('please choose a target image');
+      return null;
+    }
+    return request;
   };
 
   const synthesise = async () => {
@@ -60,46 +80,56 @@ export function HologramPanel() {
       </div>
       <div className="field">
         <label htmlFor="side">Side (px)</label>
-        <select id="side" value={sidePx} onChange={(e) => setSide(Number(e.target.value))}>
+        <select id="side" value={request.sidePx}
+                onChange={(e) => update({ sidePx: Number(e.target.value) })}>
           {SIDES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
 
       <h2>Algorithm</h2>
-      <NumberField label="GS iterations" value={iterations} min={1} max={500} step={5}
-                   onChange={setIters} />
+      <NumberField label="GS iterations" value={request.iterations} min={1} max={500} step={5}
+                   onChange={(iterations) => update({ iterations })} />
       <div className="field">
         <label htmlFor="out">Output type</label>
-        <select id="out" value={outputType}
-                onChange={(e) => setOut(e.target.value as 'BINARY_PHASE' | 'GREYSCALE_PHASE')}>
+        <select id="out" value={request.outputType}
+                onChange={(e) => update({
+                  outputType: e.target.value as 'BINARY_PHASE' | 'GREYSCALE_PHASE',
+                })}>
           <option value="GREYSCALE_PHASE">Greyscale phase</option>
           <option value="BINARY_PHASE">Binary phase</option>
         </select>
       </div>
-      <NumberField label="DPI" value={dpi} min={50} step={50} onChange={setDpi} />
+      <NumberField label="DPI" value={request.dpi} min={50} step={50}
+                   onChange={(dpi) => update({ dpi })} />
 
       <div className="actions">
-        <button onClick={synthesise} disabled={busy || !b64}>
+        <button onClick={synthesise} disabled={busy || !request.targetImageBase64}>
           {busy ? 'Synthesising…' : 'Synthesise mask'}
         </button>
-        <button className="secondary" onClick={reconstruct} disabled={busy || !b64}>
+        <button className="secondary" onClick={reconstruct}
+                disabled={busy || !request.targetImageBase64}>
           Simulate reconstruction
         </button>
         <button className="secondary" onClick={async () => {
             const req = build(); if (!req) return;
             try { await downloadHologramPng(req, 'fresnel-hologram.png'); }
             catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-          }} disabled={busy || !b64}>
+          }} disabled={busy || !request.targetImageBase64}>
           PNG
         </button>
         <button className="secondary" onClick={async () => {
             const req = build(); if (!req) return;
             try { await downloadHologramStl(req, 'fresnel-hologram-relief.stl'); }
             catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-          }} disabled={busy || !b64}>
+          }} disabled={busy || !request.targetImageBase64}>
           STL
         </button>
       </div>
+      <SaveJobControl
+        pluginId="hologram"
+        parameters={request.targetImageBase64 ? request : null}
+        disabled={busy}
+      />
       {error && <p className="error-message">{error}</p>}
 
       <PreviewPane url={maskUrl} alt="Hologram phase mask">

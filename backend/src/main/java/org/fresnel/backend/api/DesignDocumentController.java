@@ -23,15 +23,19 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Save / load endpoints for {@link DesignDocument} envelopes.
+ * Save / load endpoints for legacy {@link DesignDocument} envelopes and canonical
+ * {@link FresnelJobDocument} files.
  *
- * <p>This controller offers two complementary persistence modes:
+ * <p>This controller offers three complementary persistence modes:</p>
  *
  * <ul>
- *   <li><b>Stateless round-trip</b>: {@code POST /save} returns the canonicalised
- *       JSON as a downloadable attachment; {@code POST /load} validates and echoes
- *       a posted document. Used by the SPA's "Download / upload JSON" buttons.
- *   <li><b>Server-side persistence</b>: {@code POST /persist} stores the design
+ *   <li><b>Canonical job round-trip</b>: {@code POST /job/save} and
+ *       {@code POST /job/load} validate, migrate and normalize a versioned
+ *       {@code .fresnel} job. The load endpoint also accepts legacy design JSON.
+ *   <li><b>Legacy stateless round-trip</b>: {@code POST /save} returns the
+ *       canonicalised legacy JSON as a downloadable attachment; {@code POST /load}
+ *       validates and echoes a posted document. Kept for compatibility.
+ *   <li><b>Server-side persistence</b>: {@code POST /persist} stores a legacy design
  *       in the database (Postgres in production, H2 in local/dev/tests) and returns
  *       the assigned UUID; {@code GET /persist} lists designs scoped to the caller
  *       (admin sees all); {@code GET /persist/{id}} loads a specific design.
@@ -43,13 +47,46 @@ public class DesignDocumentController {
 
     private final ObjectMapper mapper;
     private final DesignRepository repository;
+    private final FresnelJobService jobService;
 
-    public DesignDocumentController(ObjectMapper mapper, DesignRepository repository) {
+    public DesignDocumentController(
+            ObjectMapper mapper,
+            DesignRepository repository,
+            FresnelJobService jobService) {
         this.mapper = mapper;
         this.repository = repository;
+        this.jobService = jobService;
     }
 
-    // -------- Stateless round-trip (existing API) --------
+    // -------- Canonical .fresnel job round-trip --------
+
+    @PostMapping(
+            value = "/job/save",
+            consumes = {MediaType.APPLICATION_JSON_VALUE, FresnelJobDocument.MEDIA_TYPE},
+            produces = FresnelJobDocument.MEDIA_TYPE)
+    public ResponseEntity<byte[]> saveJob(@RequestBody byte[] body) {
+        FresnelJobDocument job = jobService.parseAndNormalize(body);
+        byte[] canonical = jobService.write(job);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType(FresnelJobDocument.MEDIA_TYPE));
+        headers.set(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"fresnel-" + job.plugin().id()
+                        + FresnelJobDocument.FILE_EXTENSION + "\"");
+        return ResponseEntity.ok().headers(headers).body(canonical);
+    }
+
+    @PostMapping(
+            value = "/job/load",
+            consumes = {MediaType.APPLICATION_JSON_VALUE, FresnelJobDocument.MEDIA_TYPE},
+            produces = FresnelJobDocument.MEDIA_TYPE)
+    public ResponseEntity<byte[]> loadJob(@RequestBody byte[] body) {
+        FresnelJobDocument job = jobService.parseAndNormalize(body);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(FresnelJobDocument.MEDIA_TYPE))
+                .body(jobService.write(job));
+    }
+
+    // -------- Legacy stateless round-trip --------
 
     @PostMapping(value = "/save",
             consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -131,7 +168,7 @@ public class DesignDocumentController {
         return new DesignDocument(entity.getKind(), entity.getSchemaVersion(), payload);
     }
 
-    @DeleteMapping(value = "/persist/{id}")
+    @DeleteMapping("/persist/{id}")
     public ResponseEntity<Void> deleteById(@PathVariable("id") String id) {
         UUID uuid = parseUuid(id);
         DesignEntity entity = repository.findById(uuid)

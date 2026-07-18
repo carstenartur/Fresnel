@@ -4,6 +4,11 @@ import {
   validatePlugin,
   type DesignValidationReport, type FoilInfo, type WindowFoilRequest,
 } from '../api';
+import {
+  initialJobParameters,
+  SaveJobControl,
+  type JobPanelProps,
+} from '../jobs/JobFileControls';
 import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: WindowFoilRequest = {
@@ -21,8 +26,9 @@ const DEFAULT: WindowFoilRequest = {
 
 const SHEETS = ['FIT', 'A4', 'A3', 'A2', 'A1', 'A0'];
 
-export function WindowFoilPanel() {
-  const [req, setReq] = useState<WindowFoilRequest>(DEFAULT);
+export function WindowFoilPanel({ initialJob }: JobPanelProps) {
+  const [req, setReq] = useState<WindowFoilRequest>(() =>
+    initialJobParameters(initialJob, 'window-foil', DEFAULT));
   const [info, setInfo] = useState<FoilInfo | null>(null);
   const [sheet, setSheet] = useState('A4');
   const [busy, setBusy] = useState(false);
@@ -89,6 +95,7 @@ export function WindowFoilPanel() {
           PDF ({sheet})
         </button>
       </div>
+      <SaveJobControl pluginId="window-foil" parameters={req} disabled={busy} />
       {error && <p className="error-message">{error}</p>}
 
       <PreviewPane url={previewUrl} alt="Window foil preview" />

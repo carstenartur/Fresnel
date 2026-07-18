@@ -4,6 +4,11 @@ Fresnel is structured around **plugin-style modules**: each diffractive element
 type is an independent, self-contained unit (Java renderer + parameter record +
 React panel) that can be added or replaced without touching the core pipeline.
 
+Portable, reproducible design and production requests use the versioned
+[`.fresnel` job format](fresnel-job-format.md). Job files identify workflows by
+stable plugin ID and can be migrated from the former generic design JSON
+envelope.
+
 The table below lists all currently available plugins.
 
 | Plugin | Java renderer | Frontend panel | Description |

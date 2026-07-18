@@ -8,6 +8,11 @@ import {
   type DesignValidationReport, type HexInfo,
   type HexMacroCellRequest,
 } from '../api';
+import {
+  initialJobParameters,
+  SaveJobControl,
+  type JobPanelProps,
+} from '../jobs/JobFileControls';
 import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: HexMacroCellRequest = {
@@ -23,8 +28,9 @@ const DEFAULT: HexMacroCellRequest = {
   polarity: 'POSITIVE',
 };
 
-export function HexMacroCellPanel() {
-  const [req, setReq] = useState<HexMacroCellRequest>(DEFAULT);
+export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
+  const [req, setReq] = useState<HexMacroCellRequest>(() =>
+    initialJobParameters(initialJob, 'hex-macro-cell', DEFAULT));
   const [info, setInfo] = useState<HexInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +93,7 @@ export function HexMacroCellPanel() {
           PDF
         </button>
       </div>
+      <SaveJobControl pluginId="hex-macro-cell" parameters={req} disabled={busy} />
       {error && <p className="error-message">{error}</p>}
 
       <PreviewPane url={previewUrl} alt="Hex macro cell preview" />
