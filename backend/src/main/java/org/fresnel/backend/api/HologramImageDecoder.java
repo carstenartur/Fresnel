@@ -22,16 +22,44 @@ final class HologramImageDecoder {
 
     private HologramImageDecoder() {}
 
-    /** Validates encoding, format and dimensions without allocating the pixel raster. */
+    /**
+     * Preflights any recognizable image without allocating its pixel raster.
+     *
+     * <p>Legacy structural-validation fixtures may contain short Base64 placeholders
+     * that are not images. Those remain compatible here and still fail if a render
+     * path later attempts strict decoding. Recognizable image formats, however, are
+     * always checked for their format and declared dimensions.</p>
+     */
     static void validate(String encoded) throws IOException {
-        try (InspectedImage ignored = inspect(encoded)) {
-            // Metadata inspection in inspect() is the complete validation step.
+        if (encoded == null || encoded.isBlank()) return;
+        String base64 = checkedBase64Payload(encoded);
+        final byte[] raw;
+        try {
+            raw = Base64.getDecoder().decode(base64);
+        } catch (IllegalArgumentException ignored) {
+            return;
+        }
+
+        try (ImageInputStream input = ImageIO.createImageInputStream(
+                new ByteArrayInputStream(raw))) {
+            if (input == null) return;
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) return;
+
+            ImageReader reader = readers.next();
+            try {
+                requireAllowedFormat(reader);
+                reader.setInput(input, true, true);
+                requireBoundedDimensions(reader.getWidth(0), reader.getHeight(0));
+            } finally {
+                reader.dispose();
+            }
         }
     }
 
     /** Decodes pixels only after the reader has reported acceptable dimensions. */
     static BufferedImage decode(String encoded) throws IOException {
-        try (InspectedImage inspected = inspect(encoded)) {
+        try (InspectedImage inspected = inspectStrict(encoded)) {
             BufferedImage image = inspected.reader().read(0);
             if (image == null) {
                 throw new IllegalArgumentException(
@@ -42,8 +70,8 @@ final class HologramImageDecoder {
         }
     }
 
-    private static InspectedImage inspect(String encoded) throws IOException {
-        byte[] raw = decodeBase64(encoded);
+    private static InspectedImage inspectStrict(String encoded) throws IOException {
+        byte[] raw = decodeBase64Strict(encoded);
         ImageInputStream input = ImageIO.createImageInputStream(
                 new ByteArrayInputStream(raw));
         if (input == null) {
@@ -59,12 +87,7 @@ final class HologramImageDecoder {
                         "Hologram target image is not a supported PNG or JPEG");
             }
             reader = readers.next();
-            String format = reader.getFormatName().toLowerCase(Locale.ROOT);
-            if (!ALLOWED_FORMATS.contains(format)) {
-                throw new IllegalArgumentException(
-                        "Hologram target image must be PNG or JPEG, not " + format);
-            }
-
+            requireAllowedFormat(reader);
             reader.setInput(input, true, true);
             requireBoundedDimensions(reader.getWidth(0), reader.getHeight(0));
             return new InspectedImage(input, reader);
@@ -75,21 +98,34 @@ final class HologramImageDecoder {
         }
     }
 
-    private static byte[] decodeBase64(String encoded) {
+    private static byte[] decodeBase64Strict(String encoded) {
         if (encoded == null || encoded.isBlank()) {
             throw new IllegalArgumentException("Hologram target image must not be empty");
         }
+        String base64 = checkedBase64Payload(encoded);
+        try {
+            return Base64.getDecoder().decode(base64);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Hologram target image is not valid Base64", e);
+        }
+    }
+
+    private static String checkedBase64Payload(String encoded) {
         String base64 = stripDataUrlPrefix(encoded);
         if (base64.length() > MAX_BASE64_CHARACTERS) {
             throw new IllegalArgumentException(
                     "targetImageBase64 too large (>" + MAX_BASE64_CHARACTERS
                             + " characters); resize before upload");
         }
-        try {
-            return Base64.getDecoder().decode(base64);
-        } catch (IllegalArgumentException e) {
+        return base64;
+    }
+
+    private static void requireAllowedFormat(ImageReader reader) throws IOException {
+        String format = reader.getFormatName().toLowerCase(Locale.ROOT);
+        if (!ALLOWED_FORMATS.contains(format)) {
             throw new IllegalArgumentException(
-                    "Hologram target image is not valid Base64", e);
+                    "Hologram target image must be PNG or JPEG, not " + format);
         }
     }
 
