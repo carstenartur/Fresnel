@@ -28,9 +28,8 @@ import {
   SaveJobControl,
   type JobPanelProps,
 } from '../jobs/JobFileControls';
-import { fetchPluginSchema, type PluginSchemaDocument } from '../pluginSchemaApi';
 import { PluginActionBar } from '../schema/PluginActionBar';
-import { SchemaForm } from '../schema/SchemaForm';
+import { PluginEditorShell } from '../schema/PluginEditorShell';
 import {
   ExperimentValidationPanel,
   PropagationPanel,
@@ -72,16 +71,14 @@ const DEFAULT_MEASURED_FOCUS: MeasuredFocus = {
 /**
  * Schema-driven Zone Plate editor.
  *
- * Standard parameter controls and production actions come from the versioned
- * plugin contract. Optical reports, experimental validation and propagation
- * remain trusted editor extensions that operate on the exact same serialisable
- * parameter object.
+ * <p>Standard parameter controls, defaults and production actions come from the
+ * versioned plugin contract. Optical reports, experimental validation and
+ * propagation remain trusted editor extensions that operate on the exact same
+ * serialisable parameter object.</p>
  */
 export function ZonePlatePanel({ initialJob }: JobPanelProps) {
   const [request, setRequest] = useState<SingleZonePlateRequest>(() =>
     initialJobParameters(initialJob, 'zone-plate', FALLBACK_DEFAULTS));
-  const [schema, setSchema] = useState<PluginSchemaDocument<SingleZonePlateRequest> | null>(null);
-  const [schemaError, setSchemaError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<DesignMetrics | null>(null);
   const [qualityReport, setQualityReport] = useState<OpticalQualityReport | null>(null);
   const [warnings, setWarnings] = useState<Warning[]>([]);
@@ -99,23 +96,6 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
   const [experimentError, setExperimentError] = useState<string | null>(null);
   const [comparingExperiment, setComparingExperiment] = useState(false);
   const lastValidationId = useRef(0);
-
-  useEffect(() => {
-    let active = true;
-    fetchPluginSchema<SingleZonePlateRequest>('zone-plate')
-      .then((loaded) => {
-        if (!active) return;
-        setSchema(loaded);
-        setSchemaError(null);
-        if (!initialJob) setRequest(loaded.defaults);
-      })
-      .catch((loadError: unknown) => {
-        if (!active) return;
-        setSchema(null);
-        setSchemaError(loadError instanceof Error ? loadError.message : String(loadError));
-      });
-    return () => { active = false; };
-  }, [initialJob]);
 
   useEffect(() => {
     const validationId = ++lastValidationId.current;
@@ -160,7 +140,7 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
 
   useEffect(() => {
     void renderPreview();
-    // The editor is remounted when an imported job revision changes.
+    // The editor is remounted whenever an imported job revision changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -168,9 +148,6 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
     const pixelMm = 25.4 / request.dpi;
     return Math.round(request.apertureDiameterMm / pixelMm);
   }, [request.apertureDiameterMm, request.dpi]);
-
-  const extensions = new Set(schema?.uiSchema.extensions ?? []);
-  const supportsPropagation = schema?.capabilities.includes('PROPAGATION_PREVIEW') ?? false;
 
   const updateExperimentSetup = (patch: Partial<ExperimentSetup>) =>
     setExperimentSetup((current) => ({ ...current, ...patch }));
@@ -224,143 +201,153 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
   return (
     <>
       <h2>Zone plate</h2>
-      {schema ? (
-        <SchemaForm
-          parameterSchema={schema.parameterSchema}
-          uiSchema={schema.uiSchema}
-          value={request}
-          onChange={setRequest}
-          disabled={busy}
-        />
-      ) : !schemaError ? (
-        <p role="status" style={{ fontSize: 12, color: '#6b7280' }}>Loading plugin schema…</p>
-      ) : null}
-      {schemaError && <p className="error-message">Could not load editor schema: {schemaError}</p>}
-
-      <div className="field" data-editor-extension="production-actions">
-        <label htmlFor="zone-plate-pdf-sheet">PDF sheet size</label>
-        <select
-          id="zone-plate-pdf-sheet"
-          value={sheet}
-          disabled={busy}
-          onChange={(event) => setSheet(event.target.value as (typeof SHEETS)[number])}
-        >
-          {SHEETS.map((value) => <option key={value} value={value}>{value}</option>)}
-        </select>
-      </div>
-
-      <p style={{ fontSize: 12, color: '#6b7280' }}>
-        Estimated image size: {sizeEstimatePx.toLocaleString()} × {sizeEstimatePx.toLocaleString()} px
-      </p>
-
-      <PluginActionBar
-        capabilities={schema?.capabilities ?? []}
-        busy={busy}
-        actions={{
-          PREVIEW_PNG: {
-            label: busy ? 'Rendering…' : 'Render preview',
-            primary: true,
-            run: renderPreview,
-          },
-          EXPORT_PNG: {
-            label: 'PNG',
-            disabled: !valid,
-            run: () => downloadExportPng(request, 'fresnel-zone-plate.png'),
-          },
-          EXPORT_SVG: {
-            label: 'SVG',
-            disabled: !valid,
-            run: () => downloadExportSvg(request, 'fresnel-zone-plate.svg'),
-          },
-          EXPORT_PDF: {
-            label: 'PDF',
-            disabled: !valid,
-            run: () => downloadExportPdf(request, sheet, 'fresnel-zone-plate.pdf'),
-          },
-          EXPORT_DXF: {
-            label: 'DXF',
-            title: 'DXF outlines for laser cutters / pen plotters',
-            disabled: !valid,
-            run: () => downloadExportDxf(request, 'fresnel-zone-plate.dxf'),
-          },
-          EXPORT_GERBER: {
-            label: 'Gerber',
-            title: 'Gerber RS-274X for PCB-style fabrication',
-            disabled: !valid,
-            run: () => downloadExportGerber(request, 'fresnel-zone-plate.gbr'),
-          },
-          PRINTABILITY_ANALYSIS: {
-            label: 'Calibration PDF',
-            disabled: !valid,
-            run: () => downloadCalibrationPdf({
-              dpi: request.dpi,
-              printScale: 1,
-              wavelengthNm: request.wavelengthNm,
-              focalLengthMm: request.focalLengthMm,
-            }, sheet, 'fresnel-calibration-sheet.pdf'),
-          },
-        }}
-      />
-
-      <SaveJobControl
+      <PluginEditorShell
         pluginId="zone-plate"
-        parameters={request}
-        disabled={!schema || !valid || busy}
-      />
-      {error && <p className="error-message">{error}</p>}
+        value={request}
+        onChange={setRequest}
+        disabled={busy}
+        applyDefaultsOnLoad={!initialJob}
+      >
+        {(schema) => {
+          const extensions = new Set(schema.uiSchema.extensions ?? []);
+          const supportsPropagation = schema.capabilities.includes('PROPAGATION_PREVIEW');
 
-      {extensions.has('validation') && (
-        <div data-editor-extension="validation">
-          <ZonePlateWarnings warnings={warnings} valid={valid} />
-          <PreviewPane url={previewUrl} alt="Fresnel zone plate preview" />
-          {metrics && <ZonePlateMetrics metrics={metrics} />}
-          {qualityReport && <ZonePlateQualityReport report={qualityReport} />}
-          <ValidationReportView report={validationReport} />
-        </div>
-      )}
+          return (
+            <>
+              {extensions.has('production-actions') && (
+                <div className="field" data-editor-extension="production-actions">
+                  <label htmlFor="zone-plate-pdf-sheet">PDF sheet size</label>
+                  <select
+                    id="zone-plate-pdf-sheet"
+                    value={sheet}
+                    disabled={busy}
+                    onChange={(event) =>
+                      setSheet(event.target.value as (typeof SHEETS)[number])}
+                  >
+                    {SHEETS.map((value) => (
+                      <option key={value} value={value}>{value}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-      {extensions.has('experiment') && (
-        <ExperimentValidationPanel
-          req={request}
-          validationReport={validationReport}
-          designId={experimentDesignId}
-          setDesignId={setExperimentDesignId}
-          setup={experimentSetup}
-          updateSetup={updateExperimentSetup}
-          measuredFocus={measuredFocus}
-          updateMeasuredFocus={updateMeasuredFocus}
-          photoReferenceText={photoReferenceText}
-          setPhotoReferenceText={setPhotoReferenceText}
-          comparison={comparison}
-          error={experimentError}
-          loading={comparingExperiment}
-          onCompare={runExperimentComparison}
-          onExportJson={async () => {
-            try {
-              setExperimentError(null);
-              await downloadExperimentJson(buildExperimentRecord());
-            } catch (exportError) {
-              setExperimentError(exportError instanceof Error
-                ? exportError.message
-                : String(exportError));
-            }
-          }}
-          onExportMarkdown={async () => {
-            try {
-              setExperimentError(null);
-              await downloadExperimentMarkdown(buildExperimentRecord());
-            } catch (exportError) {
-              setExperimentError(exportError instanceof Error
-                ? exportError.message
-                : String(exportError));
-            }
-          }}
-        />
-      )}
+              <p style={{ fontSize: 12, color: '#6b7280' }}>
+                Estimated image size: {sizeEstimatePx.toLocaleString()} ×{' '}
+                {sizeEstimatePx.toLocaleString()} px
+              </p>
 
-      {extensions.has('propagation') && supportsPropagation && (
-        <PropagationPanel req={request} />
-      )}
+              <PluginActionBar
+                capabilities={schema.capabilities}
+                busy={busy}
+                actions={{
+                  PREVIEW_PNG: {
+                    label: busy ? 'Rendering…' : 'Render preview',
+                    primary: true,
+                    run: renderPreview,
+                  },
+                  EXPORT_PNG: {
+                    label: 'PNG',
+                    disabled: !valid,
+                    run: () => downloadExportPng(request, 'fresnel-zone-plate.png'),
+                  },
+                  EXPORT_SVG: {
+                    label: 'SVG',
+                    disabled: !valid,
+                    run: () => downloadExportSvg(request, 'fresnel-zone-plate.svg'),
+                  },
+                  EXPORT_PDF: {
+                    label: 'PDF',
+                    disabled: !valid,
+                    run: () => downloadExportPdf(request, sheet, 'fresnel-zone-plate.pdf'),
+                  },
+                  EXPORT_DXF: {
+                    label: 'DXF',
+                    title: 'DXF outlines for laser cutters / pen plotters',
+                    disabled: !valid,
+                    run: () => downloadExportDxf(request, 'fresnel-zone-plate.dxf'),
+                  },
+                  EXPORT_GERBER: {
+                    label: 'Gerber',
+                    title: 'Gerber RS-274X for PCB-style fabrication',
+                    disabled: !valid,
+                    run: () => downloadExportGerber(request, 'fresnel-zone-plate.gbr'),
+                  },
+                  PRINTABILITY_ANALYSIS: {
+                    label: 'Calibration PDF',
+                    disabled: !valid,
+                    run: () => downloadCalibrationPdf({
+                      dpi: request.dpi,
+                      printScale: 1,
+                      wavelengthNm: request.wavelengthNm,
+                      focalLengthMm: request.focalLengthMm,
+                    }, sheet, 'fresnel-calibration-sheet.pdf'),
+                  },
+                }}
+              />
+
+              <SaveJobControl
+                pluginId="zone-plate"
+                parameters={request}
+                disabled={!valid || busy}
+              />
+              {error && <p className="error-message">{error}</p>}
+
+              {extensions.has('validation') && (
+                <div data-editor-extension="validation">
+                  <ZonePlateWarnings warnings={warnings} valid={valid} />
+                  <PreviewPane url={previewUrl} alt="Fresnel zone plate preview" />
+                  {metrics && <ZonePlateMetrics metrics={metrics} />}
+                  {qualityReport && <ZonePlateQualityReport report={qualityReport} />}
+                  <ValidationReportView report={validationReport} />
+                </div>
+              )}
+
+              {extensions.has('experiment') && (
+                <ExperimentValidationPanel
+                  req={request}
+                  validationReport={validationReport}
+                  designId={experimentDesignId}
+                  setDesignId={setExperimentDesignId}
+                  setup={experimentSetup}
+                  updateSetup={updateExperimentSetup}
+                  measuredFocus={measuredFocus}
+                  updateMeasuredFocus={updateMeasuredFocus}
+                  photoReferenceText={photoReferenceText}
+                  setPhotoReferenceText={setPhotoReferenceText}
+                  comparison={comparison}
+                  error={experimentError}
+                  loading={comparingExperiment}
+                  onCompare={runExperimentComparison}
+                  onExportJson={async () => {
+                    try {
+                      setExperimentError(null);
+                      await downloadExperimentJson(buildExperimentRecord());
+                    } catch (exportError) {
+                      setExperimentError(exportError instanceof Error
+                        ? exportError.message
+                        : String(exportError));
+                    }
+                  }}
+                  onExportMarkdown={async () => {
+                    try {
+                      setExperimentError(null);
+                      await downloadExperimentMarkdown(buildExperimentRecord());
+                    } catch (exportError) {
+                      setExperimentError(exportError instanceof Error
+                        ? exportError.message
+                        : String(exportError));
+                    }
+                  }}
+                />
+              )}
+
+              {extensions.has('propagation') && supportsPropagation && (
+                <PropagationPanel req={request} />
+              )}
+            </>
+          );
+        }}
+      </PluginEditorShell>
     </>
   );
 }
