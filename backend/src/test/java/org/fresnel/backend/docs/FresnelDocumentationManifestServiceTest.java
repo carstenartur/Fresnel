@@ -137,10 +137,12 @@ class FresnelDocumentationManifestServiceTest {
         byte[] first = service.write(manifest);
         byte[] second = service.write(manifest);
         assertArrayEquals(first, second);
-        assertEquals('\n', first[first.length - 1]);
+        assertEquals((byte) '\n', first[first.length - 1]);
         if (first.length > 1) {
-            assertNotEquals('\n', first[first.length - 2],
+            assertNotEquals((byte) '\n', first[first.length - 2],
                     "manifest must end with exactly one LF");
+            assertNotEquals((byte) '\r', first[first.length - 2],
+                    "manifest must use LF rather than CRLF");
         }
 
         Set<String> manifestAssets = manifest.examples().stream()
