@@ -65,30 +65,39 @@ export function MultiFocusPanel({ initialJob }: JobPanelProps) {
         customWidgets={CUSTOM_WIDGETS}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema) => (
-          <>
-            <PluginActionBar
-              capabilities={schema.capabilities}
-              busy={busy}
-              actions={{
-                PREVIEW_PNG: {
-                  label: busy ? 'Rendering…' : 'Render preview',
-                  primary: true,
-                  run: renderPreview,
-                },
-                EXPORT_PNG: {
-                  label: 'PNG',
-                  run: () => downloadMultiFocusPng(request, 'fresnel-multifocus.png'),
-                },
-              }}
-            />
-            <SaveJobControl pluginId="multi-focus" parameters={request} disabled={busy} />
-            {error && <p className="error-message">{error}</p>}
+        {(schema, structuralValidation) => {
+          const structurallyValid = structuralValidation?.valid === true;
+          return (
+            <>
+              <PluginActionBar
+                capabilities={schema.capabilities}
+                busy={busy}
+                actions={{
+                  PREVIEW_PNG: {
+                    label: busy ? 'Rendering…' : 'Render preview',
+                    primary: true,
+                    disabled: !structurallyValid,
+                    run: renderPreview,
+                  },
+                  EXPORT_PNG: {
+                    label: 'PNG',
+                    disabled: !structurallyValid,
+                    run: () => downloadMultiFocusPng(request, 'fresnel-multifocus.png'),
+                  },
+                }}
+              />
+              <SaveJobControl
+                pluginId="multi-focus"
+                parameters={request}
+                disabled={busy || !structurallyValid}
+              />
+              {error && <p className="error-message">{error}</p>}
 
-            <PreviewPane url={previewUrl} alt="Multi-focus preview" />
-            <ValidationReportView report={validationReport} />
-          </>
-        )}
+              <PreviewPane url={previewUrl} alt="Multi-focus preview" />
+              <ValidationReportView report={validationReport} />
+            </>
+          );
+        }}
       </PluginEditorShell>
     </>
   );
