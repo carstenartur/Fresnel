@@ -20,7 +20,6 @@ export interface PluginMetadata {
   id: FresnelPluginId;
   displayName: string;
   description: string;
-  frontendModeId: string;
   documentationUrl: string;
   capabilities: PluginCapability[];
   parameterSchemaVersion: number;
