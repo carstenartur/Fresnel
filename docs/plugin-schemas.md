@@ -27,11 +27,35 @@ expressions.
 
 The normal `GET /api/plugins` response also publishes:
 
+- the stable `id`, display name and documentation URL,
 - `parameterSchemaVersion`,
 - `editorMode`,
-- `schemaUrl`.
+- `schemaUrl`,
+- capabilities and propagation modes.
 
-Classpath resource names remain internal and are not part of the HTTP contract.
+Classpath resource names and former frontend mode aliases remain internal and
+are not part of the HTTP contract.
+
+## Stable plugin-ID routes
+
+The stable plugin ID is now the only navigation and job-file identity:
+
+```text
+/plugins/zone-plate
+/plugins/hex-macro-cell
+/plugins/window-foil
+/plugins/multi-focus
+/plugins/rgb-zone-plate
+/plugins/hologram
+```
+
+The ordered response from `GET /api/plugins` determines the design-navigation
+order. React keeps only a compile-time registry from trusted plugin IDs to local
+components. A schema or server response can therefore select a registered
+plugin, but cannot name a module to import or arbitrary code to execute.
+
+Opening a `.fresnel` job navigates directly from `job.plugin.id`; no
+`kind -> tab -> mode -> component` translation is involved.
 
 ## Parameter schema
 
@@ -127,8 +151,31 @@ preview-info
 reconstruction-preview
 ```
 
-Extensions are application-owned components. The schema controls placement and
-availability only; it cannot provide code.
+Extensions are application-owned components. The schema controls availability
+only; it cannot provide code.
+
+## Common React editor shell
+
+All six current plugins use `PluginEditorShell`. The shell owns:
+
+1. loading `GET /api/plugins/{pluginId}/schema`,
+2. loading and error presentation,
+3. initializing schema defaults for a new design,
+4. rendering `SchemaForm`,
+5. resolving only explicitly supplied trusted widgets,
+6. handing the loaded schema to capability-driven actions and extensions.
+
+The plugin panels now retain only renderer-specific operations and trusted
+advanced state. Standard labels, groups, defaults, units, enum choices and
+numeric constraints are no longer duplicated in each panel.
+
+`PluginActionBar` renders an action only when both conditions are true:
+
+- the backend descriptor advertises the corresponding `PluginCapability`, and
+- the trusted frontend implementation provides the typed action handler.
+
+Endpoint URLs are selected by typed API helpers, never derived dynamically from
+capability strings.
 
 ## Editor modes
 
@@ -140,7 +187,22 @@ availability only; it cannot provide code.
 - `CUSTOM` — a plugin temporarily requires a fully custom trusted editor.
 
 A custom mode is an explicit migration state, not permission for schema data to
-load executable code.
+load executable code. All current Fresnel plugins use either `SCHEMA` or
+`SCHEMA_WITH_EXTENSIONS`.
+
+## Validation layers
+
+The generic UI keeps three validation concerns separate:
+
+1. **UI editing state** — incomplete numeric text is shown locally and never
+   silently coerced to zero or an earlier value.
+2. **Structural normalization** — parameter JSON is checked through the same
+   backend importer used for `.fresnel` jobs.
+3. **Domain validation** — optical, numerical and manufacturing reports remain
+   authoritative plugin-specific backend operations.
+
+Only the public parameter object is stored in editor state. Saving a `.fresnel`
+job serializes that object directly, without a second hidden form model.
 
 ## Versioning and `.fresnel` jobs
 
@@ -161,11 +223,13 @@ and usually a new parameter schema version.
 1. Add or update the backend request/parameter model.
 2. Create a versioned parameter schema with complete defaults.
 3. Create the separate UI schema.
-4. Register both resources in `PluginRegistry`.
-5. Add a trusted widget only when an ordinary control cannot represent the data.
-6. Update schema/DTO/default/enum tests.
-7. Verify save/open round trips through the `.fresnel` job API.
-8. Add or update plugin documentation examples.
+4. Register both resources and the stable plugin ID in `PluginRegistry`.
+5. Register a trusted local editor component for that ID.
+6. Add a trusted widget only when an ordinary control cannot represent the data.
+7. Supply typed capability action handlers; never infer endpoint URLs from names.
+8. Update schema/DTO/default/enum and stable-route tests.
+9. Verify save/open round trips through the `.fresnel` job API.
+10. Add or update plugin documentation examples.
 
 The application validates all registered schema resources at startup. A plugin
 with missing or inconsistent metadata is therefore a build/startup error, not a
