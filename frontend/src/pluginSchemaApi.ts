@@ -16,6 +16,18 @@ export type PluginCapability =
   | 'OPTICAL_QUALITY_REPORT'
   | 'EXPERIMENTAL_VALIDATION';
 
+export interface PluginMetadata {
+  id: FresnelPluginId;
+  displayName: string;
+  description: string;
+  frontendModeId: string;
+  documentationUrl: string;
+  capabilities: PluginCapability[];
+  parameterSchemaVersion: number;
+  editorMode: PluginEditorMode;
+  schemaUrl: string;
+}
+
 export interface ParameterFieldSchema {
   type: 'number' | 'integer' | 'string' | 'boolean' | 'object' | 'array';
   title?: string;
@@ -81,6 +93,17 @@ export interface PluginSchemaDocument<TDefaults extends object = Record<string, 
   uiSchema: PluginUiSchema;
   defaults: TDefaults;
   capabilities: PluginCapability[];
+}
+
+export async function fetchPluginMetadata(): Promise<PluginMetadata[]> {
+  const response = await fetch(`${BASE}/api/plugins`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Could not load plugin metadata (HTTP ${response.status})`);
+  }
+  return response.json() as Promise<PluginMetadata[]>;
 }
 
 export async function fetchPluginSchema<TDefaults extends object = Record<string, unknown>>(
