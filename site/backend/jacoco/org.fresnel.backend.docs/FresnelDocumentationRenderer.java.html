@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FresnelDocumentationRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.docs</a> &gt; <span class="el_source">FresnelDocumentationRenderer.java</span></div><h1>FresnelDocumentationRenderer.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.docs;
+
+import org.fresnel.backend.api.FresnelJobDocument;
+import org.fresnel.backend.api.FresnelJobService;
+import org.fresnel.backend.api.PluginSchemaDocument;
+import org.fresnel.backend.api.PluginSchemaService;
+import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.StringJoiner;
+import java.util.regex.Pattern;
+
+/** Generates stable documentation fragments from canonical jobs and plugin schemas. */
+@Service
+public final class FresnelDocumentationRenderer {
+
+<span class="fc" id="L21">    private static final Pattern EXAMPLE_ID_SEGMENT =</span>
+<span class="fc" id="L22">            Pattern.compile(&quot;[A-Za-z0-9][A-Za-z0-9._-]{0,127}&quot;);</span>
+
+    private final FresnelJobService jobService;
+    private final PluginSchemaService schemaService;
+
+    public FresnelDocumentationRenderer(
+            FresnelJobService jobService,
+<span class="fc" id="L29">            PluginSchemaService schemaService) {</span>
+<span class="fc" id="L30">        this.jobService = jobService;</span>
+<span class="fc" id="L31">        this.schemaService = schemaService;</span>
+<span class="fc" id="L32">    }</span>
+
+    public String renderParameterTable(byte[] jobBytes) {
+<span class="fc" id="L35">        return renderParameterTable(jobService.parseAndNormalize(jobBytes));</span>
+    }
+
+    public String renderParameterTable(FresnelJobDocument job) {
+<span class="fc" id="L39">        FresnelJobDocument normalized = jobService.normalize(job);</span>
+<span class="fc" id="L40">        PluginSchemaDocument schema = schemaService.requireByPluginId(</span>
+<span class="fc" id="L41">                normalized.plugin().id());</span>
+
+<span class="fc" id="L43">        List&lt;Row&gt; rows = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L44">        JsonNode groups = schema.uiSchema().get(&quot;groups&quot;);</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        for (JsonNode group : groups) {</span>
+<span class="fc" id="L46">            JsonNode fields = group.get(&quot;fields&quot;);</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">            for (JsonNode field : fields) {</span>
+<span class="fc" id="L48">                String path = field.asText();</span>
+<span class="fc" id="L49">                JsonNode fieldSchema = resolveSchema(schema.parameterSchema(), path);</span>
+<span class="fc" id="L50">                JsonNode value = resolveValue(normalized.parameters(), path);</span>
+<span class="fc" id="L51">                rows.add(new Row(</span>
+<span class="fc" id="L52">                        fieldSchema.path(&quot;title&quot;).asText(path),</span>
+<span class="fc" id="L53">                        formatValue(fieldSchema, value)));</span>
+<span class="fc" id="L54">            }</span>
+<span class="fc" id="L55">        }</span>
+
+<span class="fc" id="L57">        StringBuilder markdown = new StringBuilder();</span>
+<span class="fc" id="L58">        markdown.append(&quot;| Parameter | Value |\n&quot;);</span>
+<span class="fc" id="L59">        markdown.append(&quot;|---|---:|\n&quot;);</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        for (Row row : rows) {</span>
+<span class="fc" id="L61">            markdown.append(&quot;| &quot;)</span>
+<span class="fc" id="L62">                    .append(escape(row.label()))</span>
+<span class="fc" id="L63">                    .append(&quot; | &quot;)</span>
+<span class="fc" id="L64">                    .append(escape(row.value()))</span>
+<span class="fc" id="L65">                    .append(&quot; |\n&quot;);</span>
+<span class="fc" id="L66">        }</span>
+<span class="fc" id="L67">        return markdown.toString();</span>
+    }
+
+    public String renderMarkedParameterBlock(String exampleId, byte[] jobBytes) {
+<span class="fc" id="L71">        String id = validateExampleId(exampleId);</span>
+<span class="fc" id="L72">        return &quot;&lt;!-- fresnel-example:&quot; + id + &quot;:start --&gt;\n&quot;</span>
+<span class="fc" id="L73">                + renderParameterTable(jobBytes)</span>
+                + &quot;&lt;!-- fresnel-example:&quot; + id + &quot;:end --&gt;&quot;;
+    }
+
+    private static String validateExampleId(String exampleId) {
+<span class="pc bpc" id="L78" title="2 of 4 branches missed.">        if (exampleId == null || exampleId.isBlank()) {</span>
+<span class="nc" id="L79">            throw new IllegalArgumentException(&quot;documentation example id must not be empty&quot;);</span>
+        }
+<span class="fc" id="L81">        String id = exampleId.trim();</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        if (id.contains(&quot;--&quot;)) {</span>
+<span class="fc" id="L83">            throw new IllegalArgumentException(</span>
+                    &quot;documentation example id must not contain an HTML comment delimiter&quot;);
+        }
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        for (String segment : id.split(&quot;/&quot;, -1)) {</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">            if (!EXAMPLE_ID_SEGMENT.matcher(segment).matches()</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">                    || &quot;.&quot;.equals(segment)</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">                    || &quot;..&quot;.equals(segment)) {</span>
+<span class="fc" id="L90">                throw new IllegalArgumentException(</span>
+                        &quot;documentation example id contains an unsafe segment: &quot; + exampleId);
+            }
+        }
+<span class="fc" id="L94">        return id;</span>
+    }
+
+    private static JsonNode resolveSchema(JsonNode root, String path) {
+<span class="fc" id="L98">        JsonNode current = root;</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        for (String segment : path.split(&quot;\\.&quot;)) {</span>
+<span class="fc" id="L100">            current = current.path(&quot;properties&quot;).get(segment);</span>
+<span class="pc bpc" id="L101" title="2 of 4 branches missed.">            if (current == null || !current.isObject()) {</span>
+<span class="nc" id="L102">                throw new IllegalStateException(</span>
+                        &quot;Could not resolve documentation schema field: &quot; + path);
+            }
+        }
+<span class="fc" id="L106">        return current;</span>
+    }
+
+    private static JsonNode resolveValue(JsonNode root, String path) {
+<span class="fc" id="L110">        JsonNode current = root;</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        for (String segment : path.split(&quot;\\.&quot;)) {</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">            current = current == null ? null : current.get(segment);</span>
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">            if (current == null) {</span>
+<span class="nc" id="L114">                throw new IllegalStateException(</span>
+                        &quot;Canonical job is missing documentation field: &quot; + path);
+            }
+        }
+<span class="fc" id="L118">        return current;</span>
+    }
+
+    private static String formatValue(JsonNode schema, JsonNode value) {
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        if ((schema.path(&quot;x-fresnel-sensitive-size&quot;).asBoolean(false)</span>
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">                || &quot;base64&quot;.equals(schema.path(&quot;contentEncoding&quot;).asText()))</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">                &amp;&amp; value.isTextual()) {</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">            return value.textValue().isEmpty()</span>
+<span class="nc" id="L126">                    ? &quot;No embedded data&quot;</span>
+                    : &quot;Embedded data (approximately &quot;
+<span class="fc" id="L128">                            + decodedBase64Bytes(value.textValue()) + &quot; bytes decoded)&quot;;</span>
+        }
+
+        String rendered;
+<span class="fc bfc" id="L132" title="All 2 branches covered.">        if (value.isNumber()) {</span>
+<span class="fc" id="L133">            BigDecimal decimal = value.decimalValue();</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">            rendered = decimal.compareTo(BigDecimal.ZERO) == 0</span>
+<span class="fc" id="L135">                    ? &quot;0&quot;</span>
+<span class="fc" id="L136">                    : decimal.stripTrailingZeros().toPlainString();</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        } else if (value.isTextual()) {</span>
+<span class="fc" id="L138">            rendered = formatTextValue(schema, value.textValue());</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        } else if (value.isBoolean()) {</span>
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">            rendered = value.booleanValue() ? &quot;Yes&quot; : &quot;No&quot;;</span>
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">        } else if (value.isArray()) {</span>
+<span class="fc" id="L142">            rendered = formatArray(schema.path(&quot;items&quot;), value);</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        } else if (value.isObject()) {</span>
+<span class="nc" id="L144">            rendered = formatObject(schema, value);</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        } else if (value.isNull()) {</span>
+<span class="nc" id="L146">            rendered = &quot;—&quot;;</span>
+        } else {
+<span class="nc" id="L148">            rendered = value.toString();</span>
+        }
+
+<span class="fc" id="L151">        String unit = schema.path(&quot;x-fresnel-unit&quot;).asText(&quot;&quot;);</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        return unit.isBlank() ? rendered : rendered + &quot; &quot; + unit;</span>
+    }
+
+    private static String formatTextValue(JsonNode schema, String value) {
+<span class="fc" id="L156">        JsonNode enumValues = schema.get(&quot;enum&quot;);</span>
+<span class="pc bpc" id="L157" title="2 of 4 branches missed.">        if (enumValues != null &amp;&amp; enumValues.isArray()) {</span>
+<span class="fc" id="L158">            JsonNode labels = schema.get(&quot;x-fresnel-enum-labels&quot;);</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">            JsonNode label = labels == null ? null : labels.get(value);</span>
+<span class="pc bpc" id="L160" title="1 of 4 branches missed.">            return label != null &amp;&amp; label.isTextual()</span>
+<span class="fc" id="L161">                    ? label.textValue()</span>
+<span class="fc" id="L162">                    : humanize(value);</span>
+        }
+<span class="nc" id="L164">        return value;</span>
+    }
+
+    private static String formatArray(JsonNode itemSchema, JsonNode values) {
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">        if (values.isEmpty()) return &quot;None&quot;;</span>
+<span class="fc" id="L169">        StringJoiner joiner = new StringJoiner(&quot;; &quot;);</span>
+<span class="fc" id="L170">        int index = 1;</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">        for (JsonNode value : values) {</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">            String item = value.isObject()</span>
+<span class="fc" id="L173">                    ? formatObject(itemSchema, value)</span>
+<span class="pc" id="L174">                    : formatValue(itemSchema, value);</span>
+<span class="fc" id="L175">            joiner.add(index++ + &quot;. &quot; + item);</span>
+<span class="fc" id="L176">        }</span>
+<span class="fc" id="L177">        return joiner.toString();</span>
+    }
+
+    private static String formatObject(JsonNode schema, JsonNode value) {
+<span class="fc" id="L181">        JsonNode properties = schema.path(&quot;properties&quot;);</span>
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">        if (!properties.isObject()) return value.toString();</span>
+
+<span class="fc" id="L184">        StringJoiner joiner = new StringJoiner(&quot;, &quot;);</span>
+<span class="fc bfc" id="L185" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; property : properties.properties()) {</span>
+<span class="fc" id="L186">            JsonNode propertyValue = value.get(property.getKey());</span>
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">            if (propertyValue == null) continue;</span>
+<span class="fc" id="L188">            String label = property.getValue().path(&quot;title&quot;).asText(property.getKey());</span>
+<span class="fc" id="L189">            joiner.add(label + &quot; = &quot; + formatValue(property.getValue(), propertyValue));</span>
+<span class="fc" id="L190">        }</span>
+<span class="fc" id="L191">        String rendered = joiner.toString();</span>
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">        return rendered.isEmpty() ? value.toString() : rendered;</span>
+    }
+
+    private static long decodedBase64Bytes(String value) {
+<span class="pc bpc" id="L196" title="1 of 4 branches missed.">        long padding = value.endsWith(&quot;==&quot;) ? 2 : value.endsWith(&quot;=&quot;) ? 1 : 0;</span>
+<span class="fc" id="L197">        return Math.max(0, value.length() * 3L / 4L - padding);</span>
+    }
+
+    private static String humanize(String value) {
+<span class="fc" id="L201">        String lower = value.toLowerCase(java.util.Locale.ROOT).replace('_', ' ');</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">        return lower.isEmpty()</span>
+<span class="nc" id="L203">                ? lower</span>
+<span class="fc" id="L204">                : Character.toUpperCase(lower.charAt(0)) + lower.substring(1);</span>
+    }
+
+    private static String escape(String value) {
+<span class="fc" id="L208">        return value</span>
+<span class="fc" id="L209">                .replace(&quot;\\&quot;, &quot;\\\\&quot;)</span>
+<span class="fc" id="L210">                .replace(&quot;&amp;&quot;, &quot;&amp;amp;&quot;)</span>
+<span class="fc" id="L211">                .replace(&quot;&lt;&quot;, &quot;&amp;lt;&quot;)</span>
+<span class="fc" id="L212">                .replace(&quot;&gt;&quot;, &quot;&amp;gt;&quot;)</span>
+<span class="fc" id="L213">                .replace(&quot;`&quot;, &quot;&amp;#96;&quot;)</span>
+<span class="fc" id="L214">                .replace(&quot;|&quot;, &quot;\\|&quot;)</span>
+<span class="fc" id="L215">                .replace('\r', ' ')</span>
+<span class="fc" id="L216">                .replace('\n', ' ');</span>
+    }
+
+<span class="fc" id="L219">    private record Row(String label, String value) {}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

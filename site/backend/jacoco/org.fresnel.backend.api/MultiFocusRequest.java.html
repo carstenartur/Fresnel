@@ -34,8 +34,8 @@ import java.util.List;
 <span class="fc bfc" id="L34" title="All 2 branches covered.">        for (FocusPointDto d : focusPoints) pts.add(d.toCore());</span>
 <span class="fc" id="L35">        return new MultiFocusParameters(</span>
 <span class="fc" id="L36">                apertureDiameterMm, pts, wavelengthNm, dpi,</span>
-<span class="pc bpc" id="L37" title="1 of 2 branches missed.">                maskType == null ? MaskType.BINARY_AMPLITUDE : maskType,</span>
-<span class="pc bpc" id="L38" title="1 of 2 branches missed.">                polarity == null ? Polarity.POSITIVE : polarity);</span>
+<span class="fc bfc" id="L37" title="All 2 branches covered.">                maskType == null ? MaskType.BINARY_AMPLITUDE : maskType,</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">                polarity == null ? Polarity.POSITIVE : polarity);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HologramImageDecoder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">HologramImageDecoder.java</span></div><h1>HologramImageDecoder.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.Base64;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.Set;
+
+/** Safely inspects and decodes the bounded PNG/JPEG source in a Hologram request. */
+final class HologramImageDecoder {
+
+    static final int MAX_BASE64_CHARACTERS = 8 * 1024 * 1024;
+    static final int MAX_SOURCE_SIDE = 8192;
+    static final long MAX_SOURCE_PIXELS = 16L * 1024L * 1024L;
+
+<span class="fc" id="L21">    private static final Set&lt;String&gt; ALLOWED_FORMATS = Set.of(&quot;png&quot;, &quot;jpeg&quot;, &quot;jpg&quot;);</span>
+
+    private HologramImageDecoder() {}
+
+    /**
+     * Preflights any recognizable image without allocating its pixel raster.
+     *
+     * &lt;p&gt;Legacy structural-validation fixtures may contain short Base64 placeholders
+     * that are not images. Those remain compatible here and still fail if a render
+     * path later attempts strict decoding. Recognizable image formats, however, are
+     * always checked for their format and declared dimensions.&lt;/p&gt;
+     */
+    static void validate(String encoded) throws IOException {
+<span class="pc bpc" id="L34" title="2 of 4 branches missed.">        if (encoded == null || encoded.isBlank()) return;</span>
+<span class="fc" id="L35">        String base64 = checkedBase64Payload(encoded);</span>
+        final byte[] raw;
+        try {
+<span class="fc" id="L38">            raw = Base64.getDecoder().decode(base64);</span>
+<span class="nc" id="L39">        } catch (IllegalArgumentException ignored) {</span>
+<span class="nc" id="L40">            return;</span>
+<span class="fc" id="L41">        }</span>
+
+<span class="fc" id="L43">        try (ImageInputStream input = ImageIO.createImageInputStream(</span>
+                new ByteArrayInputStream(raw))) {
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">            if (input == null) return;</span>
+<span class="fc" id="L46">            Iterator&lt;ImageReader&gt; readers = ImageIO.getImageReaders(input);</span>
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">            if (!readers.hasNext()) return;</span>
+
+<span class="fc" id="L49">            ImageReader reader = readers.next();</span>
+            try {
+<span class="fc" id="L51">                requireAllowedFormat(reader);</span>
+<span class="fc" id="L52">                reader.setInput(input, true, true);</span>
+<span class="fc" id="L53">                requireBoundedDimensions(reader.getWidth(0), reader.getHeight(0));</span>
+            } finally {
+<span class="fc" id="L55">                reader.dispose();</span>
+            }
+<span class="nc bnc" id="L57" title="All 4 branches missed.">        }</span>
+<span class="fc" id="L58">    }</span>
+
+    /** Decodes pixels only after the reader has reported acceptable dimensions. */
+    static BufferedImage decode(String encoded) throws IOException {
+<span class="fc" id="L62">        try (InspectedImage inspected = inspectStrict(encoded)) {</span>
+<span class="fc" id="L63">            BufferedImage image = inspected.reader().read(0);</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">            if (image == null) {</span>
+<span class="nc" id="L65">                throw new IllegalArgumentException(</span>
+                        &quot;Hologram target image could not be decoded&quot;);
+            }
+<span class="fc" id="L68">            requireBoundedDimensions(image.getWidth(), image.getHeight());</span>
+<span class="fc" id="L69">            return image;</span>
+        }
+    }
+
+    private static InspectedImage inspectStrict(String encoded) throws IOException {
+<span class="fc" id="L74">        byte[] raw = decodeBase64Strict(encoded);</span>
+<span class="fc" id="L75">        ImageInputStream input = ImageIO.createImageInputStream(</span>
+                new ByteArrayInputStream(raw));
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">        if (input == null) {</span>
+<span class="nc" id="L78">            throw new IllegalArgumentException(</span>
+                    &quot;Hologram target image could not be inspected&quot;);
+        }
+
+<span class="fc" id="L82">        ImageReader reader = null;</span>
+        try {
+<span class="fc" id="L84">            Iterator&lt;ImageReader&gt; readers = ImageIO.getImageReaders(input);</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">            if (!readers.hasNext()) {</span>
+<span class="nc" id="L86">                throw new IllegalArgumentException(</span>
+                        &quot;Hologram target image is not a supported PNG or JPEG&quot;);
+            }
+<span class="fc" id="L89">            reader = readers.next();</span>
+<span class="fc" id="L90">            requireAllowedFormat(reader);</span>
+<span class="fc" id="L91">            reader.setInput(input, true, true);</span>
+<span class="fc" id="L92">            requireBoundedDimensions(reader.getWidth(0), reader.getHeight(0));</span>
+<span class="fc" id="L93">            return new InspectedImage(input, reader);</span>
+<span class="nc" id="L94">        } catch (IOException | RuntimeException e) {</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">            if (reader != null) reader.dispose();</span>
+<span class="nc" id="L96">            input.close();</span>
+<span class="nc" id="L97">            throw e;</span>
+        }
+    }
+
+    private static byte[] decodeBase64Strict(String encoded) {
+<span class="pc bpc" id="L102" title="1 of 4 branches missed.">        if (encoded == null || encoded.isBlank()) {</span>
+<span class="fc" id="L103">            throw new IllegalArgumentException(&quot;Hologram target image must not be empty&quot;);</span>
+        }
+<span class="fc" id="L105">        String base64 = checkedBase64Payload(encoded);</span>
+        try {
+<span class="fc" id="L107">            return Base64.getDecoder().decode(base64);</span>
+<span class="nc" id="L108">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L109">            throw new IllegalArgumentException(</span>
+                    &quot;Hologram target image is not valid Base64&quot;, e);
+        }
+    }
+
+    private static String checkedBase64Payload(String encoded) {
+<span class="fc" id="L115">        String base64 = stripDataUrlPrefix(encoded);</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">        if (base64.length() &gt; MAX_BASE64_CHARACTERS) {</span>
+<span class="fc" id="L117">            throw new IllegalArgumentException(</span>
+                    &quot;targetImageBase64 too large (&gt;&quot; + MAX_BASE64_CHARACTERS
+                            + &quot; characters); resize before upload&quot;);
+        }
+<span class="fc" id="L121">        return base64;</span>
+    }
+
+    private static void requireAllowedFormat(ImageReader reader) throws IOException {
+<span class="fc" id="L125">        String format = reader.getFormatName().toLowerCase(Locale.ROOT);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        if (!ALLOWED_FORMATS.contains(format)) {</span>
+<span class="fc" id="L127">            throw new IllegalArgumentException(</span>
+                    &quot;Hologram target image must be PNG or JPEG, not &quot; + format);
+        }
+<span class="fc" id="L130">    }</span>
+
+    private static void requireBoundedDimensions(int width, int height) {
+<span class="fc" id="L133">        long pixels = (long) width * (long) height;</span>
+<span class="pc bpc" id="L134" title="4 of 10 branches missed.">        if (width &lt; 1 || height &lt; 1</span>
+                || width &gt; MAX_SOURCE_SIDE
+                || height &gt; MAX_SOURCE_SIDE
+                || pixels &gt; MAX_SOURCE_PIXELS) {
+<span class="fc" id="L138">            throw new IllegalArgumentException(</span>
+                    &quot;Hologram target image dimensions &quot; + width + &quot; x &quot; + height
+                            + &quot; exceed the limit of &quot; + MAX_SOURCE_SIDE
+                            + &quot; pixels per side and &quot; + MAX_SOURCE_PIXELS
+                            + &quot; total pixels&quot;);
+        }
+<span class="fc" id="L144">    }</span>
+
+    private static String stripDataUrlPrefix(String encoded) {
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        if (!encoded.startsWith(&quot;data:&quot;)) return encoded;</span>
+<span class="fc" id="L148">        int comma = encoded.indexOf(',');</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">        if (comma &lt; 0) {</span>
+<span class="nc" id="L150">            throw new IllegalArgumentException(</span>
+                    &quot;Hologram target image data URL is malformed&quot;);
+        }
+<span class="fc" id="L153">        String header = encoded.substring(5, comma).toLowerCase(Locale.ROOT);</span>
+<span class="pc bpc" id="L154" title="1 of 4 branches missed.">        if (!(header.startsWith(&quot;image/png;&quot;) || header.startsWith(&quot;image/jpeg;&quot;))</span>
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">                || !header.contains(&quot;;base64&quot;)) {</span>
+<span class="fc" id="L156">            throw new IllegalArgumentException(</span>
+                    &quot;Hologram target image data URL must contain Base64 PNG or JPEG data&quot;);
+        }
+<span class="fc" id="L159">        return encoded.substring(comma + 1);</span>
+    }
+
+<span class="fc" id="L162">    private record InspectedImage(ImageInputStream input, ImageReader reader)</span>
+            implements AutoCloseable {
+        @Override
+        public void close() throws IOException {
+<span class="fc" id="L166">            reader.dispose();</span>
+<span class="fc" id="L167">            input.close();</span>
+<span class="fc" id="L168">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

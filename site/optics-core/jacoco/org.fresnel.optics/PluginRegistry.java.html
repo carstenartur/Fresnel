@@ -111,15 +111,16 @@ public final class PluginRegistry {
             &quot;docs/plugins/window-foil.md&quot;,
             PluginStabilityLevel.STABLE,
 <span class="fc" id="L113">            Set.of(</span>
+                    PluginCapability.EXPORT_PNG,
                     PluginCapability.EXPORT_PDF,
                     PluginCapability.PREVIEW_PNG
             ),
-<span class="fc" id="L117">            Set.of(),</span>
-<span class="fc" id="L118">            schema(&quot;window-foil&quot;, PluginEditorMode.SCHEMA_WITH_EXTENSIONS)</span>
+<span class="fc" id="L118">            Set.of(),</span>
+<span class="fc" id="L119">            schema(&quot;window-foil&quot;, PluginEditorMode.SCHEMA_WITH_EXTENSIONS)</span>
     );
 
     /** Computer-generated hologram via the Gerchberg–Saxton algorithm. */
-<span class="fc" id="L122">    public static final PluginDescriptor HOLOGRAM = new PluginDescriptor(</span>
+<span class="fc" id="L123">    public static final PluginDescriptor HOLOGRAM = new PluginDescriptor(</span>
             &quot;hologram&quot;,
             &quot;Hologram (GS)&quot;,
             &quot;Computer-generated hologram via the Gerchberg–Saxton algorithm&quot;,
@@ -127,20 +128,20 @@ public final class PluginRegistry {
             &quot;HologramParameters&quot;,
             &quot;docs/plugins/hologram.md&quot;,
             PluginStabilityLevel.STABLE,
-<span class="fc" id="L130">            Set.of(</span>
+<span class="fc" id="L131">            Set.of(</span>
                     PluginCapability.EXPORT_PNG,
                     PluginCapability.EXPORT_STL,
                     PluginCapability.PREVIEW_PNG
             ),
-<span class="fc" id="L135">            Set.of(),</span>
-<span class="fc" id="L136">            schema(&quot;hologram&quot;, PluginEditorMode.SCHEMA_WITH_EXTENSIONS)</span>
+<span class="fc" id="L136">            Set.of(),</span>
+<span class="fc" id="L137">            schema(&quot;hologram&quot;, PluginEditorMode.SCHEMA_WITH_EXTENSIONS)</span>
     );
 
     /**
      * Immutable public plugin order. The frontend consumes this order directly
      * from {@code GET /api/plugins}; no second tab/mode ordering is maintained.
      */
-<span class="fc" id="L143">    public static final List&lt;PluginDescriptor&gt; ALL = List.of(</span>
+<span class="fc" id="L144">    public static final List&lt;PluginDescriptor&gt; ALL = List.of(</span>
             ZONE_PLATE,
             HEX_MACRO_CELL,
             WINDOW_FOIL,
@@ -149,15 +150,15 @@ public final class PluginRegistry {
             HOLOGRAM
     );
 
-<span class="fc" id="L152">    private static final Map&lt;String, PluginDescriptor&gt; BY_ID =</span>
-<span class="fc" id="L153">            ALL.stream().collect(Collectors.toUnmodifiableMap(</span>
-<span class="fc" id="L154">                    PluginDescriptor::id, Function.identity()));</span>
+<span class="fc" id="L153">    private static final Map&lt;String, PluginDescriptor&gt; BY_ID =</span>
+<span class="fc" id="L154">            ALL.stream().collect(Collectors.toUnmodifiableMap(</span>
+<span class="fc" id="L155">                    PluginDescriptor::id, Function.identity()));</span>
 
     private PluginRegistry() {}
 
     private static PluginSchemaDescriptor schema(String pluginId, PluginEditorMode editorMode) {
-<span class="fc" id="L159">        String root = &quot;fresnel/plugins/&quot; + pluginId + &quot;/&quot;;</span>
-<span class="fc" id="L160">        return new PluginSchemaDescriptor(</span>
+<span class="fc" id="L160">        String root = &quot;fresnel/plugins/&quot; + pluginId + &quot;/&quot;;</span>
+<span class="fc" id="L161">        return new PluginSchemaDescriptor(</span>
                 1,
                 root + &quot;parameters-v1.schema.json&quot;,
                 root + &quot;ui-v1.json&quot;,
@@ -166,26 +167,26 @@ public final class PluginRegistry {
 
     /** Returns the plugin with the given id, or empty when it is unknown. */
     public static Optional&lt;PluginDescriptor&gt; findById(String id) {
-<span class="fc" id="L169">        return Optional.ofNullable(BY_ID.get(id));</span>
+<span class="fc" id="L170">        return Optional.ofNullable(BY_ID.get(id));</span>
     }
 
     /** Returns the plugin with the given id or throws for an unknown public id. */
     public static PluginDescriptor requireById(String id) {
-<span class="fc" id="L174">        PluginDescriptor descriptor = BY_ID.get(id);</span>
-<span class="pc bpc" id="L175" title="1 of 2 branches missed.">        if (descriptor == null) throw new IllegalArgumentException(&quot;unknown plugin id: &quot; + id);</span>
-<span class="nc" id="L176">        return descriptor;</span>
+<span class="fc" id="L175">        PluginDescriptor descriptor = BY_ID.get(id);</span>
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">        if (descriptor == null) throw new IllegalArgumentException(&quot;unknown plugin id: &quot; + id);</span>
+<span class="nc" id="L177">        return descriptor;</span>
     }
 
     /** Returns {@code true} if a plugin with the given id is registered. */
     public static boolean hasPlugin(String id) {
-<span class="fc" id="L181">        return BY_ID.containsKey(id);</span>
+<span class="fc" id="L182">        return BY_ID.containsKey(id);</span>
     }
 
     /** Returns all plugins advertising the given capability in registry order. */
     public static List&lt;PluginDescriptor&gt; withCapability(PluginCapability capability) {
-<span class="fc" id="L186">        return ALL.stream()</span>
-<span class="fc" id="L187">                .filter(descriptor -&gt; descriptor.supports(capability))</span>
-<span class="fc" id="L188">                .collect(Collectors.toUnmodifiableList());</span>
+<span class="fc" id="L187">        return ALL.stream()</span>
+<span class="fc" id="L188">                .filter(descriptor -&gt; descriptor.supports(capability))</span>
+<span class="fc" id="L189">                .collect(Collectors.toUnmodifiableList());</span>
     }
 
     /**
@@ -193,28 +194,28 @@ public final class PluginRegistry {
      * turn metadata drift into an immediate build failure.
      */
     static void verifyIntegrity() {
-<span class="fc" id="L196">        long distinctIds = ALL.stream().map(PluginDescriptor::id).distinct().count();</span>
-<span class="pc bpc" id="L197" title="1 of 2 branches missed.">        if (distinctIds != ALL.size()) {</span>
-<span class="nc" id="L198">            throw new IllegalStateException(&quot;Duplicate plugin ids detected in PluginRegistry&quot;);</span>
+<span class="fc" id="L197">        long distinctIds = ALL.stream().map(PluginDescriptor::id).distinct().count();</span>
+<span class="pc bpc" id="L198" title="1 of 2 branches missed.">        if (distinctIds != ALL.size()) {</span>
+<span class="nc" id="L199">            throw new IllegalStateException(&quot;Duplicate plugin ids detected in PluginRegistry&quot;);</span>
         }
-<span class="fc" id="L200">        long distinctParameterSchemas = ALL.stream()</span>
-<span class="fc" id="L201">                .map(descriptor -&gt; descriptor.schema().parameterSchemaResource())</span>
-<span class="fc" id="L202">                .distinct().count();</span>
-<span class="pc bpc" id="L203" title="1 of 2 branches missed.">        if (distinctParameterSchemas != ALL.size()) {</span>
-<span class="nc" id="L204">            throw new IllegalStateException(&quot;Duplicate parameter schema resources detected&quot;);</span>
+<span class="fc" id="L201">        long distinctParameterSchemas = ALL.stream()</span>
+<span class="fc" id="L202">                .map(descriptor -&gt; descriptor.schema().parameterSchemaResource())</span>
+<span class="fc" id="L203">                .distinct().count();</span>
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">        if (distinctParameterSchemas != ALL.size()) {</span>
+<span class="nc" id="L205">            throw new IllegalStateException(&quot;Duplicate parameter schema resources detected&quot;);</span>
         }
-<span class="fc" id="L206">        long distinctUiSchemas = ALL.stream()</span>
-<span class="fc" id="L207">                .map(descriptor -&gt; descriptor.schema().uiSchemaResource())</span>
-<span class="fc" id="L208">                .distinct().count();</span>
-<span class="pc bpc" id="L209" title="1 of 2 branches missed.">        if (distinctUiSchemas != ALL.size()) {</span>
-<span class="nc" id="L210">            throw new IllegalStateException(&quot;Duplicate UI schema resources detected&quot;);</span>
+<span class="fc" id="L207">        long distinctUiSchemas = ALL.stream()</span>
+<span class="fc" id="L208">                .map(descriptor -&gt; descriptor.schema().uiSchemaResource())</span>
+<span class="fc" id="L209">                .distinct().count();</span>
+<span class="pc bpc" id="L210" title="1 of 2 branches missed.">        if (distinctUiSchemas != ALL.size()) {</span>
+<span class="nc" id="L211">            throw new IllegalStateException(&quot;Duplicate UI schema resources detected&quot;);</span>
         }
-<span class="fc bfc" id="L212" title="All 2 branches covered.">        for (PluginDescriptor descriptor : ALL) {</span>
-<span class="pc bpc" id="L213" title="1 of 2 branches missed.">            if (!BY_ID.containsKey(descriptor.id())) {</span>
-<span class="nc" id="L214">                throw new IllegalStateException(</span>
-<span class="nc" id="L215">                        &quot;BY_ID index is out of sync for id: &quot; + descriptor.id());</span>
+<span class="fc bfc" id="L213" title="All 2 branches covered.">        for (PluginDescriptor descriptor : ALL) {</span>
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">            if (!BY_ID.containsKey(descriptor.id())) {</span>
+<span class="nc" id="L215">                throw new IllegalStateException(</span>
+<span class="nc" id="L216">                        &quot;BY_ID index is out of sync for id: &quot; + descriptor.id());</span>
             }
-<span class="fc" id="L217">        }</span>
-<span class="fc" id="L218">    }</span>
+<span class="fc" id="L218">        }</span>
+<span class="fc" id="L219">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GeneratedArtifact.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">GeneratedArtifact.java</span></div><h1>GeneratedArtifact.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+/**
+ * Reproducibility metadata for one artifact produced from a canonical
+ * {@link FresnelJobDocument} output request.
+ *
+ * &lt;p&gt;The normalized hash is format-aware: PNG files hash decoded pixels together
+ * with dimensions and physical resolution, text formats hash normalized UTF-8 line
+ * endings, and opaque binary formats currently hash their bytes.&lt;/p&gt;
+ */
+public record GeneratedArtifact(
+        String outputId,
+        String filename,
+        String mediaType,
+        long sizeBytes,
+        String normalizedSha256,
+        Integer widthPx,
+        Integer heightPx,
+        Double dpi
+) {
+<span class="fc" id="L21">    public GeneratedArtifact {</span>
+<span class="pc bpc" id="L22" title="2 of 4 branches missed.">        if (outputId == null || outputId.isBlank()) {</span>
+<span class="nc" id="L23">            throw new IllegalArgumentException(&quot;generated artifact outputId must not be empty&quot;);</span>
+        }
+<span class="pc bpc" id="L25" title="2 of 4 branches missed.">        if (filename == null || filename.isBlank()) {</span>
+<span class="nc" id="L26">            throw new IllegalArgumentException(&quot;generated artifact filename must not be empty&quot;);</span>
+        }
+<span class="pc bpc" id="L28" title="2 of 4 branches missed.">        if (mediaType == null || mediaType.isBlank()) {</span>
+<span class="nc" id="L29">            throw new IllegalArgumentException(&quot;generated artifact mediaType must not be empty&quot;);</span>
+        }
+<span class="pc bpc" id="L31" title="1 of 2 branches missed.">        if (sizeBytes &lt; 0) {</span>
+<span class="nc" id="L32">            throw new IllegalArgumentException(&quot;generated artifact size must not be negative&quot;);</span>
+        }
+<span class="pc bpc" id="L34" title="2 of 4 branches missed.">        if (normalizedSha256 == null || !normalizedSha256.matches(&quot;[0-9a-f]{64}&quot;)) {</span>
+<span class="nc" id="L35">            throw new IllegalArgumentException(&quot;generated artifact hash must be lowercase SHA-256&quot;);</span>
+        }
+<span class="fc" id="L37">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

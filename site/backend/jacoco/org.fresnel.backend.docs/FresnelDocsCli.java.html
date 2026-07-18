@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FresnelDocsCli.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.docs</a> &gt; <span class="el_source">FresnelDocsCli.java</span></div><h1>FresnelDocsCli.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.docs;
+
+import jakarta.validation.Validation;
+import jakarta.validation.ValidatorFactory;
+import org.fresnel.backend.api.DirectoryFresnelJobOutputSink;
+import org.fresnel.backend.api.FresnelJobDocument;
+import org.fresnel.backend.api.FresnelJobExecutionResult;
+import org.fresnel.backend.api.FresnelJobExecutor;
+import org.fresnel.backend.api.FresnelJobService;
+import org.fresnel.backend.api.GeneratedArtifact;
+import org.fresnel.backend.api.PluginSchemaService;
+import tools.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/** Command-line consumer of the same canonical job services used by the application. */
+public final class FresnelDocsCli {
+
+    private FresnelDocsCli() {}
+
+    /**
+     * Starts only the data-oriented services needed for job execution. The CLI does
+     * not bootstrap Spring MVC, JPA, security, a servlet container or a database.
+     */
+    public static void main(String[] args) throws Exception {
+<span class="nc" id="L35">        System.setProperty(&quot;java.awt.headless&quot;, &quot;true&quot;);</span>
+<span class="nc" id="L36">        ObjectMapper mapper = new ObjectMapper();</span>
+<span class="nc" id="L37">        try (ValidatorFactory validatorFactory = Validation.buildDefaultValidatorFactory()) {</span>
+<span class="nc" id="L38">            FresnelJobService jobService = new FresnelJobService(</span>
+<span class="nc" id="L39">                    mapper, validatorFactory.getValidator());</span>
+<span class="nc" id="L40">            PluginSchemaService schemaService = new PluginSchemaService(mapper);</span>
+<span class="nc" id="L41">            FresnelJobExecutor executor = new FresnelJobExecutor(jobService, mapper);</span>
+<span class="nc" id="L42">            FresnelDocumentationRenderer documentationRenderer =</span>
+                    new FresnelDocumentationRenderer(jobService, schemaService);
+<span class="nc" id="L44">            FresnelDocumentationManifestService manifestService =</span>
+                    new FresnelDocumentationManifestService(executor, mapper);
+<span class="nc" id="L46">            run(</span>
+                    args,
+                    executor,
+                    jobService,
+                    documentationRenderer,
+                    manifestService,
+                    System.out);
+        }
+<span class="nc" id="L54">    }</span>
+
+    static void run(
+            String[] args,
+            FresnelJobExecutor executor,
+            FresnelJobService jobService,
+            FresnelDocumentationRenderer documentationRenderer,
+            FresnelDocumentationManifestService manifestService,
+            PrintStream out) throws Exception {
+<span class="nc bnc" id="L63" title="All 4 branches missed.">        if (args == null || args.length == 0) throw usage();</span>
+<span class="nc bnc" id="L64" title="All 9 branches missed.">        switch (args[0]) {</span>
+            case &quot;render&quot; -&gt; {
+<span class="nc" id="L66">                requireArguments(args, 3);</span>
+<span class="nc" id="L67">                renderOne(executor, Path.of(args[1]), Path.of(args[2]), out);</span>
+<span class="nc" id="L68">            }</span>
+            case &quot;verify&quot; -&gt; {
+<span class="nc" id="L70">                requireArguments(args, 3);</span>
+<span class="nc" id="L71">                verifyOne(executor, Path.of(args[1]), Path.of(args[2]), out);</span>
+<span class="nc" id="L72">            }</span>
+            case &quot;render-all&quot; -&gt; {
+<span class="nc" id="L74">                requireArguments(args, 3);</span>
+<span class="nc" id="L75">                executeAll(executor, Path.of(args[1]), Path.of(args[2]), true, out);</span>
+<span class="nc" id="L76">            }</span>
+            case &quot;verify-all&quot; -&gt; {
+<span class="nc" id="L78">                requireArguments(args, 3);</span>
+<span class="nc" id="L79">                executeAll(executor, Path.of(args[1]), Path.of(args[2]), false, out);</span>
+<span class="nc" id="L80">            }</span>
+            case &quot;list&quot; -&gt; {
+<span class="nc" id="L82">                requireArguments(args, 2);</span>
+<span class="nc" id="L83">                list(jobService, Path.of(args[1]), out);</span>
+<span class="nc" id="L84">            }</span>
+            case &quot;table&quot; -&gt; {
+<span class="nc" id="L86">                requireArguments(args, 2);</span>
+<span class="nc" id="L87">                out.print(documentationRenderer.renderParameterTable(</span>
+<span class="nc" id="L88">                        FresnelDocumentationFiles.readRegularFile(</span>
+<span class="nc" id="L89">                                Path.of(args[1]), &quot;documentation job&quot;)));</span>
+<span class="nc" id="L90">            }</span>
+            case &quot;manifest&quot; -&gt; {
+<span class="nc" id="L92">                requireArguments(args, 4);</span>
+<span class="nc" id="L93">                writeManifest(</span>
+                        manifestService,
+<span class="nc" id="L95">                        Path.of(args[1]),</span>
+<span class="nc" id="L96">                        Path.of(args[2]),</span>
+<span class="nc" id="L97">                        Path.of(args[3]),</span>
+                        out);
+<span class="nc" id="L99">            }</span>
+            case &quot;verify-manifest&quot; -&gt; {
+<span class="nc" id="L101">                requireArguments(args, 4);</span>
+<span class="nc" id="L102">                verifyManifest(</span>
+                        manifestService,
+<span class="nc" id="L104">                        Path.of(args[1]),</span>
+<span class="nc" id="L105">                        Path.of(args[2]),</span>
+<span class="nc" id="L106">                        Path.of(args[3]),</span>
+                        out);
+<span class="nc" id="L108">            }</span>
+<span class="nc" id="L109">            default -&gt; throw usage();</span>
+        }
+<span class="nc" id="L111">    }</span>
+
+    private static void renderOne(
+            FresnelJobExecutor executor,
+            Path job,
+            Path outputDirectory,
+            PrintStream out) throws Exception {
+<span class="nc" id="L118">        FresnelJobExecutionResult result = executor.execute(</span>
+<span class="nc" id="L119">                FresnelDocumentationFiles.readRegularFile(job, &quot;documentation job&quot;),</span>
+                new DirectoryFresnelJobOutputSink(outputDirectory));
+<span class="nc" id="L121">        printResult(job, result, out, &quot;rendered&quot;);</span>
+<span class="nc" id="L122">    }</span>
+
+    private static void verifyOne(
+            FresnelJobExecutor executor,
+            Path job,
+            Path expectedDirectory,
+            PrintStream out) throws Exception {
+<span class="nc" id="L129">        Map&lt;String, byte[]&gt; generated = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L130">        FresnelJobExecutionResult result = executor.execute(</span>
+<span class="nc" id="L131">                FresnelDocumentationFiles.readRegularFile(job, &quot;documentation job&quot;),</span>
+<span class="nc" id="L132">                (artifact, content) -&gt; generated.put(artifact.filename(), content.clone()));</span>
+<span class="nc" id="L133">        verifyArtifacts(result, generated, expectedDirectory);</span>
+<span class="nc" id="L134">        printResult(job, result, out, &quot;verified&quot;);</span>
+<span class="nc" id="L135">    }</span>
+
+    private static void executeAll(
+            FresnelJobExecutor executor,
+            Path jobRoot,
+            Path assetRoot,
+            boolean render,
+            PrintStream out) throws Exception {
+<span class="nc" id="L143">        List&lt;Path&gt; jobs = FresnelDocumentationFiles.discoverJobs(jobRoot);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        if (jobs.isEmpty()) {</span>
+<span class="nc" id="L145">            throw new IllegalArgumentException(&quot;No .fresnel jobs found beneath &quot; + jobRoot);</span>
+        }
+
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        Path normalizedAssetRoot = render</span>
+<span class="nc" id="L149">                ? assetRoot.toAbsolutePath().normalize()</span>
+<span class="nc" id="L150">                : FresnelDocumentationFiles.requireDirectory(</span>
+                        assetRoot, &quot;documentation asset root&quot;);
+
+        // Preflight the complete batch before modifying a single tracked asset.
+        // Invalid jobs and cross-job filename collisions therefore fail without
+        // leaving a partially regenerated documentation tree.
+<span class="nc" id="L156">        List&lt;PlannedJob&gt; planned = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L157">        Set&lt;String&gt; claimedTargets = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        for (Path job : jobs) {</span>
+<span class="nc" id="L159">            Map&lt;String, byte[]&gt; generated = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L160">            FresnelJobExecutionResult result = executor.execute(</span>
+<span class="nc" id="L161">                    FresnelDocumentationFiles.readRegularFile(</span>
+                            job, &quot;documentation job&quot;),
+<span class="nc" id="L163">                    (artifact, content) -&gt; generated.put(</span>
+<span class="nc" id="L164">                            artifact.filename(), content.clone()));</span>
+<span class="nc" id="L165">            ensureUniqueTargets(result, claimedTargets);</span>
+<span class="nc" id="L166">            planned.add(new PlannedJob(job, result, generated));</span>
+<span class="nc" id="L167">        }</span>
+
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        for (PlannedJob plan : planned) {</span>
+<span class="nc" id="L170">            Path targetDirectory = normalizedAssetRoot</span>
+<span class="nc" id="L171">                    .resolve(plan.result().job().plugin().id())</span>
+<span class="nc" id="L172">                    .normalize();</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">            if (!targetDirectory.startsWith(normalizedAssetRoot)) {</span>
+<span class="nc" id="L174">                throw new IllegalStateException(</span>
+                        &quot;Plugin asset directory escaped the selected root: &quot;
+<span class="nc" id="L176">                                + plan.result().job().plugin().id());</span>
+            }
+
+<span class="nc bnc" id="L179" title="All 2 branches missed.">            if (render) {</span>
+<span class="nc" id="L180">                DirectoryFresnelJobOutputSink sink =</span>
+                        new DirectoryFresnelJobOutputSink(targetDirectory);
+<span class="nc bnc" id="L182" title="All 2 branches missed.">                for (GeneratedArtifact artifact : plan.result().artifacts()) {</span>
+<span class="nc" id="L183">                    byte[] content = plan.generated().get(artifact.filename());</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">                    if (content == null) {</span>
+<span class="nc" id="L185">                        throw new IllegalStateException(</span>
+<span class="nc" id="L186">                                &quot;Executor did not provide content for &quot; + artifact.filename());</span>
+                    }
+<span class="nc" id="L188">                    sink.write(artifact, content);</span>
+<span class="nc" id="L189">                }</span>
+<span class="nc" id="L190">                printResult(plan.job(), plan.result(), out, &quot;rendered&quot;);</span>
+<span class="nc" id="L191">            } else {</span>
+<span class="nc" id="L192">                verifyArtifacts(plan.result(), plan.generated(), targetDirectory);</span>
+<span class="nc" id="L193">                printResult(plan.job(), plan.result(), out, &quot;verified&quot;);</span>
+            }
+<span class="nc" id="L195">        }</span>
+<span class="nc" id="L196">    }</span>
+
+    private static void list(
+            FresnelJobService jobService,
+            Path jobRoot,
+            PrintStream out) throws Exception {
+<span class="nc" id="L202">        Path normalizedRoot = FresnelDocumentationFiles.requireDirectory(</span>
+                jobRoot, &quot;documentation job root&quot;);
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        for (Path job : FresnelDocumentationFiles.discoverJobs(normalizedRoot)) {</span>
+<span class="nc" id="L205">            FresnelJobDocument document = jobService.parseAndNormalize(</span>
+<span class="nc" id="L206">                    FresnelDocumentationFiles.readRegularFile(</span>
+                            job, &quot;documentation job&quot;));
+<span class="nc bnc" id="L208" title="All 2 branches missed.">            List&lt;String&gt; filenames = document.production() == null</span>
+<span class="nc" id="L209">                    ? List.of()</span>
+<span class="nc" id="L210">                    : document.production().outputs().stream()</span>
+<span class="nc" id="L211">                    .map(FresnelJobDocument.ProductionOutput::filename)</span>
+<span class="nc" id="L212">                    .toList();</span>
+<span class="nc" id="L213">            out.printf(&quot;%s | %s | %s%n&quot;,</span>
+<span class="nc" id="L214">                    normalizedRoot.relativize(job),</span>
+<span class="nc" id="L215">                    document.plugin().id(),</span>
+                    filenames);
+<span class="nc" id="L217">        }</span>
+<span class="nc" id="L218">    }</span>
+
+    private static void writeManifest(
+            FresnelDocumentationManifestService manifestService,
+            Path jobRoot,
+            Path assetRoot,
+            Path output,
+            PrintStream out) throws Exception {
+<span class="nc" id="L226">        byte[] content = manifestService.write(manifestService.generate(jobRoot, assetRoot));</span>
+<span class="nc" id="L227">        FresnelDocumentationFiles.writeAtomically(output, content);</span>
+<span class="nc" id="L228">        out.printf(&quot;wrote documentation manifest %s (%d bytes)%n&quot;,</span>
+<span class="nc" id="L229">                output, content.length);</span>
+<span class="nc" id="L230">    }</span>
+
+    private static void verifyManifest(
+            FresnelDocumentationManifestService manifestService,
+            Path jobRoot,
+            Path assetRoot,
+            Path expected,
+            PrintStream out) throws Exception {
+<span class="nc" id="L238">        byte[] actual = manifestService.write(manifestService.generate(jobRoot, assetRoot));</span>
+<span class="nc" id="L239">        byte[] checkedIn = FresnelDocumentationFiles.readRegularFile(</span>
+                expected, &quot;documentation manifest&quot;);
+<span class="nc bnc" id="L241" title="All 2 branches missed.">        if (!Arrays.equals(checkedIn, actual)) {</span>
+<span class="nc" id="L242">            throw new IllegalStateException(</span>
+                    &quot;Documentation manifest is stale: &quot; + expected
+                            + &quot;. Regenerate it through the manifest command.&quot;);
+        }
+<span class="nc" id="L246">        out.printf(&quot;verified documentation manifest %s%n&quot;, expected);</span>
+<span class="nc" id="L247">    }</span>
+
+    private static void verifyArtifacts(
+            FresnelJobExecutionResult result,
+            Map&lt;String, byte[]&gt; generated,
+            Path expectedDirectory) throws IOException {
+<span class="nc" id="L253">        Path normalizedDirectory = FresnelDocumentationFiles.requireDirectory(</span>
+                expectedDirectory, &quot;expected artifact directory&quot;);
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        for (GeneratedArtifact artifact : result.artifacts()) {</span>
+<span class="nc" id="L256">            Path expected = FresnelDocumentationFiles.requireRegularDescendant(</span>
+                    normalizedDirectory,
+<span class="nc" id="L258">                    Path.of(artifact.filename()),</span>
+                    &quot;documentation artifact&quot;);
+<span class="nc" id="L260">            byte[] expectedBytes = FresnelDocumentationFiles.readRegularFile(</span>
+                    expected, &quot;documentation artifact&quot;);
+<span class="nc" id="L262">            String expectedHash = FresnelJobExecutor.normalizedSha256(</span>
+<span class="nc" id="L263">                    artifact.mediaType(), expectedBytes, artifact.dpi());</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">            if (!expectedHash.equals(artifact.normalizedSha256())) {</span>
+<span class="nc" id="L265">                throw new IllegalStateException(</span>
+                        &quot;Stale documentation artifact &quot; + expected
+                                + &quot;: expected normalized SHA-256 &quot; + expectedHash
+<span class="nc" id="L268">                                + &quot; but job generated &quot; + artifact.normalizedSha256());</span>
+            }
+<span class="nc bnc" id="L270" title="All 2 branches missed.">            if (!generated.containsKey(artifact.filename())) {</span>
+<span class="nc" id="L271">                throw new IllegalStateException(</span>
+<span class="nc" id="L272">                        &quot;Executor did not provide content for &quot; + artifact.filename());</span>
+            }
+<span class="nc" id="L274">        }</span>
+<span class="nc" id="L275">    }</span>
+
+    private static void ensureUniqueTargets(
+            FresnelJobExecutionResult result,
+            Set&lt;String&gt; claimedTargets) {
+<span class="nc bnc" id="L280" title="All 2 branches missed.">        for (GeneratedArtifact artifact : result.artifacts()) {</span>
+<span class="nc" id="L281">            String target = result.job().plugin().id() + &quot;/&quot; + artifact.filename();</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">            if (!claimedTargets.add(FresnelDocumentationFiles.portableKey(target))) {</span>
+<span class="nc" id="L283">                throw new IllegalStateException(</span>
+                        &quot;More than one documentation job claims artifact &quot; + target
+                                + &quot; on a case-insensitive filesystem&quot;);
+            }
+<span class="nc" id="L287">        }</span>
+<span class="nc" id="L288">    }</span>
+
+    private static void printResult(
+            Path job,
+            FresnelJobExecutionResult result,
+            PrintStream out,
+            String verb) {
+<span class="nc bnc" id="L295" title="All 2 branches missed.">        for (GeneratedArtifact artifact : result.artifacts()) {</span>
+<span class="nc" id="L296">            out.printf(&quot;%s %s -&gt; %s (%s, %d bytes, %s)%n&quot;,</span>
+                    verb,
+                    job,
+<span class="nc" id="L299">                    artifact.filename(),</span>
+<span class="nc" id="L300">                    artifact.mediaType(),</span>
+<span class="nc" id="L301">                    artifact.sizeBytes(),</span>
+<span class="nc" id="L302">                    artifact.normalizedSha256());</span>
+<span class="nc" id="L303">        }</span>
+<span class="nc" id="L304">    }</span>
+
+    private static void requireArguments(String[] args, int count) {
+<span class="nc bnc" id="L307" title="All 2 branches missed.">        if (args.length != count) throw usage();</span>
+<span class="nc" id="L308">    }</span>
+
+    private static IllegalArgumentException usage() {
+<span class="nc" id="L311">        return new IllegalArgumentException(&quot;&quot;&quot;</span>
+                Usage:
+                  FresnelDocsCli render &lt;job.fresnel&gt; &lt;output-directory&gt;
+                  FresnelDocsCli verify &lt;job.fresnel&gt; &lt;expected-directory&gt;
+                  FresnelDocsCli render-all &lt;job-root&gt; &lt;asset-root&gt;
+                  FresnelDocsCli verify-all &lt;job-root&gt; &lt;asset-root&gt;
+                  FresnelDocsCli list &lt;job-root&gt;
+                  FresnelDocsCli table &lt;job.fresnel&gt;
+                  FresnelDocsCli manifest &lt;job-root&gt; &lt;asset-root&gt; &lt;output.json&gt;
+                  FresnelDocsCli verify-manifest &lt;job-root&gt; &lt;asset-root&gt; &lt;expected.json&gt;
+                &quot;&quot;&quot;);
+    }
+
+<span class="nc" id="L324">    private record PlannedJob(</span>
+            Path job,
+            FresnelJobExecutionResult result,
+            Map&lt;String, byte[]&gt; generated) {}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

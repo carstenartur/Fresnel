@@ -5,13 +5,14 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import org.fresnel.optics.HologramParameters;
 
+import java.io.IOException;
+
 /**
- * REST request body for hologram synthesis. The target image is supplied as a
- * base64-encoded PNG / JPEG (so JSON requests work without multipart forms);
- * server-side it is decoded, converted to greyscale, and resized to the requested
- * power-of-two square side via nearest-neighbour sampling.
+ * REST and canonical-job request body for hologram synthesis. The target image is
+ * supplied as bounded base64-encoded PNG/JPEG data, inspected before pixel decoding,
+ * converted to greyscale and resized to the requested power-of-two square side.
  */
-<span class="fc" id="L14">public record HologramRequest(</span>
+public record HologramRequest(
         @NotNull String targetImageBase64,
         @NotNull @Min(16) Integer sidePx,
         @NotNull @Min(1) Integer iterations,
@@ -21,16 +22,40 @@ import org.fresnel.optics.HologramParameters;
         @Positive Double refractiveIndexDelta,
         @Positive Double maxPhaseShiftRad
 ) {
+    private static final String LEGACY_EMPTY_TARGET_BASE64 = &quot;AA==&quot;;
+
+<span class="fc" id="L27">    public HologramRequest {</span>
+        // Early Hologram design fixtures represented the not-yet-selected image as
+        // one zero byte. Normalize that exact legacy placeholder to the supported
+        // empty UI state; every real embedded source is still inspected below.
+<span class="fc bfc" id="L31" title="All 2 branches covered.">        if (LEGACY_EMPTY_TARGET_BASE64.equals(targetImageBase64)) {</span>
+<span class="fc" id="L32">            targetImageBase64 = &quot;&quot;;</span>
+        }
+
+        // Empty data remains a valid UI default until the user chooses an image.
+        // Every actual embedded source is format/dimension checked without reading
+        // its pixel raster. This protects REST calls and canonical job execution,
+        // including SOURCE outputs that later preserve the original dimensions.
+<span class="pc bpc" id="L39" title="1 of 4 branches missed.">        if (targetImageBase64 != null &amp;&amp; !targetImageBase64.isBlank()) {</span>
+            try {
+<span class="fc" id="L41">                HologramImageDecoder.validate(targetImageBase64);</span>
+<span class="nc" id="L42">            } catch (IOException e) {</span>
+<span class="nc" id="L43">                throw new IllegalArgumentException(</span>
+                        &quot;Hologram target image could not be inspected&quot;, e);
+<span class="fc" id="L45">            }</span>
+        }
+<span class="fc" id="L47">    }</span>
+
     public double resolvedWavelengthNm() {
-<span class="fc bfc" id="L25" title="All 2 branches covered.">        return wavelengthNm == null ? 550.0 : wavelengthNm;</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        return wavelengthNm == null ? 550.0 : wavelengthNm;</span>
     }
 
     public double resolvedRefractiveIndexDelta() {
-<span class="fc bfc" id="L29" title="All 2 branches covered.">        return refractiveIndexDelta == null ? 0.5 : refractiveIndexDelta;</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        return refractiveIndexDelta == null ? 0.5 : refractiveIndexDelta;</span>
     }
 
     public double resolvedMaxPhaseShiftRad() {
-<span class="fc bfc" id="L33" title="All 2 branches covered.">        return maxPhaseShiftRad == null ? 2.0 * Math.PI : maxPhaseShiftRad;</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        return maxPhaseShiftRad == null ? 2.0 * Math.PI : maxPhaseShiftRad;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

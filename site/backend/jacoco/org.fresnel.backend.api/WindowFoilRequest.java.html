@@ -24,30 +24,30 @@ import java.util.List;
         Boolean drawCropMarks
 ) {
 
-<span class="nc" id="L27">    public record CellSpecDto(</span>
+<span class="fc" id="L27">    public record CellSpecDto(</span>
             @NotNull @Positive Double focalLengthMm,
             Double targetOffsetXmm,
             Double targetOffsetYmm
     ) {
         public WindowFoilParameters.CellSpec toCore() {
-<span class="nc" id="L33">            return new WindowFoilParameters.CellSpec(</span>
-<span class="nc" id="L34">                    focalLengthMm,</span>
-<span class="nc bnc" id="L35" title="All 2 branches missed.">                    targetOffsetXmm == null ? 0.0 : targetOffsetXmm,</span>
-<span class="nc bnc" id="L36" title="All 2 branches missed.">                    targetOffsetYmm == null ? 0.0 : targetOffsetYmm);</span>
+<span class="fc" id="L33">            return new WindowFoilParameters.CellSpec(</span>
+<span class="fc" id="L34">                    focalLengthMm,</span>
+<span class="pc bpc" id="L35" title="1 of 2 branches missed.">                    targetOffsetXmm == null ? 0.0 : targetOffsetXmm,</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">                    targetOffsetYmm == null ? 0.0 : targetOffsetYmm);</span>
         }
     }
 
     public WindowFoilParameters toParameters() {
 <span class="fc" id="L41">        List&lt;WindowFoilParameters.CellSpec&gt; specs = new ArrayList&lt;&gt;();</span>
-<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (cellSpecs != null) {</span>
-<span class="nc bnc" id="L43" title="All 2 branches missed.">            for (CellSpecDto d : cellSpecs) specs.add(d.toCore());</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        if (cellSpecs != null) {</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">            for (CellSpecDto d : cellSpecs) specs.add(d.toCore());</span>
         }
 <span class="fc" id="L45">        return new WindowFoilParameters(</span>
 <span class="fc" id="L46">                sheetWidthMm, sheetHeightMm,</span>
 <span class="fc" id="L47">                macroRadiusMm, subDiameterMm, subPitchMm,</span>
 <span class="fc" id="L48">                wavelengthNm, dpi,</span>
-<span class="pc bpc" id="L49" title="1 of 2 branches missed.">                maskType == null ? MaskType.BINARY_AMPLITUDE : maskType,</span>
-<span class="pc bpc" id="L50" title="1 of 4 branches missed.">                polarity == null ? Polarity.POSITIVE : polarity,</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">                maskType == null ? MaskType.BINARY_AMPLITUDE : maskType,</span>
+<span class="fc bfc" id="L50" title="All 4 branches covered.">                polarity == null ? Polarity.POSITIVE : polarity,</span>
                 specs,
 <span class="pc bpc" id="L52" title="1 of 2 branches missed.">                drawCropMarks != null &amp;&amp; drawCropMarks);</span>
     }

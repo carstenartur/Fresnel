@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FresnelDocumentationManifest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.docs</a> &gt; <span class="el_source">FresnelDocumentationManifest.java</span></div><h1>FresnelDocumentationManifest.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.docs;
+
+import java.util.List;
+
+/** Machine-readable trace from documentation jobs to their generated artifacts. */
+public record FresnelDocumentationManifest(
+        int formatVersion,
+        List&lt;Example&gt; examples
+) {
+    public static final int CURRENT_FORMAT_VERSION = 1;
+
+<span class="fc" id="L12">    public FresnelDocumentationManifest {</span>
+<span class="pc bpc" id="L13" title="1 of 2 branches missed.">        if (formatVersion != CURRENT_FORMAT_VERSION) {</span>
+<span class="nc" id="L14">            throw new IllegalArgumentException(</span>
+                    &quot;Unsupported documentation manifest version: &quot; + formatVersion);
+        }
+<span class="pc bpc" id="L17" title="1 of 2 branches missed.">        examples = examples == null ? List.of() : List.copyOf(examples);</span>
+<span class="fc" id="L18">    }</span>
+
+    public record Example(
+            String id,
+            String pluginId,
+            String job,
+            int jobFormatVersion,
+            int parameterSchemaVersion,
+            String algorithmVersion,
+            String parameterSha256,
+            List&lt;Artifact&gt; artifacts
+    ) {
+<span class="fc" id="L30">        public Example {</span>
+<span class="fc" id="L31">            requireText(id, &quot;example id&quot;);</span>
+<span class="fc" id="L32">            requireText(pluginId, &quot;example plugin id&quot;);</span>
+<span class="fc" id="L33">            requireText(job, &quot;example job path&quot;);</span>
+<span class="fc" id="L34">            requireText(algorithmVersion, &quot;example algorithm version&quot;);</span>
+<span class="pc bpc" id="L35" title="1 of 2 branches missed.">            if (jobFormatVersion &lt; 1) {</span>
+<span class="nc" id="L36">                throw new IllegalArgumentException(&quot;example job format version must be positive&quot;);</span>
+            }
+<span class="pc bpc" id="L38" title="1 of 2 branches missed.">            if (parameterSchemaVersion &lt; 1) {</span>
+<span class="nc" id="L39">                throw new IllegalArgumentException(</span>
+                        &quot;example parameter schema version must be positive&quot;);
+            }
+<span class="pc bpc" id="L42" title="2 of 4 branches missed.">            if (parameterSha256 == null || !parameterSha256.matches(&quot;[0-9a-f]{64}&quot;)) {</span>
+<span class="nc" id="L43">                throw new IllegalArgumentException(</span>
+                        &quot;example parameter hash must be lowercase SHA-256&quot;);
+            }
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">            artifacts = artifacts == null ? List.of() : List.copyOf(artifacts);</span>
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">            if (artifacts.isEmpty()) {</span>
+<span class="nc" id="L48">                throw new IllegalArgumentException(</span>
+                        &quot;documentation example must contain at least one artifact&quot;);
+            }
+<span class="fc" id="L51">        }</span>
+    }
+
+    public record Artifact(
+            String id,
+            String path,
+            String mediaType,
+            long sizeBytes,
+            Integer widthPx,
+            Integer heightPx,
+            Double dpi,
+            String normalizedSha256
+    ) {
+<span class="fc" id="L64">        public Artifact {</span>
+<span class="fc" id="L65">            requireText(id, &quot;artifact id&quot;);</span>
+<span class="fc" id="L66">            requireText(path, &quot;artifact path&quot;);</span>
+<span class="fc" id="L67">            requireText(mediaType, &quot;artifact media type&quot;);</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">            if (sizeBytes &lt; 1) {</span>
+<span class="nc" id="L69">                throw new IllegalArgumentException(&quot;artifact size must be positive&quot;);</span>
+            }
+<span class="pc bpc" id="L71" title="2 of 4 branches missed.">            if (normalizedSha256 == null || !normalizedSha256.matches(&quot;[0-9a-f]{64}&quot;)) {</span>
+<span class="nc" id="L72">                throw new IllegalArgumentException(</span>
+                        &quot;artifact normalized hash must be lowercase SHA-256&quot;);
+            }
+<span class="fc" id="L75">        }</span>
+    }
+
+    private static void requireText(String value, String label) {
+<span class="pc bpc" id="L79" title="2 of 4 branches missed.">        if (value == null || value.isBlank()) {</span>
+<span class="nc" id="L80">            throw new IllegalArgumentException(label + &quot; must not be empty&quot;);</span>
+        }
+<span class="fc" id="L82">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

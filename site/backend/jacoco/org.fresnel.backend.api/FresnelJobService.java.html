@@ -268,10 +268,10 @@ public class FresnelJobService {
 <span class="fc bfc" id="L268" title="All 2 branches covered.">            List&lt;WindowFoilRequest.CellSpecDto&gt; specs = r.cellSpecs() == null</span>
 <span class="fc" id="L269">                    ? List.of()</span>
 <span class="fc" id="L270">                    : r.cellSpecs().stream()</span>
-<span class="pc" id="L271">                    .map(spec -&gt; new WindowFoilRequest.CellSpecDto(</span>
-<span class="nc" id="L272">                            spec.focalLengthMm(),</span>
-<span class="nc bnc" id="L273" title="All 2 branches missed.">                            spec.targetOffsetXmm() == null ? 0.0 : spec.targetOffsetXmm(),</span>
-<span class="nc bnc" id="L274" title="All 2 branches missed.">                            spec.targetOffsetYmm() == null ? 0.0 : spec.targetOffsetYmm()))</span>
+<span class="fc" id="L271">                    .map(spec -&gt; new WindowFoilRequest.CellSpecDto(</span>
+<span class="fc" id="L272">                            spec.focalLengthMm(),</span>
+<span class="pc bpc" id="L273" title="1 of 2 branches missed.">                            spec.targetOffsetXmm() == null ? 0.0 : spec.targetOffsetXmm(),</span>
+<span class="pc bpc" id="L274" title="1 of 2 branches missed.">                            spec.targetOffsetYmm() == null ? 0.0 : spec.targetOffsetYmm()))</span>
 <span class="fc" id="L275">                    .toList();</span>
 <span class="fc" id="L276">            normalizedRequest = new WindowFoilRequest(</span>
 <span class="fc" id="L277">                    r.sheetWidthMm(), r.sheetHeightMm(), r.macroRadiusMm(),</span>
@@ -326,8 +326,8 @@ public class FresnelJobService {
             }
         }
 <span class="fc bfc" id="L328" title="All 4 branches covered.">        if (request instanceof WindowFoilRequest foil &amp;&amp; foil.cellSpecs() != null) {</span>
-<span class="pc bpc" id="L329" title="1 of 2 branches missed.">            for (int i = 0; i &lt; foil.cellSpecs().size(); i++) {</span>
-<span class="nc" id="L330">                validateBean(pluginId + &quot;.cellSpecs[&quot; + i + &quot;]&quot;, foil.cellSpecs().get(i));</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">            for (int i = 0; i &lt; foil.cellSpecs().size(); i++) {</span>
+<span class="fc" id="L330">                validateBean(pluginId + &quot;.cellSpecs[&quot; + i + &quot;]&quot;, foil.cellSpecs().get(i));</span>
             }
         }
 <span class="fc" id="L333">    }</span>
@@ -469,7 +469,7 @@ public class FresnelJobService {
 <span class="fc bfc" id="L469" title="All 4 branches covered.">            if (printScale == null &amp;&amp; &quot;pdf&quot;.equals(format)) {</span>
 <span class="fc" id="L470">                printScale = 1.0;</span>
             }
-<span class="pc bpc" id="L472" title="3 of 4 branches missed.">            if (output.options() != null &amp;&amp; !output.options().isObject()) {</span>
+<span class="pc bpc" id="L472" title="1 of 4 branches missed.">            if (output.options() != null &amp;&amp; !output.options().isObject()) {</span>
 <span class="nc" id="L473">                throw new IllegalArgumentException(&quot;production output options must be a JSON object&quot;);</span>
             }
 
@@ -493,12 +493,12 @@ public class FresnelJobService {
     }
 
     private static PluginCapability capabilityFor(String format) {
-<span class="pc bpc" id="L496" title="4 of 7 branches missed.">        return switch (format) {</span>
+<span class="pc bpc" id="L496" title="1 of 7 branches missed.">        return switch (format) {</span>
 <span class="fc" id="L497">            case &quot;png&quot; -&gt; PluginCapability.EXPORT_PNG;</span>
-<span class="nc" id="L498">            case &quot;svg&quot; -&gt; PluginCapability.EXPORT_SVG;</span>
+<span class="fc" id="L498">            case &quot;svg&quot; -&gt; PluginCapability.EXPORT_SVG;</span>
 <span class="fc" id="L499">            case &quot;pdf&quot; -&gt; PluginCapability.EXPORT_PDF;</span>
-<span class="nc" id="L500">            case &quot;dxf&quot; -&gt; PluginCapability.EXPORT_DXF;</span>
-<span class="nc" id="L501">            case &quot;gerber&quot; -&gt; PluginCapability.EXPORT_GERBER;</span>
+<span class="fc" id="L500">            case &quot;dxf&quot; -&gt; PluginCapability.EXPORT_DXF;</span>
+<span class="fc" id="L501">            case &quot;gerber&quot; -&gt; PluginCapability.EXPORT_GERBER;</span>
 <span class="fc" id="L502">            case &quot;stl&quot; -&gt; PluginCapability.EXPORT_STL;</span>
 <span class="nc" id="L503">            default -&gt; throw new IllegalArgumentException(&quot;Unsupported production output format: &quot; + format);</span>
         };
@@ -552,7 +552,7 @@ public class FresnelJobService {
 <span class="fc" id="L552">            target.append('[');</span>
 <span class="fc" id="L553">            int index = 0;</span>
 <span class="fc bfc" id="L554" title="All 2 branches covered.">            for (JsonNode value : node) {</span>
-<span class="pc bpc" id="L555" title="1 of 2 branches missed.">                if (index++ &gt; 0) target.append(',');</span>
+<span class="fc bfc" id="L555" title="All 2 branches covered.">                if (index++ &gt; 0) target.append(',');</span>
 <span class="fc" id="L556">                appendCanonical(value, target);</span>
 <span class="fc" id="L557">            }</span>
 <span class="fc" id="L558">            target.append(']');</span>
@@ -564,7 +564,7 @@ public class FresnelJobService {
 <span class="fc bfc" id="L564" title="All 2 branches covered.">        } else if (node.isTextual()) {</span>
 <span class="fc" id="L565">            appendQuoted(node.textValue(), target);</span>
 <span class="pc bpc" id="L566" title="1 of 2 branches missed.">        } else if (node.isBoolean()) {</span>
-<span class="pc bpc" id="L567" title="1 of 2 branches missed.">            target.append(node.booleanValue() ? &quot;true&quot; : &quot;false&quot;);</span>
+<span class="fc bfc" id="L567" title="All 2 branches covered.">            target.append(node.booleanValue() ? &quot;true&quot; : &quot;false&quot;);</span>
         } else {
 <span class="nc" id="L569">            throw new IllegalArgumentException(&quot;Unsupported JSON value in parameters: &quot; + node.getNodeType());</span>
         }

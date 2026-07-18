@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FresnelJobProductionController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">FresnelJobProductionController.java</span></div><h1>FresnelJobProductionController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+
+/** Executes one declared output from a canonical `.fresnel` production job. */
+@RestController
+@RequestMapping(&quot;/api/designs/job&quot;)
+public class FresnelJobProductionController {
+
+    private final FresnelJobService jobService;
+    private final FresnelJobExecutor executor;
+
+    public FresnelJobProductionController(
+            FresnelJobService jobService,
+<span class="fc" id="L29">            FresnelJobExecutor executor) {</span>
+<span class="fc" id="L30">        this.jobService = jobService;</span>
+<span class="fc" id="L31">        this.executor = executor;</span>
+<span class="fc" id="L32">    }</span>
+
+    /**
+     * Executes exactly the production output identified by {@code outputId}. The
+     * job remains the source of plugin, parameters, format, filename and options;
+     * the URL selects only which already-declared output is returned.
+     */
+    @PostMapping(
+            value = &quot;/execute/{outputId}&quot;,
+            consumes = {FresnelJobDocument.MEDIA_TYPE, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity&lt;byte[]&gt; execute(
+            @PathVariable(&quot;outputId&quot;) String outputId,
+            @RequestBody byte[] body) throws IOException {
+<span class="fc" id="L45">        FresnelJobDocument job = jobService.parseAndNormalize(body);</span>
+<span class="pc bpc" id="L46" title="1 of 4 branches missed.">        if (job.production() == null || job.production().outputs() == null) {</span>
+<span class="fc" id="L47">            throw new ResponseStatusException(</span>
+                    HttpStatus.NOT_FOUND, &quot;Fresnel job has no production outputs&quot;);
+        }
+
+<span class="fc" id="L51">        FresnelJobDocument.ProductionOutput selectedOutput = job.production().outputs().stream()</span>
+<span class="fc" id="L52">                .filter(output -&gt; output.id().equals(outputId))</span>
+<span class="fc" id="L53">                .findFirst()</span>
+<span class="fc" id="L54">                .orElseThrow(() -&gt; new ResponseStatusException(</span>
+                        HttpStatus.NOT_FOUND,
+                        &quot;Fresnel job contains no production output with id &quot; + outputId));
+<span class="fc" id="L57">        FresnelJobDocument selectedJob = new FresnelJobDocument(</span>
+<span class="fc" id="L58">                job.schema(),</span>
+<span class="fc" id="L59">                job.format(),</span>
+<span class="fc" id="L60">                job.formatVersion(),</span>
+<span class="fc" id="L61">                job.plugin(),</span>
+<span class="fc" id="L62">                job.parameters(),</span>
+<span class="fc" id="L63">                new FresnelJobDocument.ProductionPlan(List.of(selectedOutput)),</span>
+<span class="fc" id="L64">                job.provenance());</span>
+
+<span class="fc" id="L66">        AtomicReference&lt;GeneratedArtifact&gt; generatedArtifact = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L67">        AtomicReference&lt;byte[]&gt; generatedContent = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L68">        executor.execute(selectedJob, (artifact, content) -&gt; {</span>
+<span class="fc" id="L69">            generatedArtifact.set(artifact);</span>
+<span class="fc" id="L70">            generatedContent.set(content.clone());</span>
+<span class="fc" id="L71">        });</span>
+
+<span class="fc" id="L73">        GeneratedArtifact artifact = generatedArtifact.get();</span>
+<span class="fc" id="L74">        byte[] content = generatedContent.get();</span>
+<span class="pc bpc" id="L75" title="2 of 4 branches missed.">        if (artifact == null || content == null) {</span>
+<span class="nc" id="L76">            throw new IllegalStateException(&quot;Fresnel job executor produced no artifact&quot;);</span>
+        }
+
+<span class="fc" id="L79">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="fc" id="L80">        headers.setContentType(MediaType.parseMediaType(artifact.mediaType()));</span>
+<span class="fc" id="L81">        headers.setContentDisposition(ContentDisposition.attachment()</span>
+<span class="fc" id="L82">                .filename(artifact.filename())</span>
+<span class="fc" id="L83">                .build());</span>
+<span class="fc" id="L84">        headers.set(&quot;X-Fresnel-Normalized-SHA256&quot;, artifact.normalizedSha256());</span>
+<span class="fc" id="L85">        return ResponseEntity.ok().headers(headers).body(content);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

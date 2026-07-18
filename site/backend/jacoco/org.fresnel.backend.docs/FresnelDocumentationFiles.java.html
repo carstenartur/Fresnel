@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FresnelDocumentationFiles.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.docs</a> &gt; <span class="el_source">FresnelDocumentationFiles.java</span></div><h1>FresnelDocumentationFiles.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.docs;
+
+import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+
+/** Shared path, discovery and atomic-write rules for documentation tooling. */
+final class FresnelDocumentationFiles {
+
+    private FresnelDocumentationFiles() {}
+
+    static Path requireDirectory(Path path, String label) throws IOException {
+<span class="pc bpc" id="L22" title="1 of 2 branches missed.">        if (path == null) throw new IllegalArgumentException(label + &quot; must not be null&quot;);</span>
+<span class="fc" id="L23">        Path normalized = path.toAbsolutePath().normalize();</span>
+<span class="pc bpc" id="L24" title="1 of 2 branches missed.">        if (!Files.isDirectory(normalized)) {</span>
+<span class="nc" id="L25">            throw new IllegalArgumentException(label + &quot; is not a directory: &quot; + path);</span>
+        }
+        // Resolve a caller-selected symbolic root once, then enforce all descendant
+        // checks against its physical location.
+<span class="fc" id="L29">        return normalized.toRealPath();</span>
+    }
+
+    static List&lt;Path&gt; discoverJobs(Path root) throws IOException {
+<span class="fc" id="L33">        Path normalizedRoot = requireDirectory(root, &quot;documentation job root&quot;);</span>
+<span class="fc" id="L34">        List&lt;Path&gt; jobs = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L35">        try (var paths = Files.walk(normalizedRoot)) {</span>
+<span class="fc" id="L36">            paths.filter(path -&gt; Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))</span>
+<span class="fc" id="L37">                    .filter(path -&gt; path.getFileName().toString().endsWith(&quot;.fresnel&quot;))</span>
+<span class="fc" id="L38">                    .sorted(Comparator.comparing(</span>
+<span class="fc" id="L39">                            path -&gt; portable(normalizedRoot.relativize(path))))</span>
+<span class="fc" id="L40">                    .forEach(jobs::add);</span>
+        }
+<span class="fc" id="L42">        return jobs;</span>
+    }
+
+    static Path requireRegularDescendant(
+            Path root,
+            Path relative,
+            String label) throws IOException {
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">        if (root == null) throw new IllegalArgumentException(label + &quot; root must not be null&quot;);</span>
+<span class="pc bpc" id="L50" title="2 of 4 branches missed.">        if (relative == null || relative.isAbsolute()) {</span>
+<span class="nc" id="L51">            throw new IllegalArgumentException(label + &quot; path must be relative: &quot; + relative);</span>
+        }
+
+<span class="fc" id="L54">        Path normalizedRoot = root.toAbsolutePath().normalize();</span>
+<span class="fc" id="L55">        Path target = normalizedRoot.resolve(relative).normalize();</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        if (!target.startsWith(normalizedRoot)) {</span>
+<span class="nc" id="L57">            throw new IllegalArgumentException(label + &quot; escapes its selected root: &quot; + relative);</span>
+        }
+
+        // Repository documentation artifacts and jobs must be ordinary files. Do
+        // not allow a checked-in symlink, or a symlink in an intermediate segment,
+        // to redirect verification to an unrelated runner file.
+<span class="fc" id="L63">        Path current = normalizedRoot;</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        for (Path segment : normalizedRoot.relativize(target)) {</span>
+<span class="fc" id="L65">            current = current.resolve(segment);</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">            if (Files.isSymbolicLink(current)) {</span>
+<span class="fc" id="L67">                throw new IllegalStateException(label + &quot; must not use symbolic links: &quot; + target);</span>
+            }
+<span class="fc" id="L69">        }</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {</span>
+<span class="nc" id="L71">            throw new IllegalStateException(&quot;Missing &quot; + label + &quot;: &quot; + target);</span>
+        }
+<span class="fc" id="L73">        return target;</span>
+    }
+
+    static byte[] readRegularFile(Path path, String label) throws IOException {
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">        if (path == null) throw new IllegalArgumentException(label + &quot; must not be null&quot;);</span>
+<span class="fc" id="L78">        Path normalized = path.toAbsolutePath().normalize();</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">        if (Files.isSymbolicLink(normalized)</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">                || !Files.isRegularFile(normalized, LinkOption.NOFOLLOW_LINKS)) {</span>
+<span class="nc" id="L81">            throw new IllegalStateException(label + &quot; is not an ordinary file: &quot; + path);</span>
+        }
+<span class="fc" id="L83">        return Files.readAllBytes(normalized);</span>
+    }
+
+    static void writeAtomically(Path output, byte[] content) throws IOException {
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">        if (output == null) throw new IllegalArgumentException(&quot;output path must not be null&quot;);</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        if (content == null) throw new IllegalArgumentException(&quot;output content must not be null&quot;);</span>
+
+<span class="fc" id="L90">        Path normalized = output.toAbsolutePath().normalize();</span>
+<span class="fc" id="L91">        Path parent = normalized.getParent();</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        if (parent == null) {</span>
+<span class="nc" id="L93">            throw new IllegalArgumentException(&quot;output path must have a parent directory: &quot; + output);</span>
+        }
+<span class="fc" id="L95">        Files.createDirectories(parent);</span>
+
+<span class="fc" id="L97">        Path staged = Files.createTempFile(parent, &quot;.fresnel-docs-&quot;, &quot;.tmp&quot;);</span>
+        try {
+<span class="fc" id="L99">            Files.write(staged, content,</span>
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE);
+            try {
+<span class="fc" id="L103">                Files.move(staged, normalized,</span>
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
+<span class="nc" id="L106">            } catch (AtomicMoveNotSupportedException e) {</span>
+<span class="nc" id="L107">                Files.move(staged, normalized, StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="fc" id="L108">            }</span>
+        } finally {
+<span class="fc" id="L110">            Files.deleteIfExists(staged);</span>
+        }
+<span class="fc" id="L112">    }</span>
+
+    static String portable(Path path) {
+<span class="fc" id="L115">        return path.toString().replace('\\', '/');</span>
+    }
+
+    static String portableKey(String value) {
+<span class="fc" id="L119">        String portable = value.replace('\\', '/');</span>
+<span class="fc" id="L120">        return Normalizer.normalize(portable, Normalizer.Form.NFC)</span>
+<span class="fc" id="L121">                .toLowerCase(Locale.ROOT);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
