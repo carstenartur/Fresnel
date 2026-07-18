@@ -54,14 +54,15 @@ class PluginControllerTest {
     }
 
     @Test
-    void listPluginsIncludesSchemaMetadataWithoutInternalPathsOrModeAliases() throws Exception {
+    void listPluginsIncludesSchemaMetadataWithoutImplementationNamesOrInternalPaths() throws Exception {
         mvc.perform(get("/api/plugins"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").exists())
                 .andExpect(jsonPath("$[0].displayName").exists())
                 .andExpect(jsonPath("$[0].description").exists())
-                .andExpect(jsonPath("$[0].rendererClass").exists())
-                .andExpect(jsonPath("$[0].parameterType").exists())
+                .andExpect(jsonPath("$[0].documentationUrl").exists())
+                .andExpect(jsonPath("$[0].rendererClass").doesNotExist())
+                .andExpect(jsonPath("$[0].parameterType").doesNotExist())
                 .andExpect(jsonPath("$[0].frontendModeId").doesNotExist())
                 .andExpect(jsonPath("$[0].stability").exists())
                 .andExpect(jsonPath("$[0].capabilities").isArray())
@@ -79,8 +80,8 @@ class PluginControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("zone-plate"))
                 .andExpect(jsonPath("$.displayName").value("Zone Plate"))
-                .andExpect(jsonPath("$.rendererClass").value("ZonePlateRenderer"))
-                .andExpect(jsonPath("$.parameterType").value("SingleZonePlateParameters"))
+                .andExpect(jsonPath("$.rendererClass").doesNotExist())
+                .andExpect(jsonPath("$.parameterType").doesNotExist())
                 .andExpect(jsonPath("$.frontendModeId").doesNotExist())
                 .andExpect(jsonPath("$.stability").value("STABLE"))
                 .andExpect(jsonPath("$.parameterSchemaVersion").value(1))
@@ -109,7 +110,8 @@ class PluginControllerTest {
         mvc.perform(get("/api/plugins/hologram"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("hologram"))
-                .andExpect(jsonPath("$.rendererClass").value("HologramSynthesizer"))
+                .andExpect(jsonPath("$.rendererClass").doesNotExist())
+                .andExpect(jsonPath("$.parameterType").doesNotExist())
                 .andExpect(jsonPath("$.capabilities", hasItems("EXPORT_PNG", "EXPORT_STL")))
                 .andExpect(jsonPath("$.propagationModes", empty()));
     }
