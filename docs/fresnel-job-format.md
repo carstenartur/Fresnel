@@ -1,9 +1,9 @@
 # Fresnel job files (`.fresnel`)
 
 Fresnel jobs are versioned, JSON-based documents that describe a design and,
-optionally, the production outputs requested from it. They are intended to be the
-portable source for GUI editing, automation, documentation examples and later
-operating-system file association.
+optionally, the production outputs requested from it. They are the portable source
+for GUI editing, automation, documentation examples, desktop file association and
+reproducible production execution.
 
 A job contains data only. It must not contain Java class names, source code,
 shell commands or dynamically loadable implementation references.
@@ -46,8 +46,9 @@ while the vendor media type distinguishes it from unrelated JSON documents.
 }
 ```
 
-A complete checked-in example is available at
-[`jobs/zone-plate/on-axis.fresnel`](jobs/zone-plate/on-axis.fresnel).
+Complete checked-in production examples are available under
+[`jobs/`](jobs/), including the Zone Plate examples used by the generated plugin
+documentation.
 
 ## Using job files in the graphical interface
 
@@ -118,24 +119,34 @@ parent-directory traversal are rejected. If a production plan is present, it
 must contain at least one output. Missing output IDs, filenames and PDF defaults
 are normalized deterministically.
 
-## HTTP round-trip
+`FresnelJobExecutor` executes this normalized production plan independently of
+HTTP, browser state and test-only switches. It writes only through an injected
+output sink, so a documentation command, application endpoint or future batch
+runner chooses the destination without placing a local output directory in the
+portable job.
+
+## HTTP round-trip and production execution
 
 The canonical endpoints are:
 
 ```text
 POST /api/designs/job/save
 POST /api/designs/job/load
+POST /api/designs/job/execute/{outputId}
 ```
 
-Both consume the dedicated media type and also accept `application/json`. The
-load endpoint accepts either a current job or a legacy design document. Both
+All consume the dedicated media type and also accept `application/json`. The load
+endpoint accepts either a current job or a legacy design document. Save and load
 return a normalized v1 job with resolved plugin defaults and a stable
-`provenance.parameterSha256` calculated from normalized parameter JSON.
+`provenance.parameterSha256` calculated from normalized parameter JSON. The save
+endpoint additionally returns a download filename ending in `.fresnel`.
 
-The save endpoint additionally returns a download filename ending in
-`.fresnel`.
+The execution endpoint runs exactly one output already declared by `outputId` in
+the submitted production plan. The URL cannot introduce a new format, filename or
+command. Its response uses the declared media type and filename and includes
+`X-Fresnel-Normalized-SHA256` for the generated artifact.
 
-Example:
+Normalize a job:
 
 ```bash
 curl \
@@ -144,6 +155,41 @@ curl \
   --data-binary @docs/jobs/zone-plate/on-axis.fresnel \
   http://localhost:8080/api/designs/job/load
 ```
+
+Execute its declared documentation preview:
+
+```bash
+curl \
+  -H 'Content-Type: application/vnd.carstenartur.fresnel.job+json' \
+  --data-binary @docs/jobs/zone-plate/on-axis.fresnel \
+  -o on-axis.png \
+  http://localhost:8080/api/designs/job/execute/documentation-preview
+```
+
+## Documentation and CLI execution
+
+The non-test documentation command consumes the same public jobs and executor:
+
+```bash
+# Render or verify all discovered production jobs.
+bash packaging/docs-jobs.sh render-all docs/jobs docs/assets/plugins
+bash packaging/docs-jobs.sh verify-all docs/jobs docs/assets/plugins
+
+# Generate or verify the machine-readable example manifest.
+bash packaging/docs-jobs.sh manifest \
+  docs/jobs docs/assets/plugins docs/generated/example-manifest.json
+bash packaging/docs-jobs.sh verify-manifest \
+  docs/jobs docs/assets/plugins docs/generated/example-manifest.json
+
+# Inspect discovery or render a schema-derived parameter table.
+bash packaging/docs-jobs.sh list docs/jobs
+bash packaging/docs-jobs.sh table docs/jobs/zone-plate/on-axis.fresnel
+```
+
+The checked-in manifest at
+[`generated/example-manifest.json`](generated/example-manifest.json) records the
+job path, plugin ID, all compatibility versions, normalized parameter hash and
+format-aware metadata for every migrated documentation artifact.
 
 ## Versioning
 
@@ -161,16 +207,24 @@ A file using a newer unsupported envelope or parameter schema is rejected rather
 than partially interpreted. Future migrations should be explicit and covered by
 fixtures.
 
-## Reproducibility hash
+## Reproducibility hashes
 
 The importer computes SHA-256 over canonical normalized parameters. Object key
-order and equivalent number spellings such as `10` and `10.0` do not affect the
-hash.
+order and equivalent number spellings such as `10` and `10.0` do not affect this
+parameter hash.
 
-This parameter hash is not an artifact-file hash. Generated raster and vector
-outputs need format-specific normalization rules before they can be compared
-reliably; that work belongs to the documentation job executor tracked in issue
-#81.
+Artifact hashes are format-aware:
+
+- PNG hashes cover decoded ARGB pixels, dimensions and intended physical DPI, not
+  compressed container bytes;
+- SVG, DXF, Gerber and other text formats normalize line endings before hashing;
+- opaque binary formats currently use a namespaced byte hash;
+- PDF metadata is recorded, but future semantic PDF normalization may replace its
+  current binary comparison policy.
+
+This separation means a job's parameter identity remains stable independently of
+its outputs, while documentation drift checks compare the properties that are
+scientifically or visually significant for each artifact format.
 
 ## Security model
 
@@ -183,7 +237,10 @@ Imported jobs are untrusted input:
   request type;
 - requested output formats must be supported by the plugin;
 - output filenames cannot contain paths;
-- no external URL is fetched during import;
+- directory sinks independently verify that resolved targets remain inside the
+  caller-selected output root;
+- application execution can select only an output ID already declared by the job;
+- no external URL is fetched during import or documentation execution;
 - no class, script or command is resolved from document data.
 
 Large embedded assets will require a separately bounded asset/container design.
