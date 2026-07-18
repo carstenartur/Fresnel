@@ -43,7 +43,7 @@ reference a remote asset and remains below the bounded `.fresnel` envelope limit
 <!-- fresnel-example:hologram/checker:start -->
 | Parameter | Value |
 |---|---:|
-| Target image | Embedded data (1832 Base64 characters) |
+| Target image | Embedded data (approximately 1374 bytes decoded) |
 | Side | 512 px |
 | Gerchberg–Saxton iterations | 100 |
 | Output type | Greyscale phase |
