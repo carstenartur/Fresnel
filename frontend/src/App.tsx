@@ -51,6 +51,7 @@ interface OpenedJobState {
 export function App() {
   const [mode, setMode] = useState<ModeKey>(() => modeFromPath(window.location.pathname));
   const [pluginOrder, setPluginOrder] = useState<readonly FresnelPluginId[]>(FALLBACK_PLUGIN_ORDER);
+  const [pluginRegistryError, setPluginRegistryError] = useState<string | null>(null);
   const [openedJob, setOpenedJob] = useState<OpenedJobState | null>(null);
   const [jobNotice, setJobNotice] = useState<string | null>(null);
   const revision = useRef(0);
@@ -70,9 +71,23 @@ export function App() {
     fetchPluginMetadata()
       .then((plugins) => {
         if (!active) return;
+
+        const unknownIds = plugins
+          .map((plugin) => plugin.id)
+          .filter((pluginId) => !isPluginId(pluginId));
+        setPluginRegistryError(unknownIds.length === 0
+          ? null
+          : `No trusted editor is registered for backend plugin${unknownIds.length === 1 ? '' : 's'}: ${unknownIds.join(', ')}.`);
+
+        const seen = new Set<FresnelPluginId>();
         const registered = plugins
           .map((plugin) => plugin.id)
-          .filter((pluginId): pluginId is FresnelPluginId => isPluginId(pluginId));
+          .filter((pluginId): pluginId is FresnelPluginId => isPluginId(pluginId))
+          .filter((pluginId) => {
+            if (seen.has(pluginId)) return false;
+            seen.add(pluginId);
+            return true;
+          });
         if (registered.length > 0) setPluginOrder(registered);
       })
       .catch(() => {
@@ -122,6 +137,11 @@ export function App() {
       <aside className="panel">
         <h1>Fresnel Designer</h1>
         <OpenJobControl onOpenJob={openJob} />
+        {pluginRegistryError && (
+          <div className="warning error" style={{ marginBottom: 12 }} role="alert">
+            {pluginRegistryError}
+          </div>
+        )}
         {jobNotice && (
           <div className="warning info" style={{ marginBottom: 12 }} role="status">
             {jobNotice}
