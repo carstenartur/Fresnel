@@ -4,7 +4,7 @@ If you use **Fresnel**, please cite the archived software release and the reposi
 
 ## Preferred citation
 
-Carsten Hammer. **Fresnel**. Version 0.1.5-SNAPSHOT. 2026. Software. GitHub repository: https://github.com/carstenartur/Fresnel
+Carsten Hammer. **Fresnel**. Version 0.1.6-SNAPSHOT. 2026. Software. GitHub repository: https://github.com/carstenartur/Fresnel
 
 When a Zenodo DOI is minted for a release, prefer the Zenodo citation shown on the release page and keep the GitHub repository URL as the code source.
 
@@ -15,7 +15,7 @@ When a Zenodo DOI is minted for a release, prefer the Zenodo citation shown on t
   author       = {Hammer, Carsten},
   orcid        = {https://orcid.org/0009-0005-1047-6381},
   title        = {Fresnel},
-  version      = {0.1.5-SNAPSHOT},
+  version      = {0.1.6-SNAPSHOT},
   publisher    = {GitHub and Zenodo},
   url          = {https://github.com/carstenartur/Fresnel},
   license      = {MIT}
