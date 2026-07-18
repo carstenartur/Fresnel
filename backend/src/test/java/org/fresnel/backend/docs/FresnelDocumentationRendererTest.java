@@ -21,6 +21,7 @@ class FresnelDocumentationRendererTest {
             new Example("zone-plate", "greyscale-phase", "zone-plate.md"),
             new Example("zone-plate", "negative-polarity", "zone-plate.md"),
             new Example("hex-macro-cell", "on-axis", "hex-macro-cell.md"),
+            new Example("window-foil", "foil-sheet", "window-foil.md"),
             new Example("multi-focus", "two-foci", "multi-focus.md"),
             new Example("multi-focus", "line-focus", "multi-focus.md"),
             new Example("rgb-zone-plate", "rgb", "rgb-zone-plate.md"),
