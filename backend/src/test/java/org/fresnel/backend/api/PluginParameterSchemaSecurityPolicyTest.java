@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -17,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PluginParameterSchemaSecurityPolicyTest {
 
     @Autowired PluginSchemaService schemaService;
-    @Autowired ObjectMapper mapper;
 
     @Test
     void acceptsEveryRegisteredPublishedParameterSchema() {
@@ -76,9 +74,9 @@ class PluginParameterSchemaSecurityPolicyTest {
                         PluginRegistry.ZONE_PLATE, stringPowerOfTwo));
 
         ObjectNode invalidLabels = zonePlateSchema();
-        field(invalidLabels, "maskType")
-                .withObject("x-fresnel-enum-labels")
-                .put("NOT_AN_ENUM_VALUE", "Unexpected");
+        ObjectNode labels = (ObjectNode) field(invalidLabels, "maskType")
+                .get("x-fresnel-enum-labels");
+        labels.put("NOT_AN_ENUM_VALUE", "Unexpected");
         assertThrows(
                 IllegalStateException.class,
                 () -> PluginParameterSchemaSecurityPolicy.validate(
@@ -96,8 +94,8 @@ class PluginParameterSchemaSecurityPolicyTest {
     }
 
     private ObjectNode zonePlateSchema() {
-        return (ObjectNode) mapper.readTree(
-                schemaService.requireByPluginId("zone-plate").parameterSchema().toString());
+        return (ObjectNode) schemaService.requireByPluginId("zone-plate")
+                .parameterSchema().deepCopy();
     }
 
     private static ObjectNode field(ObjectNode schema, String fieldName) {
