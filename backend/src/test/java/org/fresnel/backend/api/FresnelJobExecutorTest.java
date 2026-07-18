@@ -1,10 +1,12 @@
 package org.fresnel.backend.api;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -120,6 +123,35 @@ class FresnelJobExecutorTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> sink.write(artifact, new byte[]{1}));
+    }
+
+    @Test
+    void directorySinkReplacesASymbolicLinkInsteadOfFollowingIt() throws Exception {
+        Path outside = tempDir.resolveSibling(tempDir.getFileName() + "-outside.bin");
+        Path target = tempDir.resolve("artifact.bin");
+        byte[] originalOutside = {9, 8, 7};
+        byte[] generated = {1, 2, 3, 4};
+        Files.write(outside, originalOutside);
+        try {
+            try {
+                Files.createSymbolicLink(target, outside);
+            } catch (UnsupportedOperationException | IOException | SecurityException e) {
+                Assumptions.assumeTrue(false,
+                        "symbolic links are unavailable in this test environment: " + e.getMessage());
+            }
+
+            DirectoryFresnelJobOutputSink sink = new DirectoryFresnelJobOutputSink(tempDir);
+            sink.write(new GeneratedArtifact(
+                            "artifact", "artifact.bin", "application/octet-stream",
+                            generated.length, "0".repeat(64), null, null, null),
+                    generated);
+
+            assertFalse(Files.isSymbolicLink(target));
+            assertArrayEquals(generated, Files.readAllBytes(target));
+            assertArrayEquals(originalOutside, Files.readAllBytes(outside));
+        } finally {
+            Files.deleteIfExists(outside);
+        }
     }
 
     @Test
