@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -134,8 +135,10 @@ public final class FresnelDocumentationManifestService {
                 examples);
     }
 
+    /** Serializes deterministically as UTF-8 and terminates the text file with one LF. */
     public byte[] write(FresnelDocumentationManifest manifest) throws IOException {
-        return mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(manifest);
+        String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(manifest);
+        return (json + "\n").getBytes(StandardCharsets.UTF_8);
     }
 
     /**
