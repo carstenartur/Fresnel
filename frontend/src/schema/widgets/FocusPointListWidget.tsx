@@ -96,17 +96,15 @@ function normalizePoints(value: unknown, fallback: unknown): FocusPointDto[] {
     .map((point) => ({
       xMm: finiteNumber(point.xMm, 0),
       yMm: finiteNumber(point.yMm, 0),
-      zMm: positiveNumber(point.zMm, 1000),
+      // Keep finite invalid values visible. The canonical backend validator owns
+      // the positivity rule and reports the indexed path to the user.
+      zMm: finiteNumber(point.zMm, 1000),
     }));
   return points.length > 0 ? points : [{ ...NEW_POINT }];
 }
 
 function finiteNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-function positiveNumber(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
