@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { DesignValidationReport, ValidationLayer } from '../api';
 
 export function NumberField({
@@ -88,16 +96,25 @@ export function PreviewPane({ url, alt, children }: { url: string | null; alt: s
   );
 }
 
-/** Manage a single object-URL for a Blob, revoking on update / unmount. */
+/** Manage one owned object URL, revoking it exactly once on replacement/unmount. */
 export function useBlobUrl(): [string | null, (blob: Blob) => void] {
   const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
-  const set = useCallback((blob: Blob) => {
-    setUrl((previous) => {
-      if (previous) URL.revokeObjectURL(previous);
-      return URL.createObjectURL(blob);
-    });
+  const ownedUrl = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    if (ownedUrl.current) {
+      URL.revokeObjectURL(ownedUrl.current);
+      ownedUrl.current = null;
+    }
   }, []);
+
+  const set = useCallback((blob: Blob) => {
+    if (ownedUrl.current) URL.revokeObjectURL(ownedUrl.current);
+    const next = URL.createObjectURL(blob);
+    ownedUrl.current = next;
+    setUrl(next);
+  }, []);
+
   return [url, set];
 }
 
