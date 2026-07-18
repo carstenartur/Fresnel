@@ -1,15 +1,15 @@
 package org.fresnel.backend.docs;
 
-import org.fresnel.backend.FresnelBackendApplication;
+import jakarta.validation.Validation;
+import jakarta.validation.ValidatorFactory;
 import org.fresnel.backend.api.DirectoryFresnelJobOutputSink;
 import org.fresnel.backend.api.FresnelJobDocument;
 import org.fresnel.backend.api.FresnelJobExecutionResult;
 import org.fresnel.backend.api.FresnelJobExecutor;
 import org.fresnel.backend.api.FresnelJobService;
 import org.fresnel.backend.api.GeneratedArtifact;
-import org.springframework.boot.WebApplicationType;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.context.ConfigurableApplicationContext;
+import org.fresnel.backend.api.PluginSchemaService;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -28,21 +28,21 @@ public final class FresnelDocsCli {
 
     private FresnelDocsCli() {}
 
+    /**
+     * Starts only the data-oriented services needed for job execution. The CLI does
+     * not bootstrap Spring MVC, JPA, security, a servlet container or a database.
+     */
     public static void main(String[] args) throws Exception {
         System.setProperty("java.awt.headless", "true");
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(
-                FresnelBackendApplication.class)
-                .web(WebApplicationType.NONE)
-                .properties(
-                        "spring.main.banner-mode=off",
-                        "spring.jpa.open-in-view=false")
-                .run()) {
-            run(
-                    args,
-                    context.getBean(FresnelJobExecutor.class),
-                    context.getBean(FresnelJobService.class),
-                    context.getBean(FresnelDocumentationRenderer.class),
-                    System.out);
+        ObjectMapper mapper = new ObjectMapper();
+        try (ValidatorFactory validatorFactory = Validation.buildDefaultValidatorFactory()) {
+            FresnelJobService jobService = new FresnelJobService(
+                    mapper, validatorFactory.getValidator());
+            PluginSchemaService schemaService = new PluginSchemaService(mapper);
+            FresnelJobExecutor executor = new FresnelJobExecutor(jobService, mapper);
+            FresnelDocumentationRenderer documentationRenderer =
+                    new FresnelDocumentationRenderer(jobService, schemaService);
+            run(args, executor, jobService, documentationRenderer, System.out);
         }
     }
 
