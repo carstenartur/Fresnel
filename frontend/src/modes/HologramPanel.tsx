@@ -4,8 +4,6 @@ import {
   downloadHologramStl,
   reconstructHologramPng,
   synthesizeHologramPng,
-  validatePlugin,
-  type DesignValidationReport,
   type HologramRequest,
 } from '../api';
 import {
@@ -39,7 +37,6 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
     initialJobParameters(initialJob, 'hologram', DEFAULT));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [maskUrl, setMaskUrl] = useBlobUrl();
   const [reconstructionUrl, setReconstructionUrl] = useBlobUrl();
 
@@ -65,9 +62,7 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
     setError(null);
     try {
       setMaskUrl(await synthesizeHologramPng(built));
-      setValidationReport(await validatePlugin('hologram', built));
     } catch (renderError) {
-      setValidationReport(null);
       setError(renderError instanceof Error ? renderError.message : String(renderError));
     } finally {
       setBusy(false);
@@ -100,13 +95,15 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
         disabled={busy}
         customWidgets={CUSTOM_WIDGETS}
         applyDefaultsOnLoad={!initialJob}
+        domainValidationEnabled={requestHasTarget}
       >
-        {(schema, structuralValidation) => {
+        {(schema, structuralValidation, domainValidation) => {
           const normalized = structuralValidation?.valid
             ? structuralValidation.normalizedParameters
             : undefined;
           const structurallyValid = Boolean(normalized);
           const hasTarget = Boolean(normalized?.targetImageBase64);
+          const productionReady = hasTarget && structurallyValid && domainValidation?.valid === true;
           return (
             <>
               {requestHasTarget && !jobFitsFileLimit && (
@@ -129,7 +126,7 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
                   },
                   EXPORT_PNG: {
                     label: 'PNG',
-                    disabled: !hasTarget || !structurallyValid,
+                    disabled: !productionReady,
                     run: async () => {
                       if (!normalized) return;
                       const built = requireTarget(normalized);
@@ -145,7 +142,7 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
                   },
                   EXPORT_STL: {
                     label: 'STL',
-                    disabled: !hasTarget || !structurallyValid,
+                    disabled: !productionReady,
                     run: async () => {
                       if (!normalized) return;
                       const built = requireTarget(normalized);
@@ -190,7 +187,7 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
                   <PreviewPane url={reconstructionUrl} alt="Reconstruction preview" />
                 </>
               )}
-              <ValidationReportView report={validationReport} />
+              <ValidationReportView report={domainValidation} />
             </>
           );
         }}
