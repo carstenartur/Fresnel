@@ -1,7 +1,7 @@
-# Plugin: Hologram (`HologramSynthesizer`)
+# Plugin: Hologram (`hologram`)
 
 The **hologram** plugin synthesises a computer-generated hologram (CGH) from a
-target image using the **Gerchberg–Saxton (GS) algorithm**.  The output is a
+target image using the **Gerchberg–Saxton (GS) algorithm**. The output is a
 phase-only mask whose far-field diffraction pattern approximates the target
 amplitude distribution.
 
@@ -21,72 +21,109 @@ greyscale (0–255 ≡ 0–2π).
 
 | Parameter | Unit | Description |
 |-----------|------|-------------|
-| `targetImage` | — | Square grayscale `BufferedImage`, side must be a power of two (16–1024 px) |
+| `targetImageBase64` | — | Bounded, embedded PNG/JPEG source data; no network URL is fetched |
+| `sidePx` | px | Square power-of-two synthesis grid (16–1024 px) |
 | `iterations` | — | Number of GS iterations (30–100 is typical) |
-| `outputType` | — | `BINARY_PHASE` (0/π → black/white) or `GREYSCALE_PHASE` (continuous) |
+| `outputType` | — | `BINARY_PHASE` or `GREYSCALE_PHASE` |
 | `dpi` | dots/inch | Printer resolution (sets the physical pixel pitch) |
+| `wavelengthNm` | nm | Fabrication wavelength used for phase-relief conversion |
+| `refractiveIndexDelta` | — | Refractive-index difference between material and ambient |
+| `maxPhaseShiftRad` | rad | Maximum phase shift represented by the relief |
+
+## Reproducing the example
+
+All three images below are declared outputs of one public production job:
+
+[Download the checker Hologram job](../jobs/hologram/checker.fresnel)
+
+Open the file with Fresnel to restore the embedded local target, the 512 × 512
+synthesis grid and the exact iteration/fabrication parameters. The job does not
+reference a remote asset and remains below the bounded `.fresnel` envelope limit.
+
+<!-- fresnel-example:hologram/checker:start -->
+| Parameter | Value |
+|---|---:|
+| Target image | Embedded data (1832 Base64 characters) |
+| Side | 512 px |
+| Gerchberg–Saxton iterations | 100 |
+| Output type | Greyscale phase |
+| Printer DPI | 1200 dpi |
+| Fabrication wavelength | 550 nm |
+| Refractive-index difference | 0.5 |
+| Maximum phase shift | 6.283185307179586 rad |
+<!-- fresnel-example:hologram/checker:end -->
 
 ## Example images
 
-### Synthetic checker target (64×64, 8 blocks)
+### Synthetic checker target (512 × 512, 8 blocks)
 
 ![Hologram target](../assets/plugins/hologram/target.png)
 
-The checker pattern is used as the target far-field amplitude distribution.
+The checker pattern is the embedded target far-field amplitude distribution. Its
+production output uses the bounded option:
 
-### Synthesised greyscale phase mask (50 GS iterations)
+```json
+{ "hologramPng": "SOURCE" }
+```
+
+### Synthesised greyscale phase mask (100 GS iterations)
 
 ![Hologram phase mask](../assets/plugins/hologram/hologram-mask.png)
 
-The continuous phase values (0–2π) are encoded as greyscale intensities.
-When illuminated by a coherent plane wave, this mask reconstructs an
-approximation of the checker target in the far field.
+The continuous phase values (0–2π) are encoded as greyscale intensities. The
+production output uses `MASK`, which is also the default when the option is
+omitted.
 
 ### Simulated optical reconstruction
 
 ![Hologram reconstruction](../assets/plugins/hologram/reconstruction.png)
 
-The reconstruction is computed as |FFT(H)|² of the phase mask.
-Residual speckle and artefacts are expected due to the finite number of
-iterations.
+The reconstruction is computed as |FFT(H)|² of the generated phase mask. Its
+production output uses:
+
+```json
+{ "hologramPng": "RECONSTRUCTION" }
+```
+
+Only `SOURCE`, `MASK` and `RECONSTRUCTION` are accepted. Unknown option fields or
+values fail visibly; job data cannot select a class, script or arbitrary module.
 
 ## Java API
 
 ```java
-// Prepare a target image (your own or the built-in helper)
-BufferedImage target = HologramParameters.syntheticCheckerTarget(64, 8);
+// Prepare the same checker target as the documentation job.
+BufferedImage target = HologramParameters.syntheticCheckerTarget(512, 8);
 
-// Synthesise the hologram
 HologramParameters p = new HologramParameters(
         target,
-        50,                                          // GS iterations
+        100,
         HologramParameters.OutputType.GREYSCALE_PHASE,
-        1200.0                                       // DPI
+        1200.0
 );
 RenderResult result = HologramSynthesizer.synthesize(p);
-BufferedImage mask   = result.image();
+BufferedImage mask = result.image();
 
-// Simulate the optical reconstruction (|FFT(H)|²)
 BufferedImage reconstruction = HologramSynthesizer.reconstruct(
         mask, HologramParameters.OutputType.GREYSCALE_PHASE);
 
-// Deterministic synthesis with explicit RNG seed
+// Deterministic synthesis with an explicitly selected alternative seed.
 RenderResult det = HologramSynthesizer.synthesize(p, 0xDEAD_BEEFL);
 ```
 
 ## Notes
 
 - The default `synthesize(p)` overload uses a fixed internal seed, so it is
-  **fully deterministic** across runs.
-- The target image must be square and its side length must be a power of two
-  (16, 32, 64, …, 1024).
-- Reconstruction quality improves with more iterations but quickly plateaus
-  after ~50–100 iterations for typical targets.
+  deterministic across runs.
+- The target grid side must be a power of two between 16 and 1024.
+- Reconstruction quality improves with more iterations but usually plateaus after
+  roughly 50–100 iterations for ordinary targets.
+- Documentation hashing compares decoded PNG pixels and dimensions rather than
+  encoder/compression bytes.
 
 ## Phase-relief STL export
 
-The backend can also export a **closed STL mesh** (`POST /api/holograms/export.stl`)
-from the synthesised phase mask.
+The backend can also export a **closed STL mesh** through the Hologram API or a
+canonical job output with format `stl`.
 
 Conversion assumptions:
 
@@ -95,17 +132,16 @@ Conversion assumptions:
 3. Physical relief height is `h = OPD / Δn` where `Δn` is the refractive-index
    difference between print material and ambient medium.
 
-Defaults used by the API if omitted:
+Pixel pitch in the STL (`x/y`) follows the same `dpi` value used for hologram mask
+generation. Synchronous STL export is capped at a 512-pixel side to bound memory.
 
-- `wavelengthNm = 550`
-- `refractiveIndexDelta = 0.5`
-- `maxPhaseShiftRad = 2π`
-
-Pixel pitch in the STL (`x/y`) follows the same `dpi` value used for the
-hologram mask generation.
-
-## Regenerating the example images
+## Reproducing and verifying the tracked images
 
 ```bash
-mvn -pl optics-core test -Dtest=PluginDocImagesTest#hologram_generateDocImages -Dfresnel.docs=generate
+bash packaging/docs-jobs.sh render \
+  docs/jobs/hologram/checker.fresnel \
+  docs/assets/plugins/hologram
+
+bash packaging/docs-jobs.sh verify-manifest \
+  docs/jobs docs/assets/plugins docs/generated/example-manifest.json
 ```
