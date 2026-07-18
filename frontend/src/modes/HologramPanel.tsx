@@ -47,19 +47,19 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
     () => new TextEncoder().encode(JSON.stringify(request)).byteLength,
     [request],
   );
-  const hasTarget = request.targetImageBase64.length > 0;
+  const requestHasTarget = request.targetImageBase64.length > 0;
   const jobFitsFileLimit = estimatedJobBytes <= FRESNEL_JOB_MAX_BYTES;
 
-  const build = (): HologramRequest | null => {
-    if (!hasTarget) {
+  const requireTarget = (parameters: HologramRequest): HologramRequest | null => {
+    if (!parameters.targetImageBase64) {
       setError('Please choose a target image.');
       return null;
     }
-    return request;
+    return parameters;
   };
 
-  const synthesise = async () => {
-    const built = build();
+  const synthesise = async (parameters: HologramRequest) => {
+    const built = requireTarget(parameters);
     if (!built) return;
     setBusy(true);
     setError(null);
@@ -74,8 +74,8 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
     }
   };
 
-  const reconstruct = async () => {
-    const built = build();
+  const reconstruct = async (parameters: HologramRequest) => {
+    const built = requireTarget(parameters);
     if (!built) return;
     setBusy(true);
     setError(null);
@@ -102,10 +102,14 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
         applyDefaultsOnLoad={!initialJob}
       >
         {(schema, structuralValidation) => {
-          const structurallyValid = structuralValidation?.valid === true;
+          const normalized = structuralValidation?.valid
+            ? structuralValidation.normalizedParameters
+            : undefined;
+          const structurallyValid = Boolean(normalized);
+          const hasTarget = Boolean(normalized?.targetImageBase64);
           return (
             <>
-              {hasTarget && !jobFitsFileLimit && (
+              {requestHasTarget && !jobFitsFileLimit && (
                 <div className="warning" role="alert">
                   This embedded target is too large for the current 1 MiB `.fresnel` job envelope.
                   Synthesis remains available, but saving the design job is disabled. Use a smaller
@@ -121,13 +125,14 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
                     label: busy ? 'Synthesising…' : 'Synthesise mask',
                     primary: true,
                     disabled: !hasTarget || !structurallyValid,
-                    run: synthesise,
+                    run: () => normalized && synthesise(normalized),
                   },
                   EXPORT_PNG: {
                     label: 'PNG',
                     disabled: !hasTarget || !structurallyValid,
                     run: async () => {
-                      const built = build();
+                      if (!normalized) return;
+                      const built = requireTarget(normalized);
                       if (!built) return;
                       try {
                         await downloadHologramPng(built, 'fresnel-hologram.png');
@@ -142,7 +147,8 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
                     label: 'STL',
                     disabled: !hasTarget || !structurallyValid,
                     run: async () => {
-                      const built = build();
+                      if (!normalized) return;
+                      const built = requireTarget(normalized);
                       if (!built) return;
                       try {
                         await downloadHologramStl(built, 'fresnel-hologram-relief.stl');
@@ -160,7 +166,7 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
                 <div className="actions" data-editor-extension="reconstruction-preview">
                   <button
                     className="secondary"
-                    onClick={reconstruct}
+                    onClick={() => normalized && void reconstruct(normalized)}
                     disabled={busy || !hasTarget || !structurallyValid}
                   >
                     Simulate reconstruction
@@ -170,7 +176,7 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
 
               <SaveJobControl
                 pluginId="hologram"
-                parameters={hasTarget && jobFitsFileLimit && structurallyValid ? request : null}
+                parameters={hasTarget && jobFitsFileLimit ? normalized ?? null : null}
                 disabled={busy || !structurallyValid}
               />
               {error && <p className="error-message">{error}</p>}
