@@ -24,7 +24,7 @@ const HEX_JOB = {
   },
 };
 
-test('consumes a desktop token, cleans the URL and selects the correct editor', async ({ page }) => {
+test('consumes a desktop token, cleans the URL and selects the schema editor route', async ({ page }) => {
   let consumeCount = 0;
   await page.route(`**/api/desktop/open/${TOKEN}`, async (route) => {
     consumeCount += 1;
@@ -37,17 +37,22 @@ test('consumes a desktop token, cleans the URL and selects the correct editor', 
 
   await page.goto(`/?fresnelOpen=${TOKEN}`);
 
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/plugins\/hex-macro-cell$/);
   await expect(page.getByRole('tab', { name: 'Hex macro' }))
     .toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByLabel('Macro radius (mm)')).toHaveValue('37');
-  await expect(page.getByLabel('Focal length (mm)')).toHaveValue('900');
+  const form = page.locator('[data-plugin-schema="hex-macro-cell"]');
+  await expect(form.getByRole('spinbutton', { name: /^Macro radius \(mm\)/ }))
+    .toHaveValue('37');
+  await expect(form.getByRole('spinbutton', { name: /^Focal length \(mm\)/ }))
+    .toHaveValue('900');
   await expect(page.getByRole('status')).toContainText('Opened desktop job as hex-macro-cell');
   expect(consumeCount).toBe(1);
 
-  // Refreshing the cleaned URL must not attempt to consume the one-time token again.
+  // Refreshing the stable, cleaned route must not consume the one-time token again.
   await page.reload();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/plugins\/hex-macro-cell$/);
+  await expect(page.getByRole('tab', { name: 'Hex macro' }))
+    .toHaveAttribute('aria-selected', 'true');
   expect(consumeCount).toBe(1);
 });
 
@@ -71,7 +76,9 @@ test('shows an invalid desktop job without replacing the current editor state', 
     .toContainText('Unsupported Fresnel job format version 999');
   await expect(page.getByRole('tab', { name: 'Single ZP' }))
     .toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByLabel('Aperture diameter (mm)', { exact: true })).toHaveValue('10');
+  const form = page.locator('[data-plugin-schema="zone-plate"]');
+  await expect(form.getByRole('spinbutton', { name: /^Aperture diameter \(mm\)/ }))
+    .toHaveValue('10');
 });
 
 test('shows an expired-token error and removes the token from browser history', async ({ page }) => {
