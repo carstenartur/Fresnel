@@ -37,8 +37,8 @@ public final class FresnelDocumentationManifestService {
             throws IOException {
         Path normalizedJobRoot = requireDirectory(jobRoot, "documentation job root");
         Path normalizedAssetRoot = requireDirectory(assetRoot, "documentation asset root");
-        String jobRootDisplay = portable(jobRoot.normalize());
-        String assetRootDisplay = portable(assetRoot.normalize());
+        String jobRootDisplay = documentationPath(normalizedJobRoot);
+        String assetRootDisplay = documentationPath(normalizedAssetRoot);
 
         List<Path> jobs = discoverJobs(normalizedJobRoot);
         if (jobs.isEmpty()) {
@@ -144,6 +144,20 @@ public final class FresnelDocumentationManifestService {
             throw new IllegalArgumentException(label + " is not a directory: " + path);
         }
         return normalized;
+    }
+
+    /**
+     * Makes manifests stable whether Maven starts in the repository root or a
+     * module directory by keeping only the repository-relative `docs/...` suffix.
+     */
+    private static String documentationPath(Path path) {
+        Path normalized = path.normalize();
+        for (int index = 0; index < normalized.getNameCount(); index++) {
+            if ("docs".equals(normalized.getName(index).toString())) {
+                return portable(normalized.subpath(index, normalized.getNameCount()));
+            }
+        }
+        return portable(normalized);
     }
 
     private static String appendPortable(String root, String relative) {
