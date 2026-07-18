@@ -147,18 +147,22 @@ public final class FresnelDocumentationManifestService {
      */
     private static String documentationPath(Path path) {
 <span class="fc" id="L149">        Path normalized = path.normalize();</span>
-<span class="fc bfc" id="L150" title="All 2 branches covered.">        for (int index = 0; index &lt; normalized.getNameCount(); index++) {</span>
-<span class="fc bfc" id="L151" title="All 2 branches covered.">            if (&quot;docs&quot;.equals(normalized.getName(index).toString())) {</span>
-<span class="fc" id="L152">                return FresnelDocumentationFiles.portable(</span>
-<span class="fc" id="L153">                        normalized.subpath(index, normalized.getNameCount()));</span>
+<span class="fc" id="L150">        int documentationRoot = -1;</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        for (int index = 0; index &lt; normalized.getNameCount(); index++) {</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">            if (&quot;docs&quot;.equals(normalized.getName(index).toString())) {</span>
+<span class="fc" id="L153">                documentationRoot = index;</span>
             }
         }
-<span class="fc" id="L156">        return FresnelDocumentationFiles.portable(normalized);</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        if (documentationRoot &gt;= 0) {</span>
+<span class="fc" id="L157">            return FresnelDocumentationFiles.portable(</span>
+<span class="fc" id="L158">                    normalized.subpath(documentationRoot, normalized.getNameCount()));</span>
+        }
+<span class="fc" id="L160">        return FresnelDocumentationFiles.portable(normalized);</span>
     }
 
     private static String appendPortable(String root, String relative) {
-<span class="pc bpc" id="L160" title="3 of 6 branches missed.">        if (root == null || root.isBlank() || &quot;.&quot;.equals(root)) return relative;</span>
-<span class="pc bpc" id="L161" title="1 of 2 branches missed.">        return root.endsWith(&quot;/&quot;) ? root + relative : root + &quot;/&quot; + relative;</span>
+<span class="pc bpc" id="L164" title="3 of 6 branches missed.">        if (root == null || root.isBlank() || &quot;.&quot;.equals(root)) return relative;</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">        return root.endsWith(&quot;/&quot;) ? root + relative : root + &quot;/&quot; + relative;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
