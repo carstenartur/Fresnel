@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { FresnelPluginId } from '../jobApi';
 import {
   fetchPluginSchema,
+  validatePluginParameters,
+  type PluginParameterValidation,
   type PluginSchemaDocument,
 } from '../pluginSchemaApi';
 import {
@@ -16,15 +18,20 @@ export interface PluginEditorShellProps<T extends object> {
   disabled?: boolean;
   customWidgets?: Readonly<Record<string, SchemaCustomWidget>>;
   applyDefaultsOnLoad?: boolean;
-  children?: (schema: PluginSchemaDocument<T>) => ReactNode;
+  onStructuralValidation?: (validation: PluginParameterValidation<T> | null) => void;
+  children?: (
+    schema: PluginSchemaDocument<T>,
+    validation: PluginParameterValidation<T> | null,
+  ) => ReactNode;
 }
 
 /**
  * Common lifecycle for every schema-backed plugin editor.
  *
  * <p>The shell owns schema retrieval, loading/error presentation, optional
- * default initialization and the standard form. Plugin panels retain only
- * renderer-specific state and trusted extension components.</p>
+ * default initialization, the standard form and debounced canonical structural
+ * validation. Plugin panels retain only renderer-specific state and trusted
+ * extension components.</p>
  */
 export function PluginEditorShell<T extends object>({
   pluginId,
@@ -33,22 +40,34 @@ export function PluginEditorShell<T extends object>({
   disabled = false,
   customWidgets = {},
   applyDefaultsOnLoad = false,
+  onStructuralValidation,
   children,
 }: PluginEditorShellProps<T>) {
   const [schema, setSchema] = useState<PluginSchemaDocument<T> | null>(null);
   const [schemaError, setSchemaError] = useState<string | null>(null);
+  const [validation, setValidation] = useState<PluginParameterValidation<T> | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const defaultsApplied = useRef(false);
   const onChangeRef = useRef(onChange);
+  const validationCallbackRef = useRef(onStructuralValidation);
+  const validationRequestId = useRef(0);
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
   useEffect(() => {
+    validationCallbackRef.current = onStructuralValidation;
+  }, [onStructuralValidation]);
+
+  useEffect(() => {
     let active = true;
     defaultsApplied.current = false;
     setSchema(null);
     setSchemaError(null);
+    setValidation(null);
+    setValidationError(null);
+    validationCallbackRef.current?.(null);
 
     fetchPluginSchema<T>(pluginId)
       .then((loaded) => {
@@ -67,6 +86,29 @@ export function PluginEditorShell<T extends object>({
 
     return () => { active = false; };
   }, [pluginId, applyDefaultsOnLoad]);
+
+  useEffect(() => {
+    if (!schema) return;
+    const requestId = ++validationRequestId.current;
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await validatePluginParameters(pluginId, value);
+        if (requestId !== validationRequestId.current) return;
+        setValidation(result);
+        setValidationError(null);
+        validationCallbackRef.current?.(result);
+      } catch (requestError) {
+        if (requestId !== validationRequestId.current) return;
+        setValidation(null);
+        setValidationError(requestError instanceof Error
+          ? requestError.message
+          : String(requestError));
+        validationCallbackRef.current?.(null);
+      }
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [pluginId, schema, value]);
 
   return (
     <div data-plugin-editor-shell={pluginId}>
@@ -89,7 +131,31 @@ export function PluginEditorShell<T extends object>({
         <p className="error-message">Could not load editor schema: {schemaError}</p>
       )}
 
-      {schema && children?.(schema)}
+      {validation && !validation.valid && (
+        <div
+          className="warning error"
+          role="alert"
+          data-parameter-validation="invalid"
+          style={{ marginBottom: 12 }}
+        >
+          <strong>Parameter validation failed</strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {validation.errors.map((fieldError, index) => (
+              <li key={`${fieldError.path}:${fieldError.code}:${index}`}>
+                <code>{fieldError.path}</code>: {fieldError.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {validationError && (
+        <p className="error-message" role="alert">
+          Could not validate plugin parameters: {validationError}
+        </p>
+      )}
+
+      {schema && children?.(schema, validation)}
     </div>
   );
 }
