@@ -19,17 +19,17 @@ test('Zone Plate standard fields and actions come from the plugin schema', async
   await expect(form.locator('[data-schema-group="off-axis-target"]')).toBeVisible();
   await expect(form.locator('[data-schema-group="production"]')).toBeVisible();
 
-  const aperture = page.getByLabel('Aperture diameter (mm)');
+  const aperture = form.getByRole('spinbutton', { name: /^Aperture diameter \(mm\)/ });
   await aperture.fill('0');
   await expect(aperture).toHaveAttribute('aria-invalid', 'true');
   await aperture.fill('12');
-  await page.getByLabel('Focal length (mm)').fill('750');
-  await page.getByLabel('Wavelength (nm)').fill('532');
-  await page.getByLabel('Target offset X (mm)').fill('2');
-  await page.getByLabel('Target offset Y (mm)').fill('-1');
-  await page.getByLabel('Printer DPI').fill('2400');
-  await page.getByLabel('Mask type').selectOption('GREYSCALE_PHASE');
-  await page.getByLabel('Polarity').selectOption('NEGATIVE');
+  await form.getByRole('spinbutton', { name: /^Focal length \(mm\)/ }).fill('750');
+  await form.getByRole('spinbutton', { name: /^Wavelength \(nm\)/ }).fill('532');
+  await form.getByRole('spinbutton', { name: /^Target offset X \(mm\)/ }).fill('2');
+  await form.getByRole('spinbutton', { name: /^Target offset Y \(mm\)/ }).fill('-1');
+  await form.getByRole('spinbutton', { name: /^Printer DPI/ }).fill('2400');
+  await form.getByLabel('Mask type').selectOption('GREYSCALE_PHASE');
+  await form.getByLabel('Polarity').selectOption('NEGATIVE');
 
   const actionBar = page.locator('[data-plugin-action-bar="true"]');
   await expect(actionBar.getByRole('button', { name: 'Render preview' })).toBeVisible();
