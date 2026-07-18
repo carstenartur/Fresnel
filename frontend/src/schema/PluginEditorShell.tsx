@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { validatePlugin, type DesignValidationReport } from '../api';
 import type { FresnelPluginId } from '../jobApi';
 import {
   fetchPluginSchema,
@@ -24,10 +25,13 @@ export interface PluginEditorShellProps<T extends object> {
   disabled?: boolean;
   customWidgets?: Readonly<Record<string, SchemaCustomWidget>>;
   applyDefaultsOnLoad?: boolean;
+  domainValidationEnabled?: boolean;
   onStructuralValidation?: (validation: PluginParameterValidation<T> | null) => void;
+  onDomainValidation?: (validation: DesignValidationReport | null) => void;
   children?: (
     schema: PluginSchemaDocument<T>,
-    validation: PluginParameterValidation<T> | null,
+    structuralValidation: PluginParameterValidation<T> | null,
+    domainValidation: DesignValidationReport | null,
   ) => ReactNode;
 }
 
@@ -36,13 +40,18 @@ interface ValidationSnapshot<T extends object> {
   result: PluginParameterValidation<T>;
 }
 
+interface DomainValidationSnapshot {
+  fingerprint: string;
+  result: DesignValidationReport;
+}
+
 /**
  * Common lifecycle for every schema-backed plugin editor.
  *
  * <p>The shell owns schema retrieval, loading/error presentation, optional
- * default initialization, the standard form and debounced canonical structural
- * validation. Plugin panels retain only renderer-specific state and trusted
- * extension components.</p>
+ * default initialization, the standard form, canonical structural normalization
+ * and debounced backend domain validation. Plugin panels retain only renderer-
+ * specific operations and trusted extension components.</p>
  */
 export function PluginEditorShell<T extends object>({
   pluginId,
@@ -51,7 +60,9 @@ export function PluginEditorShell<T extends object>({
   disabled = false,
   customWidgets = {},
   applyDefaultsOnLoad = false,
+  domainValidationEnabled = true,
   onStructuralValidation,
+  onDomainValidation,
   children,
 }: PluginEditorShellProps<T>) {
   const [schema, setSchema] = useState<PluginSchemaDocument<T> | null>(null);
@@ -59,30 +70,53 @@ export function PluginEditorShell<T extends object>({
   const [validationSnapshot, setValidationSnapshot] =
     useState<ValidationSnapshot<T> | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [domainSnapshot, setDomainSnapshot] =
+    useState<DomainValidationSnapshot | null>(null);
+  const [domainValidationError, setDomainValidationError] = useState<string | null>(null);
   const [visibleFormValid, setVisibleFormValid] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
   const defaultsApplied = useRef(false);
   const onChangeRef = useRef(onChange);
-  const validationCallbackRef = useRef(onStructuralValidation);
+  const structuralCallbackRef = useRef(onStructuralValidation);
+  const domainCallbackRef = useRef(onDomainValidation);
   const validationRequestId = useRef(0);
+  const domainRequestId = useRef(0);
   const validityTimer = useRef<number | null>(null);
   const valueFingerprint = JSON.stringify(value);
   const validation = validationSnapshot?.fingerprint === valueFingerprint
     ? validationSnapshot.result
     : null;
   const effectiveValidation = visibleFormValid ? validation : null;
+  const normalizedParameters = effectiveValidation?.valid
+    ? effectiveValidation.normalizedParameters
+    : undefined;
+  const normalizedFingerprint = normalizedParameters
+    ? JSON.stringify(normalizedParameters)
+    : null;
+  const domainValidation = normalizedFingerprint
+      && domainSnapshot?.fingerprint === normalizedFingerprint
+    ? domainSnapshot.result
+    : null;
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
   useEffect(() => {
-    validationCallbackRef.current = onStructuralValidation;
+    structuralCallbackRef.current = onStructuralValidation;
   }, [onStructuralValidation]);
 
   useEffect(() => {
-    validationCallbackRef.current?.(effectiveValidation);
+    domainCallbackRef.current = onDomainValidation;
+  }, [onDomainValidation]);
+
+  useEffect(() => {
+    structuralCallbackRef.current?.(effectiveValidation);
   }, [effectiveValidation]);
+
+  useEffect(() => {
+    domainCallbackRef.current?.(domainValidation);
+  }, [domainValidation]);
 
   useEffect(() => {
     let active = true;
@@ -91,6 +125,8 @@ export function PluginEditorShell<T extends object>({
     setSchemaError(null);
     setValidationSnapshot(null);
     setValidationError(null);
+    setDomainSnapshot(null);
+    setDomainValidationError(null);
     setVisibleFormValid(false);
 
     fetchPluginSchema<T>(pluginId)
@@ -138,6 +174,39 @@ export function PluginEditorShell<T extends object>({
 
     return () => window.clearTimeout(timer);
   }, [pluginId, schema, value, valueFingerprint]);
+
+  useEffect(() => {
+    const requestId = ++domainRequestId.current;
+    if (!domainValidationEnabled || !normalizedParameters || !normalizedFingerprint) {
+      setDomainSnapshot(null);
+      setDomainValidationError(null);
+      return;
+    }
+
+    setDomainSnapshot(null);
+    setDomainValidationError(null);
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await validatePlugin(pluginId, normalizedParameters);
+        if (requestId !== domainRequestId.current) return;
+        setDomainSnapshot({ fingerprint: normalizedFingerprint, result });
+        setDomainValidationError(null);
+      } catch (requestError) {
+        if (requestId !== domainRequestId.current) return;
+        setDomainSnapshot(null);
+        setDomainValidationError(requestError instanceof Error
+          ? requestError.message
+          : String(requestError));
+      }
+    }, 150);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    pluginId,
+    domainValidationEnabled,
+    normalizedParameters,
+    normalizedFingerprint,
+  ]);
 
   const checkVisibleFormValidity = () => {
     const schemaForm = shellRef.current?.querySelector('[data-plugin-schema]');
@@ -220,7 +289,13 @@ export function PluginEditorShell<T extends object>({
         </p>
       )}
 
-      {schema && children?.(schema, effectiveValidation)}
+      {domainValidationError && (
+        <p className="error-message" role="alert">
+          Could not validate the plugin design: {domainValidationError}
+        </p>
+      )}
+
+      {schema && children?.(schema, effectiveValidation, domainValidation)}
     </div>
   );
 }
