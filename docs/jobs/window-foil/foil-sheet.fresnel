@@ -1,0 +1,42 @@
+{
+  "$schema": "https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json",
+  "format": "io.github.carstenartur.fresnel.job",
+  "formatVersion": 1,
+  "plugin": {
+    "id": "window-foil",
+    "parameterSchemaVersion": 1,
+    "algorithmVersion": "window-foil/1"
+  },
+  "parameters": {
+    "sheetWidthMm": 60.0,
+    "sheetHeightMm": 40.0,
+    "macroRadiusMm": 12.0,
+    "subDiameterMm": 4.0,
+    "subPitchMm": 4.5,
+    "wavelengthNm": 550.0,
+    "dpi": 200.0,
+    "maskType": "BINARY_AMPLITUDE",
+    "polarity": "POSITIVE",
+    "cellSpecs": [
+      {
+        "focalLengthMm": 1000.0,
+        "targetOffsetXmm": 0.0,
+        "targetOffsetYmm": 0.0
+      }
+    ],
+    "drawCropMarks": true
+  },
+  "production": {
+    "outputs": [
+      {
+        "id": "documentation-preview",
+        "format": "png",
+        "filename": "foil-sheet.png"
+      }
+    ]
+  },
+  "provenance": {
+    "createdWith": "Fresnel documentation",
+    "applicationVersion": "development"
+  }
+}
