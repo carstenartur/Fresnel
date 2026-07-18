@@ -120,6 +120,7 @@ export function PluginEditorShell<T extends object>({
           onChange={onChange}
           disabled={disabled}
           customWidgets={customWidgets}
+          fieldErrors={validation?.errors ?? []}
         />
       ) : !schemaError ? (
         <p role="status" style={{ fontSize: 12, color: '#6b7280' }}>
