@@ -1,6 +1,8 @@
 package org.fresnel.backend.docs;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -19,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class FresnelDocumentationManifestServiceTest {
 
     private static final List<String> MIGRATED_EXAMPLES = List.of(
@@ -47,12 +50,18 @@ class FresnelDocumentationManifestServiceTest {
 
     @Autowired FresnelDocumentationManifestService service;
 
-    @Test
-    void manifestTracesEveryMigratedJobToVerifiedArtifacts() throws Exception {
-        Path jobs = repositoryDirectory("docs/jobs");
-        Path assets = repositoryDirectory("docs/assets/plugins");
+    private Path assets;
+    private FresnelDocumentationManifest manifest;
 
-        FresnelDocumentationManifest manifest = service.generate(jobs, assets);
+    @BeforeAll
+    void generateManifestOnceForTheReadOnlyContractTests() throws Exception {
+        Path jobs = repositoryDirectory("docs/jobs");
+        assets = repositoryDirectory("docs/assets/plugins");
+        manifest = service.generate(jobs, assets);
+    }
+
+    @Test
+    void manifestTracesEveryMigratedJobToVerifiedArtifacts() {
         assertEquals(1, manifest.formatVersion());
         assertEquals(MIGRATED_EXAMPLES,
                 manifest.examples().stream()
@@ -124,15 +133,11 @@ class FresnelDocumentationManifestServiceTest {
     @Test
     void manifestSerializationIsDeterministicAndMigratedPngsHaveNoOrphans()
             throws Exception {
-        Path jobs = repositoryDirectory("docs/jobs");
-        Path assets = repositoryDirectory("docs/assets/plugins");
-        FresnelDocumentationManifest first = service.generate(jobs, assets);
-        FresnelDocumentationManifest second = service.generate(jobs, assets);
         assertEquals(
-                new String(service.write(first), StandardCharsets.UTF_8),
-                new String(service.write(second), StandardCharsets.UTF_8));
+                new String(service.write(manifest), StandardCharsets.UTF_8),
+                new String(service.write(manifest), StandardCharsets.UTF_8));
 
-        Set<String> manifestAssets = first.examples().stream()
+        Set<String> manifestAssets = manifest.examples().stream()
                 .flatMap(example -> example.artifacts().stream())
                 .map(FresnelDocumentationManifest.Artifact::path)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
