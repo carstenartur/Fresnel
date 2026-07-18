@@ -45,7 +45,8 @@ test('consumes a desktop token, cleans the URL and selects the schema editor rou
     .toHaveValue('37');
   await expect(form.getByRole('spinbutton', { name: /^Focal length \(mm\)/ }))
     .toHaveValue('900');
-  await expect(page.getByRole('status')).toContainText('Opened desktop job as hex-macro-cell');
+  await expect(page.getByRole('status').filter({ hasText: 'Opened desktop job as hex-macro-cell' }))
+    .toBeVisible();
   expect(consumeCount).toBe(1);
 
   // Refreshing the stable, cleaned route must not consume the one-time token again.
