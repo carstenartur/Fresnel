@@ -9,9 +9,8 @@ function jobInput(page: Page): Locator {
   return page.locator('input[type="file"][accept*=".fresnel"]');
 }
 
-async function clickDownload(button: Locator): Promise<Download> {
+async function clickDownload(page: Page, button: Locator): Promise<Download> {
   await expect(button).toBeEnabled({ timeout: 30_000 });
-  const page = button.page();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     button.click(),
@@ -24,7 +23,7 @@ async function clickDownload(button: Locator): Promise<Download> {
 }
 
 async function saveJob(page: Page): Promise<Download> {
-  return clickDownload(page.getByRole('button', { name: 'Save job (.fresnel)' }));
+  return clickDownload(page, page.getByRole('button', { name: 'Save job (.fresnel)' }));
 }
 
 test('Hex Macro Cell completes preview, export and job round trip', async ({ page }) => {
@@ -43,7 +42,7 @@ test('Hex Macro Cell completes preview, export and job round trip', async ({ pag
   await render.click();
   await expect(page.getByRole('img', { name: 'Hex macro cell preview' }))
     .toBeVisible({ timeout: 30_000 });
-  await clickDownload(page.getByRole('button', { name: 'PNG', exact: true }));
+  await clickDownload(page, page.getByRole('button', { name: 'PNG', exact: true }));
 
   const saved = await saveJob(page);
   const savedPath = await saved.path();
@@ -71,7 +70,7 @@ test('Window Foil completes preview, PDF export and job round trip', async ({ pa
   await render.click();
   await expect(page.getByRole('img', { name: 'Window foil preview' }))
     .toBeVisible({ timeout: 30_000 });
-  await clickDownload(page.getByRole('button', { name: 'PDF (A4)' }));
+  await clickDownload(page, page.getByRole('button', { name: 'PDF (A4)' }));
 
   const saved = await saveJob(page);
   const savedPath = await saved.path();
@@ -99,7 +98,7 @@ test('Multi-Focus completes preview, PNG export and job round trip', async ({ pa
   await render.click();
   await expect(page.getByRole('img', { name: 'Multi-focus preview' }))
     .toBeVisible({ timeout: 30_000 });
-  await clickDownload(page.getByRole('button', { name: 'PNG', exact: true }));
+  await clickDownload(page, page.getByRole('button', { name: 'PNG', exact: true }));
 
   const saved = await saveJob(page);
   const savedPath = await saved.path();
@@ -128,7 +127,7 @@ test('RGB Zone Plate completes preview, PNG export and job round trip', async ({
   await render.click();
   await expect(page.getByRole('img', { name: 'RGB zone plate preview' }))
     .toBeVisible({ timeout: 30_000 });
-  await clickDownload(page.getByRole('button', { name: 'PNG', exact: true }));
+  await clickDownload(page, page.getByRole('button', { name: 'PNG', exact: true }));
 
   const saved = await saveJob(page);
   const savedPath = await saved.path();
@@ -158,7 +157,7 @@ test('Hologram completes synthesis, PNG export and embedded-asset job round trip
   await synthesise.click();
   await expect(page.getByRole('img', { name: 'Hologram phase mask' }))
     .toBeVisible({ timeout: 30_000 });
-  await clickDownload(page.getByRole('button', { name: 'PNG', exact: true }));
+  await clickDownload(page, page.getByRole('button', { name: 'PNG', exact: true }));
 
   const saved = await saveJob(page);
   const savedPath = await saved.path();
