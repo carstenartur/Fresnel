@@ -16,9 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Integration tests for documentation images that have not yet been migrated to
  * public `.fresnel` production jobs.
  *
- * <p>The three Zone Plate examples deliberately no longer live here. Their source
- * of truth is `docs/jobs/zone-plate/*.fresnel`, executed and drift-checked by
- * `FresnelJobExecutorTest` in the backend module.</p>
+ * <p>Zone Plate, RGB Zone Plate, Multi-Focus and Hex Macro Cell examples no
+ * longer live here. Their source of truth is `docs/jobs/<plugin>/*.fresnel`,
+ * executed and drift-checked through `FresnelJobExecutor` in the backend module.</p>
  *
  * <p>By default remaining images are written to
  * {@code target/doc-images/<plugin>/}. To regenerate their committed assets under
@@ -61,53 +61,6 @@ class PluginDocImagesTest {
                 "image height " + img.getHeight() + " < " + minHeight);
         assertTrue(Files.exists(saved), "file not written: " + saved.getFileName());
         assertTrue(Files.size(saved) > 0, "file is empty: " + saved.getFileName());
-    }
-
-    @Test
-    void rgbZonePlate_generateDocImages() throws IOException {
-        Path dir = pluginDir("rgb-zone-plate");
-
-        SingleZonePlateParameters base = SingleZonePlateParameters.onAxis(
-                10.0, 250.0, 550.0, 1200.0);
-        RenderResult rgb = RgbZonePlateRenderer.render(base, 630.0, 532.0, 450.0);
-        Path fRgb = savePng(rgb.image(), dir, "rgb.png");
-        assertImage(rgb.image(), fRgb, 400, 400);
-    }
-
-    @Test
-    void multiFocus_generateDocImages() throws IOException {
-        Path dir = pluginDir("multi-focus");
-
-        MultiFocusParameters twoFoci = new MultiFocusParameters(
-                10.0,
-                List.of(
-                        new MultiFocusParameters.FocusPoint(-3.0, 0.0, 300.0),
-                        new MultiFocusParameters.FocusPoint(+3.0, 0.0, 300.0)),
-                550.0, 1200.0,
-                MaskType.BINARY_AMPLITUDE, Polarity.POSITIVE);
-        RenderResult rTwo = MultiFocusRenderer.render(twoFoci);
-        Path fTwo = savePng(rTwo.image(), dir, "two-foci.png");
-        assertImage(rTwo.image(), fTwo, 400, 400);
-
-        List<MultiFocusParameters.FocusPoint> line =
-                MultiFocusParameters.lineOfPoints(-4, 0, 400, 4, 0, 400, 5);
-        MultiFocusParameters lineFocus = new MultiFocusParameters(
-                10.0, line, 550.0, 1200.0,
-                MaskType.BINARY_AMPLITUDE, Polarity.POSITIVE);
-        RenderResult rLine = MultiFocusRenderer.render(lineFocus);
-        Path fLine = savePng(rLine.image(), dir, "line-focus.png");
-        assertImage(rLine.image(), fLine, 400, 400);
-    }
-
-    @Test
-    void hexMacroCell_generateDocImages() throws IOException {
-        Path dir = pluginDir("hex-macro-cell");
-
-        HexMacroCellParameters p = HexMacroCellParameters.onAxis(
-                15.0, 5.0, 5.5, 500.0, 550.0, 400.0);
-        RenderResult r = HexMacroCellRenderer.render(p);
-        Path f = savePng(r.image(), dir, "on-axis.png");
-        assertImage(r.image(), f, 400, 400);
     }
 
     @Test
