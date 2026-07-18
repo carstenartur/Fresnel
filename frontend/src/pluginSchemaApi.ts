@@ -42,6 +42,7 @@ export interface ParameterFieldSchema {
   required?: string[];
   items?: ParameterFieldSchema;
   contentEncoding?: string;
+  readOnly?: boolean;
   'x-fresnel-unit'?: string;
   'x-fresnel-step'?: number;
   'x-fresnel-precision'?: number;
@@ -63,17 +64,33 @@ export interface PluginParameterSchema {
   properties: Record<string, ParameterFieldSchema>;
 }
 
+export type PluginUiConditionValue = string | number | boolean | null;
+
+/**
+ * Deliberately small condition model. Exactly one comparison operator is allowed;
+ * there is no expression language, script or dynamic property evaluation.
+ */
+export interface PluginUiCondition {
+  path: string;
+  equals?: PluginUiConditionValue;
+  notEquals?: PluginUiConditionValue;
+  oneOf?: PluginUiConditionValue[];
+}
+
 export interface PluginUiGroup {
   id: string;
   title: string;
   fields: string[];
   collapsible?: boolean;
   advanced?: boolean;
+  visibleWhen?: PluginUiCondition;
 }
 
 export interface PluginUiWidget {
   type: string;
   presets?: Array<number | string>;
+  visibleWhen?: PluginUiCondition;
+  readOnly?: boolean;
 }
 
 export interface PluginUiSchema {
