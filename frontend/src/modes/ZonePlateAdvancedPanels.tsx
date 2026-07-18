@@ -338,7 +338,13 @@ export function ExperimentValidationPanel({
   );
 }
 
-export function PropagationPanel({ req }: { req: SingleZonePlateRequest }) {
+export function PropagationPanel({
+  req,
+  disabled = false,
+}: {
+  req: SingleZonePlateRequest;
+  disabled?: boolean;
+}) {
   const [zMm, setZMm] = useState(req.focalLengthMm);
   const zMmEditedRef = useRef(false);
   const [mode, setMode] = useState<PropagationMode>('FRESNEL_TF');
@@ -351,6 +357,7 @@ export function PropagationPanel({ req }: { req: SingleZonePlateRequest }) {
   }, [req.focalLengthMm]);
 
   const renderPropagation = async () => {
+    if (disabled) return;
     setLoading(true);
     setError(null);
     try {
@@ -385,7 +392,7 @@ export function PropagationPanel({ req }: { req: SingleZonePlateRequest }) {
         <select
           id="prop-mode"
           value={mode}
-          disabled={loading}
+          disabled={loading || disabled}
           onChange={(event) => setMode(event.target.value as PropagationMode)}
         >
           <option value="FRESNEL_TF">Fresnel TF (angular spectrum)</option>
@@ -393,7 +400,7 @@ export function PropagationPanel({ req }: { req: SingleZonePlateRequest }) {
         </select>
       </div>
       <div className="actions">
-        <button onClick={renderPropagation} disabled={loading}>
+        <button onClick={renderPropagation} disabled={loading || disabled}>
           {loading ? 'Propagating…' : 'Compute propagation'}
         </button>
       </div>
