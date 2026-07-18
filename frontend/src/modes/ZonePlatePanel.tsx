@@ -28,6 +28,7 @@ import {
   SaveJobControl,
   type JobPanelProps,
 } from '../jobs/JobFileControls';
+import type { PluginParameterValidation } from '../pluginSchemaApi';
 import { PluginActionBar } from '../schema/PluginActionBar';
 import { PluginEditorShell } from '../schema/PluginEditorShell';
 import {
@@ -79,11 +80,13 @@ const DEFAULT_MEASURED_FOCUS: MeasuredFocus = {
 export function ZonePlatePanel({ initialJob }: JobPanelProps) {
   const [request, setRequest] = useState<SingleZonePlateRequest>(() =>
     initialJobParameters(initialJob, 'zone-plate', FALLBACK_DEFAULTS));
+  const [structuralValidation, setStructuralValidation] =
+    useState<PluginParameterValidation<SingleZonePlateRequest> | null>(null);
   const [metrics, setMetrics] = useState<DesignMetrics | null>(null);
   const [qualityReport, setQualityReport] = useState<OpticalQualityReport | null>(null);
   const [warnings, setWarnings] = useState<Warning[]>([]);
   const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
-  const [valid, setValid] = useState(true);
+  const [valid, setValid] = useState(false);
   const [previewUrl, setPreviewUrl] = useBlobUrl();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,23 +99,52 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
   const [experimentError, setExperimentError] = useState<string | null>(null);
   const [comparingExperiment, setComparingExperiment] = useState(false);
   const lastValidationId = useRef(0);
+  const initialPreviewRendered = useRef(false);
+
+  // A changed public parameter object invalidates the previous normalized/domain
+  // result immediately. The shell will publish a fresh canonical result after its
+  // debounce; no domain endpoint receives an unvalidated intermediate value.
+  useEffect(() => {
+    lastValidationId.current += 1;
+    setStructuralValidation(null);
+    setMetrics(null);
+    setQualityReport(null);
+    setWarnings([]);
+    setValidationReport(null);
+    setValid(false);
+    setError(null);
+  }, [request]);
 
   useEffect(() => {
+    if (structuralValidation?.valid !== true
+        || !structuralValidation.normalizedParameters) {
+      return;
+    }
+
+    const normalized = structuralValidation.normalizedParameters;
     const validationId = ++lastValidationId.current;
-    const timer = window.setTimeout(async () => {
+    let active = true;
+
+    const runDomainValidation = async () => {
       try {
-        const response = await validate(request);
-        if (validationId !== lastValidationId.current) return;
-        const report = await validatePlugin('zone-plate', request);
-        if (validationId !== lastValidationId.current) return;
+        const response = await validate(normalized);
+        if (!active || validationId !== lastValidationId.current) return;
+        const report = await validatePlugin('zone-plate', normalized);
+        if (!active || validationId !== lastValidationId.current) return;
+
         setMetrics(response.metrics);
         setQualityReport(response.qualityReport ?? null);
         setWarnings(response.warnings);
-        setValid(response.valid);
+        setValid(response.valid && report.valid);
         setValidationReport(report);
         setError(null);
+
+        if (!initialPreviewRendered.current && response.valid && report.valid) {
+          initialPreviewRendered.current = true;
+          setPreviewUrl(await fetchPreviewPng(normalized));
+        }
       } catch (validationError) {
-        if (validationId !== lastValidationId.current) return;
+        if (!active || validationId !== lastValidationId.current) return;
         setMetrics(null);
         setQualityReport(null);
         setWarnings([]);
@@ -122,27 +154,28 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
           ? validationError.message
           : String(validationError));
       }
-    }, 200);
-    return () => window.clearTimeout(timer);
-  }, [request]);
+    };
+
+    void runDomainValidation();
+    return () => { active = false; };
+  }, [structuralValidation, setPreviewUrl]);
 
   const renderPreview = async () => {
+    const normalized = structuralValidation?.valid
+      ? structuralValidation.normalizedParameters
+      : undefined;
+    if (!normalized) return;
+
     setBusy(true);
     setError(null);
     try {
-      setPreviewUrl(await fetchPreviewPng(request));
+      setPreviewUrl(await fetchPreviewPng(normalized));
     } catch (renderError) {
       setError(renderError instanceof Error ? renderError.message : String(renderError));
     } finally {
       setBusy(false);
     }
   };
-
-  useEffect(() => {
-    void renderPreview();
-    // The editor is remounted whenever an imported job revision changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const sizeEstimatePx = useMemo(() => {
     const pixelMm = 25.4 / request.dpi;
@@ -205,12 +238,13 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
         pluginId="zone-plate"
         value={request}
         onChange={setRequest}
+        onStructuralValidation={setStructuralValidation}
         disabled={busy}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema, structuralValidation) => {
+        {(schema, shellValidation) => {
           const extensions = new Set(schema.uiSchema.extensions ?? []);
-          const structurallyValid = structuralValidation?.valid === true;
+          const structurallyValid = shellValidation?.valid === true;
           const fullyValid = structurallyValid && valid;
           const supportsPropagation = schema.capabilities.includes('PROPAGATION_PREVIEW');
 
