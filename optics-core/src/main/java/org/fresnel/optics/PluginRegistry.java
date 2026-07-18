@@ -94,7 +94,6 @@ public final class PluginRegistry {
             PluginStabilityLevel.STABLE,
             Set.of(
                     PluginCapability.EXPORT_PNG,
-                    PluginCapability.EXPORT_SVG,
                     PluginCapability.EXPORT_PDF,
                     PluginCapability.PREVIEW_PNG
             ),
