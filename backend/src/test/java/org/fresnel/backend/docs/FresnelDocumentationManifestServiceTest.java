@@ -27,6 +27,7 @@ class FresnelDocumentationManifestServiceTest {
             "multi-focus/line-focus",
             "multi-focus/two-foci",
             "rgb-zone-plate/rgb",
+            "window-foil/foil-sheet",
             "zone-plate/greyscale-phase",
             "zone-plate/negative-polarity",
             "zone-plate/on-axis");
@@ -35,11 +36,13 @@ class FresnelDocumentationManifestServiceTest {
             "hologram",
             "multi-focus",
             "rgb-zone-plate",
+            "window-foil",
             "zone-plate");
     private static final Map<String, Double> EXPECTED_SINGLE_ARTIFACT_DPI = Map.of(
             "hex-macro-cell", 400.0,
             "multi-focus", 1200.0,
             "rgb-zone-plate", 1200.0,
+            "window-foil", 200.0,
             "zone-plate", 1200.0);
 
     @Autowired FresnelDocumentationManifestService service;
