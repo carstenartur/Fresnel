@@ -40,7 +40,7 @@ jobs:
           set -o pipefail
           mvn -B -ntp test 2>&1 | tee maven-test.log
 
-      - name: Verify documentation jobs and generate candidate manifest
+      - name: Verify documentation jobs and checked-in manifest
         shell: bash
         run: |
           set -o pipefail
@@ -50,6 +50,15 @@ jobs:
             docs/assets/plugins \
             target/docs/example-manifest.json \
             2>&1 | tee docs-job-verification.log
+          if ! cmp -s \
+              docs/generated/example-manifest.json \
+              target/docs/example-manifest.json; then
+            echo "The checked-in documentation manifest is stale." >&2
+            diff -u \
+              docs/generated/example-manifest.json \
+              target/docs/example-manifest.json || true
+            exit 1
+          fi
 
       - name: Upload generated documentation manifest
         if: always()
