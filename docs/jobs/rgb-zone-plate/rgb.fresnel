@@ -1,0 +1,38 @@
+{
+  "$schema": "https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json",
+  "format": "io.github.carstenartur.fresnel.job",
+  "formatVersion": 1,
+  "plugin": {
+    "id": "rgb-zone-plate",
+    "parameterSchemaVersion": 1,
+    "algorithmVersion": "rgb-zone-plate/1"
+  },
+  "parameters": {
+    "base": {
+      "apertureDiameterMm": 10.0,
+      "focalLengthMm": 250.0,
+      "wavelengthNm": 550.0,
+      "dpi": 1200.0,
+      "targetOffsetXmm": 0.0,
+      "targetOffsetYmm": 0.0,
+      "maskType": "BINARY_AMPLITUDE",
+      "polarity": "POSITIVE"
+    },
+    "redNm": 630.0,
+    "greenNm": 532.0,
+    "blueNm": 450.0
+  },
+  "production": {
+    "outputs": [
+      {
+        "id": "documentation-preview",
+        "format": "png",
+        "filename": "rgb.png"
+      }
+    ]
+  },
+  "provenance": {
+    "createdWith": "Fresnel documentation",
+    "applicationVersion": "development"
+  }
+}
