@@ -2,8 +2,10 @@ package org.fresnel.backend.docs;
 
 import org.fresnel.backend.FresnelBackendApplication;
 import org.fresnel.backend.api.DirectoryFresnelJobOutputSink;
+import org.fresnel.backend.api.FresnelJobDocument;
 import org.fresnel.backend.api.FresnelJobExecutionResult;
 import org.fresnel.backend.api.FresnelJobExecutor;
+import org.fresnel.backend.api.FresnelJobService;
 import org.fresnel.backend.api.GeneratedArtifact;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -21,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Command-line consumer of the same canonical job executor used by the application. */
+/** Command-line consumer of the same canonical job services used by the application. */
 public final class FresnelDocsCli {
 
     private FresnelDocsCli() {}
@@ -35,11 +37,21 @@ public final class FresnelDocsCli {
                         "spring.main.banner-mode=off",
                         "spring.jpa.open-in-view=false")
                 .run()) {
-            run(args, context.getBean(FresnelJobExecutor.class), System.out);
+            run(
+                    args,
+                    context.getBean(FresnelJobExecutor.class),
+                    context.getBean(FresnelJobService.class),
+                    context.getBean(FresnelDocumentationRenderer.class),
+                    System.out);
         }
     }
 
-    static void run(String[] args, FresnelJobExecutor executor, PrintStream out) throws Exception {
+    static void run(
+            String[] args,
+            FresnelJobExecutor executor,
+            FresnelJobService jobService,
+            FresnelDocumentationRenderer documentationRenderer,
+            PrintStream out) throws Exception {
         if (args == null || args.length == 0) throw usage();
         switch (args[0]) {
             case "render" -> {
@@ -60,7 +72,12 @@ public final class FresnelDocsCli {
             }
             case "list" -> {
                 requireArguments(args, 2);
-                list(executor, Path.of(args[1]), out);
+                list(jobService, Path.of(args[1]), out);
+            }
+            case "table" -> {
+                requireArguments(args, 2);
+                out.print(documentationRenderer.renderParameterTable(
+                        Files.readAllBytes(Path.of(args[1]))));
             }
             default -> throw usage();
         }
@@ -103,41 +120,48 @@ public final class FresnelDocsCli {
 
         Set<String> claimedTargets = new HashSet<>();
         for (Path job : jobs) {
+            Map<String, byte[]> generated = new HashMap<>();
+            FresnelJobExecutionResult result = executor.execute(
+                    Files.readAllBytes(job),
+                    (artifact, content) -> generated.put(artifact.filename(), content.clone()));
+            ensureUniqueTargets(result, claimedTargets);
+            Path targetDirectory = assetRoot.resolve(result.job().plugin().id());
+
             if (render) {
-                FresnelJobExecutionResult parsed = executor.execute(
-                        Files.readAllBytes(job),
-                        (artifact, content) -> {
-                            // First pass captures metadata only. The real directory is
-                            // selected from the normalized plugin id below.
-                        });
-                Path targetDirectory = assetRoot.resolve(parsed.job().plugin().id());
-                ensureUniqueTargets(parsed, claimedTargets);
-                FresnelJobExecutionResult written = executor.execute(
-                        parsed.job(), new DirectoryFresnelJobOutputSink(targetDirectory));
-                printResult(job, written, out, "rendered");
+                DirectoryFresnelJobOutputSink sink =
+                        new DirectoryFresnelJobOutputSink(targetDirectory);
+                for (GeneratedArtifact artifact : result.artifacts()) {
+                    byte[] content = generated.get(artifact.filename());
+                    if (content == null) {
+                        throw new IllegalStateException(
+                                "Executor did not provide content for " + artifact.filename());
+                    }
+                    sink.write(artifact, content);
+                }
+                printResult(job, result, out, "rendered");
             } else {
-                Map<String, byte[]> generated = new HashMap<>();
-                FresnelJobExecutionResult result = executor.execute(
-                        Files.readAllBytes(job),
-                        (artifact, content) -> generated.put(artifact.filename(), content.clone()));
-                ensureUniqueTargets(result, claimedTargets);
-                verifyArtifacts(result, generated, assetRoot.resolve(result.job().plugin().id()));
+                verifyArtifacts(result, generated, targetDirectory);
                 printResult(job, result, out, "verified");
             }
         }
     }
 
     private static void list(
-            FresnelJobExecutor executor,
+            FresnelJobService jobService,
             Path jobRoot,
             PrintStream out) throws Exception {
+        Path normalizedRoot = jobRoot.toAbsolutePath().normalize();
         for (Path job : discoverJobs(jobRoot)) {
-            FresnelJobExecutionResult result = executor.execute(
-                    Files.readAllBytes(job), (artifact, content) -> {});
+            FresnelJobDocument document = jobService.parseAndNormalize(Files.readAllBytes(job));
+            List<String> filenames = document.production() == null
+                    ? List.of()
+                    : document.production().outputs().stream()
+                    .map(FresnelJobDocument.ProductionOutput::filename)
+                    .toList();
             out.printf("%s | %s | %s%n",
-                    jobRoot.toAbsolutePath().normalize().relativize(job.toAbsolutePath().normalize()),
-                    result.job().plugin().id(),
-                    result.artifacts().stream().map(GeneratedArtifact::filename).toList());
+                    normalizedRoot.relativize(job.toAbsolutePath().normalize()),
+                    document.plugin().id(),
+                    filenames);
         }
     }
 
@@ -145,10 +169,10 @@ public final class FresnelDocsCli {
             FresnelJobExecutionResult result,
             Map<String, byte[]> generated,
             Path expectedDirectory) throws IOException {
+        Path normalizedDirectory = expectedDirectory.toAbsolutePath().normalize();
         for (GeneratedArtifact artifact : result.artifacts()) {
-            Path expected = expectedDirectory.resolve(artifact.filename()).normalize();
-            if (!expected.toAbsolutePath().normalize().startsWith(
-                    expectedDirectory.toAbsolutePath().normalize())) {
+            Path expected = normalizedDirectory.resolve(artifact.filename()).normalize();
+            if (!normalizedDirectory.equals(expected.getParent())) {
                 throw new IllegalArgumentException(
                         "Expected artifact escaped selected directory: " + artifact.filename());
             }
@@ -226,6 +250,7 @@ public final class FresnelDocsCli {
                   FresnelDocsCli render-all <job-root> <asset-root>
                   FresnelDocsCli verify-all <job-root> <asset-root>
                   FresnelDocsCli list <job-root>
+                  FresnelDocsCli table <job.fresnel>
                 """);
     }
 }
