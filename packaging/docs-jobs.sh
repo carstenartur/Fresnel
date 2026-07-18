@@ -26,7 +26,13 @@ for value in "$@"; do
   ARGS+="\"$escaped\""
 done
 
-mvn -B -ntp -Pno-frontend -DskipTests -pl backend -am compile \
+# Build and install the reactor first so the second, backend-only Maven invocation
+# can resolve the current optics-core snapshot. Running exec:java directly on a
+# `-pl backend -am` reactor would incorrectly try the CLI main class in the parent
+# and optics-core projects as well.
+mvn -B -ntp -Pno-frontend -DskipTests -pl backend -am install
+
+mvn -B -ntp -Pno-frontend -DskipTests -f backend/pom.xml \
   org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
   -Dexec.mainClass=org.fresnel.backend.docs.FresnelDocsCli \
   -Dexec.args="$ARGS"
