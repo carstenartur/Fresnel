@@ -88,7 +88,9 @@ export function WindowCellLayoutWidget({
 function normalizeCells(value: unknown): CellSpecDto[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((cell) => ({
-    focalLengthMm: positiveNumber(cell.focalLengthMm, 1000),
+    // Preserve finite invalid values so the user sees exactly what the backend
+    // rejects instead of an unexplained fallback value.
+    focalLengthMm: finiteNumber(cell.focalLengthMm, 1000),
     targetOffsetXmm: finiteNumber(cell.targetOffsetXmm, 0),
     targetOffsetYmm: finiteNumber(cell.targetOffsetYmm, 0),
   }));
@@ -96,10 +98,6 @@ function normalizeCells(value: unknown): CellSpecDto[] {
 
 function finiteNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-function positiveNumber(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
