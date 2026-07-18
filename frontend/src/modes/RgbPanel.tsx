@@ -2,8 +2,6 @@ import { useState } from 'react';
 import {
   downloadRgbPng,
   fetchRgbPreviewPng,
-  validatePlugin,
-  type DesignValidationReport,
   type RgbZonePlateRequest,
   type SingleZonePlateRequest,
 } from '../api';
@@ -41,7 +39,6 @@ export function RgbPanel({ initialJob }: JobPanelProps) {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
   const renderPreview = async (parameters: RgbZonePlateRequest) => {
@@ -49,9 +46,7 @@ export function RgbPanel({ initialJob }: JobPanelProps) {
     setError(null);
     try {
       setPreview(await fetchRgbPreviewPng(parameters));
-      setValidationReport(await validatePlugin('rgb-zone-plate', parameters));
     } catch (renderError) {
-      setValidationReport(null);
       setError(renderError instanceof Error ? renderError.message : String(renderError));
     } finally {
       setBusy(false);
@@ -68,11 +63,12 @@ export function RgbPanel({ initialJob }: JobPanelProps) {
         disabled={busy}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema, structuralValidation) => {
+        {(schema, structuralValidation, domainValidation) => {
           const normalized = structuralValidation?.valid
             ? structuralValidation.normalizedParameters
             : undefined;
           const structurallyValid = Boolean(normalized);
+          const productionReady = structurallyValid && domainValidation?.valid === true;
           return (
             <>
               <PluginActionBar
@@ -87,7 +83,7 @@ export function RgbPanel({ initialJob }: JobPanelProps) {
                   },
                   EXPORT_PNG: {
                     label: 'PNG',
-                    disabled: !structurallyValid,
+                    disabled: !productionReady,
                     run: () => normalized
                       && downloadRgbPng(normalized, 'fresnel-rgb.png'),
                   },
@@ -101,7 +97,7 @@ export function RgbPanel({ initialJob }: JobPanelProps) {
               {error && <p className="error-message">{error}</p>}
 
               <PreviewPane url={previewUrl} alt="RGB zone plate preview" />
-              <ValidationReportView report={validationReport} />
+              <ValidationReportView report={domainValidation} />
             </>
           );
         }}
