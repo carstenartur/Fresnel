@@ -1,5 +1,6 @@
 package org.fresnel.backend.api;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import org.fresnel.optics.PluginRegistry;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -156,6 +157,7 @@ public class PluginParameterValidationController {
         return oneLine.length() <= 1000 ? oneLine : oneLine.substring(0, 1000);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ParameterValidationResponse(
             String pluginId,
             int parameterSchemaVersion,
