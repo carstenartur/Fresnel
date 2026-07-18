@@ -188,27 +188,32 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
     setMeasuredFocus((current) => ({ ...current, ...patch }));
 
   const buildExperimentRecord = (): ExperimentRecord => {
-    if (!validationReport) throw new Error('Validation report is not ready yet.');
+    const normalized = structuralValidation?.valid
+      ? structuralValidation.normalizedParameters
+      : undefined;
+    if (!normalized || !validationReport) {
+      throw new Error('Validation report is not ready yet.');
+    }
     const photoReferences = photoReferenceText
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean);
     const measurement: MeasurementResult = {
-      targetFocalLengthMm: request.focalLengthMm,
+      targetFocalLengthMm: normalized.focalLengthMm,
       measuredFoci: [{
         ...measuredFocus,
-        measuredFocalLengthMm: measuredFocus.measuredFocalLengthMm ?? request.focalLengthMm,
+        measuredFocalLengthMm: measuredFocus.measuredFocalLengthMm ?? normalized.focalLengthMm,
       }],
     };
     return {
       designId: experimentDesignId.trim() || undefined,
       pluginId: validationReport.pluginId,
       parameterHash: validationReport.parameterHash,
-      designDocument: { kind: 'single', version: 1, payload: request },
+      designDocument: { kind: 'single', version: 1, payload: normalized },
       validationReport,
       setup: {
         ...experimentSetup,
-        nominalDpi: experimentSetup.nominalDpi ?? request.dpi,
+        nominalDpi: experimentSetup.nominalDpi ?? normalized.dpi,
         photoReferences,
       },
       measurement,
@@ -244,8 +249,11 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
       >
         {(schema, shellValidation) => {
           const extensions = new Set(schema.uiSchema.extensions ?? []);
-          const structurallyValid = shellValidation?.valid === true;
-          const fullyValid = structurallyValid && valid;
+          const normalized = shellValidation?.valid
+            ? shellValidation.normalizedParameters
+            : undefined;
+          const structurallyValid = Boolean(normalized);
+          const productionReady = structurallyValid && valid;
           const supportsPropagation = schema.capabilities.includes('PROPAGATION_PREVIEW');
 
           return (
@@ -279,44 +287,49 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
                   PREVIEW_PNG: {
                     label: busy ? 'Rendering…' : 'Render preview',
                     primary: true,
-                    disabled: !fullyValid,
+                    disabled: !structurallyValid,
                     run: renderPreview,
                   },
                   EXPORT_PNG: {
                     label: 'PNG',
-                    disabled: !fullyValid,
-                    run: () => downloadExportPng(request, 'fresnel-zone-plate.png'),
+                    disabled: !productionReady,
+                    run: () => normalized
+                      && downloadExportPng(normalized, 'fresnel-zone-plate.png'),
                   },
                   EXPORT_SVG: {
                     label: 'SVG',
-                    disabled: !fullyValid,
-                    run: () => downloadExportSvg(request, 'fresnel-zone-plate.svg'),
+                    disabled: !productionReady,
+                    run: () => normalized
+                      && downloadExportSvg(normalized, 'fresnel-zone-plate.svg'),
                   },
                   EXPORT_PDF: {
                     label: 'PDF',
-                    disabled: !fullyValid,
-                    run: () => downloadExportPdf(request, sheet, 'fresnel-zone-plate.pdf'),
+                    disabled: !productionReady,
+                    run: () => normalized
+                      && downloadExportPdf(normalized, sheet, 'fresnel-zone-plate.pdf'),
                   },
                   EXPORT_DXF: {
                     label: 'DXF',
                     title: 'DXF outlines for laser cutters / pen plotters',
-                    disabled: !fullyValid,
-                    run: () => downloadExportDxf(request, 'fresnel-zone-plate.dxf'),
+                    disabled: !productionReady,
+                    run: () => normalized
+                      && downloadExportDxf(normalized, 'fresnel-zone-plate.dxf'),
                   },
                   EXPORT_GERBER: {
                     label: 'Gerber',
                     title: 'Gerber RS-274X for PCB-style fabrication',
-                    disabled: !fullyValid,
-                    run: () => downloadExportGerber(request, 'fresnel-zone-plate.gbr'),
+                    disabled: !productionReady,
+                    run: () => normalized
+                      && downloadExportGerber(normalized, 'fresnel-zone-plate.gbr'),
                   },
                   PRINTABILITY_ANALYSIS: {
                     label: 'Calibration PDF',
-                    disabled: !fullyValid,
-                    run: () => downloadCalibrationPdf({
-                      dpi: request.dpi,
+                    disabled: !productionReady,
+                    run: () => normalized && downloadCalibrationPdf({
+                      dpi: normalized.dpi,
                       printScale: 1,
-                      wavelengthNm: request.wavelengthNm,
-                      focalLengthMm: request.focalLengthMm,
+                      wavelengthNm: normalized.wavelengthNm,
+                      focalLengthMm: normalized.focalLengthMm,
                     }, sheet, 'fresnel-calibration-sheet.pdf'),
                   },
                 }}
@@ -324,8 +337,8 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
 
               <SaveJobControl
                 pluginId="zone-plate"
-                parameters={request}
-                disabled={!fullyValid || busy}
+                parameters={normalized ?? null}
+                disabled={!structurallyValid || busy}
               />
               {error && <p className="error-message">{error}</p>}
 
@@ -341,8 +354,8 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
 
               {extensions.has('experiment') && (
                 <ExperimentValidationPanel
-                  req={request}
-                  validationReport={fullyValid ? validationReport : null}
+                  req={normalized ?? request}
+                  validationReport={productionReady ? validationReport : null}
                   designId={experimentDesignId}
                   setDesignId={setExperimentDesignId}
                   setup={experimentSetup}
@@ -379,7 +392,10 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
               )}
 
               {extensions.has('propagation') && supportsPropagation && (
-                <PropagationPanel req={request} disabled={!fullyValid} />
+                <PropagationPanel
+                  req={normalized ?? request}
+                  disabled={!structurallyValid}
+                />
               )}
             </>
           );
