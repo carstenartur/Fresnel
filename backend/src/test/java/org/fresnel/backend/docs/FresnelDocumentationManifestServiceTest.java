@@ -11,9 +11,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
@@ -21,6 +23,7 @@ class FresnelDocumentationManifestServiceTest {
 
     private static final List<String> MIGRATED_EXAMPLES = List.of(
             "hex-macro-cell/on-axis",
+            "hologram/checker",
             "multi-focus/line-focus",
             "multi-focus/two-foci",
             "rgb-zone-plate/rgb",
@@ -29,10 +32,11 @@ class FresnelDocumentationManifestServiceTest {
             "zone-plate/on-axis");
     private static final Set<String> MIGRATED_PLUGINS = Set.of(
             "hex-macro-cell",
+            "hologram",
             "multi-focus",
             "rgb-zone-plate",
             "zone-plate");
-    private static final Map<String, Double> EXPECTED_DPI = Map.of(
+    private static final Map<String, Double> EXPECTED_SINGLE_ARTIFACT_DPI = Map.of(
             "hex-macro-cell", 400.0,
             "multi-focus", 1200.0,
             "rgb-zone-plate", 1200.0,
@@ -41,7 +45,7 @@ class FresnelDocumentationManifestServiceTest {
     @Autowired FresnelDocumentationManifestService service;
 
     @Test
-    void manifestTracesEveryMigratedJobToOneVerifiedArtifact() throws Exception {
+    void manifestTracesEveryMigratedJobToVerifiedArtifacts() throws Exception {
         Path jobs = repositoryDirectory("docs/jobs");
         Path assets = repositoryDirectory("docs/assets/plugins");
 
@@ -58,18 +62,60 @@ class FresnelDocumentationManifestServiceTest {
             assertEquals(1, example.parameterSchemaVersion());
             assertEquals(example.pluginId() + "/1", example.algorithmVersion());
             assertTrue(example.parameterSha256().matches("[0-9a-f]{64}"));
-            assertEquals(1, example.artifacts().size());
 
-            FresnelDocumentationManifest.Artifact artifact = example.artifacts().getFirst();
-            assertEquals("documentation-preview", artifact.id());
+            if ("hologram".equals(example.pluginId())) {
+                assertHologramArtifacts(example.artifacts());
+            } else {
+                assertEquals(1, example.artifacts().size());
+                FresnelDocumentationManifest.Artifact artifact =
+                        example.artifacts().getFirst();
+                assertEquals("documentation-preview", artifact.id());
+                assertEquals("image/png", artifact.mediaType());
+                assertTrue(artifact.sizeBytes() > 100);
+                assertTrue(artifact.widthPx() >= 400);
+                assertTrue(artifact.heightPx() >= 300);
+                assertEquals(EXPECTED_SINGLE_ARTIFACT_DPI.get(example.pluginId()),
+                        artifact.dpi());
+                assertTrackedArtifact(artifact);
+            }
+        }
+    }
+
+    private static void assertHologramArtifacts(
+            List<FresnelDocumentationManifest.Artifact> artifacts) {
+        assertEquals(3, artifacts.size());
+        Map<String, FresnelDocumentationManifest.Artifact> byId = artifacts.stream()
+                .collect(Collectors.toMap(
+                        FresnelDocumentationManifest.Artifact::id,
+                        Function.identity()));
+
+        FresnelDocumentationManifest.Artifact source = byId.get("target-source");
+        FresnelDocumentationManifest.Artifact mask = byId.get("documentation-preview");
+        FresnelDocumentationManifest.Artifact reconstruction =
+                byId.get("reconstruction-preview");
+
+        assertEquals("target.png", source.path().substring(source.path().lastIndexOf('/') + 1));
+        assertEquals("hologram-mask.png",
+                mask.path().substring(mask.path().lastIndexOf('/') + 1));
+        assertEquals("reconstruction.png",
+                reconstruction.path().substring(reconstruction.path().lastIndexOf('/') + 1));
+        assertNull(source.dpi());
+        assertEquals(1200.0, mask.dpi());
+        assertNull(reconstruction.dpi());
+
+        for (FresnelDocumentationManifest.Artifact artifact : artifacts) {
             assertEquals("image/png", artifact.mediaType());
             assertTrue(artifact.sizeBytes() > 100);
-            assertTrue(artifact.widthPx() >= 400);
-            assertTrue(artifact.heightPx() >= 300);
-            assertEquals(EXPECTED_DPI.get(example.pluginId()), artifact.dpi());
-            assertTrue(artifact.normalizedSha256().matches("[0-9a-f]{64}"));
-            assertTrue(Files.isRegularFile(repositoryFile(artifact.path())));
+            assertEquals(512, artifact.widthPx());
+            assertEquals(512, artifact.heightPx());
+            assertTrackedArtifact(artifact);
         }
+    }
+
+    private static void assertTrackedArtifact(
+            FresnelDocumentationManifest.Artifact artifact) {
+        assertTrue(artifact.normalizedSha256().matches("[0-9a-f]{64}"));
+        assertTrue(Files.isRegularFile(repositoryFile(artifact.path())));
     }
 
     @Test
