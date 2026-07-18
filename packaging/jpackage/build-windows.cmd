@@ -6,6 +6,7 @@ setlocal ENABLEEXTENSIONS ENABLEDELAYEDEXPANSION
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..\..") do set "REPO_ROOT=%%~fI"
 set "TARGET_DIR=%REPO_ROOT%\backend\target"
+set "FILE_ASSOCIATION=%REPO_ROOT%\packaging\jpackage\fresnel-job.properties"
 
 if "%APP_JAR%"=="" (
     for %%F in ("%TARGET_DIR%\backend-*.jar") do (
@@ -15,6 +16,10 @@ if "%APP_JAR%"=="" (
 )
 if not exist "%APP_JAR%" (
     echo build-windows.cmd: cannot find backend jar; run 'mvn -B -ntp package' first 1>&2
+    exit /b 1
+)
+if not exist "%FILE_ASSOCIATION%" (
+    echo build-windows.cmd: missing file association properties: %FILE_ASSOCIATION% 1>&2
     exit /b 1
 )
 
@@ -63,6 +68,8 @@ echo build-windows.cmd: building %JPACKAGE_TYPE% for Fresnel !APP_VERSION_NUM!
   --main-class org.springframework.boot.loader.launch.JarLauncher ^
   --java-options "-Dspring.profiles.active=standalone" ^
   --java-options "-Dspring.config.additional-location=optional:file:$APPDIR/config/" ^
+  --java-options "-Dfresnel.desktop.enabled=true" ^
+  --file-associations "%FILE_ASSOCIATION%" ^
   --dest "%OUTPUT_DIR%" ^
   --win-shortcut ^
   --win-menu ^
