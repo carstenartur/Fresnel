@@ -15,6 +15,10 @@ Versioned parameter and presentation metadata is described in
 available through `GET /api/plugins/{pluginId}/schema` and is consumed by the
 common React form, job validation and future documentation tooling.
 
+Stable plugin IDs are also the primary UI routes, for example
+`/plugins/zone-plate`. The ordered `GET /api/plugins` response determines design
+navigation; former frontend mode aliases are no longer part of the public API.
+
 The table below lists all currently available plugins.
 
 | Plugin | Java renderer | Frontend integration | Description |
@@ -39,12 +43,16 @@ Each plugin consists of:
    structural constraints.
 4. **UI schema** — ordered groups, standard widgets and trusted extension IDs,
    kept separate from data validation.
-5. **Common React editor** (`frontend/src/schema/`) — accessible controls for
-   ordinary fields. Complex interactions are resolved only through a
-   compile-time registry of trusted widgets/extensions.
-6. **Unit and integration tests** — schema/DTO/default drift, rendering and
-   numerical behavior.
-7. **Documentation examples** — moving toward checked-in `.fresnel` jobs as the
+5. **Common React editor** (`frontend/src/schema/`) — `PluginEditorShell` and
+   `SchemaForm` provide one accessible lifecycle for all six plugins. Complex
+   interactions are resolved only through a compile-time registry of trusted
+   widgets and extensions.
+6. **Capability-driven actions** — `PluginActionBar` combines backend-advertised
+   capabilities with typed local API handlers; capability names never become
+   endpoint URLs dynamically.
+7. **Unit and integration tests** — schema/DTO/default drift, stable routes,
+   `.fresnel` round trips, rendering and numerical behavior.
+8. **Documentation examples** — moving toward checked-in `.fresnel` jobs as the
    source for generated assets.
 
 ## Shared validation model
