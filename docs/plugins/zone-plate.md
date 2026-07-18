@@ -54,9 +54,9 @@ importer is involved.
 | Aperture diameter | 10 mm |
 | Focal length | 250 mm |
 | Wavelength | 550 nm |
-| Printer DPI | 1200 dpi |
 | Target offset X | 0 mm |
 | Target offset Y | 0 mm |
+| Printer DPI | 1200 dpi |
 | Mask type | Binary amplitude |
 | Polarity | Positive |
 <!-- fresnel-example:zone-plate/on-axis:end -->
@@ -76,9 +76,9 @@ alternate opaque / transparent.
 | Aperture diameter | 10 mm |
 | Focal length | 250 mm |
 | Wavelength | 550 nm |
-| Printer DPI | 1200 dpi |
 | Target offset X | 0 mm |
 | Target offset Y | 0 mm |
+| Printer DPI | 1200 dpi |
 | Mask type | Greyscale phase |
 | Polarity | Positive |
 <!-- fresnel-example:zone-plate/greyscale-phase:end -->
@@ -98,11 +98,11 @@ a larger phase shift.
 | Aperture diameter | 10 mm |
 | Focal length | 250 mm |
 | Wavelength | 550 nm |
-| Printer DPI | 1200 dpi |
 | Target offset X | 0 mm |
 | Target offset Y | 0 mm |
+| Printer DPI | 1200 dpi |
 | Mask type | Binary amplitude |
-| Polarity | Negative |
+| Polarity | Negative (inverted) |
 <!-- fresnel-example:zone-plate/negative-polarity:end -->
 
 Every transparent zone becomes opaque and vice versa. The first-order focal spot
@@ -191,6 +191,9 @@ bash packaging/docs-jobs.sh verify-all docs/jobs docs/assets/plugins
 
 # Inspect the discovered job/plugin/output mapping.
 bash packaging/docs-jobs.sh list docs/jobs
+
+# Print the schema-derived parameter table for one job.
+bash packaging/docs-jobs.sh table docs/jobs/zone-plate/on-axis.fresnel
 ```
 
 PNG verification compares decoded pixels, dimensions and intended DPI rather than
