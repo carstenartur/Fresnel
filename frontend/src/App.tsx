@@ -1,4 +1,11 @@
-import { type ComponentType, useEffect, useRef, useState } from 'react';
+import {
+  type ComponentType,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { consumeDesktopOpen } from './desktopOpenApi';
 import { type FresnelJobDocument, type FresnelPluginId, type LoadedFresnelJob } from './jobApi';
 import { JobSourceProvider, OpenJobControl, type JobPanelProps } from './jobs/JobFileControls';
 import { AssistantPanel } from './modes/AssistantPanel';
@@ -54,13 +61,40 @@ export function App() {
   const [pluginRegistryError, setPluginRegistryError] = useState<string | null>(null);
   const [openedJob, setOpenedJob] = useState<OpenedJobState | null>(null);
   const [jobNotice, setJobNotice] = useState<string | null>(null);
+  const [jobError, setJobError] = useState<string | null>(null);
+  const [desktopOpenBusy, setDesktopOpenBusy] = useState(false);
   const revision = useRef(0);
+  const desktopTokenStarted = useRef<string | null>(null);
+
+  const applyJob = useCallback((job: FresnelJobDocument<unknown>, notice: string) => {
+    const pluginId = job.plugin.id;
+    if (!isPluginId(pluginId)) {
+      throw new Error(`No trusted editor is registered for plugin "${pluginId}".`);
+    }
+
+    revision.current += 1;
+    setOpenedJob({ job, revision: revision.current });
+    setMode(pluginId);
+    pushModeRoute(pluginId);
+    setJobNotice(notice);
+    setJobError(null);
+  }, []);
+
+  const openJob = useCallback((loaded: LoadedFresnelJob) => {
+    applyJob(
+      loaded.job,
+      loaded.migratedFromLegacy
+        ? `Migrated legacy design "${loaded.sourceName}" to the .fresnel v1 format.`
+        : `Opened "${loaded.sourceName}" as ${loaded.job.plugin.id}.`,
+    );
+  }, [applyJob]);
 
   useEffect(() => {
     const applyRoute = () => {
       setMode(modeFromPath(window.location.pathname));
       setOpenedJob(null);
       setJobNotice(null);
+      setJobError(null);
     };
     window.addEventListener('popstate', applyRoute);
     return () => window.removeEventListener('popstate', applyRoute);
@@ -96,25 +130,46 @@ export function App() {
     return () => { active = false; };
   }, []);
 
-  const openJob = (loaded: LoadedFresnelJob) => {
-    const pluginId = loaded.job.plugin.id;
-    if (!isPluginId(pluginId)) {
-      throw new Error(`No trusted editor is registered for plugin "${pluginId}".`);
-    }
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const importId = url.searchParams.get('fresnelOpen');
+    if (!importId || desktopTokenStarted.current === importId) return;
+    desktopTokenStarted.current = importId;
 
-    revision.current += 1;
-    setOpenedJob({ job: loaded.job, revision: revision.current });
-    setMode(pluginId);
-    pushModeRoute(pluginId);
-    setJobNotice(loaded.migratedFromLegacy
-      ? `Migrated legacy design "${loaded.sourceName}" to the .fresnel v1 format.`
-      : `Opened "${loaded.sourceName}" as ${pluginId}.`);
-  };
+    // Remove the one-time token before any network request so it cannot remain in
+    // browser history, copied URLs or screenshots.
+    url.searchParams.delete('fresnelOpen');
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+
+    setDesktopOpenBusy(true);
+    setJobError(null);
+    void consumeDesktopOpen(importId)
+      .then((result) => {
+        if (!result.valid) {
+          setJobError(result.errorMessage ?? 'The desktop-opened Fresnel job is invalid.');
+          return;
+        }
+        if (!result.job) {
+          setJobError('The desktop open response did not contain a Fresnel job.');
+          return;
+        }
+        applyJob(result.job, `Opened desktop job as ${result.job.plugin.id}.`);
+      })
+      .catch((error) => {
+        setJobError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => setDesktopOpenBusy(false));
+  }, [applyJob]);
 
   const selectMode = (nextMode: ModeKey) => {
     setMode(nextMode);
     setOpenedJob(null);
     setJobNotice(null);
+    setJobError(null);
     pushModeRoute(nextMode);
   };
 
@@ -142,9 +197,19 @@ export function App() {
             {pluginRegistryError}
           </div>
         )}
-        {jobNotice && (
+        {desktopOpenBusy && (
+          <div className="warning info" style={{ marginBottom: 12 }} role="status">
+            Opening desktop job…
+          </div>
+        )}
+        {jobNotice && !desktopOpenBusy && (
           <div className="warning info" style={{ marginBottom: 12 }} role="status">
             {jobNotice}
+          </div>
+        )}
+        {jobError && (
+          <div className="warning error" style={{ marginBottom: 12 }} role="alert">
+            {jobError}
           </div>
         )}
         <div role="tablist" className="mode-tabs">
