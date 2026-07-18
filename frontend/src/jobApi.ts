@@ -6,7 +6,6 @@ export const FRESNEL_JOB_FORMAT = 'io.github.carstenartur.fresnel.job';
 export const FRESNEL_JOB_SCHEMA_URL =
   'https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json';
 export const FRESNEL_JOB_FORMAT_VERSION = 1;
-export const FRESNEL_PARAMETER_SCHEMA_VERSION = 1;
 export const FRESNEL_JOB_MAX_BYTES = 1024 * 1024;
 
 export type FresnelPluginId =
@@ -61,8 +60,13 @@ export interface LoadedFresnelJob {
 export function createFresnelJob<T>(
   pluginId: FresnelPluginId,
   parameters: T,
+  parameterSchemaVersion: number,
   sourceJob?: FresnelJobDocument<unknown> | null,
 ): FresnelJobDocument<T> {
+  if (!Number.isInteger(parameterSchemaVersion) || parameterSchemaVersion < 1) {
+    throw new Error('Plugin parameter schema version must be a positive integer.');
+  }
+
   const reusableSource = sourceJob?.plugin.id === pluginId ? sourceJob : null;
   const sourceProvenance = reusableSource?.provenance;
 
@@ -73,7 +77,7 @@ export function createFresnelJob<T>(
     plugin: {
       id: pluginId,
       parameterSchemaVersion:
-        reusableSource?.plugin.parameterSchemaVersion ?? FRESNEL_PARAMETER_SCHEMA_VERSION,
+        reusableSource?.plugin.parameterSchemaVersion ?? parameterSchemaVersion,
       algorithmVersion: reusableSource?.plugin.algorithmVersion ?? `${pluginId}/1`,
     },
     parameters,
@@ -90,6 +94,7 @@ export function createFresnelJob<T>(
 export async function saveFresnelJob<T>(
   pluginId: FresnelPluginId,
   parameters: T,
+  parameterSchemaVersion: number,
   filename = `fresnel-${pluginId}${FRESNEL_JOB_EXTENSION}`,
   sourceJob?: FresnelJobDocument<unknown> | null,
 ): Promise<void> {
@@ -99,7 +104,12 @@ export async function saveFresnelJob<T>(
       'Content-Type': FRESNEL_JOB_MEDIA_TYPE,
       Accept: FRESNEL_JOB_MEDIA_TYPE,
     },
-    body: JSON.stringify(createFresnelJob(pluginId, parameters, sourceJob)),
+    body: JSON.stringify(createFresnelJob(
+      pluginId,
+      parameters,
+      parameterSchemaVersion,
+      sourceJob,
+    )),
   });
   if (!response.ok) {
     throw new Error(await responseError(response));
