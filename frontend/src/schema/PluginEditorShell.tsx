@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { FresnelPluginId } from '../jobApi';
 import {
   fetchPluginSchema,
@@ -59,7 +65,7 @@ export function PluginEditorShell<T extends object>({
   const onChangeRef = useRef(onChange);
   const validationCallbackRef = useRef(onStructuralValidation);
   const validationRequestId = useRef(0);
-  const validityFrame = useRef<number | null>(null);
+  const validityTimer = useRef<number | null>(null);
   const valueFingerprint = JSON.stringify(value);
   const validation = validationSnapshot?.fingerprint === valueFingerprint
     ? validationSnapshot.result
@@ -133,22 +139,29 @@ export function PluginEditorShell<T extends object>({
     return () => window.clearTimeout(timer);
   }, [pluginId, schema, value, valueFingerprint]);
 
-  const scheduleVisibleValidityCheck = () => {
-    if (validityFrame.current !== null) window.cancelAnimationFrame(validityFrame.current);
-    validityFrame.current = window.requestAnimationFrame(() => {
-      validityFrame.current = null;
-      const schemaForm = shellRef.current?.querySelector('[data-plugin-schema]');
-      const visiblyInvalid = schemaForm?.querySelector('[aria-invalid="true"]');
-      setVisibleFormValid(Boolean(schemaForm) && !visiblyInvalid);
-    });
+  const checkVisibleFormValidity = () => {
+    const schemaForm = shellRef.current?.querySelector('[data-plugin-schema]');
+    const visiblyInvalid = schemaForm?.querySelector('[aria-invalid="true"]');
+    setVisibleFormValid(Boolean(schemaForm) && !visiblyInvalid);
   };
 
-  useEffect(() => {
-    scheduleVisibleValidityCheck();
+  const scheduleVisibleValidityCheck = () => {
+    if (validityTimer.current !== null) window.clearTimeout(validityTimer.current);
+    // Input/change capture fires before a controlled field has committed its new
+    // aria-invalid state. A zero-delay task observes the committed DOM reliably;
+    // unlike requestAnimationFrame it is not throttled in headless/background use.
+    validityTimer.current = window.setTimeout(() => {
+      validityTimer.current = null;
+      checkVisibleFormValidity();
+    }, 0);
+  };
+
+  useLayoutEffect(() => {
+    checkVisibleFormValidity();
     return () => {
-      if (validityFrame.current !== null) {
-        window.cancelAnimationFrame(validityFrame.current);
-        validityFrame.current = null;
+      if (validityTimer.current !== null) {
+        window.clearTimeout(validityTimer.current);
+        validityTimer.current = null;
       }
     };
     // Validation errors can add aria-invalid to a control without changing the
