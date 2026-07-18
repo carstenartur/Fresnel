@@ -94,6 +94,20 @@ export interface PluginSchemaDocument<TDefaults extends object = Record<string, 
   capabilities: PluginCapability[];
 }
 
+export interface PluginParameterFieldError {
+  path: string;
+  code: string;
+  message: string;
+}
+
+export interface PluginParameterValidation<TParameters extends object = Record<string, unknown>> {
+  pluginId: FresnelPluginId;
+  parameterSchemaVersion: number;
+  valid: boolean;
+  normalizedParameters?: TParameters;
+  errors: PluginParameterFieldError[];
+}
+
 export async function fetchPluginMetadata(): Promise<PluginMetadata[]> {
   const response = await fetch(`${BASE}/api/plugins`, {
     headers: { Accept: 'application/json' },
@@ -116,4 +130,26 @@ export async function fetchPluginSchema<TDefaults extends object = Record<string
     throw new Error(text || `Could not load schema for ${pluginId} (HTTP ${response.status})`);
   }
   return response.json() as Promise<PluginSchemaDocument<TDefaults>>;
+}
+
+export async function validatePluginParameters<TParameters extends object>(
+  pluginId: FresnelPluginId,
+  parameters: TParameters,
+): Promise<PluginParameterValidation<TParameters>> {
+  const response = await fetch(
+    `${BASE}/api/plugins/${encodeURIComponent(pluginId)}/parameters/validate`,
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(parameters),
+    },
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Could not validate parameters for ${pluginId} (HTTP ${response.status})`);
+  }
+  return response.json() as Promise<PluginParameterValidation<TParameters>>;
 }
