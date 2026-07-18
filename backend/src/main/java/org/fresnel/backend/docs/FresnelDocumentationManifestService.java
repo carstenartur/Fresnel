@@ -147,11 +147,15 @@ public final class FresnelDocumentationManifestService {
      */
     private static String documentationPath(Path path) {
         Path normalized = path.normalize();
+        int documentationRoot = -1;
         for (int index = 0; index < normalized.getNameCount(); index++) {
             if ("docs".equals(normalized.getName(index).toString())) {
-                return FresnelDocumentationFiles.portable(
-                        normalized.subpath(index, normalized.getNameCount()));
+                documentationRoot = index;
             }
+        }
+        if (documentationRoot >= 0) {
+            return FresnelDocumentationFiles.portable(
+                    normalized.subpath(documentationRoot, normalized.getNameCount()));
         }
         return FresnelDocumentationFiles.portable(normalized);
     }
