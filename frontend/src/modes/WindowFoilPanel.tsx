@@ -73,49 +73,58 @@ export function WindowFoilPanel({ initialJob }: JobPanelProps) {
         customWidgets={CUSTOM_WIDGETS}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema) => (
-          <>
-            <div className="field" data-editor-extension="production-actions">
-              <label htmlFor="window-foil-pdf-sheet">PDF sheet size</label>
-              <select
-                id="window-foil-pdf-sheet"
-                value={sheet}
-                disabled={busy}
-                onChange={(event) => setSheet(event.target.value as (typeof SHEETS)[number])}
-              >
-                {SHEETS.map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>
-            </div>
+        {(schema, structuralValidation) => {
+          const structurallyValid = structuralValidation?.valid === true;
+          return (
+            <>
+              <div className="field" data-editor-extension="production-actions">
+                <label htmlFor="window-foil-pdf-sheet">PDF sheet size</label>
+                <select
+                  id="window-foil-pdf-sheet"
+                  value={sheet}
+                  disabled={busy}
+                  onChange={(event) => setSheet(event.target.value as (typeof SHEETS)[number])}
+                >
+                  {SHEETS.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </div>
 
-            {info && (
-              <p style={{ fontSize: 12, color: '#6b7280' }}>
-                {info.cells} cells · image {info.imageWidthPx.toLocaleString()} ×{' '}
-                {info.imageHeightPx.toLocaleString()} px
-              </p>
-            )}
+              {info && (
+                <p style={{ fontSize: 12, color: '#6b7280' }}>
+                  {info.cells} cells · image {info.imageWidthPx.toLocaleString()} ×{' '}
+                  {info.imageHeightPx.toLocaleString()} px
+                </p>
+              )}
 
-            <PluginActionBar
-              capabilities={schema.capabilities}
-              busy={busy}
-              actions={{
-                PREVIEW_PNG: {
-                  label: busy ? 'Rendering…' : 'Render preview',
-                  primary: true,
-                  run: renderPreview,
-                },
-                EXPORT_PDF: {
-                  label: `PDF (${sheet})`,
-                  run: () => downloadFoilPdf(request, sheet, 'fresnel-window-foil.pdf'),
-                },
-              }}
-            />
-            <SaveJobControl pluginId="window-foil" parameters={request} disabled={busy} />
-            {error && <p className="error-message">{error}</p>}
+              <PluginActionBar
+                capabilities={schema.capabilities}
+                busy={busy}
+                actions={{
+                  PREVIEW_PNG: {
+                    label: busy ? 'Rendering…' : 'Render preview',
+                    primary: true,
+                    disabled: !structurallyValid,
+                    run: renderPreview,
+                  },
+                  EXPORT_PDF: {
+                    label: `PDF (${sheet})`,
+                    disabled: !structurallyValid,
+                    run: () => downloadFoilPdf(request, sheet, 'fresnel-window-foil.pdf'),
+                  },
+                }}
+              />
+              <SaveJobControl
+                pluginId="window-foil"
+                parameters={request}
+                disabled={busy || !structurallyValid}
+              />
+              {error && <p className="error-message">{error}</p>}
 
-            <PreviewPane url={previewUrl} alt="Window foil preview" />
-            <ValidationReportView report={validationReport} />
-          </>
-        )}
+              <PreviewPane url={previewUrl} alt="Window foil preview" />
+              <ValidationReportView report={validationReport} />
+            </>
+          );
+        }}
       </PluginEditorShell>
     </>
   );
