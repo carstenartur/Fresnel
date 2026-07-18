@@ -33,8 +33,8 @@ The normal `GET /api/plugins` response also publishes:
 - `schemaUrl`,
 - capabilities and propagation modes.
 
-Classpath resource names and former frontend mode aliases remain internal and
-are not part of the HTTP contract.
+Java renderer/parameter class names, classpath resource names and former
+frontend mode aliases remain internal and are not part of the HTTP contract.
 
 ## Stable plugin-ID routes
 
@@ -54,10 +54,11 @@ order. React keeps only a compile-time registry from trusted plugin IDs to local
 components. A schema or server response can therefore select a registered
 plugin, but cannot name a module to import or arbitrary code to execute.
 
-Opening a `.fresnel` job navigates directly from `job.plugin.id`; no
-`kind -> tab -> mode -> component` translation is involved. If the backend ever
-advertises an ID without a trusted local component, the UI shows an explicit
-integration error rather than silently hiding that plugin.
+Opening a `.fresnel` job—including a native desktop/file-association hand-off—
+navigates directly from `job.plugin.id`; no `kind -> tab -> mode -> component`
+translation is involved. If the backend ever advertises an ID without a trusted
+local component, the UI shows an explicit integration error rather than silently
+hiding that plugin.
 
 ## Parameter schema
 
@@ -75,6 +76,7 @@ The current public subset supports:
 - string enums,
 - complete root defaults,
 - titles and descriptions,
+- the standard `readOnly` annotation,
 - bounded `x-fresnel-*` annotations.
 
 Every top-level property is checked against the corresponding backend request
@@ -97,8 +99,8 @@ The initial vocabulary is deliberately small:
 | `x-fresnel-power-of-two` | Declares the additional power-of-two domain rule |
 
 An unregistered `x-fresnel-*` keyword prevents application startup. New
-keywords therefore require an explicit compatibility and implementation
-change rather than being silently ignored.
+keywords therefore require an explicit compatibility and implementation change
+rather than being silently ignored.
 
 ## UI schema
 
@@ -119,26 +121,75 @@ The current UI format supports:
 - dotted paths for nested object fields,
 - widget selection,
 - numeric presets,
+- read-only field presentation,
+- bounded visibility conditions,
 - trusted advanced editor extensions.
 
 Every addressable parameter field must occur in exactly one group. Unknown,
-duplicate or omitted paths fail startup validation.
+duplicate or omitted paths fail startup validation. Unknown fields in the UI
+schema, groups, widgets or conditions also fail startup; executable-looking
+metadata cannot be smuggled through an ignored property.
 
-### Trusted widgets
+### Safe visibility conditions
 
-The first registry contains:
+A group or individual widget may declare `visibleWhen`:
+
+```json
+{
+  "visibleWhen": {
+    "path": "outputType",
+    "equals": "GREYSCALE_PHASE"
+  }
+}
+```
+
+The condition contains a stable parameter path and exactly one operator:
+
+```text
+equals
+notEquals
+oneOf
+```
+
+The backend verifies that:
+
+- the path addresses a published parameter field,
+- exactly one operator is present,
+- comparison values match the parameter type,
+- enum comparisons use declared enum values,
+- `oneOf` is non-empty and has no duplicates,
+- no extra condition properties are present.
+
+There is intentionally no expression language, JavaScript, template evaluation
+or dynamic property lookup. Hiding a field/group never deletes its value from
+the public parameter object. Showing it again restores the same canonical value.
+
+### Trusted standard widgets
+
+The standard registry contains:
 
 ```text
 number-with-presets
 select
+radio
+read-only
+```
+
+`radio` is limited to non-empty string enums. `number-with-presets` is limited to
+numeric fields and numeric preset values. `read-only` displays a current/default
+value without offering a mutation path.
+
+Complex, application-owned widgets are selected through these additional IDs:
+
+```text
 focus-point-list
 window-cell-layout
 hologram-target-image
 ```
 
-The UI schema may select only these symbolic IDs. React resolves them from a
-compile-time registry. Remote modules, dynamic imports derived from schema data
-and arbitrary component names are forbidden.
+The UI schema may select only these symbolic IDs. React resolves complex widgets
+from a compile-time registry. Remote modules, dynamic imports derived from
+schema data and arbitrary component names are forbidden.
 
 ### Trusted editor extensions
 
@@ -166,12 +217,15 @@ All six current plugins use `PluginEditorShell`. The shell owns:
 4. rendering `SchemaForm`,
 5. resolving only explicitly supplied trusted widgets,
 6. debouncing canonical structural validation,
-7. handing the loaded schema and validation state to capability-driven actions
-   and extensions.
+7. rejecting stale validation results by parameter fingerprint,
+8. checking visible/incomplete input state before exposing a valid result,
+9. running the plugin domain-validation report only for normalized parameters,
+10. handing schema, normalized state and domain report to typed actions and
+    trusted extensions.
 
-The plugin panels now retain only renderer-specific operations and trusted
-advanced state. Standard labels, groups, defaults, units, enum choices and
-numeric constraints are no longer duplicated in each panel.
+The plugin panels retain only renderer-specific operations and trusted advanced
+state. Standard labels, groups, defaults, units, enum choices, numeric
+constraints and validation timing are no longer duplicated in each panel.
 
 `PluginActionBar` renders an action only when both conditions are true:
 
@@ -179,8 +233,25 @@ numeric constraints are no longer duplicated in each panel.
 - the trusted frontend implementation provides the typed action handler.
 
 Endpoint URLs are selected by typed API helpers, never derived dynamically from
-capability strings. Preview, export and `.fresnel` saving remain disabled until
-the common structural validator accepts the current parameter object.
+capability strings.
+
+### Action gates
+
+The common lifecycle distinguishes three states:
+
+1. **Incomplete/structurally invalid** — preview, save and production actions are
+   disabled. Incomplete numeric text remains visible and is never converted to
+   `0`, `NaN` or a stale value.
+2. **Structurally valid draft** — the normalized parameter object may be
+   previewed and saved as `.fresnel`. This allows reproducible investigation of
+   designs that are not yet fabrication-ready.
+3. **Domain-valid production design** — fabrication exports are enabled only
+   after the authoritative plugin report accepts the normalized object. The Zone
+   Plate additionally requires its detailed optics/printability validation.
+
+Thus a physically undersampled Zone Plate can still be saved and visually
+inspected, but PNG/SVG/PDF/DXF/Gerber/calibration production outputs remain
+blocked until its fabrication constraints pass.
 
 ## Canonical structural validation API
 
@@ -241,6 +312,25 @@ The endpoint constructs an in-memory canonical job and delegates to
 future CLI execution therefore share DTO conversion, defaults, nested bean
 validation and unknown-field rules.
 
+## Live domain validation
+
+After structural normalization, `PluginEditorShell` debounces and submits only
+the normalized object to:
+
+```text
+POST /api/designs/{pluginId}/validation
+```
+
+The returned `DesignValidationReport` remains the authoritative source for
+optical, numerical, manufacturing and experimental findings. JSON Schema does
+not attempt to duplicate those scientific/domain rules. Each editor displays the
+same report shape and uses `report.valid` when deciding whether a fabrication
+capability may run.
+
+Plugins may disable automatic domain validation while a prerequisite local asset
+is absent. The Hologram editor does this until a target image has been selected;
+no empty asset is sent to synthesis or validation endpoints.
+
 ## Editor modes
 
 `PluginEditorMode` documents the intended integration level:
@@ -261,13 +351,14 @@ The generic UI keeps three validation concerns separate:
 1. **UI editing state** — incomplete numeric text is shown locally and never
    silently coerced to zero or an earlier value.
 2. **Structural normalization** — parameter JSON is checked through
-   `POST /api/plugins/{pluginId}/parameters/validate`, which delegates to the
-   same backend importer used for `.fresnel` jobs.
-3. **Domain validation** — optical, numerical and manufacturing reports remain
-   authoritative plugin-specific backend operations.
+   `POST /api/plugins/{pluginId}/parameters/validate`, which delegates to the same
+   backend importer used for `.fresnel` jobs.
+3. **Domain validation** — normalized parameters are checked through the shared
+   plugin report endpoint; specialized optical metrics remain plugin extensions.
 
-Only the public parameter object is stored in editor state. Saving a `.fresnel`
-job serializes that object directly, without a second hidden form model.
+Only the public parameter object is stored in editor state. Preview, production
+and `.fresnel` saving consume the canonically normalized form of that same
+object—there is no second hidden UI model.
 
 ## Versioning and `.fresnel` jobs
 
@@ -278,10 +369,10 @@ job serializes that object directly, without a second hidden form model.
 - the plugin `algorithmVersion`,
 - the UI schema layout version.
 
-Changing labels, grouping or help text normally does not require a parameter
-schema version change. Renaming/removing fields, changing their meaning or
-making previously valid parameter data invalid requires an explicit migration
-and usually a new parameter schema version.
+Changing labels, grouping, help text, widgets or visibility normally does not
+require a parameter schema version change. Renaming/removing fields, changing
+their meaning or making previously valid parameter data invalid requires an
+explicit migration and usually a new parameter schema version.
 
 ## Adding or changing a plugin
 
@@ -290,11 +381,14 @@ and usually a new parameter schema version.
 3. Create the separate UI schema.
 4. Register both resources and the stable plugin ID in `PluginRegistry`.
 5. Register a trusted local editor component for that ID.
-6. Add a trusted widget only when an ordinary control cannot represent the data.
-7. Supply typed capability action handlers; never infer endpoint URLs from names.
-8. Update schema/DTO/default/enum, parameter-validation and stable-route tests.
-9. Verify save/open round trips through the `.fresnel` job API.
-10. Add or update plugin documentation examples.
+6. Use a standard widget where possible; add a trusted widget only when an
+   ordinary control cannot represent the data.
+7. Use only the bounded condition model for visibility; never add expressions.
+8. Supply typed capability action handlers; never infer endpoint URLs from names.
+9. Update schema/DTO/default/enum, parameter-validation, condition and
+   stable-route tests.
+10. Verify save/open round trips through the `.fresnel` job API.
+11. Add or update plugin documentation examples.
 
 The application validates all registered schema resources at startup. A plugin
 with missing or inconsistent metadata is therefore a build/startup error, not a
