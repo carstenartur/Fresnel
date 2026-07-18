@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginParameterSchemaSecurityPolicy.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">PluginParameterSchemaSecurityPolicy.java</span></div><h1>PluginParameterSchemaSecurityPolicy.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import org.fresnel.optics.PluginDescriptor;
+import org.fresnel.optics.PluginRegistry;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Enforces the security and type contract of Fresnel-specific JSON Schema
+ * annotations before any schema is published to a client.
+ *
+ * &lt;p&gt;Fresnel intentionally supports an inline, data-only subset. References are
+ * forbidden even though JSON Schema itself permits them: a UI consumer must never
+ * turn schema data into a network fetch, dynamic module lookup or executable
+ * extension point.&lt;/p&gt;
+ */
+@Component
+final class PluginParameterSchemaSecurityPolicy {
+
+<span class="fc" id="L27">    private static final Set&lt;String&gt; TRUSTED_WIDGETS = Set.of(</span>
+            &quot;number-with-presets&quot;,
+            &quot;select&quot;,
+            &quot;radio&quot;,
+            &quot;read-only&quot;,
+            &quot;focus-point-list&quot;,
+            &quot;window-cell-layout&quot;,
+            &quot;hologram-target-image&quot;);
+
+<span class="fc" id="L36">    private static final Set&lt;String&gt; SUPPORTED_ANNOTATIONS = Set.of(</span>
+            &quot;x-fresnel-unit&quot;,
+            &quot;x-fresnel-step&quot;,
+            &quot;x-fresnel-precision&quot;,
+            &quot;x-fresnel-expensive&quot;,
+            &quot;x-fresnel-widget&quot;,
+            &quot;x-fresnel-enum-labels&quot;,
+            &quot;x-fresnel-sensitive-size&quot;,
+            &quot;x-fresnel-power-of-two&quot;);
+
+<span class="fc" id="L46">    private static final Set&lt;String&gt; FORBIDDEN_REFERENCE_KEYWORDS = Set.of(</span>
+            &quot;$ref&quot;, &quot;$dynamicRef&quot;, &quot;$recursiveRef&quot;);
+
+<span class="fc" id="L49">    PluginParameterSchemaSecurityPolicy(ObjectMapper mapper) {</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">        if (mapper == null) throw new IllegalArgumentException(&quot;mapper must not be null&quot;);</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        for (PluginDescriptor descriptor : PluginRegistry.ALL) {</span>
+<span class="fc" id="L52">            JsonNode schema = read(mapper, descriptor.schema().parameterSchemaResource());</span>
+<span class="fc" id="L53">            validate(descriptor, schema);</span>
+<span class="fc" id="L54">        }</span>
+<span class="fc" id="L55">    }</span>
+
+    static void validate(PluginDescriptor descriptor, JsonNode schema) {
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        if (descriptor == null) throw new IllegalArgumentException(&quot;descriptor must not be null&quot;);</span>
+<span class="pc bpc" id="L59" title="2 of 4 branches missed.">        if (schema == null || !schema.isObject()) {</span>
+<span class="nc" id="L60">            throw new IllegalStateException(</span>
+<span class="nc" id="L61">                    descriptor.schema().parameterSchemaResource() + &quot; must contain a JSON object&quot;);</span>
+        }
+
+<span class="fc" id="L64">        String path = descriptor.schema().parameterSchemaResource();</span>
+<span class="fc" id="L65">        requireText(schema, &quot;$schema&quot;, path, PluginSchemaService.JSON_SCHEMA_DRAFT_2020_12);</span>
+<span class="fc" id="L66">        String expectedId = &quot;https://carstenartur.github.io/Fresnel/schemas/plugins/&quot;</span>
+<span class="fc" id="L67">                + descriptor.id() + &quot;/parameters-v&quot;</span>
+<span class="fc" id="L68">                + descriptor.schema().parameterSchemaVersion() + &quot;.schema.json&quot;;</span>
+<span class="fc" id="L69">        requireText(schema, &quot;$id&quot;, path, expectedId);</span>
+<span class="fc" id="L70">        validateNode(schema, path);</span>
+<span class="fc" id="L71">    }</span>
+
+    private static JsonNode read(ObjectMapper mapper, String resourcePath) {
+<span class="fc" id="L74">        ClassPathResource resource = new ClassPathResource(resourcePath);</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        if (!resource.exists()) {</span>
+<span class="nc" id="L76">            throw new IllegalStateException(&quot;Missing plugin schema resource: &quot; + resourcePath);</span>
+        }
+<span class="fc" id="L78">        try (InputStream input = resource.getInputStream()) {</span>
+<span class="fc" id="L79">            return mapper.readTree(input);</span>
+<span class="nc" id="L80">        } catch (IOException | RuntimeException exception) {</span>
+<span class="nc" id="L81">            throw new IllegalStateException(</span>
+                    &quot;Could not read plugin schema resource &quot; + resourcePath + &quot;: &quot;
+<span class="nc" id="L83">                            + concise(exception), exception);</span>
+        }
+    }
+
+    private static void validateNode(JsonNode node, String path) {
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (node.isObject()) {</span>
+<span class="fc" id="L89">            JsonNode readOnly = node.get(&quot;readOnly&quot;);</span>
+<span class="pc bpc" id="L90" title="3 of 4 branches missed.">            if (readOnly != null &amp;&amp; !readOnly.isBoolean()) {</span>
+<span class="nc" id="L91">                throw new IllegalStateException(path + &quot;.readOnly must be a boolean&quot;);</span>
+            }
+
+<span class="fc bfc" id="L94" title="All 2 branches covered.">            for (Map.Entry&lt;String, JsonNode&gt; entry : node.properties()) {</span>
+<span class="fc" id="L95">                String key = entry.getKey();</span>
+<span class="fc" id="L96">                JsonNode value = entry.getValue();</span>
+<span class="fc" id="L97">                String childPath = path + &quot;.&quot; + key;</span>
+
+<span class="fc bfc" id="L99" title="All 2 branches covered.">                if (FORBIDDEN_REFERENCE_KEYWORDS.contains(key)) {</span>
+<span class="fc" id="L100">                    throw new IllegalStateException(</span>
+                            &quot;Schema references are not supported by Fresnel: &quot; + childPath);
+                }
+<span class="fc bfc" id="L103" title="All 2 branches covered.">                if (key.startsWith(&quot;x-fresnel-&quot;)) {</span>
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">                    if (!SUPPORTED_ANNOTATIONS.contains(key)) {</span>
+<span class="nc" id="L105">                        throw new IllegalStateException(</span>
+                                &quot;Unsupported Fresnel schema keyword &quot; + key + &quot; at &quot; + path);
+                    }
+<span class="fc" id="L108">                    validateAnnotation(node, key, value, childPath);</span>
+                }
+<span class="fc" id="L110">                validateNode(value, childPath);</span>
+<span class="fc" id="L111">            }</span>
+<span class="fc" id="L112">            return;</span>
+        }
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (node.isArray()) {</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">            for (int index = 0; index &lt; node.size(); index++) {</span>
+<span class="fc" id="L116">                validateNode(node.get(index), path + &quot;[&quot; + index + &quot;]&quot;);</span>
+            }
+        }
+<span class="fc" id="L119">    }</span>
+
+    private static void validateAnnotation(
+            JsonNode fieldSchema,
+            String key,
+            JsonNode value,
+            String path) {
+<span class="pc bpc" id="L126" title="2 of 8 branches missed.">        switch (key) {</span>
+<span class="fc" id="L127">            case &quot;x-fresnel-unit&quot; -&gt; requireNonBlankString(value, path);</span>
+            case &quot;x-fresnel-step&quot; -&gt; {
+<span class="pc bpc" id="L129" title="2 of 4 branches missed.">                if (!value.isNumber() || !Double.isFinite(value.doubleValue())</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">                        || value.doubleValue() &lt;= 0.0) {</span>
+<span class="fc" id="L131">                    throw new IllegalStateException(path + &quot; must be a finite positive number&quot;);</span>
+                }
+<span class="fc" id="L133">                String type = fieldSchema.path(&quot;type&quot;).asText();</span>
+<span class="pc bpc" id="L134" title="1 of 4 branches missed.">                if (!(&quot;number&quot;.equals(type) || &quot;integer&quot;.equals(type))) {</span>
+<span class="nc" id="L135">                    throw new IllegalStateException(path + &quot; is only valid on numeric fields&quot;);</span>
+                }
+<span class="fc" id="L137">            }</span>
+            case &quot;x-fresnel-precision&quot; -&gt; {
+<span class="nc bnc" id="L139" title="All 6 branches missed.">                if (!value.isIntegralNumber() || value.intValue() &lt; 0 || value.intValue() &gt; 15) {</span>
+<span class="nc" id="L140">                    throw new IllegalStateException(path + &quot; must be an integer from 0 through 15&quot;);</span>
+                }
+            }
+            case &quot;x-fresnel-expensive&quot;, &quot;x-fresnel-sensitive-size&quot; -&gt;
+<span class="fc" id="L144">                    requireBoolean(value, path);</span>
+            case &quot;x-fresnel-power-of-two&quot; -&gt; {
+<span class="fc" id="L146">                requireBoolean(value, path);</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">                if (!&quot;integer&quot;.equals(fieldSchema.path(&quot;type&quot;).asText())) {</span>
+<span class="fc" id="L148">                    throw new IllegalStateException(path + &quot; is only valid on integer fields&quot;);</span>
+                }
+            }
+            case &quot;x-fresnel-widget&quot; -&gt; {
+<span class="fc" id="L152">                String widget = requireNonBlankString(value, path);</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">                if (!TRUSTED_WIDGETS.contains(widget)) {</span>
+<span class="fc" id="L154">                    throw new IllegalStateException(path + &quot; requests untrusted widget: &quot; + widget);</span>
+                }
+<span class="fc" id="L156">            }</span>
+<span class="fc" id="L157">            case &quot;x-fresnel-enum-labels&quot; -&gt; validateEnumLabels(fieldSchema, value, path);</span>
+<span class="nc" id="L158">            default -&gt; throw new IllegalStateException(&quot;Unsupported Fresnel annotation: &quot; + key);</span>
+        }
+<span class="fc" id="L160">    }</span>
+
+    private static void validateEnumLabels(
+            JsonNode fieldSchema,
+            JsonNode labels,
+            String path) {
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">        if (!labels.isObject()) {</span>
+<span class="nc" id="L167">            throw new IllegalStateException(path + &quot; must be an object&quot;);</span>
+        }
+<span class="fc" id="L169">        JsonNode enumValues = fieldSchema.get(&quot;enum&quot;);</span>
+<span class="pc bpc" id="L170" title="2 of 4 branches missed.">        if (!&quot;string&quot;.equals(fieldSchema.path(&quot;type&quot;).asText())</span>
+<span class="pc bpc" id="L171" title="2 of 4 branches missed.">                || enumValues == null || !enumValues.isArray() || enumValues.isEmpty()) {</span>
+<span class="nc" id="L172">            throw new IllegalStateException(path + &quot; requires a non-empty string enum&quot;);</span>
+        }
+<span class="fc" id="L174">        Set&lt;String&gt; allowed = new java.util.HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">        for (JsonNode enumValue : enumValues) {</span>
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">            if (!enumValue.isTextual()) {</span>
+<span class="nc" id="L177">                throw new IllegalStateException(path + &quot; requires textual enum values&quot;);</span>
+            }
+<span class="fc" id="L179">            allowed.add(enumValue.textValue());</span>
+<span class="fc" id="L180">        }</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; label : labels.properties()) {</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">            if (!allowed.contains(label.getKey())) {</span>
+<span class="fc" id="L183">                throw new IllegalStateException(</span>
+<span class="fc" id="L184">                        path + &quot; contains a label for unknown enum value: &quot; + label.getKey());</span>
+            }
+<span class="fc" id="L186">            requireNonBlankString(label.getValue(), path + &quot;.&quot; + label.getKey());</span>
+<span class="fc" id="L187">        }</span>
+<span class="fc" id="L188">    }</span>
+
+    private static String requireNonBlankString(JsonNode value, String path) {
+<span class="pc bpc" id="L191" title="3 of 6 branches missed.">        if (value == null || !value.isTextual() || value.textValue().isBlank()) {</span>
+<span class="nc" id="L192">            throw new IllegalStateException(path + &quot; must be a non-blank string&quot;);</span>
+        }
+<span class="fc" id="L194">        return value.textValue();</span>
+    }
+
+    private static void requireBoolean(JsonNode value, String path) {
+<span class="pc bpc" id="L198" title="2 of 4 branches missed.">        if (value == null || !value.isBoolean()) {</span>
+<span class="nc" id="L199">            throw new IllegalStateException(path + &quot; must be a boolean&quot;);</span>
+        }
+<span class="fc" id="L201">    }</span>
+
+    private static void requireText(
+            JsonNode parent,
+            String field,
+            String path,
+            String expected) {
+<span class="fc" id="L208">        JsonNode value = parent.get(field);</span>
+<span class="pc bpc" id="L209" title="2 of 6 branches missed.">        if (value == null || !value.isTextual() || !expected.equals(value.textValue())) {</span>
+<span class="fc" id="L210">            throw new IllegalStateException(</span>
+                    path + &quot;.&quot; + field + &quot; must be &quot; + expected);
+        }
+<span class="fc" id="L213">    }</span>
+
+    private static String concise(Exception exception) {
+<span class="nc" id="L216">        String message = exception.getMessage();</span>
+<span class="nc bnc" id="L217" title="All 4 branches missed.">        if (message == null || message.isBlank()) return exception.getClass().getSimpleName();</span>
+<span class="nc" id="L218">        int newline = message.indexOf('\n');</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">        return newline &lt; 0 ? message : message.substring(0, newline);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

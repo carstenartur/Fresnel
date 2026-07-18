@@ -6,6 +6,16 @@ import java.util.Map;
 
 /**
  * Plugin-independent deterministic validation report.
+ *
+ * &lt;p&gt;{@code valid} is part of the public data contract rather than a serializer-
+ * specific derived getter. The canonical constructor always recomputes it from
+ * the normalized findings, so callers cannot create a report whose flag
+ * contradicts its ERROR findings.&lt;/p&gt;
+ *
+ * &lt;p&gt;The component is boxed so older persisted experiment records that predate
+ * this serialized field can still be read. A missing JSON property binds as
+ * {@code null}; the constructor immediately replaces it with the canonical
+ * findings-derived value.&lt;/p&gt;
  */
 public record DesignValidationReport(
         String pluginId,
@@ -18,20 +28,52 @@ public record DesignValidationReport(
         Double pixelSizeMicrons,
         List&lt;ValidationAssumption&gt; assumptions,
         List&lt;ValidationMetric&gt; metrics,
-        List&lt;ValidationFinding&gt; findings
+        List&lt;ValidationFinding&gt; findings,
+        Boolean valid
 ) {
-<span class="fc" id="L23">    public DesignValidationReport {</span>
-<span class="fc" id="L24">        parameterSnapshot = java.util.Collections.unmodifiableMap(</span>
-<span class="pc bpc" id="L25" title="1 of 2 branches missed.">                parameterSnapshot == null ? Map.of() : new LinkedHashMap&lt;&gt;(parameterSnapshot));</span>
-<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        targetFocalDistancesMm = targetFocalDistancesMm == null ? List.of() : List.copyOf(targetFocalDistancesMm);</span>
-<span class="pc bpc" id="L27" title="1 of 2 branches missed.">        assumptions = assumptions == null ? List.of() : List.copyOf(assumptions);</span>
-<span class="pc bpc" id="L28" title="1 of 2 branches missed.">        metrics = metrics == null ? List.of() : List.copyOf(metrics);</span>
-<span class="pc bpc" id="L29" title="1 of 2 branches missed.">        findings = findings == null ? List.of() : List.copyOf(findings);</span>
-<span class="fc" id="L30">    }</span>
+<span class="fc" id="L34">    public DesignValidationReport {</span>
+<span class="fc" id="L35">        parameterSnapshot = java.util.Collections.unmodifiableMap(</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">                parameterSnapshot == null ? Map.of() : new LinkedHashMap&lt;&gt;(parameterSnapshot));</span>
+<span class="pc bpc" id="L37" title="1 of 2 branches missed.">        targetFocalDistancesMm = targetFocalDistancesMm == null</span>
+<span class="nc" id="L38">                ? List.of()</span>
+<span class="fc" id="L39">                : List.copyOf(targetFocalDistancesMm);</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">        assumptions = assumptions == null ? List.of() : List.copyOf(assumptions);</span>
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">        metrics = metrics == null ? List.of() : List.copyOf(metrics);</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        findings = findings == null ? List.of() : List.copyOf(findings);</span>
+<span class="fc" id="L43">        valid = findings.stream().noneMatch(</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">                finding -&gt; finding.severity() == ValidationSeverity.ERROR);</span>
+<span class="fc" id="L45">    }</span>
 
-    /** Returns {@code true} if no ERROR finding exists. */
-    public boolean valid() {
-<span class="nc bnc" id="L34" title="All 2 branches missed.">        return findings.stream().noneMatch(f -&gt; f.severity() == ValidationSeverity.ERROR);</span>
-    }
+    /**
+     * Backward-compatible source constructor used by report factories. The
+     * canonical constructor derives the final flag after defensive copies.
+     */
+    public DesignValidationReport(
+            String pluginId,
+            String parameterHash,
+            Map&lt;String, String&gt; parameterSnapshot,
+            Double wavelengthMinNm,
+            Double wavelengthMaxNm,
+            Double apertureDiameterMm,
+            List&lt;Double&gt; targetFocalDistancesMm,
+            Double pixelSizeMicrons,
+            List&lt;ValidationAssumption&gt; assumptions,
+            List&lt;ValidationMetric&gt; metrics,
+            List&lt;ValidationFinding&gt; findings
+    ) {
+<span class="fc" id="L64">        this(</span>
+                pluginId,
+                parameterHash,
+                parameterSnapshot,
+                wavelengthMinNm,
+                wavelengthMaxNm,
+                apertureDiameterMm,
+                targetFocalDistancesMm,
+                pixelSizeMicrons,
+                assumptions,
+                metrics,
+                findings,
+                null);
+<span class="fc" id="L77">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesktopDataDirectory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.desktop</a> &gt; <span class="el_source">DesktopDataDirectory.java</span></div><h1>DesktopDataDirectory.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.desktop;
+
+import java.nio.file.Path;
+import java.util.Locale;
+import java.util.Map;
+
+/** Resolves the per-user directory shared by database, logs and desktop coordination. */
+public final class DesktopDataDirectory {
+
+    private DesktopDataDirectory() {}
+
+    public static Path resolve() {
+<span class="nc" id="L13">        return resolve(System.getProperty(&quot;FRESNEL_DATA_DIR&quot;), System.getenv(),</span>
+<span class="nc" id="L14">                System.getProperty(&quot;os.name&quot;, &quot;&quot;),</span>
+<span class="nc" id="L15">                Path.of(System.getProperty(&quot;user.home&quot;, &quot;.&quot;)));</span>
+    }
+
+    static Path resolve(Map&lt;String, String&gt; environment, String osName, Path userHome) {
+<span class="fc" id="L19">        return resolve(null, environment, osName, userHome);</span>
+    }
+
+    static Path resolve(
+            String systemOverride,
+            Map&lt;String, String&gt; environment,
+            String osName,
+            Path userHome) {
+<span class="pc bpc" id="L27" title="1 of 4 branches missed.">        if (systemOverride != null &amp;&amp; !systemOverride.isBlank()) {</span>
+<span class="fc" id="L28">            return Path.of(systemOverride).toAbsolutePath().normalize();</span>
+        }
+
+<span class="fc" id="L31">        String environmentOverride = environment.get(&quot;FRESNEL_DATA_DIR&quot;);</span>
+<span class="pc bpc" id="L32" title="1 of 4 branches missed.">        if (environmentOverride != null &amp;&amp; !environmentOverride.isBlank()) {</span>
+<span class="fc" id="L33">            return Path.of(environmentOverride).toAbsolutePath().normalize();</span>
+        }
+
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">        String os = osName == null ? &quot;&quot; : osName.toLowerCase(Locale.ROOT);</span>
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (os.contains(&quot;win&quot;)) {</span>
+<span class="fc" id="L38">            String appData = environment.get(&quot;APPDATA&quot;);</span>
+<span class="pc bpc" id="L39" title="2 of 4 branches missed.">            if (appData != null &amp;&amp; !appData.isBlank()) {</span>
+<span class="fc" id="L40">                return Path.of(appData, &quot;Fresnel&quot;).toAbsolutePath().normalize();</span>
+            }
+        }
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        if (os.contains(&quot;mac&quot;)) {</span>
+<span class="fc" id="L44">            return userHome.resolve(&quot;Library&quot;).resolve(&quot;Application Support&quot;).resolve(&quot;Fresnel&quot;)</span>
+<span class="fc" id="L45">                    .toAbsolutePath().normalize();</span>
+        }
+
+<span class="fc" id="L48">        String xdgDataHome = environment.get(&quot;XDG_DATA_HOME&quot;);</span>
+<span class="pc bpc" id="L49" title="1 of 4 branches missed.">        if (xdgDataHome != null &amp;&amp; !xdgDataHome.isBlank()) {</span>
+<span class="fc" id="L50">            return Path.of(xdgDataHome, &quot;Fresnel&quot;).toAbsolutePath().normalize();</span>
+        }
+<span class="fc" id="L52">        return userHome.resolve(&quot;.local&quot;).resolve(&quot;share&quot;).resolve(&quot;Fresnel&quot;)</span>
+<span class="fc" id="L53">                .toAbsolutePath().normalize();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

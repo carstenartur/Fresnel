@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginSchemaDescriptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">PluginSchemaDescriptor.java</span></div><h1>PluginSchemaDescriptor.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+/**
+ * Versioned classpath resources that define one plugin's public parameter and UI
+ * contract.
+ *
+ * @param parameterSchemaVersion public compatibility version used by `.fresnel`
+ *                               job documents
+ * @param parameterSchemaResource classpath path of the Draft 2020-12 parameter
+ *                                schema
+ * @param uiSchemaResource classpath path of the separate presentation schema
+ * @param editorMode whether the common schema editor is sufficient or extended
+ */
+public record PluginSchemaDescriptor(
+        int parameterSchemaVersion,
+        String parameterSchemaResource,
+        String uiSchemaResource,
+        PluginEditorMode editorMode
+) {
+
+<span class="fc" id="L21">    public PluginSchemaDescriptor {</span>
+<span class="pc bpc" id="L22" title="1 of 2 branches missed.">        if (parameterSchemaVersion &lt; 1) {</span>
+<span class="nc" id="L23">            throw new IllegalArgumentException(&quot;parameterSchemaVersion must be at least 1&quot;);</span>
+        }
+<span class="fc" id="L25">        parameterSchemaResource = requireSafeResource(</span>
+                parameterSchemaResource, &quot;parameterSchemaResource&quot;);
+<span class="fc" id="L27">        uiSchemaResource = requireSafeResource(uiSchemaResource, &quot;uiSchemaResource&quot;);</span>
+<span class="pc bpc" id="L28" title="1 of 2 branches missed.">        if (editorMode == null) {</span>
+<span class="nc" id="L29">            throw new IllegalArgumentException(&quot;editorMode must not be null&quot;);</span>
+        }
+<span class="fc" id="L31">    }</span>
+
+    private static String requireSafeResource(String value, String name) {
+<span class="pc bpc" id="L34" title="2 of 4 branches missed.">        if (value == null || value.isBlank()) {</span>
+<span class="nc" id="L35">            throw new IllegalArgumentException(name + &quot; must not be blank&quot;);</span>
+        }
+<span class="fc" id="L37">        String normalized = value.trim();</span>
+<span class="pc bpc" id="L38" title="3 of 6 branches missed.">        if (normalized.startsWith(&quot;/&quot;) || normalized.contains(&quot;..&quot;) || normalized.contains(&quot;\\&quot;)) {</span>
+<span class="nc" id="L39">            throw new IllegalArgumentException(name + &quot; must be a relative classpath resource&quot;);</span>
+        }
+<span class="fc" id="L41">        return normalized;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

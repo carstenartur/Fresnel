@@ -1,0 +1,547 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginSchemaService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">PluginSchemaService.java</span></div><h1>PluginSchemaService.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import org.fresnel.optics.PluginCapability;
+import org.fresnel.optics.PluginDescriptor;
+import org.fresnel.optics.PluginRegistry;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * Loads and validates the versioned parameter/UI schemas advertised by
+ * {@link PluginRegistry}.
+ *
+ * &lt;p&gt;Schema resources are parsed once at application startup. The service rejects
+ * missing resources, unsupported custom keywords, unknown widget/extension IDs,
+ * duplicate field placement and parameter/UI version drift before an editor can
+ * consume the metadata.&lt;/p&gt;
+ */
+@Service
+public class PluginSchemaService {
+
+    public static final String JSON_SCHEMA_DRAFT_2020_12 =
+            &quot;https://json-schema.org/draft/2020-12/schema&quot;;
+    public static final int CURRENT_UI_FORMAT_VERSION = 1;
+
+<span class="fc" id="L38">    private static final Set&lt;String&gt; TRUSTED_WIDGETS = Set.of(</span>
+            &quot;number-with-presets&quot;,
+            &quot;select&quot;,
+            &quot;radio&quot;,
+            &quot;read-only&quot;,
+            &quot;focus-point-list&quot;,
+            &quot;window-cell-layout&quot;,
+            &quot;hologram-target-image&quot;);
+
+<span class="fc" id="L47">    private static final Set&lt;String&gt; TRUSTED_EXTENSIONS = Set.of(</span>
+            &quot;production-actions&quot;,
+            &quot;validation&quot;,
+            &quot;experiment&quot;,
+            &quot;propagation&quot;,
+            &quot;preview-info&quot;,
+            &quot;reconstruction-preview&quot;);
+
+<span class="fc" id="L55">    private static final Set&lt;String&gt; FRESNEL_SCHEMA_KEYWORDS = Set.of(</span>
+            &quot;x-fresnel-unit&quot;,
+            &quot;x-fresnel-step&quot;,
+            &quot;x-fresnel-precision&quot;,
+            &quot;x-fresnel-expensive&quot;,
+            &quot;x-fresnel-widget&quot;,
+            &quot;x-fresnel-enum-labels&quot;,
+            &quot;x-fresnel-sensitive-size&quot;,
+            &quot;x-fresnel-power-of-two&quot;);
+
+<span class="fc" id="L65">    private static final Set&lt;String&gt; UI_SCHEMA_FIELDS = Set.of(</span>
+            &quot;formatVersion&quot;, &quot;pluginId&quot;, &quot;parameterSchemaVersion&quot;,
+            &quot;groups&quot;, &quot;widgets&quot;, &quot;extensions&quot;);
+<span class="fc" id="L68">    private static final Set&lt;String&gt; UI_GROUP_FIELDS = Set.of(</span>
+            &quot;id&quot;, &quot;title&quot;, &quot;fields&quot;, &quot;collapsible&quot;, &quot;advanced&quot;, &quot;visibleWhen&quot;);
+<span class="fc" id="L70">    private static final Set&lt;String&gt; UI_WIDGET_FIELDS = Set.of(</span>
+            &quot;type&quot;, &quot;presets&quot;, &quot;visibleWhen&quot;, &quot;readOnly&quot;);
+<span class="fc" id="L72">    private static final Set&lt;String&gt; UI_CONDITION_FIELDS = Set.of(</span>
+            &quot;path&quot;, &quot;equals&quot;, &quot;notEquals&quot;, &quot;oneOf&quot;);
+
+    private final Map&lt;String, PluginSchemaDocument&gt; byPluginId;
+    private final List&lt;PluginSchemaDocument&gt; all;
+
+<span class="fc" id="L78">    public PluginSchemaService(ObjectMapper mapper) {</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">        if (mapper == null) throw new IllegalArgumentException(&quot;mapper must not be null&quot;);</span>
+
+<span class="fc" id="L81">        LinkedHashMap&lt;String, PluginSchemaDocument&gt; loaded = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L82">        Set&lt;String&gt; schemaIds = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        for (PluginDescriptor descriptor : PluginRegistry.ALL) {</span>
+<span class="fc" id="L84">            PluginSchemaDocument document = loadAndValidate(mapper, descriptor, schemaIds);</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">            if (loaded.put(descriptor.id(), document) != null) {</span>
+<span class="nc" id="L86">                throw new IllegalStateException(&quot;Duplicate plugin schema id: &quot; + descriptor.id());</span>
+            }
+<span class="fc" id="L88">        }</span>
+<span class="fc" id="L89">        this.byPluginId = Map.copyOf(loaded);</span>
+<span class="fc" id="L90">        this.all = List.copyOf(loaded.values());</span>
+<span class="fc" id="L91">    }</span>
+
+    /** Returns the current schema document for a stable plugin ID. */
+    public Optional&lt;PluginSchemaDocument&gt; findByPluginId(String pluginId) {
+<span class="fc" id="L95">        PluginSchemaDocument document = byPluginId.get(pluginId);</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        return document == null ? Optional.empty() : Optional.of(copy(document));</span>
+    }
+
+    /** Returns the current schema document or rejects an unknown plugin ID. */
+    public PluginSchemaDocument requireByPluginId(String pluginId) {
+<span class="fc" id="L101">        return findByPluginId(pluginId)</span>
+<span class="pc" id="L102">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;unknown plugin id: &quot; + pluginId));</span>
+    }
+
+    /** Returns all schema documents in {@link PluginRegistry} order. */
+    public List&lt;PluginSchemaDocument&gt; all() {
+<span class="fc" id="L107">        return all.stream().map(PluginSchemaService::copy).toList();</span>
+    }
+
+    private static PluginSchemaDocument loadAndValidate(
+            ObjectMapper mapper,
+            PluginDescriptor descriptor,
+            Set&lt;String&gt; schemaIds) {
+<span class="fc" id="L114">        JsonNode parameterSchema = readResource(</span>
+<span class="fc" id="L115">                mapper, descriptor.schema().parameterSchemaResource());</span>
+<span class="fc" id="L116">        JsonNode uiSchema = readResource(mapper, descriptor.schema().uiSchemaResource());</span>
+
+<span class="fc" id="L118">        validateParameterSchema(descriptor, parameterSchema, schemaIds);</span>
+<span class="fc" id="L119">        validateUiSchema(descriptor, parameterSchema, uiSchema);</span>
+
+<span class="fc" id="L121">        JsonNode defaults = parameterSchema.get(&quot;default&quot;);</span>
+<span class="fc" id="L122">        List&lt;PluginCapability&gt; capabilities = descriptor.capabilities().stream()</span>
+<span class="fc" id="L123">                .sorted(Comparator.comparing(Enum::name))</span>
+<span class="fc" id="L124">                .toList();</span>
+<span class="fc" id="L125">        return new PluginSchemaDocument(</span>
+<span class="fc" id="L126">                descriptor.id(),</span>
+<span class="fc" id="L127">                descriptor.schema().parameterSchemaVersion(),</span>
+<span class="fc" id="L128">                descriptor.schema().editorMode(),</span>
+<span class="fc" id="L129">                parameterSchema.deepCopy(),</span>
+<span class="fc" id="L130">                uiSchema.deepCopy(),</span>
+<span class="fc" id="L131">                defaults.deepCopy(),</span>
+                capabilities);
+    }
+
+    private static JsonNode readResource(ObjectMapper mapper, String resourcePath) {
+<span class="fc" id="L136">        ClassPathResource resource = new ClassPathResource(resourcePath);</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">        if (!resource.exists()) {</span>
+<span class="nc" id="L138">            throw new IllegalStateException(&quot;Missing plugin schema resource: &quot; + resourcePath);</span>
+        }
+<span class="fc" id="L140">        try (InputStream input = resource.getInputStream()) {</span>
+<span class="fc" id="L141">            JsonNode node = mapper.readTree(input);</span>
+<span class="pc bpc" id="L142" title="2 of 4 branches missed.">            if (node == null || !node.isObject()) {</span>
+<span class="nc" id="L143">                throw new IllegalStateException(</span>
+                        &quot;Plugin schema resource must contain a JSON object: &quot; + resourcePath);
+            }
+<span class="fc" id="L146">            return node;</span>
+<span class="nc" id="L147">        } catch (IOException | RuntimeException e) {</span>
+<span class="nc" id="L148">            throw new IllegalStateException(</span>
+<span class="nc" id="L149">                    &quot;Could not read plugin schema resource &quot; + resourcePath + &quot;: &quot; + concise(e), e);</span>
+        }
+    }
+
+    private static void validateParameterSchema(
+            PluginDescriptor descriptor,
+            JsonNode schema,
+            Set&lt;String&gt; schemaIds) {
+<span class="fc" id="L157">        String path = descriptor.schema().parameterSchemaResource();</span>
+<span class="fc" id="L158">        requireText(schema, &quot;$schema&quot;, path, JSON_SCHEMA_DRAFT_2020_12);</span>
+<span class="fc" id="L159">        String id = requireNonBlankText(schema, &quot;$id&quot;, path);</span>
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">        if (!schemaIds.add(id)) {</span>
+<span class="nc" id="L161">            throw new IllegalStateException(&quot;Duplicate JSON Schema $id: &quot; + id);</span>
+        }
+<span class="fc" id="L163">        requireText(schema, &quot;type&quot;, path, &quot;object&quot;);</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">        if (!schema.path(&quot;additionalProperties&quot;).isBoolean()</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">                || schema.path(&quot;additionalProperties&quot;).booleanValue()) {</span>
+<span class="nc" id="L166">            throw new IllegalStateException(</span>
+                    path + &quot; must set additionalProperties to false&quot;);
+        }
+
+<span class="fc" id="L170">        JsonNode properties = requireObject(schema, &quot;properties&quot;, path);</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">        if (properties.isEmpty()) {</span>
+<span class="nc" id="L172">            throw new IllegalStateException(path + &quot; must define at least one property&quot;);</span>
+        }
+<span class="fc" id="L174">        JsonNode defaults = requireObject(schema, &quot;default&quot;, path);</span>
+<span class="fc" id="L175">        requireKnownKeys(defaults, properties, path + &quot;.default&quot;);</span>
+
+<span class="fc" id="L177">        JsonNode required = schema.get(&quot;required&quot;);</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">        if (required != null) {</span>
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">            if (!required.isArray()) {</span>
+<span class="nc" id="L180">                throw new IllegalStateException(path + &quot;.required must be an array&quot;);</span>
+            }
+<span class="fc" id="L182">            Set&lt;String&gt; seen = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">            for (JsonNode item : required) {</span>
+<span class="pc bpc" id="L184" title="2 of 4 branches missed.">                if (!item.isTextual() || item.textValue().isBlank()) {</span>
+<span class="nc" id="L185">                    throw new IllegalStateException(path + &quot;.required contains an invalid field&quot;);</span>
+                }
+<span class="fc" id="L187">                String field = item.textValue();</span>
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">                if (!properties.has(field)) {</span>
+<span class="nc" id="L189">                    throw new IllegalStateException(</span>
+                            path + &quot;.required refers to unknown property: &quot; + field);
+                }
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">                if (!seen.add(field)) {</span>
+<span class="nc" id="L193">                    throw new IllegalStateException(</span>
+                            path + &quot;.required contains duplicate property: &quot; + field);
+                }
+<span class="fc" id="L196">            }</span>
+        }
+
+<span class="fc" id="L199">        validateCustomKeywords(schema, path);</span>
+<span class="fc" id="L200">    }</span>
+
+    private static void validateUiSchema(
+            PluginDescriptor descriptor,
+            JsonNode parameterSchema,
+            JsonNode uiSchema) {
+<span class="fc" id="L206">        String path = descriptor.schema().uiSchemaResource();</span>
+<span class="fc" id="L207">        rejectUnknownFields(uiSchema, UI_SCHEMA_FIELDS, path);</span>
+<span class="fc" id="L208">        requireInteger(uiSchema, &quot;formatVersion&quot;, path, CURRENT_UI_FORMAT_VERSION);</span>
+<span class="fc" id="L209">        requireText(uiSchema, &quot;pluginId&quot;, path, descriptor.id());</span>
+<span class="fc" id="L210">        requireInteger(</span>
+                uiSchema,
+                &quot;parameterSchemaVersion&quot;,
+                path,
+<span class="fc" id="L214">                descriptor.schema().parameterSchemaVersion());</span>
+
+<span class="fc" id="L216">        Set&lt;String&gt; expectedFields = addressableFields(parameterSchema);</span>
+<span class="fc" id="L217">        JsonNode groups = uiSchema.get(&quot;groups&quot;);</span>
+<span class="pc bpc" id="L218" title="3 of 6 branches missed.">        if (groups == null || !groups.isArray() || groups.isEmpty()) {</span>
+<span class="nc" id="L219">            throw new IllegalStateException(path + &quot;.groups must be a non-empty array&quot;);</span>
+        }
+
+<span class="fc" id="L222">        Set&lt;String&gt; groupIds = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L223">        Set&lt;String&gt; groupedFields = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">        for (int groupIndex = 0; groupIndex &lt; groups.size(); groupIndex++) {</span>
+<span class="fc" id="L225">            JsonNode group = groups.get(groupIndex);</span>
+<span class="fc" id="L226">            String groupPath = path + &quot;.groups[&quot; + groupIndex + &quot;]&quot;;</span>
+<span class="pc bpc" id="L227" title="1 of 2 branches missed.">            if (!group.isObject()) {</span>
+<span class="nc" id="L228">                throw new IllegalStateException(groupPath + &quot; must be an object&quot;);</span>
+            }
+<span class="fc" id="L230">            rejectUnknownFields(group, UI_GROUP_FIELDS, groupPath);</span>
+<span class="fc" id="L231">            String groupId = requireNonBlankText(group, &quot;id&quot;, groupPath);</span>
+<span class="fc" id="L232">            requireNonBlankText(group, &quot;title&quot;, groupPath);</span>
+<span class="fc" id="L233">            requireOptionalBoolean(group, &quot;collapsible&quot;, groupPath);</span>
+<span class="fc" id="L234">            requireOptionalBoolean(group, &quot;advanced&quot;, groupPath);</span>
+<span class="fc" id="L235">            validateCondition(group.get(&quot;visibleWhen&quot;), parameterSchema, expectedFields,</span>
+                    groupPath + &quot;.visibleWhen&quot;);
+<span class="pc bpc" id="L237" title="1 of 2 branches missed.">            if (!groupIds.add(groupId)) {</span>
+<span class="nc" id="L238">                throw new IllegalStateException(path + &quot; contains duplicate group id: &quot; + groupId);</span>
+            }
+<span class="fc" id="L240">            JsonNode fields = group.get(&quot;fields&quot;);</span>
+<span class="pc bpc" id="L241" title="3 of 6 branches missed.">            if (fields == null || !fields.isArray() || fields.isEmpty()) {</span>
+<span class="nc" id="L242">                throw new IllegalStateException(groupPath + &quot;.fields must be a non-empty array&quot;);</span>
+            }
+<span class="fc bfc" id="L244" title="All 2 branches covered.">            for (JsonNode fieldNode : fields) {</span>
+<span class="pc bpc" id="L245" title="2 of 4 branches missed.">                if (!fieldNode.isTextual() || fieldNode.textValue().isBlank()) {</span>
+<span class="nc" id="L246">                    throw new IllegalStateException(groupPath + &quot;.fields contains an invalid path&quot;);</span>
+                }
+<span class="fc" id="L248">                String field = fieldNode.textValue();</span>
+<span class="pc bpc" id="L249" title="1 of 2 branches missed.">                if (!expectedFields.contains(field)) {</span>
+<span class="nc" id="L250">                    throw new IllegalStateException(</span>
+                            groupPath + &quot;.fields refers to unknown schema field: &quot; + field);
+                }
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">                if (!groupedFields.add(field)) {</span>
+<span class="nc" id="L254">                    throw new IllegalStateException(</span>
+                            path + &quot; places field in more than one group: &quot; + field);
+                }
+<span class="fc" id="L257">            }</span>
+        }
+<span class="pc bpc" id="L259" title="1 of 2 branches missed.">        if (!groupedFields.equals(expectedFields)) {</span>
+<span class="nc" id="L260">            Set&lt;String&gt; missing = new LinkedHashSet&lt;&gt;(expectedFields);</span>
+<span class="nc" id="L261">            missing.removeAll(groupedFields);</span>
+<span class="nc" id="L262">            throw new IllegalStateException(path + &quot; does not place every parameter field; missing: &quot; + missing);</span>
+        }
+
+<span class="fc" id="L265">        JsonNode widgets = uiSchema.get(&quot;widgets&quot;);</span>
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">        if (widgets != null) {</span>
+<span class="pc bpc" id="L267" title="1 of 2 branches missed.">            if (!widgets.isObject()) {</span>
+<span class="nc" id="L268">                throw new IllegalStateException(path + &quot;.widgets must be an object&quot;);</span>
+            }
+<span class="fc bfc" id="L270" title="All 2 branches covered.">            for (Map.Entry&lt;String, JsonNode&gt; entry : widgets.properties()) {</span>
+<span class="fc" id="L271">                String widgetPath = path + &quot;.widgets.&quot; + entry.getKey();</span>
+<span class="pc bpc" id="L272" title="1 of 2 branches missed.">                if (!groupedFields.contains(entry.getKey())) {</span>
+<span class="nc" id="L273">                    throw new IllegalStateException(</span>
+<span class="nc" id="L274">                            path + &quot;.widgets refers to unknown field: &quot; + entry.getKey());</span>
+                }
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">                if (!entry.getValue().isObject()) {</span>
+<span class="nc" id="L277">                    throw new IllegalStateException(widgetPath + &quot; must be an object&quot;);</span>
+                }
+<span class="fc" id="L279">                rejectUnknownFields(entry.getValue(), UI_WIDGET_FIELDS, widgetPath);</span>
+<span class="fc" id="L280">                String type = requireNonBlankText(entry.getValue(), &quot;type&quot;, widgetPath);</span>
+<span class="pc bpc" id="L281" title="1 of 2 branches missed.">                if (!TRUSTED_WIDGETS.contains(type)) {</span>
+<span class="nc" id="L282">                    throw new IllegalStateException(path + &quot; requests untrusted widget: &quot; + type);</span>
+                }
+<span class="fc" id="L284">                requireOptionalBoolean(entry.getValue(), &quot;readOnly&quot;, widgetPath);</span>
+<span class="fc" id="L285">                validateCondition(entry.getValue().get(&quot;visibleWhen&quot;), parameterSchema,</span>
+                        expectedFields, widgetPath + &quot;.visibleWhen&quot;);
+
+<span class="fc" id="L288">                JsonNode fieldSchema = resolveFieldSchema(parameterSchema, entry.getKey());</span>
+<span class="fc" id="L289">                validateWidgetType(type, fieldSchema, widgetPath);</span>
+<span class="fc" id="L290">                JsonNode presets = entry.getValue().get(&quot;presets&quot;);</span>
+<span class="fc bfc" id="L291" title="All 2 branches covered.">                if (presets != null) {</span>
+<span class="pc bpc" id="L292" title="1 of 2 branches missed.">                    if (!&quot;number-with-presets&quot;.equals(type)</span>
+<span class="pc bpc" id="L293" title="2 of 4 branches missed.">                            || !presets.isArray() || presets.isEmpty()) {</span>
+<span class="nc" id="L294">                        throw new IllegalStateException(</span>
+                                widgetPath + &quot;.presets is only valid as a non-empty array for number-with-presets&quot;);
+                    }
+<span class="fc bfc" id="L297" title="All 2 branches covered.">                    for (JsonNode preset : presets) {</span>
+<span class="pc bpc" id="L298" title="1 of 2 branches missed.">                        if (!preset.isNumber()) {</span>
+<span class="nc" id="L299">                            throw new IllegalStateException(widgetPath + &quot;.presets must contain only numbers&quot;);</span>
+                        }
+<span class="fc" id="L301">                    }</span>
+                }
+<span class="fc" id="L303">            }</span>
+        }
+
+<span class="fc" id="L306">        JsonNode extensions = uiSchema.get(&quot;extensions&quot;);</span>
+<span class="pc bpc" id="L307" title="1 of 2 branches missed.">        if (extensions != null) {</span>
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">            if (!extensions.isArray()) {</span>
+<span class="nc" id="L309">                throw new IllegalStateException(path + &quot;.extensions must be an array&quot;);</span>
+            }
+<span class="fc" id="L311">            Set&lt;String&gt; seen = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L312" title="All 2 branches covered.">            for (JsonNode extension : extensions) {</span>
+<span class="pc bpc" id="L313" title="2 of 4 branches missed.">                if (!extension.isTextual() || !TRUSTED_EXTENSIONS.contains(extension.textValue())) {</span>
+<span class="nc" id="L314">                    throw new IllegalStateException(</span>
+                            path + &quot; requests an unknown or untrusted editor extension: &quot; + extension);
+                }
+<span class="pc bpc" id="L317" title="1 of 2 branches missed.">                if (!seen.add(extension.textValue())) {</span>
+<span class="nc" id="L318">                    throw new IllegalStateException(</span>
+<span class="nc" id="L319">                            path + &quot; contains duplicate editor extension: &quot; + extension.textValue());</span>
+                }
+<span class="fc" id="L321">            }</span>
+        }
+<span class="fc" id="L323">    }</span>
+
+    private static void validateWidgetType(String type, JsonNode fieldSchema, String path) {
+<span class="fc" id="L326">        String fieldType = fieldSchema.path(&quot;type&quot;).asText();</span>
+<span class="fc bfc" id="L327" title="All 2 branches covered.">        if (&quot;number-with-presets&quot;.equals(type)</span>
+<span class="pc bpc" id="L328" title="1 of 4 branches missed.">                &amp;&amp; !(&quot;number&quot;.equals(fieldType) || &quot;integer&quot;.equals(fieldType))) {</span>
+<span class="nc" id="L329">            throw new IllegalStateException(path + &quot; requires a numeric parameter field&quot;);</span>
+        }
+<span class="fc bfc" id="L331" title="All 4 branches covered.">        if ((&quot;select&quot;.equals(type) || &quot;radio&quot;.equals(type))</span>
+<span class="pc bpc" id="L332" title="1 of 2 branches missed.">                &amp;&amp; (!(&quot;string&quot;.equals(fieldType))</span>
+<span class="pc bpc" id="L333" title="1 of 2 branches missed.">                || !fieldSchema.path(&quot;enum&quot;).isArray()</span>
+<span class="pc bpc" id="L334" title="1 of 2 branches missed.">                || fieldSchema.path(&quot;enum&quot;).isEmpty())) {</span>
+<span class="nc" id="L335">            throw new IllegalStateException(path + &quot; requires a non-empty string enum&quot;);</span>
+        }
+<span class="fc" id="L337">    }</span>
+
+    private static void validateCondition(
+            JsonNode condition,
+            JsonNode parameterSchema,
+            Set&lt;String&gt; expectedFields,
+            String path) {
+<span class="pc bpc" id="L344" title="1 of 4 branches missed.">        if (condition == null || condition.isNull()) return;</span>
+<span class="pc bpc" id="L345" title="1 of 2 branches missed.">        if (!condition.isObject()) {</span>
+<span class="nc" id="L346">            throw new IllegalStateException(path + &quot; must be an object&quot;);</span>
+        }
+<span class="fc" id="L348">        rejectUnknownFields(condition, UI_CONDITION_FIELDS, path);</span>
+<span class="fc" id="L349">        String fieldPath = requireNonBlankText(condition, &quot;path&quot;, path);</span>
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">        if (!expectedFields.contains(fieldPath)) {</span>
+<span class="nc" id="L351">            throw new IllegalStateException(path + &quot; refers to unknown parameter field: &quot; + fieldPath);</span>
+        }
+
+<span class="pc bpc" id="L354" title="1 of 2 branches missed.">        int operators = (condition.has(&quot;equals&quot;) ? 1 : 0)</span>
+<span class="pc bpc" id="L355" title="1 of 2 branches missed.">                + (condition.has(&quot;notEquals&quot;) ? 1 : 0)</span>
+<span class="pc bpc" id="L356" title="1 of 2 branches missed.">                + (condition.has(&quot;oneOf&quot;) ? 1 : 0);</span>
+<span class="pc bpc" id="L357" title="1 of 2 branches missed.">        if (operators != 1) {</span>
+<span class="nc" id="L358">            throw new IllegalStateException(</span>
+                    path + &quot; must define exactly one of equals, notEquals or oneOf&quot;);
+        }
+
+<span class="fc" id="L362">        JsonNode fieldSchema = resolveFieldSchema(parameterSchema, fieldPath);</span>
+<span class="pc bpc" id="L363" title="1 of 2 branches missed.">        if (condition.has(&quot;equals&quot;)) {</span>
+<span class="fc" id="L364">            validateConditionValue(condition.get(&quot;equals&quot;), fieldSchema, path + &quot;.equals&quot;);</span>
+<span class="nc bnc" id="L365" title="All 2 branches missed.">        } else if (condition.has(&quot;notEquals&quot;)) {</span>
+<span class="nc" id="L366">            validateConditionValue(condition.get(&quot;notEquals&quot;), fieldSchema, path + &quot;.notEquals&quot;);</span>
+        } else {
+<span class="nc" id="L368">            JsonNode values = condition.get(&quot;oneOf&quot;);</span>
+<span class="nc bnc" id="L369" title="All 6 branches missed.">            if (values == null || !values.isArray() || values.isEmpty()) {</span>
+<span class="nc" id="L370">                throw new IllegalStateException(path + &quot;.oneOf must be a non-empty array&quot;);</span>
+            }
+<span class="nc" id="L372">            Set&lt;String&gt; seen = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L373" title="All 2 branches missed.">            for (int index = 0; index &lt; values.size(); index++) {</span>
+<span class="nc" id="L374">                JsonNode value = values.get(index);</span>
+<span class="nc" id="L375">                validateConditionValue(value, fieldSchema, path + &quot;.oneOf[&quot; + index + &quot;]&quot;);</span>
+<span class="nc bnc" id="L376" title="All 2 branches missed.">                if (!seen.add(value.toString())) {</span>
+<span class="nc" id="L377">                    throw new IllegalStateException(path + &quot;.oneOf contains a duplicate value: &quot; + value);</span>
+                }
+            }
+        }
+<span class="fc" id="L381">    }</span>
+
+    private static void validateConditionValue(JsonNode value, JsonNode fieldSchema, String path) {
+<span class="pc bpc" id="L384" title="2 of 4 branches missed.">        if (value == null || value.isNull()) return;</span>
+<span class="fc" id="L385">        String type = fieldSchema.path(&quot;type&quot;).asText();</span>
+<span class="pc bpc" id="L386" title="4 of 5 branches missed.">        boolean compatible = switch (type) {</span>
+<span class="fc" id="L387">            case &quot;string&quot; -&gt; value.isTextual();</span>
+<span class="nc" id="L388">            case &quot;number&quot; -&gt; value.isNumber();</span>
+<span class="nc" id="L389">            case &quot;integer&quot; -&gt; value.isIntegralNumber();</span>
+<span class="nc" id="L390">            case &quot;boolean&quot; -&gt; value.isBoolean();</span>
+<span class="pc" id="L391">            default -&gt; false;</span>
+        };
+<span class="pc bpc" id="L393" title="1 of 2 branches missed.">        if (!compatible) {</span>
+<span class="nc" id="L394">            throw new IllegalStateException(path + &quot; does not match parameter type &quot; + type);</span>
+        }
+<span class="fc" id="L396">        JsonNode enumValues = fieldSchema.get(&quot;enum&quot;);</span>
+<span class="pc bpc" id="L397" title="2 of 4 branches missed.">        if (enumValues != null &amp;&amp; enumValues.isArray()) {</span>
+<span class="fc" id="L398">            boolean found = false;</span>
+<span class="pc bpc" id="L399" title="1 of 2 branches missed.">            for (JsonNode candidate : enumValues) {</span>
+<span class="fc bfc" id="L400" title="All 2 branches covered.">                if (candidate.equals(value)) {</span>
+<span class="fc" id="L401">                    found = true;</span>
+<span class="fc" id="L402">                    break;</span>
+                }
+<span class="fc" id="L404">            }</span>
+<span class="pc bpc" id="L405" title="1 of 2 branches missed.">            if (!found) {</span>
+<span class="nc" id="L406">                throw new IllegalStateException(path + &quot; is not a declared enum value: &quot; + value);</span>
+            }
+        }
+<span class="fc" id="L409">    }</span>
+
+    private static Set&lt;String&gt; addressableFields(JsonNode parameterSchema) {
+<span class="fc" id="L412">        LinkedHashSet&lt;String&gt; result = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc" id="L413">        collectAddressableFields(parameterSchema, &quot;&quot;, result);</span>
+<span class="fc" id="L414">        return result;</span>
+    }
+
+    private static void collectAddressableFields(
+            JsonNode schema,
+            String prefix,
+            Set&lt;String&gt; result) {
+<span class="fc" id="L421">        JsonNode properties = schema.get(&quot;properties&quot;);</span>
+<span class="pc bpc" id="L422" title="2 of 4 branches missed.">        if (properties == null || !properties.isObject()) return;</span>
+<span class="fc bfc" id="L423" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; entry : properties.properties()) {</span>
+<span class="fc bfc" id="L424" title="All 2 branches covered.">            String path = prefix.isEmpty() ? entry.getKey() : prefix + &quot;.&quot; + entry.getKey();</span>
+<span class="fc" id="L425">            JsonNode fieldSchema = entry.getValue();</span>
+<span class="fc bfc" id="L426" title="All 2 branches covered.">            if (&quot;object&quot;.equals(fieldSchema.path(&quot;type&quot;).asText())</span>
+<span class="pc bpc" id="L427" title="1 of 2 branches missed.">                    &amp;&amp; fieldSchema.path(&quot;properties&quot;).isObject()</span>
+<span class="pc bpc" id="L428" title="1 of 2 branches missed.">                    &amp;&amp; !fieldSchema.has(&quot;x-fresnel-widget&quot;)) {</span>
+<span class="fc" id="L429">                collectAddressableFields(fieldSchema, path, result);</span>
+            } else {
+<span class="fc" id="L431">                result.add(path);</span>
+            }
+<span class="fc" id="L433">        }</span>
+<span class="fc" id="L434">    }</span>
+
+    private static JsonNode resolveFieldSchema(JsonNode parameterSchema, String path) {
+<span class="fc" id="L437">        JsonNode current = parameterSchema;</span>
+<span class="fc bfc" id="L438" title="All 2 branches covered.">        for (String segment : path.split(&quot;\\.&quot;)) {</span>
+<span class="fc" id="L439">            JsonNode properties = current.get(&quot;properties&quot;);</span>
+<span class="pc bpc" id="L440" title="1 of 2 branches missed.">            current = properties == null ? null : properties.get(segment);</span>
+<span class="pc bpc" id="L441" title="2 of 4 branches missed.">            if (current == null || !current.isObject()) {</span>
+<span class="nc" id="L442">                throw new IllegalStateException(&quot;Could not resolve parameter schema field: &quot; + path);</span>
+            }
+        }
+<span class="fc" id="L445">        return current;</span>
+    }
+
+    private static void validateCustomKeywords(JsonNode node, String path) {
+<span class="fc bfc" id="L449" title="All 2 branches covered.">        if (node.isObject()) {</span>
+<span class="fc bfc" id="L450" title="All 2 branches covered.">            for (Map.Entry&lt;String, JsonNode&gt; entry : node.properties()) {</span>
+<span class="fc" id="L451">                String childPath = path + &quot;.&quot; + entry.getKey();</span>
+<span class="fc bfc" id="L452" title="All 2 branches covered.">                if (entry.getKey().startsWith(&quot;x-fresnel-&quot;)</span>
+<span class="pc bpc" id="L453" title="1 of 2 branches missed.">                        &amp;&amp; !FRESNEL_SCHEMA_KEYWORDS.contains(entry.getKey())) {</span>
+<span class="nc" id="L454">                    throw new IllegalStateException(</span>
+<span class="nc" id="L455">                            &quot;Unsupported Fresnel schema keyword &quot; + entry.getKey() + &quot; at &quot; + path);</span>
+                }
+<span class="fc" id="L457">                validateCustomKeywords(entry.getValue(), childPath);</span>
+<span class="fc" id="L458">            }</span>
+<span class="fc bfc" id="L459" title="All 2 branches covered.">        } else if (node.isArray()) {</span>
+<span class="fc bfc" id="L460" title="All 2 branches covered.">            for (int i = 0; i &lt; node.size(); i++) {</span>
+<span class="fc" id="L461">                validateCustomKeywords(node.get(i), path + &quot;[&quot; + i + &quot;]&quot;);</span>
+            }
+        }
+<span class="fc" id="L464">    }</span>
+
+    private static void requireKnownKeys(JsonNode values, JsonNode properties, String path) {
+<span class="fc bfc" id="L467" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; entry : values.properties()) {</span>
+<span class="pc bpc" id="L468" title="1 of 2 branches missed.">            if (!properties.has(entry.getKey())) {</span>
+<span class="nc" id="L469">                throw new IllegalStateException(path + &quot; contains unknown property: &quot; + entry.getKey());</span>
+            }
+<span class="fc" id="L471">        }</span>
+<span class="fc" id="L472">    }</span>
+
+    private static void rejectUnknownFields(JsonNode object, Set&lt;String&gt; allowed, String path) {
+<span class="fc bfc" id="L475" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; entry : object.properties()) {</span>
+<span class="pc bpc" id="L476" title="1 of 2 branches missed.">            if (!allowed.contains(entry.getKey())) {</span>
+<span class="nc" id="L477">                throw new IllegalStateException(path + &quot; contains unsupported field: &quot; + entry.getKey());</span>
+            }
+<span class="fc" id="L479">        }</span>
+<span class="fc" id="L480">    }</span>
+
+    private static void requireOptionalBoolean(JsonNode parent, String field, String path) {
+<span class="fc" id="L483">        JsonNode value = parent.get(field);</span>
+<span class="pc bpc" id="L484" title="1 of 4 branches missed.">        if (value != null &amp;&amp; !value.isBoolean()) {</span>
+<span class="nc" id="L485">            throw new IllegalStateException(path + &quot;.&quot; + field + &quot; must be a boolean&quot;);</span>
+        }
+<span class="fc" id="L487">    }</span>
+
+    private static JsonNode requireObject(JsonNode parent, String field, String path) {
+<span class="fc" id="L490">        JsonNode value = parent.get(field);</span>
+<span class="pc bpc" id="L491" title="2 of 4 branches missed.">        if (value == null || !value.isObject()) {</span>
+<span class="nc" id="L492">            throw new IllegalStateException(path + &quot;.&quot; + field + &quot; must be an object&quot;);</span>
+        }
+<span class="fc" id="L494">        return value;</span>
+    }
+
+    private static String requireNonBlankText(JsonNode parent, String field, String path) {
+<span class="fc" id="L498">        JsonNode value = parent.get(field);</span>
+<span class="pc bpc" id="L499" title="3 of 6 branches missed.">        if (value == null || !value.isTextual() || value.textValue().isBlank()) {</span>
+<span class="nc" id="L500">            throw new IllegalStateException(path + &quot;.&quot; + field + &quot; must be a non-blank string&quot;);</span>
+        }
+<span class="fc" id="L502">        return value.textValue();</span>
+    }
+
+    private static void requireText(
+            JsonNode parent,
+            String field,
+            String path,
+            String expected) {
+<span class="fc" id="L510">        String actual = requireNonBlankText(parent, field, path);</span>
+<span class="pc bpc" id="L511" title="1 of 2 branches missed.">        if (!expected.equals(actual)) {</span>
+<span class="nc" id="L512">            throw new IllegalStateException(</span>
+                    path + &quot;.&quot; + field + &quot; must be &quot; + expected + &quot; but was &quot; + actual);
+        }
+<span class="fc" id="L515">    }</span>
+
+    private static void requireInteger(
+            JsonNode parent,
+            String field,
+            String path,
+            int expected) {
+<span class="fc" id="L522">        JsonNode value = parent.get(field);</span>
+<span class="pc bpc" id="L523" title="3 of 6 branches missed.">        if (value == null || !value.isIntegralNumber() || value.intValue() != expected) {</span>
+<span class="nc" id="L524">            throw new IllegalStateException(</span>
+                    path + &quot;.&quot; + field + &quot; must be &quot; + expected);
+        }
+<span class="fc" id="L527">    }</span>
+
+    private static PluginSchemaDocument copy(PluginSchemaDocument source) {
+<span class="fc" id="L530">        return new PluginSchemaDocument(</span>
+<span class="fc" id="L531">                source.pluginId(),</span>
+<span class="fc" id="L532">                source.parameterSchemaVersion(),</span>
+<span class="fc" id="L533">                source.editorMode(),</span>
+<span class="fc" id="L534">                source.parameterSchema().deepCopy(),</span>
+<span class="fc" id="L535">                source.uiSchema().deepCopy(),</span>
+<span class="fc" id="L536">                source.defaults().deepCopy(),</span>
+<span class="fc" id="L537">                source.capabilities());</span>
+    }
+
+    private static String concise(Exception exception) {
+<span class="nc" id="L541">        String message = exception.getMessage();</span>
+<span class="nc bnc" id="L542" title="All 4 branches missed.">        if (message == null || message.isBlank()) return exception.getClass().getSimpleName();</span>
+<span class="nc" id="L543">        int newline = message.indexOf('\n');</span>
+<span class="nc bnc" id="L544" title="All 2 branches missed.">        return newline &lt; 0 ? message : message.substring(0, newline);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PrimaryInstanceCoordinator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.desktop</a> &gt; <span class="el_source">PrimaryInstanceCoordinator.java</span></div><h1>PrimaryInstanceCoordinator.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.desktop;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * Elects one packaged desktop process as primary and publishes authenticated
+ * loopback connection metadata for secondary invocations.
+ */
+public final class PrimaryInstanceCoordinator implements AutoCloseable {
+
+    static final String LOCK_FILENAME = &quot;desktop-instance.lock&quot;;
+    static final String METADATA_FILENAME = &quot;desktop-instance.properties&quot;;
+
+<span class="fc" id="L29">    private static final Set&lt;PosixFilePermission&gt; DIRECTORY_PERMISSIONS = Set.of(</span>
+            PosixFilePermission.OWNER_READ,
+            PosixFilePermission.OWNER_WRITE,
+            PosixFilePermission.OWNER_EXECUTE);
+<span class="fc" id="L33">    private static final Set&lt;PosixFilePermission&gt; FILE_PERMISSIONS = Set.of(</span>
+            PosixFilePermission.OWNER_READ,
+            PosixFilePermission.OWNER_WRITE);
+
+    private final Path metadataPath;
+    private final FileChannel lockChannel;
+    private final FileLock lock;
+<span class="fc" id="L40">    private final AtomicBoolean closed = new AtomicBoolean();</span>
+
+<span class="fc" id="L42">    private PrimaryInstanceCoordinator(Path metadataPath, FileChannel lockChannel, FileLock lock) {</span>
+<span class="fc" id="L43">        this.metadataPath = metadataPath;</span>
+<span class="fc" id="L44">        this.lockChannel = lockChannel;</span>
+<span class="fc" id="L45">        this.lock = lock;</span>
+<span class="fc" id="L46">    }</span>
+
+    /**
+     * Attempts to become the primary process. An empty result means another local
+     * process currently owns the exclusive lock.
+     */
+    public static Optional&lt;PrimaryInstanceCoordinator&gt; tryAcquire(Path dataDirectory) throws IOException {
+<span class="fc" id="L53">        Path directory = dataDirectory.toAbsolutePath().normalize();</span>
+<span class="fc" id="L54">        Files.createDirectories(directory);</span>
+<span class="fc" id="L55">        secureDirectory(directory);</span>
+
+<span class="fc" id="L57">        Path lockPath = directory.resolve(LOCK_FILENAME);</span>
+<span class="fc" id="L58">        FileChannel channel = FileChannel.open(lockPath,</span>
+                StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+<span class="fc" id="L60">        secureFile(lockPath);</span>
+
+        final FileLock lock;
+        try {
+<span class="fc" id="L64">            lock = channel.tryLock();</span>
+<span class="fc" id="L65">        } catch (OverlappingFileLockException e) {</span>
+<span class="fc" id="L66">            channel.close();</span>
+<span class="fc" id="L67">            return Optional.empty();</span>
+<span class="fc" id="L68">        }</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        if (lock == null) {</span>
+<span class="nc" id="L70">            channel.close();</span>
+<span class="nc" id="L71">            return Optional.empty();</span>
+        }
+
+<span class="fc" id="L74">        Path metadataPath = directory.resolve(METADATA_FILENAME);</span>
+        // A lock owner is authoritative. Metadata left by a crashed former process
+        // is stale and may be removed only after this process acquired the lock.
+<span class="fc" id="L77">        Files.deleteIfExists(metadataPath);</span>
+<span class="fc" id="L78">        return Optional.of(new PrimaryInstanceCoordinator(metadataPath, channel, lock));</span>
+    }
+
+    public Path metadataPath() {
+<span class="fc" id="L82">        return metadataPath;</span>
+    }
+
+    /** Atomically publishes metadata only after the embedded web server is ready. */
+    public void publish(DesktopInstanceMetadata metadata) throws IOException {
+<span class="fc" id="L87">        ensureOpen();</span>
+<span class="fc" id="L88">        Path temporary = Files.createTempFile(metadataPath.getParent(), &quot;.desktop-instance-&quot;, &quot;.tmp&quot;);</span>
+        try {
+<span class="fc" id="L90">            secureFile(temporary);</span>
+<span class="fc" id="L91">            try (OutputStream output = Files.newOutputStream(temporary,</span>
+                    StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+<span class="fc" id="L93">                metadata.toProperties().store(output, &quot;Fresnel desktop instance v1&quot;);</span>
+            }
+            try {
+<span class="fc" id="L96">                Files.move(temporary, metadataPath,</span>
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+<span class="nc" id="L98">            } catch (AtomicMoveNotSupportedException e) {</span>
+<span class="nc" id="L99">                Files.move(temporary, metadataPath, StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="fc" id="L100">            }</span>
+<span class="fc" id="L101">            secureFile(metadataPath);</span>
+        } finally {
+<span class="fc" id="L103">            Files.deleteIfExists(temporary);</span>
+        }
+<span class="fc" id="L105">    }</span>
+
+    public static Optional&lt;DesktopInstanceMetadata&gt; readPublished(Path dataDirectory) throws IOException {
+<span class="fc" id="L108">        Path metadataPath = dataDirectory.toAbsolutePath().normalize().resolve(METADATA_FILENAME);</span>
+<span class="pc bpc" id="L109" title="1 of 4 branches missed.">        if (!Files.isRegularFile(metadataPath) || !Files.isReadable(metadataPath)) {</span>
+<span class="fc" id="L110">            return Optional.empty();</span>
+        }
+<span class="fc" id="L112">        Properties properties = new Properties();</span>
+<span class="fc" id="L113">        try (InputStream input = Files.newInputStream(metadataPath)) {</span>
+<span class="fc" id="L114">            properties.load(input);</span>
+        }
+<span class="fc" id="L116">        return Optional.of(DesktopInstanceMetadata.fromProperties(properties));</span>
+    }
+
+    @Override
+    public void close() {
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (!closed.compareAndSet(false, true)) {</span>
+<span class="fc" id="L122">            return;</span>
+        }
+        try {
+<span class="fc" id="L125">            Files.deleteIfExists(metadataPath);</span>
+<span class="nc" id="L126">        } catch (IOException ignored) {</span>
+            // The lock release remains the authoritative shutdown signal.
+<span class="fc" id="L128">        }</span>
+        try {
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">            if (lock.isValid()) {</span>
+<span class="fc" id="L131">                lock.release();</span>
+            }
+<span class="nc" id="L133">        } catch (IOException ignored) {</span>
+            // Closing the channel below releases the lock as a final fallback.
+<span class="fc" id="L135">        }</span>
+        try {
+<span class="fc" id="L137">            lockChannel.close();</span>
+<span class="nc" id="L138">        } catch (IOException ignored) {</span>
+            // Nothing useful can be done during JVM shutdown.
+<span class="fc" id="L140">        }</span>
+<span class="fc" id="L141">    }</span>
+
+    private void ensureOpen() {
+<span class="pc bpc" id="L144" title="2 of 4 branches missed.">        if (closed.get() || !lock.isValid()) {</span>
+<span class="nc" id="L145">            throw new IllegalStateException(&quot;Desktop instance coordinator is closed&quot;);</span>
+        }
+<span class="fc" id="L147">    }</span>
+
+    private static void secureDirectory(Path path) throws IOException {
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">        if (supportsPosix(path)) {</span>
+<span class="fc" id="L151">            Files.setPosixFilePermissions(path, DIRECTORY_PERMISSIONS);</span>
+        }
+<span class="fc" id="L153">    }</span>
+
+    private static void secureFile(Path path) throws IOException {
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">        if (supportsPosix(path)) {</span>
+<span class="fc" id="L157">            Files.setPosixFilePermissions(path, FILE_PERMISSIONS);</span>
+        }
+<span class="fc" id="L159">    }</span>
+
+    private static boolean supportsPosix(Path path) throws IOException {
+<span class="fc" id="L162">        return Files.getFileStore(path).supportsFileAttributeView(&quot;posix&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

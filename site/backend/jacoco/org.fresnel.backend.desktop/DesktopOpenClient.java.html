@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesktopOpenClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.desktop</a> &gt; <span class="el_source">DesktopOpenClient.java</span></div><h1>DesktopOpenClient.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.desktop;
+
+import org.fresnel.backend.api.FresnelJobDocument;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+
+/** Sends a file-open request from a secondary launcher to the primary loopback server. */
+public final class DesktopOpenClient {
+
+<span class="fc" id="L16">    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);</span>
+<span class="fc" id="L17">    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);</span>
+
+    private final HttpClient client;
+
+    public DesktopOpenClient() {
+<span class="fc" id="L22">        this(HttpClient.newBuilder()</span>
+<span class="fc" id="L23">                .connectTimeout(CONNECT_TIMEOUT)</span>
+<span class="fc" id="L24">                .followRedirects(HttpClient.Redirect.NEVER)</span>
+<span class="fc" id="L25">                .build());</span>
+<span class="fc" id="L26">    }</span>
+
+<span class="fc" id="L28">    DesktopOpenClient(HttpClient client) {</span>
+<span class="pc bpc" id="L29" title="1 of 2 branches missed.">        if (client == null) throw new IllegalArgumentException(&quot;client must not be null&quot;);</span>
+<span class="fc" id="L30">        this.client = client;</span>
+<span class="fc" id="L31">    }</span>
+
+    /** Returns true only when the endpoint presents the expected authenticated protocol marker. */
+    public boolean ping(DesktopInstanceMetadata metadata) {
+<span class="pc bpc" id="L35" title="2 of 4 branches missed.">        if (metadata == null || !isRecordedProcessAlive(metadata)) return false;</span>
+<span class="fc" id="L36">        HttpRequest request = HttpRequest.newBuilder(endpoint(metadata, &quot;/api/internal/desktop/ping&quot;))</span>
+<span class="fc" id="L37">                .timeout(REQUEST_TIMEOUT)</span>
+<span class="fc" id="L38">                .header(&quot;Authorization&quot;, bearer(metadata))</span>
+<span class="fc" id="L39">                .GET()</span>
+<span class="fc" id="L40">                .build();</span>
+        try {
+<span class="fc" id="L42">            HttpResponse&lt;String&gt; response = client.send(</span>
+<span class="fc" id="L43">                    request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">            return response.statusCode() == 200</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">                    &amp;&amp; DesktopOpenController.PING_BODY.equals(response.body().trim());</span>
+<span class="nc" id="L46">        } catch (IOException e) {</span>
+<span class="nc" id="L47">            return false;</span>
+<span class="nc" id="L48">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L49">            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L50">            return false;</span>
+        }
+    }
+
+    /**
+     * Sends job bytes to the primary instance and returns its one-time browser import ID.
+     * No source path is included in the request.
+     */
+    public String submit(DesktopInstanceMetadata metadata, byte[] jobBytes)
+            throws IOException, InterruptedException {
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        if (metadata == null) throw new IllegalArgumentException(&quot;metadata must not be null&quot;);</span>
+<span class="pc bpc" id="L61" title="2 of 4 branches missed.">        if (jobBytes == null || jobBytes.length == 0) {</span>
+<span class="nc" id="L62">            throw new IllegalArgumentException(&quot;Fresnel job must not be empty&quot;);</span>
+        }
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">        if (jobBytes.length &gt; FresnelJobDocument.MAX_FILE_BYTES) {</span>
+<span class="nc" id="L65">            throw new IllegalArgumentException(</span>
+                    &quot;Fresnel job exceeds the maximum size of &quot;
+                            + FresnelJobDocument.MAX_FILE_BYTES + &quot; bytes&quot;);
+        }
+
+<span class="fc" id="L70">        HttpRequest request = HttpRequest.newBuilder(endpoint(metadata, &quot;/api/internal/desktop/open&quot;))</span>
+<span class="fc" id="L71">                .timeout(REQUEST_TIMEOUT)</span>
+<span class="fc" id="L72">                .header(&quot;Authorization&quot;, bearer(metadata))</span>
+<span class="fc" id="L73">                .header(&quot;Content-Type&quot;, FresnelJobDocument.MEDIA_TYPE)</span>
+<span class="fc" id="L74">                .header(&quot;Accept&quot;, &quot;text/plain&quot;)</span>
+<span class="fc" id="L75">                .POST(HttpRequest.BodyPublishers.ofByteArray(jobBytes))</span>
+<span class="fc" id="L76">                .build();</span>
+<span class="fc" id="L77">        HttpResponse&lt;String&gt; response = client.send(</span>
+<span class="fc" id="L78">                request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (response.statusCode() != 202) {</span>
+<span class="fc" id="L80">            throw new IOException(&quot;Primary Fresnel instance rejected desktop open request (HTTP &quot;</span>
+<span class="fc" id="L81">                    + response.statusCode() + &quot;): &quot; + concise(response.body()));</span>
+        }
+
+<span class="fc" id="L84">        String importId = response.body().trim();</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">        if (!DesktopOpenQueue.isTokenShapeValid(importId)) {</span>
+<span class="nc" id="L86">            throw new IOException(&quot;Primary Fresnel instance returned an invalid desktop open token&quot;);</span>
+        }
+<span class="fc" id="L88">        return importId;</span>
+    }
+
+    public URI browserUri(DesktopInstanceMetadata metadata, String importId) {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (!DesktopOpenQueue.isTokenShapeValid(importId)) {</span>
+<span class="nc" id="L93">            throw new IllegalArgumentException(&quot;Invalid desktop open token&quot;);</span>
+        }
+<span class="nc" id="L95">        return endpoint(metadata, &quot;/?fresnelOpen=&quot; + importId);</span>
+    }
+
+    public URI baseBrowserUri(DesktopInstanceMetadata metadata) {
+<span class="nc" id="L99">        return endpoint(metadata, &quot;/&quot;);</span>
+    }
+
+    private static boolean isRecordedProcessAlive(DesktopInstanceMetadata metadata) {
+<span class="fc" id="L103">        return ProcessHandle.of(metadata.processId()).map(ProcessHandle::isAlive).orElse(false);</span>
+    }
+
+    private static String bearer(DesktopInstanceMetadata metadata) {
+<span class="fc" id="L107">        return &quot;Bearer &quot; + metadata.sessionSecret();</span>
+    }
+
+    private static URI endpoint(DesktopInstanceMetadata metadata, String pathAndQuery) {
+<span class="fc" id="L111">        return URI.create(&quot;http://127.0.0.1:&quot; + metadata.port() + pathAndQuery);</span>
+    }
+
+    private static String concise(String body) {
+<span class="pc bpc" id="L115" title="2 of 4 branches missed.">        if (body == null || body.isBlank()) return &quot;no response body&quot;;</span>
+<span class="nc" id="L116">        String normalized = body.replace('\r', ' ').replace('\n', ' ').trim();</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        return normalized.length() &lt;= 200 ? normalized : normalized.substring(0, 200);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

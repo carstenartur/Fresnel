@@ -11,40 +11,30 @@ import java.util.stream.Collectors;
  * Static registry of all Fresnel plugins.
  *
  * &lt;p&gt;This is the single machine-readable source of truth for plugin metadata.
- * It replaces the previously duplicated lists scattered across Java code,
- * TypeScript UI definitions and documentation.
+ * It replaces duplicated lists scattered across Java code, TypeScript UI
+ * definitions and documentation.&lt;/p&gt;
  *
  * &lt;h2&gt;Adding a new plugin&lt;/h2&gt;
  * &lt;ol&gt;
  *   &lt;li&gt;Create the parameter record and renderer in {@code optics-core}.&lt;/li&gt;
- *   &lt;li&gt;Add a {@link PluginDescriptor} constant below.&lt;/li&gt;
- *   &lt;li&gt;Register it in {@link #ALL}.&lt;/li&gt;
+ *   &lt;li&gt;Add versioned parameter and UI schemas under
+ *       {@code src/main/resources/fresnel/plugins/&amp;lt;id&amp;gt;/}.&lt;/li&gt;
+ *   &lt;li&gt;Add a {@link PluginDescriptor} constant below and register it in
+ *       {@link #ALL}.&lt;/li&gt;
  * &lt;/ol&gt;
- *
- * &lt;h2&gt;Usage&lt;/h2&gt;
- * &lt;pre&gt;{@code
- * PluginDescriptor zp = PluginRegistry.findById(&quot;zone-plate&quot;).orElseThrow();
- * boolean hasPdf = zp.supportsExport(PluginCapability.EXPORT_PDF);
- * List&lt;PluginDescriptor&gt; pdfPlugins = PluginRegistry.withCapability(PluginCapability.EXPORT_PDF);
- * }&lt;/pre&gt;
  */
 public final class PluginRegistry {
 
-    // -----------------------------------------------------------------------
-    // Plugin descriptors
-    // -----------------------------------------------------------------------
-
     /** Single Fresnel zone plate — binary amplitude or greyscale phase. */
-<span class="fc" id="L38">    public static final PluginDescriptor ZONE_PLATE = new PluginDescriptor(</span>
+<span class="fc" id="L29">    public static final PluginDescriptor ZONE_PLATE = new PluginDescriptor(</span>
             &quot;zone-plate&quot;,
             &quot;Zone Plate&quot;,
             &quot;Single Fresnel zone plate — binary amplitude or greyscale phase&quot;,
             &quot;ZonePlateRenderer&quot;,
             &quot;SingleZonePlateParameters&quot;,
-            &quot;single&quot;,
             &quot;docs/plugins/zone-plate.md&quot;,
             PluginStabilityLevel.STABLE,
-<span class="fc" id="L47">            Set.of(</span>
+<span class="fc" id="L37">            Set.of(</span>
                     PluginCapability.EXPORT_PNG,
                     PluginCapability.EXPORT_SVG,
                     PluginCapability.EXPORT_PDF,
@@ -55,107 +45,102 @@ public final class PluginRegistry {
                     PluginCapability.PRINTABILITY_ANALYSIS,
                     PluginCapability.OPTICAL_QUALITY_REPORT
             ),
-<span class="fc" id="L58">            Set.of(PropagationMode.FRESNEL_TF, PropagationMode.FRAUNHOFER)</span>
+<span class="fc" id="L48">            Set.of(PropagationMode.FRESNEL_TF, PropagationMode.FRAUNHOFER),</span>
+<span class="fc" id="L49">            schema(&quot;zone-plate&quot;, PluginEditorMode.SCHEMA_WITH_EXTENSIONS)</span>
     );
 
     /** Zone plate rendered at three wavelengths and composited into one RGB image. */
-<span class="fc" id="L62">    public static final PluginDescriptor RGB_ZONE_PLATE = new PluginDescriptor(</span>
+<span class="fc" id="L53">    public static final PluginDescriptor RGB_ZONE_PLATE = new PluginDescriptor(</span>
             &quot;rgb-zone-plate&quot;,
             &quot;RGB Zone Plate&quot;,
             &quot;Zone plate rendered at three wavelengths and composited into one RGB image&quot;,
             &quot;RgbZonePlateRenderer&quot;,
             &quot;RgbZonePlateParameters&quot;,
-            &quot;rgb&quot;,
             &quot;docs/plugins/rgb-zone-plate.md&quot;,
             PluginStabilityLevel.STABLE,
-<span class="fc" id="L71">            Set.of(</span>
+<span class="fc" id="L61">            Set.of(</span>
                     PluginCapability.EXPORT_PNG,
                     PluginCapability.PREVIEW_PNG
             ),
-<span class="fc" id="L75">            Set.of()</span>
+<span class="fc" id="L65">            Set.of(),</span>
+<span class="fc" id="L66">            schema(&quot;rgb-zone-plate&quot;, PluginEditorMode.SCHEMA)</span>
     );
 
     /** Aperture divided among multiple focal targets. */
-<span class="fc" id="L79">    public static final PluginDescriptor MULTI_FOCUS = new PluginDescriptor(</span>
+<span class="fc" id="L70">    public static final PluginDescriptor MULTI_FOCUS = new PluginDescriptor(</span>
             &quot;multi-focus&quot;,
             &quot;Multi-Focus&quot;,
             &quot;Aperture divided among multiple focal targets&quot;,
             &quot;MultiFocusRenderer&quot;,
             &quot;MultiFocusParameters&quot;,
-            &quot;multi&quot;,
             &quot;docs/plugins/multi-focus.md&quot;,
             PluginStabilityLevel.STABLE,
-<span class="fc" id="L88">            Set.of(</span>
+<span class="fc" id="L78">            Set.of(</span>
                     PluginCapability.EXPORT_PNG,
                     PluginCapability.PREVIEW_PNG
             ),
-<span class="fc" id="L92">            Set.of()</span>
+<span class="fc" id="L82">            Set.of(),</span>
+<span class="fc" id="L83">            schema(&quot;multi-focus&quot;, PluginEditorMode.SCHEMA_WITH_EXTENSIONS)</span>
     );
 
     /** Hexagonal array of sub-zone-plates focusing to a common image point. */
-<span class="fc" id="L96">    public static final PluginDescriptor HEX_MACRO_CELL = new PluginDescriptor(</span>
+<span class="fc" id="L87">    public static final PluginDescriptor HEX_MACRO_CELL = new PluginDescriptor(</span>
             &quot;hex-macro-cell&quot;,
             &quot;Hex Macro Cell&quot;,
             &quot;Hexagonal array of sub-zone-plates focusing to a common image point&quot;,
             &quot;HexMacroCellRenderer&quot;,
             &quot;HexMacroCellParameters&quot;,
-            &quot;hex&quot;,
             &quot;docs/plugins/hex-macro-cell.md&quot;,
             PluginStabilityLevel.STABLE,
-<span class="fc" id="L105">            Set.of(</span>
+<span class="fc" id="L95">            Set.of(</span>
                     PluginCapability.EXPORT_PNG,
-                    PluginCapability.EXPORT_SVG,
                     PluginCapability.EXPORT_PDF,
                     PluginCapability.PREVIEW_PNG
             ),
-<span class="fc" id="L111">            Set.of()</span>
+<span class="fc" id="L100">            Set.of(),</span>
+<span class="fc" id="L101">            schema(&quot;hex-macro-cell&quot;, PluginEditorMode.SCHEMA)</span>
     );
 
     /** Rectangular sheet tiled with hex macro cells. */
-<span class="fc" id="L115">    public static final PluginDescriptor WINDOW_FOIL = new PluginDescriptor(</span>
+<span class="fc" id="L105">    public static final PluginDescriptor WINDOW_FOIL = new PluginDescriptor(</span>
             &quot;window-foil&quot;,
             &quot;Window Foil&quot;,
             &quot;Rectangular sheet tiled with hex macro cells&quot;,
             &quot;WindowFoilRenderer&quot;,
             &quot;WindowFoilParameters&quot;,
-            &quot;foil&quot;,
             &quot;docs/plugins/window-foil.md&quot;,
             PluginStabilityLevel.STABLE,
-<span class="fc" id="L124">            Set.of(</span>
+<span class="fc" id="L113">            Set.of(</span>
                     PluginCapability.EXPORT_PDF,
                     PluginCapability.PREVIEW_PNG
             ),
-<span class="fc" id="L128">            Set.of()</span>
+<span class="fc" id="L117">            Set.of(),</span>
+<span class="fc" id="L118">            schema(&quot;window-foil&quot;, PluginEditorMode.SCHEMA_WITH_EXTENSIONS)</span>
     );
 
     /** Computer-generated hologram via the Gerchberg–Saxton algorithm. */
-<span class="fc" id="L132">    public static final PluginDescriptor HOLOGRAM = new PluginDescriptor(</span>
+<span class="fc" id="L122">    public static final PluginDescriptor HOLOGRAM = new PluginDescriptor(</span>
             &quot;hologram&quot;,
             &quot;Hologram (GS)&quot;,
             &quot;Computer-generated hologram via the Gerchberg–Saxton algorithm&quot;,
             &quot;HologramSynthesizer&quot;,
             &quot;HologramParameters&quot;,
-            &quot;hologram&quot;,
             &quot;docs/plugins/hologram.md&quot;,
             PluginStabilityLevel.STABLE,
-<span class="fc" id="L141">            Set.of(</span>
+<span class="fc" id="L130">            Set.of(</span>
                     PluginCapability.EXPORT_PNG,
                     PluginCapability.EXPORT_STL,
                     PluginCapability.PREVIEW_PNG
             ),
-<span class="fc" id="L146">            Set.of()</span>
+<span class="fc" id="L135">            Set.of(),</span>
+<span class="fc" id="L136">            schema(&quot;hologram&quot;, PluginEditorMode.SCHEMA_WITH_EXTENSIONS)</span>
     );
 
-    // -----------------------------------------------------------------------
-    // Registry
-    // -----------------------------------------------------------------------
-
     /**
-     * Immutable ordered list of all registered plugins.
-     * The order matches the frontend tab order in {@code App.tsx}:
-     * single, hex, foil, multi, rgb, hologram.
+     * Immutable public plugin order. The frontend consumes this order directly
+     * from {@code GET /api/plugins}; no second tab/mode ordering is maintained.
      */
-<span class="fc" id="L158">    public static final List&lt;PluginDescriptor&gt; ALL = List.of(</span>
+<span class="fc" id="L143">    public static final List&lt;PluginDescriptor&gt; ALL = List.of(</span>
             ZONE_PLATE,
             HEX_MACRO_CELL,
             WINDOW_FOIL,
@@ -164,77 +149,72 @@ public final class PluginRegistry {
             HOLOGRAM
     );
 
-<span class="fc" id="L167">    private static final Map&lt;String, PluginDescriptor&gt; BY_ID =</span>
-<span class="fc" id="L168">            ALL.stream().collect(Collectors.toUnmodifiableMap(PluginDescriptor::id, Function.identity()));</span>
+<span class="fc" id="L152">    private static final Map&lt;String, PluginDescriptor&gt; BY_ID =</span>
+<span class="fc" id="L153">            ALL.stream().collect(Collectors.toUnmodifiableMap(</span>
+<span class="fc" id="L154">                    PluginDescriptor::id, Function.identity()));</span>
 
     private PluginRegistry() {}
 
-    // -----------------------------------------------------------------------
-    // Lookup
-    // -----------------------------------------------------------------------
-
-    /**
-     * Returns the plugin with the given id, or {@link Optional#empty()} if none
-     * is registered under that id.
-     *
-     * @param id stable plugin id (e.g. {@code &quot;zone-plate&quot;})
-     */
-    public static Optional&lt;PluginDescriptor&gt; findById(String id) {
-<span class="fc" id="L183">        return Optional.ofNullable(BY_ID.get(id));</span>
+    private static PluginSchemaDescriptor schema(String pluginId, PluginEditorMode editorMode) {
+<span class="fc" id="L159">        String root = &quot;fresnel/plugins/&quot; + pluginId + &quot;/&quot;;</span>
+<span class="fc" id="L160">        return new PluginSchemaDescriptor(</span>
+                1,
+                root + &quot;parameters-v1.schema.json&quot;,
+                root + &quot;ui-v1.json&quot;,
+                editorMode);
     }
 
-    /**
-     * Returns the plugin with the given id.
-     *
-     * @param id stable plugin id
-     * @throws IllegalArgumentException if no plugin is registered under {@code id}
-     */
+    /** Returns the plugin with the given id, or empty when it is unknown. */
+    public static Optional&lt;PluginDescriptor&gt; findById(String id) {
+<span class="fc" id="L169">        return Optional.ofNullable(BY_ID.get(id));</span>
+    }
+
+    /** Returns the plugin with the given id or throws for an unknown public id. */
     public static PluginDescriptor requireById(String id) {
-<span class="fc" id="L193">        PluginDescriptor d = BY_ID.get(id);</span>
-<span class="pc bpc" id="L194" title="1 of 2 branches missed.">        if (d == null) throw new IllegalArgumentException(&quot;unknown plugin id: &quot; + id);</span>
-<span class="nc" id="L195">        return d;</span>
+<span class="fc" id="L174">        PluginDescriptor descriptor = BY_ID.get(id);</span>
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">        if (descriptor == null) throw new IllegalArgumentException(&quot;unknown plugin id: &quot; + id);</span>
+<span class="nc" id="L176">        return descriptor;</span>
     }
 
     /** Returns {@code true} if a plugin with the given id is registered. */
     public static boolean hasPlugin(String id) {
-<span class="fc" id="L200">        return BY_ID.containsKey(id);</span>
+<span class="fc" id="L181">        return BY_ID.containsKey(id);</span>
     }
 
-    // -----------------------------------------------------------------------
-    // Capability queries
-    // -----------------------------------------------------------------------
-
-    /**
-     * Returns all plugins that support the given capability.
-     *
-     * @param capability the capability to filter by
-     * @return immutable list of matching descriptors, preserving registration order
-     */
+    /** Returns all plugins advertising the given capability in registry order. */
     public static List&lt;PluginDescriptor&gt; withCapability(PluginCapability capability) {
-<span class="fc" id="L214">        return ALL.stream()</span>
-<span class="fc" id="L215">                .filter(d -&gt; d.supports(capability))</span>
-<span class="fc" id="L216">                .collect(Collectors.toUnmodifiableList());</span>
+<span class="fc" id="L186">        return ALL.stream()</span>
+<span class="fc" id="L187">                .filter(descriptor -&gt; descriptor.supports(capability))</span>
+<span class="fc" id="L188">                .collect(Collectors.toUnmodifiableList());</span>
     }
 
-    // -----------------------------------------------------------------------
-    // Integrity check (called from tests)
-    // -----------------------------------------------------------------------
-
     /**
-     * Verifies that all registered plugin ids are unique and non-blank.
-     * Throws {@link IllegalStateException} if the registry is inconsistent.
-     * Called from unit tests to guard against accidental duplicate registrations.
+     * Verifies unique plugin IDs and unique schema resources. Called from tests to
+     * turn metadata drift into an immediate build failure.
      */
     static void verifyIntegrity() {
-<span class="fc" id="L229">        long distinctIds = ALL.stream().map(PluginDescriptor::id).distinct().count();</span>
-<span class="pc bpc" id="L230" title="1 of 2 branches missed.">        if (distinctIds != ALL.size()) {</span>
-<span class="nc" id="L231">            throw new IllegalStateException(&quot;Duplicate plugin ids detected in PluginRegistry&quot;);</span>
+<span class="fc" id="L196">        long distinctIds = ALL.stream().map(PluginDescriptor::id).distinct().count();</span>
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">        if (distinctIds != ALL.size()) {</span>
+<span class="nc" id="L198">            throw new IllegalStateException(&quot;Duplicate plugin ids detected in PluginRegistry&quot;);</span>
         }
-<span class="fc bfc" id="L233" title="All 2 branches covered.">        for (PluginDescriptor d : ALL) {</span>
-<span class="pc bpc" id="L234" title="1 of 2 branches missed.">            if (!BY_ID.containsKey(d.id())) {</span>
-<span class="nc" id="L235">                throw new IllegalStateException(&quot;BY_ID index is out of sync for id: &quot; + d.id());</span>
+<span class="fc" id="L200">        long distinctParameterSchemas = ALL.stream()</span>
+<span class="fc" id="L201">                .map(descriptor -&gt; descriptor.schema().parameterSchemaResource())</span>
+<span class="fc" id="L202">                .distinct().count();</span>
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">        if (distinctParameterSchemas != ALL.size()) {</span>
+<span class="nc" id="L204">            throw new IllegalStateException(&quot;Duplicate parameter schema resources detected&quot;);</span>
+        }
+<span class="fc" id="L206">        long distinctUiSchemas = ALL.stream()</span>
+<span class="fc" id="L207">                .map(descriptor -&gt; descriptor.schema().uiSchemaResource())</span>
+<span class="fc" id="L208">                .distinct().count();</span>
+<span class="pc bpc" id="L209" title="1 of 2 branches missed.">        if (distinctUiSchemas != ALL.size()) {</span>
+<span class="nc" id="L210">            throw new IllegalStateException(&quot;Duplicate UI schema resources detected&quot;);</span>
+        }
+<span class="fc bfc" id="L212" title="All 2 branches covered.">        for (PluginDescriptor descriptor : ALL) {</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">            if (!BY_ID.containsKey(descriptor.id())) {</span>
+<span class="nc" id="L214">                throw new IllegalStateException(</span>
+<span class="nc" id="L215">                        &quot;BY_ID index is out of sync for id: &quot; + descriptor.id());</span>
             }
-<span class="fc" id="L237">        }</span>
-<span class="fc" id="L238">    }</span>
+<span class="fc" id="L217">        }</span>
+<span class="fc" id="L218">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

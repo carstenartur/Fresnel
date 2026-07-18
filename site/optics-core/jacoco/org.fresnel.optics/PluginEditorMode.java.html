@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginEditorMode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">PluginEditorMode.java</span></div><h1>PluginEditorMode.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+/**
+ * Declares how much of a plugin editor can be generated from schema metadata.
+ *
+ * &lt;p&gt;The value is descriptive metadata, not a class-loading instruction. Frontend
+ * implementations may select only trusted, compile-time components for extension
+ * points and custom editors.&lt;/p&gt;
+ */
+<span class="fc" id="L10">public enum PluginEditorMode {</span>
+
+    /** All ordinary parameter controls can be rendered by the common schema form. */
+<span class="fc" id="L13">    SCHEMA,</span>
+
+    /** Standard parameters use the schema form and trusted advanced panels extend it. */
+<span class="fc" id="L16">    SCHEMA_WITH_EXTENSIONS,</span>
+
+    /** The plugin currently needs a fully custom trusted editor implementation. */
+<span class="fc" id="L19">    CUSTOM</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

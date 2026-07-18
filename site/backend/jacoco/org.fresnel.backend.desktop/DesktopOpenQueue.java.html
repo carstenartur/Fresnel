@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesktopOpenQueue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.desktop</a> &gt; <span class="el_source">DesktopOpenQueue.java</span></div><h1>DesktopOpenQueue.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.desktop;
+
+import org.fresnel.backend.api.FresnelJobDocument;
+import org.fresnel.backend.api.FresnelJobService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
+import java.security.SecureRandom;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * In-memory, bounded store for desktop-open results.
+ *
+ * &lt;p&gt;Tokens are high-entropy, expire quickly and can be consumed exactly once.
+ * Invalid job data is retained as a safe error result so the GUI can explain the
+ * failure without crashing the primary Fresnel process.&lt;/p&gt;
+ */
+@Component
+@ConditionalOnProperty(name = &quot;fresnel.desktop.enabled&quot;, havingValue = &quot;true&quot;)
+public class DesktopOpenQueue {
+
+    static final int DEFAULT_MAX_PENDING = 64;
+    private static final int TOKEN_BYTES = 32;
+
+    private final FresnelJobService jobService;
+    private final Clock clock;
+    private final SecureRandom random;
+    private final Duration timeToLive;
+    private final int maxPending;
+<span class="fc" id="L39">    private final LinkedHashMap&lt;String, PendingOpen&gt; pending = new LinkedHashMap&lt;&gt;();</span>
+
+    @Autowired
+    public DesktopOpenQueue(
+            FresnelJobService jobService,
+            @Value(&quot;${fresnel.desktop.open-token-ttl-seconds:300}&quot;) long ttlSeconds,
+            @Value(&quot;${fresnel.desktop.max-pending-opens:64}&quot;) int maxPending) {
+<span class="fc" id="L46">        this(jobService, Clock.systemUTC(), new SecureRandom(),</span>
+<span class="fc" id="L47">                Duration.ofSeconds(ttlSeconds), maxPending);</span>
+<span class="fc" id="L48">    }</span>
+
+    DesktopOpenQueue(
+            FresnelJobService jobService,
+            Clock clock,
+            SecureRandom random,
+            Duration timeToLive,
+<span class="fc" id="L55">            int maxPending) {</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        if (jobService == null) throw new IllegalArgumentException(&quot;jobService must not be null&quot;);</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        if (clock == null) throw new IllegalArgumentException(&quot;clock must not be null&quot;);</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        if (random == null) throw new IllegalArgumentException(&quot;random must not be null&quot;);</span>
+<span class="pc bpc" id="L59" title="3 of 6 branches missed.">        if (timeToLive == null || timeToLive.isZero() || timeToLive.isNegative()) {</span>
+<span class="nc" id="L60">            throw new IllegalArgumentException(&quot;desktop open token TTL must be positive&quot;);</span>
+        }
+<span class="pc bpc" id="L62" title="2 of 4 branches missed.">        if (maxPending &lt; 1 || maxPending &gt; 1024) {</span>
+<span class="nc" id="L63">            throw new IllegalArgumentException(&quot;desktop max pending opens must be between 1 and 1024&quot;);</span>
+        }
+<span class="fc" id="L65">        this.jobService = jobService;</span>
+<span class="fc" id="L66">        this.clock = clock;</span>
+<span class="fc" id="L67">        this.random = random;</span>
+<span class="fc" id="L68">        this.timeToLive = timeToLive;</span>
+<span class="fc" id="L69">        this.maxPending = maxPending;</span>
+<span class="fc" id="L70">    }</span>
+
+    /** Validates and stores one job payload, returning an opaque one-time token. */
+    public synchronized String enqueue(byte[] jobBytes) {
+<span class="pc bpc" id="L74" title="2 of 4 branches missed.">        if (jobBytes == null || jobBytes.length == 0) {</span>
+<span class="nc" id="L75">            return store(DesktopOpenResult.invalid(&quot;EMPTY_JOB&quot;, &quot;The Fresnel job is empty.&quot;));</span>
+        }
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">        if (jobBytes.length &gt; FresnelJobDocument.MAX_FILE_BYTES) {</span>
+<span class="nc" id="L78">            throw new IllegalArgumentException(</span>
+                    &quot;Fresnel job exceeds the maximum size of &quot;
+                            + FresnelJobDocument.MAX_FILE_BYTES + &quot; bytes&quot;);
+        }
+
+        DesktopOpenResult result;
+        try {
+<span class="fc" id="L85">            result = DesktopOpenResult.valid(jobService.parseAndNormalize(jobBytes));</span>
+<span class="fc" id="L86">        } catch (IllegalArgumentException e) {</span>
+<span class="fc" id="L87">            result = DesktopOpenResult.invalid(&quot;INVALID_JOB&quot;, safeMessage(e));</span>
+<span class="fc" id="L88">        }</span>
+<span class="fc" id="L89">        return store(result);</span>
+    }
+
+    /** Stores a launcher-side read failure without exposing its source path. */
+    public synchronized String enqueueError(String code, String message) {
+<span class="fc" id="L94">        return store(DesktopOpenResult.invalid(code, message));</span>
+    }
+
+    /** Removes and returns a token exactly once; expired and unknown tokens are absent. */
+    public synchronized Optional&lt;DesktopOpenResult&gt; consume(String token) {
+<span class="fc" id="L99">        cleanupExpired();</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        if (!isTokenShapeValid(token)) {</span>
+<span class="fc" id="L101">            return Optional.empty();</span>
+        }
+<span class="fc" id="L103">        PendingOpen entry = pending.remove(token);</span>
+<span class="pc bpc" id="L104" title="1 of 4 branches missed.">        if (entry == null || !entry.expiresAt().isAfter(clock.instant())) {</span>
+<span class="fc" id="L105">            return Optional.empty();</span>
+        }
+<span class="fc" id="L107">        return Optional.of(entry.result());</span>
+    }
+
+    synchronized int pendingCount() {
+<span class="fc" id="L111">        cleanupExpired();</span>
+<span class="fc" id="L112">        return pending.size();</span>
+    }
+
+    private String store(DesktopOpenResult result) {
+<span class="fc" id="L116">        cleanupExpired();</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        while (pending.size() &gt;= maxPending) {</span>
+<span class="fc" id="L118">            Iterator&lt;Map.Entry&lt;String, PendingOpen&gt;&gt; iterator = pending.entrySet().iterator();</span>
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">            if (!iterator.hasNext()) break;</span>
+<span class="fc" id="L120">            iterator.next();</span>
+<span class="fc" id="L121">            iterator.remove();</span>
+<span class="fc" id="L122">        }</span>
+
+        String token;
+        do {
+<span class="fc" id="L126">            byte[] bytes = new byte[TOKEN_BYTES];</span>
+<span class="fc" id="L127">            random.nextBytes(bytes);</span>
+<span class="fc" id="L128">            token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">        } while (pending.containsKey(token));</span>
+
+<span class="fc" id="L131">        pending.put(token, new PendingOpen(result, clock.instant().plus(timeToLive)));</span>
+<span class="fc" id="L132">        return token;</span>
+    }
+
+    private void cleanupExpired() {
+<span class="fc" id="L136">        Instant now = clock.instant();</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        pending.entrySet().removeIf(entry -&gt; !entry.getValue().expiresAt().isAfter(now));</span>
+<span class="fc" id="L138">    }</span>
+
+    static boolean isTokenShapeValid(String token) {
+<span class="pc bpc" id="L141" title="2 of 6 branches missed.">        if (token == null || token.length() &lt; 40 || token.length() &gt; 128) return false;</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">        for (int i = 0; i &lt; token.length(); i++) {</span>
+<span class="fc" id="L143">            char c = token.charAt(i);</span>
+<span class="pc bpc" id="L144" title="2 of 16 branches missed.">            if (!(c &gt;= 'A' &amp;&amp; c &lt;= 'Z')</span>
+                    &amp;&amp; !(c &gt;= 'a' &amp;&amp; c &lt;= 'z')
+                    &amp;&amp; !(c &gt;= '0' &amp;&amp; c &lt;= '9')
+                    &amp;&amp; c != '-' &amp;&amp; c != '_') {
+<span class="nc" id="L148">                return false;</span>
+            }
+        }
+<span class="fc" id="L151">        return true;</span>
+    }
+
+    private static String safeMessage(IllegalArgumentException exception) {
+<span class="fc" id="L155">        String message = exception.getMessage();</span>
+<span class="pc bpc" id="L156" title="2 of 4 branches missed.">        if (message == null || message.isBlank()) return &quot;The Fresnel job is invalid.&quot;;</span>
+<span class="fc" id="L157">        int newline = message.indexOf('\n');</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">        String firstLine = newline &gt;= 0 ? message.substring(0, newline) : message;</span>
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">        return firstLine.length() &lt;= 500 ? firstLine : firstLine.substring(0, 500);</span>
+    }
+
+<span class="fc" id="L162">    private record PendingOpen(DesktopOpenResult result, Instant expiresAt) {}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

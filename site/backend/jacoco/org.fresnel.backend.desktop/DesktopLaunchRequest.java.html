@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesktopLaunchRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.desktop</a> &gt; <span class="el_source">DesktopLaunchRequest.java</span></div><h1>DesktopLaunchRequest.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.desktop;
+
+import org.fresnel.backend.api.FresnelJobDocument;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+
+/**
+ * Parsed command line for the packaged Fresnel desktop launcher.
+ *
+ * &lt;p&gt;Only a single local {@code .fresnel} file is accepted before the optional
+ * {@code --} separator. Arguments after the separator are passed to Spring Boot
+ * only when this invocation becomes the primary process.&lt;/p&gt;
+ */
+public record DesktopLaunchRequest(Optional&lt;Path&gt; jobFile, List&lt;String&gt; springArguments) {
+
+<span class="fc" id="L22">    public DesktopLaunchRequest {</span>
+<span class="pc bpc" id="L23" title="1 of 2 branches missed.">        jobFile = jobFile == null ? Optional.empty() : jobFile;</span>
+<span class="pc bpc" id="L24" title="1 of 2 branches missed.">        springArguments = springArguments == null ? List.of() : List.copyOf(springArguments);</span>
+<span class="fc" id="L25">    }</span>
+
+    public static DesktopLaunchRequest parse(String[] arguments) {
+<span class="pc bpc" id="L28" title="1 of 2 branches missed.">        String[] args = arguments == null ? new String[0] : arguments;</span>
+<span class="fc" id="L29">        Path jobFile = null;</span>
+<span class="fc" id="L30">        List&lt;String&gt; springArguments = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L31">        boolean springSection = false;</span>
+
+<span class="fc bfc" id="L33" title="All 2 branches covered.">        for (int i = 0; i &lt; args.length; i++) {</span>
+<span class="fc" id="L34">            String argument = args[i];</span>
+<span class="fc bfc" id="L35" title="All 2 branches covered.">            if (springSection) {</span>
+<span class="fc" id="L36">                validateSpringArgument(argument);</span>
+<span class="fc" id="L37">                springArguments.add(argument);</span>
+<span class="fc" id="L38">                continue;</span>
+            }
+<span class="fc bfc" id="L40" title="All 2 branches covered.">            if (&quot;--&quot;.equals(argument)) {</span>
+<span class="fc" id="L41">                springSection = true;</span>
+<span class="fc" id="L42">                continue;</span>
+            }
+<span class="fc bfc" id="L44" title="All 2 branches covered.">            if (&quot;--open&quot;.equals(argument)) {</span>
+<span class="pc bpc" id="L45" title="1 of 4 branches missed.">                if (++i &gt;= args.length || &quot;--&quot;.equals(args[i])) {</span>
+<span class="fc" id="L46">                    throw new IllegalArgumentException(&quot;--open requires one .fresnel file path&quot;);</span>
+                }
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">                if (jobFile != null) {</span>
+<span class="nc" id="L49">                    throw new IllegalArgumentException(&quot;Only one .fresnel file can be opened at a time&quot;);</span>
+                }
+<span class="fc" id="L51">                jobFile = validateJobFile(args[i]);</span>
+<span class="fc" id="L52">                continue;</span>
+            }
+<span class="fc bfc" id="L54" title="All 2 branches covered.">            if (argument.startsWith(&quot;-&quot;)) {</span>
+<span class="fc" id="L55">                throw new IllegalArgumentException(</span>
+                        &quot;Unknown desktop option: &quot; + argument
+                                + &quot;. Put Spring Boot arguments after --.&quot;);
+            }
+<span class="fc bfc" id="L59" title="All 2 branches covered.">            if (jobFile != null) {</span>
+<span class="fc" id="L60">                throw new IllegalArgumentException(&quot;Only one .fresnel file can be opened at a time&quot;);</span>
+            }
+<span class="fc" id="L62">            jobFile = validateJobFile(argument);</span>
+        }
+
+<span class="fc" id="L65">        return new DesktopLaunchRequest(Optional.ofNullable(jobFile), springArguments);</span>
+    }
+
+    private static void validateSpringArgument(String argument) {
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        if (argument == null) {</span>
+<span class="nc" id="L70">            throw new IllegalArgumentException(&quot;Spring Boot arguments must not be null&quot;);</span>
+        }
+<span class="fc" id="L72">        String normalized = argument.toLowerCase(Locale.ROOT);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (normalized.startsWith(&quot;--fresnel.desktop.&quot;)</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">                || normalized.startsWith(&quot;--server.address&quot;)) {</span>
+<span class="fc" id="L75">            throw new IllegalArgumentException(</span>
+                    &quot;The packaged desktop launcher reserves this Spring property: &quot; + argument);
+        }
+<span class="fc" id="L78">    }</span>
+
+    private static Path validateJobFile(String rawPath) {
+<span class="pc bpc" id="L81" title="2 of 4 branches missed.">        if (rawPath == null || rawPath.isBlank()) {</span>
+<span class="nc" id="L82">            throw new IllegalArgumentException(&quot;The Fresnel job path must not be empty&quot;);</span>
+        }
+
+        final Path path;
+        try {
+<span class="fc" id="L87">            path = Path.of(rawPath).toAbsolutePath().normalize();</span>
+<span class="nc" id="L88">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L89">            throw new IllegalArgumentException(&quot;Invalid Fresnel job path: &quot; + rawPath, e);</span>
+<span class="fc" id="L90">        }</span>
+
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        String filename = path.getFileName() == null ? &quot;&quot; : path.getFileName().toString();</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (!filename.toLowerCase(Locale.ROOT).endsWith(FresnelJobDocument.FILE_EXTENSION)) {</span>
+<span class="fc" id="L94">            throw new IllegalArgumentException(</span>
+                    &quot;Desktop open accepts only &quot; + FresnelJobDocument.FILE_EXTENSION + &quot; files: &quot; + filename);
+        }
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        if (!Files.isRegularFile(path)) {</span>
+<span class="nc" id="L98">            throw new IllegalArgumentException(&quot;Fresnel job is not a regular file: &quot; + path);</span>
+        }
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        if (!Files.isReadable(path)) {</span>
+<span class="nc" id="L101">            throw new IllegalArgumentException(&quot;Fresnel job is not readable: &quot; + path);</span>
+        }
+        try {
+<span class="fc" id="L104">            long size = Files.size(path);</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            if (size &lt;= 0) {</span>
+<span class="fc" id="L106">                throw new IllegalArgumentException(&quot;Fresnel job must not be empty: &quot; + path);</span>
+            }
+<span class="fc bfc" id="L108" title="All 2 branches covered.">            if (size &gt; FresnelJobDocument.MAX_FILE_BYTES) {</span>
+<span class="fc" id="L109">                throw new IllegalArgumentException(</span>
+                        &quot;Fresnel job exceeds the maximum size of &quot;
+                                + FresnelJobDocument.MAX_FILE_BYTES + &quot; bytes&quot;);
+            }
+<span class="nc" id="L113">        } catch (IOException e) {</span>
+<span class="nc" id="L114">            throw new IllegalArgumentException(&quot;Could not inspect Fresnel job: &quot; + path, e);</span>
+<span class="fc" id="L115">        }</span>
+<span class="fc" id="L116">        return path;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

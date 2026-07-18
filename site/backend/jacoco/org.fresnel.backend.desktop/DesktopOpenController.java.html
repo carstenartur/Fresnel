@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesktopOpenController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.desktop</a> &gt; <span class="el_source">DesktopOpenController.java</span></div><h1>DesktopOpenController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.desktop;
+
+import jakarta.servlet.http.HttpServletRequest;
+import org.fresnel.backend.api.FresnelJobDocument;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+
+/**
+ * Loopback-only hand-off surface used by packaged desktop launcher invocations.
+ *
+ * &lt;p&gt;The internal endpoints additionally require a random per-process bearer secret.
+ * The browser receives only an opaque, short-lived, one-time import token.&lt;/p&gt;
+ */
+@RestController
+@RequestMapping(&quot;/api&quot;)
+@ConditionalOnProperty(name = &quot;fresnel.desktop.enabled&quot;, havingValue = &quot;true&quot;)
+public class DesktopOpenController {
+
+    static final String PING_BODY = &quot;fresnel-desktop-v1&quot;;
+
+    private final DesktopOpenQueue queue;
+    private final byte[] expectedSecret;
+
+    public DesktopOpenController(
+            DesktopOpenQueue queue,
+<span class="fc" id="L42">            @Value(&quot;${fresnel.desktop.instance-secret:}&quot;) String instanceSecret) {</span>
+<span class="pc bpc" id="L43" title="2 of 4 branches missed.">        if (instanceSecret == null || instanceSecret.length() &lt; 32) {</span>
+<span class="nc" id="L44">            throw new IllegalArgumentException(</span>
+                    &quot;fresnel.desktop.instance-secret must contain at least 32 characters&quot;);
+        }
+<span class="fc" id="L47">        this.queue = queue;</span>
+<span class="fc" id="L48">        this.expectedSecret = instanceSecret.getBytes(StandardCharsets.UTF_8);</span>
+<span class="fc" id="L49">    }</span>
+
+    @GetMapping(value = &quot;/internal/desktop/ping&quot;, produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity&lt;String&gt; ping(
+            HttpServletRequest request,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+<span class="fc" id="L55">        requireLoopback(request);</span>
+<span class="fc" id="L56">        requireSecret(authorization);</span>
+<span class="fc" id="L57">        return noStore(ResponseEntity.ok(PING_BODY));</span>
+    }
+
+    @PostMapping(
+            value = &quot;/internal/desktop/open&quot;,
+            consumes = {FresnelJobDocument.MEDIA_TYPE, MediaType.APPLICATION_JSON_VALUE},
+            produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity&lt;String&gt; open(
+            HttpServletRequest request,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @RequestBody byte[] body) {
+<span class="fc" id="L68">        requireLoopback(request);</span>
+<span class="fc" id="L69">        requireSecret(authorization);</span>
+<span class="pc bpc" id="L70" title="2 of 4 branches missed.">        if (body == null || body.length == 0) {</span>
+<span class="nc" id="L71">            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, &quot;Fresnel job must not be empty&quot;);</span>
+        }
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (body.length &gt; FresnelJobDocument.MAX_FILE_BYTES) {</span>
+<span class="fc" id="L74">            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,</span>
+                    &quot;Fresnel job exceeds the maximum size of &quot;
+                            + FresnelJobDocument.MAX_FILE_BYTES + &quot; bytes&quot;);
+        }
+<span class="fc" id="L78">        String importId = queue.enqueue(body);</span>
+<span class="fc" id="L79">        return noStore(ResponseEntity.status(HttpStatus.ACCEPTED).body(importId));</span>
+    }
+
+    @GetMapping(value = &quot;/desktop/open/{importId}&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;DesktopOpenResult&gt; consume(
+            HttpServletRequest request,
+            @PathVariable(&quot;importId&quot;) String importId) {
+<span class="fc" id="L86">        requireLoopback(request);</span>
+<span class="fc" id="L87">        DesktopOpenResult result = queue.consume(importId)</span>
+<span class="fc" id="L88">                .orElseThrow(() -&gt; new ResponseStatusException(</span>
+                        HttpStatus.NOT_FOUND, &quot;Desktop open token is invalid, expired or already consumed&quot;));
+<span class="fc" id="L90">        return noStore(ResponseEntity.ok(result));</span>
+    }
+
+    private void requireSecret(String authorization) {
+<span class="fc" id="L94">        byte[] supplied = bearerToken(authorization).getBytes(StandardCharsets.UTF_8);</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        if (!MessageDigest.isEqual(expectedSecret, supplied)) {</span>
+<span class="fc" id="L96">            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, &quot;Invalid desktop instance secret&quot;);</span>
+        }
+<span class="fc" id="L98">    }</span>
+
+    private static String bearerToken(String authorization) {
+<span class="pc bpc" id="L101" title="1 of 4 branches missed.">        if (authorization == null || !authorization.startsWith(&quot;Bearer &quot;)) return &quot;&quot;;</span>
+<span class="fc" id="L102">        return authorization.substring(&quot;Bearer &quot;.length());</span>
+    }
+
+    private static void requireLoopback(HttpServletRequest request) {
+        try {
+<span class="fc" id="L107">            String remoteAddress = request.getRemoteAddr();</span>
+<span class="pc bpc" id="L108" title="1 of 4 branches missed.">            if (remoteAddress == null || !InetAddress.getByName(remoteAddress).isLoopbackAddress()) {</span>
+<span class="fc" id="L109">                throw new ResponseStatusException(HttpStatus.FORBIDDEN,</span>
+                        &quot;Desktop open endpoints are available only from loopback&quot;);
+            }
+<span class="fc" id="L112">        } catch (ResponseStatusException e) {</span>
+<span class="fc" id="L113">            throw e;</span>
+<span class="nc" id="L114">        } catch (Exception e) {</span>
+<span class="nc" id="L115">            throw new ResponseStatusException(HttpStatus.FORBIDDEN,</span>
+                    &quot;Could not verify loopback client&quot;, e);
+<span class="fc" id="L117">        }</span>
+<span class="fc" id="L118">    }</span>
+
+    private static &lt;T&gt; ResponseEntity&lt;T&gt; noStore(ResponseEntity&lt;T&gt; response) {
+<span class="fc" id="L121">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="fc" id="L122">        headers.putAll(response.getHeaders());</span>
+<span class="fc" id="L123">        headers.setCacheControl(&quot;no-store, max-age=0, must-revalidate&quot;);</span>
+<span class="fc" id="L124">        headers.setPragma(&quot;no-cache&quot;);</span>
+<span class="fc" id="L125">        return new ResponseEntity&lt;&gt;(response.getBody(), headers, response.getStatusCode());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

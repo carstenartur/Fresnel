@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesktopDiagnostics.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.desktop</a> &gt; <span class="el_source">DesktopDiagnostics.java</span></div><h1>DesktopDiagnostics.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.desktop;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.time.Instant;
+import java.util.Set;
+
+/** Small pre-Spring diagnostic log for native launcher and browser-open failures. */
+public final class DesktopDiagnostics {
+
+<span class="fc" id="L15">    private static final Set&lt;PosixFilePermission&gt; DIRECTORY_PERMISSIONS = Set.of(</span>
+            PosixFilePermission.OWNER_READ,
+            PosixFilePermission.OWNER_WRITE,
+            PosixFilePermission.OWNER_EXECUTE);
+<span class="fc" id="L19">    private static final Set&lt;PosixFilePermission&gt; FILE_PERMISSIONS = Set.of(</span>
+            PosixFilePermission.OWNER_READ,
+            PosixFilePermission.OWNER_WRITE);
+
+    private DesktopDiagnostics() {}
+
+    public static Path launcherLog(Path dataDirectory) {
+<span class="fc" id="L26">        return dataDirectory.toAbsolutePath().normalize()</span>
+<span class="fc" id="L27">                .resolve(&quot;logs&quot;).resolve(&quot;desktop-launcher.log&quot;);</span>
+    }
+
+    public static Path applicationLog(Path dataDirectory) {
+<span class="fc" id="L31">        return dataDirectory.toAbsolutePath().normalize()</span>
+<span class="fc" id="L32">                .resolve(&quot;logs&quot;).resolve(&quot;fresnel.log&quot;);</span>
+    }
+
+    /**
+     * Appends one bounded line. Logging itself must never hide the original desktop
+     * failure, therefore I/O problems are reported only to stderr.
+     */
+    public static void append(Path dataDirectory, String message, Throwable failure) {
+        try {
+<span class="fc" id="L41">            Path log = launcherLog(dataDirectory);</span>
+<span class="fc" id="L42">            Files.createDirectories(log.getParent());</span>
+<span class="fc" id="L43">            secureDirectory(log.getParent());</span>
+
+<span class="fc bfc" id="L45" title="All 2 branches covered.">            String detail = failure == null ? &quot;&quot; : &quot; | &quot; + failure.getClass().getSimpleName()</span>
+<span class="fc" id="L46">                    + &quot;: &quot; + safe(failure.getMessage());</span>
+<span class="fc" id="L47">            String line = Instant.now() + &quot; | &quot; + safe(message) + detail + System.lineSeparator();</span>
+<span class="fc" id="L48">            Files.writeString(log, line, StandardCharsets.UTF_8,</span>
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.WRITE,
+                    StandardOpenOption.APPEND);
+<span class="fc" id="L52">            secureFile(log);</span>
+<span class="nc" id="L53">        } catch (IOException | RuntimeException loggingFailure) {</span>
+<span class="nc" id="L54">            System.err.println(&quot;Could not write Fresnel desktop diagnostic log: &quot;</span>
+<span class="nc" id="L55">                    + safe(loggingFailure.getMessage()));</span>
+<span class="fc" id="L56">        }</span>
+<span class="fc" id="L57">    }</span>
+
+    private static String safe(String value) {
+<span class="pc bpc" id="L60" title="2 of 4 branches missed.">        if (value == null || value.isBlank()) return &quot;no details&quot;;</span>
+<span class="fc" id="L61">        String singleLine = value.replace('\r', ' ').replace('\n', ' ').trim();</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">        if (singleLine.length() &gt; 1000) return singleLine.substring(0, 1000);</span>
+<span class="fc" id="L63">        return singleLine;</span>
+    }
+
+    private static void secureDirectory(Path path) throws IOException {
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        if (Files.getFileStore(path).supportsFileAttributeView(&quot;posix&quot;)) {</span>
+<span class="fc" id="L68">            Files.setPosixFilePermissions(path, DIRECTORY_PERMISSIONS);</span>
+        }
+<span class="fc" id="L70">    }</span>
+
+    private static void secureFile(Path path) throws IOException {
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">        if (Files.getFileStore(path).supportsFileAttributeView(&quot;posix&quot;)) {</span>
+<span class="fc" id="L74">            Files.setPosixFilePermissions(path, FILE_PERMISSIONS);</span>
+        }
+<span class="fc" id="L76">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

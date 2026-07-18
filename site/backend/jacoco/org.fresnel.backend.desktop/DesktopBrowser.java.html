@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesktopBrowser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.desktop</a> &gt; <span class="el_source">DesktopBrowser.java</span></div><h1>DesktopBrowser.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.desktop;
+
+import java.awt.Desktop;
+import java.io.IOException;
+import java.net.URI;
+import java.util.List;
+import java.util.Locale;
+
+/** Opens a trusted loopback URI in the user's default browser. */
+public final class DesktopBrowser {
+
+    @FunctionalInterface
+    interface ProcessStarter {
+        void start(List&lt;String&gt; command) throws IOException;
+    }
+
+    private final ProcessStarter processStarter;
+    private final String osName;
+
+    public DesktopBrowser() {
+<span class="nc" id="L21">        this(command -&gt; new ProcessBuilder(command).start(), System.getProperty(&quot;os.name&quot;, &quot;&quot;));</span>
+<span class="nc" id="L22">    }</span>
+
+<span class="fc" id="L24">    DesktopBrowser(ProcessStarter processStarter, String osName) {</span>
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        if (processStarter == null) throw new IllegalArgumentException(&quot;processStarter must not be null&quot;);</span>
+<span class="fc" id="L26">        this.processStarter = processStarter;</span>
+<span class="pc bpc" id="L27" title="1 of 2 branches missed.">        this.osName = osName == null ? &quot;&quot; : osName;</span>
+<span class="fc" id="L28">    }</span>
+
+    /**
+     * Opens the URI and returns true on a successful launch attempt. Failures are
+     * reported to stderr together with the usable local URL.
+     */
+    public boolean open(URI uri) {
+<span class="fc" id="L35">        requireLoopbackHttpUri(uri);</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">        if (!Boolean.parseBoolean(System.getProperty(&quot;fresnel.desktop.browser.enabled&quot;, &quot;true&quot;))) {</span>
+<span class="fc" id="L37">            System.out.println(&quot;Fresnel desktop URL: &quot; + uri);</span>
+<span class="fc" id="L38">            return true;</span>
+        }
+
+<span class="nc bnc" id="L41" title="All 4 branches missed.">        if (Desktop.isDesktopSupported() &amp;&amp; Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {</span>
+            try {
+<span class="nc" id="L43">                Desktop.getDesktop().browse(uri);</span>
+<span class="nc" id="L44">                return true;</span>
+<span class="nc" id="L45">            } catch (Exception e) {</span>
+<span class="nc" id="L46">                System.err.println(&quot;Could not open the default browser through java.awt.Desktop: &quot;</span>
+<span class="nc" id="L47">                        + concise(e));</span>
+            }
+        }
+
+        try {
+<span class="nc" id="L52">            processStarter.start(platformCommand(uri));</span>
+<span class="nc" id="L53">            return true;</span>
+<span class="nc" id="L54">        } catch (IOException e) {</span>
+<span class="nc" id="L55">            System.err.println(&quot;Could not open the default browser: &quot; + concise(e));</span>
+<span class="nc" id="L56">            System.err.println(&quot;Open this local URL manually: &quot; + uri);</span>
+<span class="nc" id="L57">            return false;</span>
+        }
+    }
+
+    List&lt;String&gt; platformCommand(URI uri) {
+<span class="fc" id="L62">        requireLoopbackHttpUri(uri);</span>
+<span class="fc" id="L63">        String os = osName.toLowerCase(Locale.ROOT);</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (os.contains(&quot;win&quot;)) {</span>
+<span class="fc" id="L65">            return List.of(&quot;rundll32&quot;, &quot;url.dll,FileProtocolHandler&quot;, uri.toASCIIString());</span>
+        }
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        if (os.contains(&quot;mac&quot;)) {</span>
+<span class="fc" id="L68">            return List.of(&quot;open&quot;, uri.toASCIIString());</span>
+        }
+<span class="fc" id="L70">        return List.of(&quot;xdg-open&quot;, uri.toASCIIString());</span>
+    }
+
+    private static void requireLoopbackHttpUri(URI uri) {
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (uri == null</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">                || !&quot;http&quot;.equalsIgnoreCase(uri.getScheme())</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">                || !&quot;127.0.0.1&quot;.equals(uri.getHost())</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">                || uri.getPort() &lt; 1) {</span>
+<span class="fc" id="L78">            throw new IllegalArgumentException(&quot;Desktop browser URI must use loopback HTTP&quot;);</span>
+        }
+<span class="fc" id="L80">    }</span>
+
+    private static String concise(Exception exception) {
+<span class="nc" id="L83">        String message = exception.getMessage();</span>
+<span class="nc bnc" id="L84" title="All 4 branches missed.">        return message == null || message.isBlank()</span>
+<span class="nc" id="L85">                ? exception.getClass().getSimpleName()</span>
+<span class="nc" id="L86">                : message.replace('\r', ' ').replace('\n', ' ').trim();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

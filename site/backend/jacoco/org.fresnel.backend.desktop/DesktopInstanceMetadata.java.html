@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DesktopInstanceMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.desktop</a> &gt; <span class="el_source">DesktopInstanceMetadata.java</span></div><h1>DesktopInstanceMetadata.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.desktop;
+
+import java.util.Properties;
+
+/**
+ * Minimal information needed by a secondary launcher invocation to authenticate
+ * a loopback hand-off to the already-running primary instance.
+ */
+public record DesktopInstanceMetadata(
+        int protocolVersion,
+        int port,
+        long processId,
+        String sessionSecret,
+        long startedAtEpochMillis
+) {
+    public static final int CURRENT_PROTOCOL_VERSION = 1;
+
+<span class="fc" id="L18">    public DesktopInstanceMetadata {</span>
+<span class="pc bpc" id="L19" title="1 of 2 branches missed.">        if (protocolVersion != CURRENT_PROTOCOL_VERSION) {</span>
+<span class="nc" id="L20">            throw new IllegalArgumentException(</span>
+                    &quot;Unsupported desktop protocol version: &quot; + protocolVersion);
+        }
+<span class="pc bpc" id="L23" title="2 of 4 branches missed.">        if (port &lt; 1 || port &gt; 65535) {</span>
+<span class="nc" id="L24">            throw new IllegalArgumentException(&quot;Invalid desktop control port: &quot; + port);</span>
+        }
+<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        if (processId &lt; 1) {</span>
+<span class="nc" id="L27">            throw new IllegalArgumentException(&quot;Invalid desktop process id: &quot; + processId);</span>
+        }
+<span class="pc bpc" id="L29" title="2 of 4 branches missed.">        if (sessionSecret == null || sessionSecret.length() &lt; 32) {</span>
+<span class="nc" id="L30">            throw new IllegalArgumentException(&quot;Desktop session secret is missing or too short&quot;);</span>
+        }
+<span class="pc bpc" id="L32" title="1 of 2 branches missed.">        if (startedAtEpochMillis &lt; 1) {</span>
+<span class="nc" id="L33">            throw new IllegalArgumentException(&quot;Invalid desktop start timestamp&quot;);</span>
+        }
+<span class="fc" id="L35">    }</span>
+
+    Properties toProperties() {
+<span class="fc" id="L38">        Properties properties = new Properties();</span>
+<span class="fc" id="L39">        properties.setProperty(&quot;protocolVersion&quot;, Integer.toString(protocolVersion));</span>
+<span class="fc" id="L40">        properties.setProperty(&quot;port&quot;, Integer.toString(port));</span>
+<span class="fc" id="L41">        properties.setProperty(&quot;processId&quot;, Long.toString(processId));</span>
+<span class="fc" id="L42">        properties.setProperty(&quot;sessionSecret&quot;, sessionSecret);</span>
+<span class="fc" id="L43">        properties.setProperty(&quot;startedAtEpochMillis&quot;, Long.toString(startedAtEpochMillis));</span>
+<span class="fc" id="L44">        return properties;</span>
+    }
+
+    static DesktopInstanceMetadata fromProperties(Properties properties) {
+        try {
+<span class="fc" id="L49">            return new DesktopInstanceMetadata(</span>
+<span class="fc" id="L50">                    Integer.parseInt(required(properties, &quot;protocolVersion&quot;)),</span>
+<span class="fc" id="L51">                    Integer.parseInt(required(properties, &quot;port&quot;)),</span>
+<span class="fc" id="L52">                    Long.parseLong(required(properties, &quot;processId&quot;)),</span>
+<span class="fc" id="L53">                    required(properties, &quot;sessionSecret&quot;),</span>
+<span class="fc" id="L54">                    Long.parseLong(required(properties, &quot;startedAtEpochMillis&quot;)));</span>
+<span class="nc" id="L55">        } catch (NumberFormatException e) {</span>
+<span class="nc" id="L56">            throw new IllegalArgumentException(&quot;Desktop instance metadata contains an invalid number&quot;, e);</span>
+        }
+    }
+
+    private static String required(Properties properties, String key) {
+<span class="fc" id="L61">        String value = properties.getProperty(key);</span>
+<span class="pc bpc" id="L62" title="2 of 4 branches missed.">        if (value == null || value.isBlank()) {</span>
+<span class="nc" id="L63">            throw new IllegalArgumentException(&quot;Desktop instance metadata is missing &quot; + key);</span>
+        }
+<span class="fc" id="L65">        return value.trim();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
