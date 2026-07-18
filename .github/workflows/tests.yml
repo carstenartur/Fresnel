@@ -40,25 +40,15 @@ jobs:
           set -o pipefail
           mvn -B -ntp test 2>&1 | tee maven-test.log
 
-      - name: Verify documentation jobs and generate manifest through the public CLI
+      - name: Verify documentation jobs, assets and manifest through the public CLI
         shell: bash
         run: |
           set -o pipefail
-          mkdir -p target/docs
-          bash packaging/docs-jobs.sh manifest \
+          bash packaging/docs-jobs.sh verify-manifest \
             docs/jobs \
             docs/assets/plugins \
-            target/docs/example-manifest.json \
+            docs/generated/example-manifest.json \
             2>&1 | tee docs-job-verification.log
-
-      - name: Upload generated documentation manifest
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: documentation-example-manifest
-          path: target/docs/example-manifest.json
-          if-no-files-found: ignore
-          retention-days: 14
 
       - name: Upload failure logs
         if: failure()
