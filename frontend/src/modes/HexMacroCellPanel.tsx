@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   downloadHexPdf,
   downloadHexPng,
   fetchHexPreviewPng,
   hexInfo,
   validatePlugin,
-  type DesignValidationReport, type HexInfo,
+  type DesignValidationReport,
+  type HexInfo,
   type HexMacroCellRequest,
 } from '../api';
 import {
@@ -13,9 +14,8 @@ import {
   SaveJobControl,
   type JobPanelProps,
 } from '../jobs/JobFileControls';
-import { fetchPluginSchema, type PluginSchemaDocument } from '../pluginSchemaApi';
 import { PluginActionBar } from '../schema/PluginActionBar';
-import { SchemaForm } from '../schema/SchemaForm';
+import { PluginEditorShell } from '../schema/PluginEditorShell';
 import { PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: HexMacroCellRequest = {
@@ -32,92 +32,75 @@ const DEFAULT: HexMacroCellRequest = {
 };
 
 export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
-  const [req, setReq] = useState<HexMacroCellRequest>(() =>
+  const [request, setRequest] = useState<HexMacroCellRequest>(() =>
     initialJobParameters(initialJob, 'hex-macro-cell', DEFAULT));
-  const [schema, setSchema] = useState<PluginSchemaDocument<HexMacroCellRequest> | null>(null);
-  const [schemaError, setSchemaError] = useState<string | null>(null);
   const [info, setInfo] = useState<HexInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
-  useEffect(() => {
-    let active = true;
-    fetchPluginSchema<HexMacroCellRequest>('hex-macro-cell')
-      .then((loaded) => {
-        if (!active) return;
-        setSchema(loaded);
-        setSchemaError(null);
-      })
-      .catch((loadError: unknown) => {
-        if (!active) return;
-        setSchema(null);
-        setSchemaError(loadError instanceof Error ? loadError.message : String(loadError));
-      });
-    return () => { active = false; };
-  }, []);
-
   const renderPreview = async () => {
-    setBusy(true); setError(null);
+    setBusy(true);
+    setError(null);
     try {
-      setPreview(await fetchHexPreviewPng(req));
-      setInfo(await hexInfo(req));
-      setValidationReport(await validatePlugin('hex-macro-cell', req));
-    }
-    catch (renderError) {
+      setPreview(await fetchHexPreviewPng(request));
+      setInfo(await hexInfo(request));
+      setValidationReport(await validatePlugin('hex-macro-cell', request));
+    } catch (renderError) {
       setValidationReport(null);
       setError(renderError instanceof Error ? renderError.message : String(renderError));
+    } finally {
+      setBusy(false);
     }
-    finally { setBusy(false); }
   };
 
   return (
     <>
       <h2>Hex macro cell</h2>
-      {schema ? (
-        <SchemaForm
-          parameterSchema={schema.parameterSchema}
-          uiSchema={schema.uiSchema}
-          value={req}
-          onChange={setReq}
-          disabled={busy}
-        />
-      ) : !schemaError ? (
-        <p role="status" style={{ fontSize: 12, color: '#6b7280' }}>Loading plugin schema…</p>
-      ) : null}
-      {schemaError && <p className="error-message">Could not load editor schema: {schemaError}</p>}
+      <PluginEditorShell
+        pluginId="hex-macro-cell"
+        value={request}
+        onChange={setRequest}
+        disabled={busy}
+        applyDefaultsOnLoad={!initialJob}
+      >
+        {(schema) => (
+          <>
+            {info && (
+              <p style={{ fontSize: 12, color: '#6b7280' }}>
+                {info.subElements.toLocaleString()} sub-elements ·{' '}
+                {info.imageSidePx.toLocaleString()} px per side
+              </p>
+            )}
 
-      {info && (
-        <p style={{ fontSize: 12, color: '#6b7280' }}>
-          {info.subElements.toLocaleString()} sub-elements · {info.imageSidePx.toLocaleString()} px per side
-        </p>
-      )}
+            <PluginActionBar
+              capabilities={schema.capabilities}
+              busy={busy}
+              actions={{
+                PREVIEW_PNG: {
+                  label: busy ? 'Rendering…' : 'Render preview',
+                  primary: true,
+                  run: renderPreview,
+                },
+                EXPORT_PNG: {
+                  label: 'PNG',
+                  run: () => downloadHexPng(request, 'fresnel-hex-macro.png'),
+                },
+                EXPORT_PDF: {
+                  label: 'PDF',
+                  run: () => downloadHexPdf(request, 'FIT', 'fresnel-hex-macro.pdf'),
+                },
+              }}
+            />
+            <SaveJobControl pluginId="hex-macro-cell" parameters={request} disabled={busy} />
+            {error && <p className="error-message">{error}</p>}
 
-      <PluginActionBar
-        capabilities={schema?.capabilities ?? []}
-        busy={busy}
-        actions={{
-          PREVIEW_PNG: {
-            label: busy ? 'Rendering…' : 'Render preview',
-            primary: true,
-            run: renderPreview,
-          },
-          EXPORT_PNG: {
-            label: 'PNG',
-            run: () => downloadHexPng(req, 'fresnel-hex-macro.png'),
-          },
-          EXPORT_PDF: {
-            label: 'PDF',
-            run: () => downloadHexPdf(req, 'FIT', 'fresnel-hex-macro.pdf'),
-          },
-        }}
-      />
-      <SaveJobControl pluginId="hex-macro-cell" parameters={req} disabled={busy || !schema} />
-      {error && <p className="error-message">{error}</p>}
-
-      <PreviewPane url={previewUrl} alt="Hex macro cell preview" />
-      <ValidationReportView report={validationReport} />
+            <PreviewPane url={previewUrl} alt="Hex macro cell preview" />
+            <ValidationReportView report={validationReport} />
+          </>
+        )}
+      </PluginEditorShell>
     </>
   );
 }
