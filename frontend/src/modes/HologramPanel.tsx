@@ -101,82 +101,93 @@ export function HologramPanel({ initialJob }: JobPanelProps) {
         customWidgets={CUSTOM_WIDGETS}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema) => (
-          <>
-            {hasTarget && !jobFitsFileLimit && (
-              <div className="warning" role="alert">
-                This embedded target is too large for the current 1 MiB `.fresnel` job envelope.
-                Synthesis remains available, but saving the design job is disabled. Use a smaller
-                source image until a bounded asset container is introduced.
-              </div>
-            )}
+        {(schema, structuralValidation) => {
+          const structurallyValid = structuralValidation?.valid === true;
+          return (
+            <>
+              {hasTarget && !jobFitsFileLimit && (
+                <div className="warning" role="alert">
+                  This embedded target is too large for the current 1 MiB `.fresnel` job envelope.
+                  Synthesis remains available, but saving the design job is disabled. Use a smaller
+                  source image until a bounded asset container is introduced.
+                </div>
+              )}
 
-            <PluginActionBar
-              capabilities={schema.capabilities}
-              busy={busy}
-              actions={{
-                PREVIEW_PNG: {
-                  label: busy ? 'Synthesising…' : 'Synthesise mask',
-                  primary: true,
-                  disabled: !hasTarget,
-                  run: synthesise,
-                },
-                EXPORT_PNG: {
-                  label: 'PNG',
-                  disabled: !hasTarget,
-                  run: async () => {
-                    const built = build();
-                    if (!built) return;
-                    try {
-                      await downloadHologramPng(built, 'fresnel-hologram.png');
-                    } catch (exportError) {
-                      setError(exportError instanceof Error ? exportError.message : String(exportError));
-                    }
+              <PluginActionBar
+                capabilities={schema.capabilities}
+                busy={busy}
+                actions={{
+                  PREVIEW_PNG: {
+                    label: busy ? 'Synthesising…' : 'Synthesise mask',
+                    primary: true,
+                    disabled: !hasTarget || !structurallyValid,
+                    run: synthesise,
                   },
-                },
-                EXPORT_STL: {
-                  label: 'STL',
-                  disabled: !hasTarget,
-                  run: async () => {
-                    const built = build();
-                    if (!built) return;
-                    try {
-                      await downloadHologramStl(built, 'fresnel-hologram-relief.stl');
-                    } catch (exportError) {
-                      setError(exportError instanceof Error ? exportError.message : String(exportError));
-                    }
+                  EXPORT_PNG: {
+                    label: 'PNG',
+                    disabled: !hasTarget || !structurallyValid,
+                    run: async () => {
+                      const built = build();
+                      if (!built) return;
+                      try {
+                        await downloadHologramPng(built, 'fresnel-hologram.png');
+                      } catch (exportError) {
+                        setError(exportError instanceof Error
+                          ? exportError.message
+                          : String(exportError));
+                      }
+                    },
                   },
-                },
-              }}
-            />
+                  EXPORT_STL: {
+                    label: 'STL',
+                    disabled: !hasTarget || !structurallyValid,
+                    run: async () => {
+                      const built = build();
+                      if (!built) return;
+                      try {
+                        await downloadHologramStl(built, 'fresnel-hologram-relief.stl');
+                      } catch (exportError) {
+                        setError(exportError instanceof Error
+                          ? exportError.message
+                          : String(exportError));
+                      }
+                    },
+                  },
+                }}
+              />
 
-            {schema.uiSchema.extensions?.includes('reconstruction-preview') && (
-              <div className="actions" data-editor-extension="reconstruction-preview">
-                <button className="secondary" onClick={reconstruct} disabled={busy || !hasTarget}>
-                  Simulate reconstruction
-                </button>
-              </div>
-            )}
+              {schema.uiSchema.extensions?.includes('reconstruction-preview') && (
+                <div className="actions" data-editor-extension="reconstruction-preview">
+                  <button
+                    className="secondary"
+                    onClick={reconstruct}
+                    disabled={busy || !hasTarget || !structurallyValid}
+                  >
+                    Simulate reconstruction
+                  </button>
+                </div>
+              )}
 
-            <SaveJobControl
-              pluginId="hologram"
-              parameters={hasTarget && jobFitsFileLimit ? request : null}
-              disabled={busy}
-            />
-            {error && <p className="error-message">{error}</p>}
+              <SaveJobControl
+                pluginId="hologram"
+                parameters={hasTarget && jobFitsFileLimit && structurallyValid ? request : null}
+                disabled={busy || !structurallyValid}
+              />
+              {error && <p className="error-message">{error}</p>}
 
-            <PreviewPane url={maskUrl} alt="Hologram phase mask">
-              <span style={{ color: '#9ca3af' }}>Choose a target image and synthesise.</span>
-            </PreviewPane>
-            {reconstructionUrl && (
-              <>
-                <h2 style={{ marginTop: 16 }}>Simulated reconstruction</h2>
-                <PreviewPane url={reconstructionUrl} alt="Reconstruction preview" />
-              </>
-            )}
-            <ValidationReportView report={validationReport} />
-          </>
-        )}
+              <PreviewPane url={maskUrl} alt="Hologram phase mask">
+                <span style={{ color: '#9ca3af' }}>Choose a target image and synthesise.</span>
+              </PreviewPane>
+              {reconstructionUrl && (
+                <>
+                  <h2 style={{ marginTop: 16 }}>Simulated reconstruction</h2>
+                  <PreviewPane url={reconstructionUrl} alt="Reconstruction preview" />
+                </>
+              )}
+              <ValidationReportView report={validationReport} />
+            </>
+          );
+        }}
       </PluginEditorShell>
     </>
   );
