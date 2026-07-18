@@ -1,0 +1,58 @@
+{
+  "formatVersion" : 1,
+  "examples" : [ {
+    "id" : "zone-plate/greyscale-phase",
+    "pluginId" : "zone-plate",
+    "job" : "docs/jobs/zone-plate/greyscale-phase.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "zone-plate/1",
+    "parameterSha256" : "7a330c30b1d969814f535e04992e6d35575a2b8f7627557a0601d87b24b18166",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/zone-plate/greyscale-phase.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 145511,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "228d583e0896cf56de60abae5d9d98cd6be6b4503a90df21823ae98e584a2609"
+    } ]
+  }, {
+    "id" : "zone-plate/negative-polarity",
+    "pluginId" : "zone-plate",
+    "job" : "docs/jobs/zone-plate/negative-polarity.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "zone-plate/1",
+    "parameterSha256" : "d06241070266334073df9487cb5b3c685631fd40287bf43e10f94159846c1a48",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/zone-plate/negative-polarity.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 22013,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "d3c0faa35f362f52de17ba5f1b3600eada0a7a48cb03c108ccc4f05e6b7db40a"
+    } ]
+  }, {
+    "id" : "zone-plate/on-axis",
+    "pluginId" : "zone-plate",
+    "job" : "docs/jobs/zone-plate/on-axis.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "zone-plate/1",
+    "parameterSha256" : "72c205d399e224ee9af39039efef3e53a31b5498855d8c378f8c84ecb3ef2246",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/zone-plate/on-axis.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 22009,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "6342b5030d7cdf9eb564ee60e0a87c74e5b180eae1fe8e3ea6ea4933e59f1837"
+    } ]
+  } ]
+}
