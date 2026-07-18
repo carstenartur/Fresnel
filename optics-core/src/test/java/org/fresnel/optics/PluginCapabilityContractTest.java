@@ -30,6 +30,7 @@ class PluginCapabilityContractTest {
                 PluginRegistry.HEX_MACRO_CELL.capabilities());
 
         assertEquals(Set.of(
+                        PluginCapability.EXPORT_PNG,
                         PluginCapability.EXPORT_PDF,
                         PluginCapability.PREVIEW_PNG),
                 PluginRegistry.WINDOW_FOIL.capabilities());
