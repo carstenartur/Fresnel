@@ -144,6 +144,61 @@ class FresnelJobStrictValidationTest {
     }
 
     @Test
+    void rejectsNullNestedParameterEntriesWithTheirArrayIndex() throws Exception {
+        String multiFocus = """
+                {
+                  "format": "io.github.carstenartur.fresnel.job",
+                  "formatVersion": 1,
+                  "plugin": {
+                    "id": "multi-focus",
+                    "parameterSchemaVersion": 1,
+                    "algorithmVersion": "multi-focus/1"
+                  },
+                  "parameters": {
+                    "apertureDiameterMm": 10,
+                    "focusPoints": [null],
+                    "wavelengthNm": 550,
+                    "dpi": 600
+                  }
+                }
+                """;
+        mvc.perform(post("/api/designs/job/load")
+                        .contentType(FRESNEL_JOB)
+                        .content(multiFocus))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString("focusPoints[0]")))
+                .andExpect(content().string(containsString("must not be null")));
+
+        String windowFoil = """
+                {
+                  "format": "io.github.carstenartur.fresnel.job",
+                  "formatVersion": 1,
+                  "plugin": {
+                    "id": "window-foil",
+                    "parameterSchemaVersion": 1,
+                    "algorithmVersion": "window-foil/1"
+                  },
+                  "parameters": {
+                    "sheetWidthMm": 200,
+                    "sheetHeightMm": 100,
+                    "macroRadiusMm": 25,
+                    "subDiameterMm": 8,
+                    "subPitchMm": 9,
+                    "wavelengthNm": 550,
+                    "dpi": 600,
+                    "cellSpecs": [null]
+                  }
+                }
+                """;
+        mvc.perform(post("/api/designs/job/load")
+                        .contentType(FRESNEL_JOB)
+                        .content(windowFoil))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString("cellSpecs[0]")))
+                .andExpect(content().string(containsString("must not be null")));
+    }
+
+    @Test
     void normalizesDeterministicProductionDefaults() throws Exception {
         String job = zonePlateJob("""
                 , "production": {
