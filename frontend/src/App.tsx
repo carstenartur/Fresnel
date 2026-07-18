@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { type ComponentType, useEffect, useRef, useState } from 'react';
 import { type FresnelJobDocument, type FresnelPluginId, type LoadedFresnelJob } from './jobApi';
-import { JobSourceProvider, OpenJobControl } from './jobs/JobFileControls';
+import { JobSourceProvider, OpenJobControl, type JobPanelProps } from './jobs/JobFileControls';
 import { AssistantPanel } from './modes/AssistantPanel';
 import { ComparisonPanel } from './modes/ComparisonPanel';
 import { HexMacroCellPanel } from './modes/HexMacroCellPanel';
@@ -9,38 +9,39 @@ import { MultiFocusPanel } from './modes/MultiFocusPanel';
 import { RgbPanel } from './modes/RgbPanel';
 import { WindowFoilPanel } from './modes/WindowFoilPanel';
 import { ZonePlatePanel } from './modes/ZonePlatePanel';
+import { fetchPluginMetadata } from './pluginSchemaApi';
 
-type DesignModeKey = 'single' | 'hex' | 'foil' | 'multi' | 'rgb' | 'hologram';
-type ModeKey = DesignModeKey | 'compare' | 'assistant';
+type AuxiliaryMode = 'compare' | 'assistant';
+type ModeKey = FresnelPluginId | AuxiliaryMode;
 
-const MODES: ReadonlyArray<{ key: ModeKey; label: string }> = [
-  { key: 'single',    label: 'Single ZP' },
-  { key: 'hex',       label: 'Hex macro' },
-  { key: 'foil',      label: 'Window foil' },
-  { key: 'multi',     label: 'Multi-focus' },
-  { key: 'rgb',       label: 'RGB' },
-  { key: 'hologram',  label: 'Hologram (GS)' },
-  { key: 'compare',   label: 'Compare' },
-  { key: 'assistant', label: 'Assistant' },
+interface EditorRegistration {
+  label: string;
+  component: ComponentType<JobPanelProps>;
+}
+
+/** Trusted compile-time component registry. Schema data never supplies module names. */
+const EDITOR_REGISTRY: Record<FresnelPluginId, EditorRegistration> = {
+  'zone-plate': { label: 'Single ZP', component: ZonePlatePanel },
+  'hex-macro-cell': { label: 'Hex macro', component: HexMacroCellPanel },
+  'window-foil': { label: 'Window foil', component: WindowFoilPanel },
+  'multi-focus': { label: 'Multi-focus', component: MultiFocusPanel },
+  'rgb-zone-plate': { label: 'RGB', component: RgbPanel },
+  hologram: { label: 'Hologram (GS)', component: HologramPanel },
+};
+
+const FALLBACK_PLUGIN_ORDER: readonly FresnelPluginId[] = [
+  'zone-plate',
+  'hex-macro-cell',
+  'window-foil',
+  'multi-focus',
+  'rgb-zone-plate',
+  'hologram',
 ];
 
-const PLUGIN_TO_MODE: Record<FresnelPluginId, DesignModeKey> = {
-  'zone-plate': 'single',
-  'hex-macro-cell': 'hex',
-  'window-foil': 'foil',
-  'multi-focus': 'multi',
-  'rgb-zone-plate': 'rgb',
-  hologram: 'hologram',
-};
-
-const MODE_TO_PLUGIN: Record<DesignModeKey, FresnelPluginId> = {
-  single: 'zone-plate',
-  hex: 'hex-macro-cell',
-  foil: 'window-foil',
-  multi: 'multi-focus',
-  rgb: 'rgb-zone-plate',
-  hologram: 'hologram',
-};
+const AUXILIARY_MODES: ReadonlyArray<{ key: AuxiliaryMode; label: string }> = [
+  { key: 'compare', label: 'Compare' },
+  { key: 'assistant', label: 'Assistant' },
+];
 
 interface OpenedJobState {
   job: FresnelJobDocument<unknown>;
@@ -49,6 +50,7 @@ interface OpenedJobState {
 
 export function App() {
   const [mode, setMode] = useState<ModeKey>(() => modeFromPath(window.location.pathname));
+  const [pluginOrder, setPluginOrder] = useState<readonly FresnelPluginId[]>(FALLBACK_PLUGIN_ORDER);
   const [openedJob, setOpenedJob] = useState<OpenedJobState | null>(null);
   const [jobNotice, setJobNotice] = useState<string | null>(null);
   const revision = useRef(0);
@@ -63,19 +65,35 @@ export function App() {
     return () => window.removeEventListener('popstate', applyRoute);
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    fetchPluginMetadata()
+      .then((plugins) => {
+        if (!active) return;
+        const registered = plugins
+          .map((plugin) => plugin.id)
+          .filter((pluginId): pluginId is FresnelPluginId => isPluginId(pluginId));
+        if (registered.length > 0) setPluginOrder(registered);
+      })
+      .catch(() => {
+        // Keep the deterministic compile-time order when metadata is temporarily unavailable.
+      });
+    return () => { active = false; };
+  }, []);
+
   const openJob = (loaded: LoadedFresnelJob) => {
-    const nextMode = PLUGIN_TO_MODE[loaded.job.plugin.id];
-    if (!nextMode) {
-      throw new Error(`No editor is registered for plugin "${loaded.job.plugin.id}".`);
+    const pluginId = loaded.job.plugin.id;
+    if (!isPluginId(pluginId)) {
+      throw new Error(`No trusted editor is registered for plugin "${pluginId}".`);
     }
 
     revision.current += 1;
     setOpenedJob({ job: loaded.job, revision: revision.current });
-    setMode(nextMode);
-    pushModeRoute(nextMode);
+    setMode(pluginId);
+    pushModeRoute(pluginId);
     setJobNotice(loaded.migratedFromLegacy
       ? `Migrated legacy design "${loaded.sourceName}" to the .fresnel v1 format.`
-      : `Opened "${loaded.sourceName}" as ${loaded.job.plugin.id}.`);
+      : `Opened "${loaded.sourceName}" as ${pluginId}.`);
   };
 
   const selectMode = (nextMode: ModeKey) => {
@@ -85,36 +103,18 @@ export function App() {
     pushModeRoute(nextMode);
   };
 
-  const expectedMode = openedJob ? PLUGIN_TO_MODE[openedJob.job.plugin.id] : null;
-  const initialJob = expectedMode === mode ? openedJob?.job ?? null : null;
+  const expectedPlugin = openedJob?.job.plugin.id ?? null;
+  const initialJob = expectedPlugin === mode ? openedJob?.job ?? null : null;
   const panelKey = `${mode}:${openedJob?.revision ?? 0}`;
 
   let panel: JSX.Element;
-  switch (mode) {
-    case 'single':
-      panel = <ZonePlatePanel key={panelKey} initialJob={initialJob} />;
-      break;
-    case 'hex':
-      panel = <HexMacroCellPanel key={panelKey} initialJob={initialJob} />;
-      break;
-    case 'foil':
-      panel = <WindowFoilPanel key={panelKey} initialJob={initialJob} />;
-      break;
-    case 'multi':
-      panel = <MultiFocusPanel key={panelKey} initialJob={initialJob} />;
-      break;
-    case 'rgb':
-      panel = <RgbPanel key={panelKey} initialJob={initialJob} />;
-      break;
-    case 'hologram':
-      panel = <HologramPanel key={panelKey} initialJob={initialJob} />;
-      break;
-    case 'compare':
-      panel = <ComparisonPanel key={panelKey} />;
-      break;
-    case 'assistant':
-      panel = <AssistantPanel key={panelKey} />;
-      break;
+  if (isPluginId(mode)) {
+    const Editor = EDITOR_REGISTRY[mode].component;
+    panel = <Editor key={panelKey} initialJob={initialJob} />;
+  } else if (mode === 'compare') {
+    panel = <ComparisonPanel key={panelKey} />;
+  } else {
+    panel = <AssistantPanel key={panelKey} />;
   }
 
   return (
@@ -128,10 +128,25 @@ export function App() {
           </div>
         )}
         <div role="tablist" className="mode-tabs">
-          {MODES.map((entry) => (
-            <button key={entry.key} role="tab" aria-selected={mode === entry.key}
-                    className={`mode-tab ${mode === entry.key ? 'active' : ''}`}
-                    onClick={() => selectMode(entry.key)}>
+          {pluginOrder.map((pluginId) => (
+            <button
+              key={pluginId}
+              role="tab"
+              aria-selected={mode === pluginId}
+              className={`mode-tab ${mode === pluginId ? 'active' : ''}`}
+              onClick={() => selectMode(pluginId)}
+            >
+              {EDITOR_REGISTRY[pluginId].label}
+            </button>
+          ))}
+          {AUXILIARY_MODES.map((entry) => (
+            <button
+              key={entry.key}
+              role="tab"
+              aria-selected={mode === entry.key}
+              className={`mode-tab ${mode === entry.key ? 'active' : ''}`}
+              onClick={() => selectMode(entry.key)}
+            >
               {entry.label}
             </button>
           ))}
@@ -147,25 +162,19 @@ export function App() {
 
 function modeFromPath(pathname: string): ModeKey {
   const match = /^\/plugins\/([^/]+)\/?$/.exec(pathname);
-  if (match && isPluginId(match[1])) return PLUGIN_TO_MODE[match[1]];
+  if (match && isPluginId(match[1])) return match[1];
   if (/^\/compare\/?$/.test(pathname)) return 'compare';
   if (/^\/assistant\/?$/.test(pathname)) return 'assistant';
-  return 'single';
+  return 'zone-plate';
 }
 
 function pushModeRoute(mode: ModeKey): void {
-  const pathname = isDesignMode(mode)
-    ? `/plugins/${MODE_TO_PLUGIN[mode]}`
-    : `/${mode}`;
+  const pathname = isPluginId(mode) ? `/plugins/${mode}` : `/${mode}`;
   if (window.location.pathname !== pathname) {
     window.history.pushState(null, '', pathname);
   }
 }
 
-function isDesignMode(mode: ModeKey): mode is DesignModeKey {
-  return mode in MODE_TO_PLUGIN;
-}
-
 function isPluginId(value: string): value is FresnelPluginId {
-  return value in PLUGIN_TO_MODE;
+  return Object.prototype.hasOwnProperty.call(EDITOR_REGISTRY, value);
 }
