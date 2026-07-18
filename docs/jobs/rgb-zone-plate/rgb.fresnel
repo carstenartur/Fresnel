@@ -3,26 +3,31 @@
   "format": "io.github.carstenartur.fresnel.job",
   "formatVersion": 1,
   "plugin": {
-    "id": "zone-plate",
+    "id": "rgb-zone-plate",
     "parameterSchemaVersion": 1,
-    "algorithmVersion": "zone-plate/1"
+    "algorithmVersion": "rgb-zone-plate/1"
   },
   "parameters": {
-    "apertureDiameterMm": 10.0,
-    "focalLengthMm": 250.0,
-    "wavelengthNm": 550.0,
-    "dpi": 1200.0,
-    "targetOffsetXmm": 0.0,
-    "targetOffsetYmm": 0.0,
-    "maskType": "BINARY_AMPLITUDE",
-    "polarity": "POSITIVE"
+    "base": {
+      "apertureDiameterMm": 10.0,
+      "focalLengthMm": 250.0,
+      "wavelengthNm": 550.0,
+      "dpi": 1200.0,
+      "targetOffsetXmm": 0.0,
+      "targetOffsetYmm": 0.0,
+      "maskType": "BINARY_AMPLITUDE",
+      "polarity": "POSITIVE"
+    },
+    "redNm": 630.0,
+    "greenNm": 532.0,
+    "blueNm": 450.0
   },
   "production": {
     "outputs": [
       {
         "id": "documentation-preview",
         "format": "png",
-        "filename": "on-axis.png"
+        "filename": "rgb.png"
       }
     ]
   },

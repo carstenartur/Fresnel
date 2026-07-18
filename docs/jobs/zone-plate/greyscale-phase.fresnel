@@ -14,7 +14,7 @@
     "dpi": 1200.0,
     "targetOffsetXmm": 0.0,
     "targetOffsetYmm": 0.0,
-    "maskType": "BINARY_AMPLITUDE",
+    "maskType": "GREYSCALE_PHASE",
     "polarity": "POSITIVE"
   },
   "production": {
@@ -22,7 +22,7 @@
       {
         "id": "documentation-preview",
         "format": "png",
-        "filename": "on-axis.png"
+        "filename": "greyscale-phase.png"
       }
     ]
   },

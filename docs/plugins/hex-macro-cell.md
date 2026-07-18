@@ -1,7 +1,7 @@
-# Plugin: Hex Macro Cell (`HexMacroCellRenderer`)
+# Plugin: Hex Macro Cell (`hex-macro-cell`)
 
 The **hex macro cell** plugin renders a hexagonal aperture tiled with many small
-sub-zone-plates on a triangular lattice.  All sub-elements share a common image
+sub-zone-plates on a triangular lattice. All sub-elements share a common image
 plane so they constructively project the same focal spot — but each sub-element
 has its own off-axis angle because it sits at a different position within the
 macro hex.
@@ -27,24 +27,42 @@ than a single small zone plate would allow, while keeping the outer-zone width
 
 ## Example image
 
-### On-axis hex macro cell (15 mm radius, 5 mm sub-elements)
+### On-axis hex macro cell
 
 ![Hex macro cell — on-axis](../assets/plugins/hex-macro-cell/on-axis.png)
 
+[Download the source job](../jobs/hex-macro-cell/on-axis.fresnel)
+
+<!-- fresnel-example:hex-macro-cell/on-axis:start -->
+| Parameter | Value |
+|---|---:|
+| Macro radius | 15 mm |
+| Sub-element diameter | 5 mm |
+| Sub-element pitch | 5.5 mm |
+| Focal length | 500 mm |
+| Target offset X | 0 mm |
+| Target offset Y | 0 mm |
+| Wavelength | 550 nm |
+| Printer DPI | 400 dpi |
+| Mask type | Binary amplitude |
+| Polarity | Positive |
+<!-- fresnel-example:hex-macro-cell/on-axis:end -->
+
 The hexagonal outline is clearly visible; each sub-zone-plate inside focuses
-toward the same on-axis point 500 mm away.
+toward the same on-axis point 500 mm away. Open the downloaded job in Fresnel to
+inspect these exact normalized parameters in the schema-driven editor.
 
 ## Java API
 
 ```java
-// On-axis convenience constructor
+// On-axis convenience constructor matching the documentation job
 HexMacroCellParameters p = HexMacroCellParameters.onAxis(
         15.0,  // macro radius, mm
         5.0,   // sub-element diameter, mm
         5.5,   // sub-element pitch, mm
         500.0, // focal length, mm
         550.0, // wavelength, nm
-        1200.0 // DPI
+        400.0  // DPI
 );
 RenderResult result = HexMacroCellRenderer.render(p);
 
@@ -56,8 +74,15 @@ List<double[]> centres =
         HexMacroCellRenderer.hexLatticeCentresInsideHex(15.0, 5.5);
 ```
 
-## Regenerating the example images
+## Reproducing and verifying the example
 
 ```bash
-mvn -pl optics-core test -Dtest=PluginDocImagesTest#hexMacroCell_generateDocImages -Dfresnel.docs=generate
+# Render only this public production job.
+bash packaging/docs-jobs.sh render \
+  docs/jobs/hex-macro-cell/on-axis.fresnel \
+  docs/assets/plugins/hex-macro-cell
+
+# Verify every migrated job, asset and the checked-in manifest.
+bash packaging/docs-jobs.sh verify-manifest \
+  docs/jobs docs/assets/plugins docs/generated/example-manifest.json
 ```

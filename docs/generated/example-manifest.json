@@ -1,0 +1,184 @@
+{
+  "formatVersion" : 1,
+  "examples" : [ {
+    "id" : "hex-macro-cell/on-axis",
+    "pluginId" : "hex-macro-cell",
+    "job" : "docs/jobs/hex-macro-cell/on-axis.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "hex-macro-cell/1",
+    "parameterSha256" : "21185c872ed1edbfe4caf4d09fd6c2ba8e239936775e1a67c713b16b71884a73",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/hex-macro-cell/on-axis.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 17599,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 400.0,
+      "normalizedSha256" : "e59d37e81e000d079ce92a34f597b313035b431641f691570c8aab74775768e4"
+    } ]
+  }, {
+    "id" : "hologram/checker",
+    "pluginId" : "hologram",
+    "job" : "docs/jobs/hologram/checker.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "hologram/1",
+    "parameterSha256" : "36e86e3f381231d667fdd92821a03100ec07816f38990b2d73592745ca3d260c",
+    "artifacts" : [ {
+      "id" : "target-source",
+      "path" : "docs/assets/plugins/hologram/target.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 4444,
+      "widthPx" : 512,
+      "heightPx" : 512,
+      "dpi" : null,
+      "normalizedSha256" : "48373f6f88a89b4bc57c6efdc611ff3332c247eac8f528e0daa481a577018f26"
+    }, {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/hologram/hologram-mask.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 262900,
+      "widthPx" : 512,
+      "heightPx" : 512,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "6eb499e91ea5da891403471b505334a2f10221fbe3c0fc7a09ddaedd0364b945"
+    }, {
+      "id" : "reconstruction-preview",
+      "path" : "docs/assets/plugins/hologram/reconstruction.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 178493,
+      "widthPx" : 512,
+      "heightPx" : 512,
+      "dpi" : null,
+      "normalizedSha256" : "94dd7b8eca11a656939e2d85d01a22d584915c469e792fd0d60351f2b29c7f64"
+    } ]
+  }, {
+    "id" : "multi-focus/line-focus",
+    "pluginId" : "multi-focus",
+    "job" : "docs/jobs/multi-focus/line-focus.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "multi-focus/1",
+    "parameterSha256" : "32758bd6b14b812b1ce6e01c114fb0d18694c8d422fc7ec65647e2f8c2e5375d",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/multi-focus/line-focus.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 32641,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "061988d44aea85a247c46e5d62af6603177cd2ae724f9b14df55a07a96627fc1"
+    } ]
+  }, {
+    "id" : "multi-focus/two-foci",
+    "pluginId" : "multi-focus",
+    "job" : "docs/jobs/multi-focus/two-foci.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "multi-focus/1",
+    "parameterSha256" : "126eff8bf1246903ade27721d7852f3d328c9bc5c490c85b584c556f52a22593",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/multi-focus/two-foci.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 32287,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "c395279fc141a56e5209667e9b4332aaf76be0b5f0bc00c26c4eba74bd6388b4"
+    } ]
+  }, {
+    "id" : "rgb-zone-plate/rgb",
+    "pluginId" : "rgb-zone-plate",
+    "job" : "docs/jobs/rgb-zone-plate/rgb.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "rgb-zone-plate/1",
+    "parameterSha256" : "de81373aed260a00de1d90380b7fe01727d72e010933dabe4e56da7e5dc4b446",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/rgb-zone-plate/rgb.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 79146,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "57780a63a9359ab120b277fc582a6c4a2bbb4eda4719b2c4593fff8c8425b4a8"
+    } ]
+  }, {
+    "id" : "window-foil/foil-sheet",
+    "pluginId" : "window-foil",
+    "job" : "docs/jobs/window-foil/foil-sheet.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "window-foil/1",
+    "parameterSha256" : "ec6d0f0544c7446b33c9e14212e30e9a34a96988b006fb6a746681bb8774bd2a",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/window-foil/foil-sheet.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 17109,
+      "widthPx" : 473,
+      "heightPx" : 315,
+      "dpi" : 200.0,
+      "normalizedSha256" : "fa371f2e572cf27ed2ddb7e12f1eeee9cb000e8c9750b18bfbb9ad907a06f4bf"
+    } ]
+  }, {
+    "id" : "zone-plate/greyscale-phase",
+    "pluginId" : "zone-plate",
+    "job" : "docs/jobs/zone-plate/greyscale-phase.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "zone-plate/1",
+    "parameterSha256" : "7a330c30b1d969814f535e04992e6d35575a2b8f7627557a0601d87b24b18166",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/zone-plate/greyscale-phase.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 145490,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "228d583e0896cf56de60abae5d9d98cd6be6b4503a90df21823ae98e584a2609"
+    } ]
+  }, {
+    "id" : "zone-plate/negative-polarity",
+    "pluginId" : "zone-plate",
+    "job" : "docs/jobs/zone-plate/negative-polarity.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "zone-plate/1",
+    "parameterSha256" : "d06241070266334073df9487cb5b3c685631fd40287bf43e10f94159846c1a48",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/zone-plate/negative-polarity.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 21992,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "d3c0faa35f362f52de17ba5f1b3600eada0a7a48cb03c108ccc4f05e6b7db40a"
+    } ]
+  }, {
+    "id" : "zone-plate/on-axis",
+    "pluginId" : "zone-plate",
+    "job" : "docs/jobs/zone-plate/on-axis.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "zone-plate/1",
+    "parameterSha256" : "72c205d399e224ee9af39039efef3e53a31b5498855d8c378f8c84ecb3ef2246",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/zone-plate/on-axis.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 21988,
+      "widthPx" : 473,
+      "heightPx" : 473,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "6342b5030d7cdf9eb564ee60e0a87c74e5b180eae1fe8e3ea6ea4933e59f1837"
+    } ]
+  } ]
+}

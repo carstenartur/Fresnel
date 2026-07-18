@@ -3,17 +3,19 @@
   "format": "io.github.carstenartur.fresnel.job",
   "formatVersion": 1,
   "plugin": {
-    "id": "zone-plate",
+    "id": "hex-macro-cell",
     "parameterSchemaVersion": 1,
-    "algorithmVersion": "zone-plate/1"
+    "algorithmVersion": "hex-macro-cell/1"
   },
   "parameters": {
-    "apertureDiameterMm": 10.0,
-    "focalLengthMm": 250.0,
-    "wavelengthNm": 550.0,
-    "dpi": 1200.0,
+    "macroRadiusMm": 15.0,
+    "subDiameterMm": 5.0,
+    "subPitchMm": 5.5,
+    "focalLengthMm": 500.0,
     "targetOffsetXmm": 0.0,
     "targetOffsetYmm": 0.0,
+    "wavelengthNm": 550.0,
+    "dpi": 400.0,
     "maskType": "BINARY_AMPLITUDE",
     "polarity": "POSITIVE"
   },

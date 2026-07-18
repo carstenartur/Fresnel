@@ -14,6 +14,7 @@ import {
 import { PluginActionBar } from '../schema/PluginActionBar';
 import { PluginEditorShell } from '../schema/PluginEditorShell';
 import { WindowCellLayoutWidget } from '../schema/widgets/WindowCellLayoutWidget';
+import { downloadWindowFoilPng } from '../windowFoilExportApi';
 import { PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: WindowFoilRequest = {
@@ -104,6 +105,12 @@ export function WindowFoilPanel({ initialJob }: JobPanelProps) {
                     primary: true,
                     disabled: !structurallyValid,
                     run: () => normalized && renderPreview(normalized),
+                  },
+                  EXPORT_PNG: {
+                    label: 'PNG',
+                    disabled: !productionReady,
+                    run: () => normalized
+                      && downloadWindowFoilPng(normalized, 'fresnel-window-foil.png'),
                   },
                   EXPORT_PDF: {
                     label: `PDF (${sheet})`,

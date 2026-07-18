@@ -15,14 +15,14 @@
     "targetOffsetXmm": 0.0,
     "targetOffsetYmm": 0.0,
     "maskType": "BINARY_AMPLITUDE",
-    "polarity": "POSITIVE"
+    "polarity": "NEGATIVE"
   },
   "production": {
     "outputs": [
       {
         "id": "documentation-preview",
         "format": "png",
-        "filename": "on-axis.png"
+        "filename": "negative-polarity.png"
       }
     ]
   },

@@ -1,4 +1,4 @@
-# Plugin: Zone Plate (`ZonePlateRenderer`)
+# Plugin: Zone Plate (`zone-plate`)
 
 A **Fresnel zone plate** is a diffractive optical element that focuses light by
 alternately blocking or shifting the phase of concentric ring zones. This plugin
@@ -25,11 +25,41 @@ symmetric (on-axis) or off-axis zone plate.
 | `BINARY_AMPLITUDE` | Classic zone plate: opaque and transparent rings. Theoretically ~10 % first-order efficiency. |
 | `GREYSCALE_PHASE` | Continuous phase ramp (0–2π mapped to 0–255). Theoretically ~40 % first-order efficiency. |
 
+## Reproducing the examples in Fresnel
+
+Each generated image below has exactly one checked-in `.fresnel` production job.
+The job is the source; the image, GUI and verification tooling are consumers.
+
+1. Download the linked `.fresnel` file.
+2. Open it with an installed Fresnel application, or use **Open job…** in the web UI.
+3. Fresnel selects the `zone-plate` editor and restores the normalized parameters.
+4. Render, modify or export the design through the same schema-driven editor used
+   for ordinary work.
+
+Opening the downloaded file through a native Windows or Linux installation uses
+the registered file association. No documentation-specific editor or remote URL
+importer is involved.
+
 ## Example images
 
 ### On-axis, binary amplitude, positive polarity
 
 ![Zone plate — on-axis binary amplitude](../assets/plugins/zone-plate/on-axis.png)
+
+[Download the source job](../jobs/zone-plate/on-axis.fresnel)
+
+<!-- fresnel-example:zone-plate/on-axis:start -->
+| Parameter | Value |
+|---|---:|
+| Aperture diameter | 10 mm |
+| Focal length | 250 mm |
+| Wavelength | 550 nm |
+| Target offset X | 0 mm |
+| Target offset Y | 0 mm |
+| Printer DPI | 1200 dpi |
+| Mask type | Binary amplitude |
+| Polarity | Positive |
+<!-- fresnel-example:zone-plate/on-axis:end -->
 
 Typical Fresnel zone plate: the innermost zone is transparent; successive zones
 alternate opaque / transparent.
@@ -38,14 +68,44 @@ alternate opaque / transparent.
 
 ![Zone plate — greyscale phase](../assets/plugins/zone-plate/greyscale-phase.png)
 
-Continuous greyscale encoding of the phase 0…2π.  Brighter pixels correspond to
+[Download the source job](../jobs/zone-plate/greyscale-phase.fresnel)
+
+<!-- fresnel-example:zone-plate/greyscale-phase:start -->
+| Parameter | Value |
+|---|---:|
+| Aperture diameter | 10 mm |
+| Focal length | 250 mm |
+| Wavelength | 550 nm |
+| Target offset X | 0 mm |
+| Target offset Y | 0 mm |
+| Printer DPI | 1200 dpi |
+| Mask type | Greyscale phase |
+| Polarity | Positive |
+<!-- fresnel-example:zone-plate/greyscale-phase:end -->
+
+Continuous greyscale encoding of the phase 0…2π. Brighter pixels correspond to
 a larger phase shift.
 
 ### Negative polarity (inverted binary amplitude)
 
 ![Zone plate — negative polarity](../assets/plugins/zone-plate/negative-polarity.png)
 
-Every transparent zone becomes opaque and vice versa.  The first-order focal spot
+[Download the source job](../jobs/zone-plate/negative-polarity.fresnel)
+
+<!-- fresnel-example:zone-plate/negative-polarity:start -->
+| Parameter | Value |
+|---|---:|
+| Aperture diameter | 10 mm |
+| Focal length | 250 mm |
+| Wavelength | 550 nm |
+| Target offset X | 0 mm |
+| Target offset Y | 0 mm |
+| Printer DPI | 1200 dpi |
+| Mask type | Binary amplitude |
+| Polarity | Negative (inverted) |
+<!-- fresnel-example:zone-plate/negative-polarity:end -->
+
+Every transparent zone becomes opaque and vice versa. The first-order focal spot
 is the same; only the zero-order background changes.
 
 ## Validation workflow
@@ -96,8 +156,6 @@ System.out.println("F# = "  + report.fNumber());
 System.out.println("Airy disk = " + report.airyDiskDiameterMicrons() + " µm");
 ```
 
-
-
 ```java
 // On-axis convenience constructor
 SingleZonePlateParameters p = SingleZonePlateParameters.onAxis(
@@ -119,11 +177,28 @@ SingleZonePlateParameters p2 = new SingleZonePlateParameters(
 );
 ```
 
-## Regenerating the example images
+## Verifying or regenerating documentation artifacts
+
+The documentation command consumes the public jobs through `FresnelJobExecutor`;
+it does not invoke or name a JUnit image generator.
 
 ```bash
-mvn -pl optics-core test -Dtest=PluginDocImagesTest#zonePlate_generateDocImages -Dfresnel.docs=generate
+# Render all discovered jobs into their plugin asset directories.
+bash packaging/docs-jobs.sh render-all docs/jobs docs/assets/plugins
+
+# Side-effect-free CI/developer verification against checked-in assets.
+bash packaging/docs-jobs.sh verify-all docs/jobs docs/assets/plugins
+
+# Inspect the discovered job/plugin/output mapping.
+bash packaging/docs-jobs.sh list docs/jobs
+
+# Print the schema-derived parameter table for one job.
+bash packaging/docs-jobs.sh table docs/jobs/zone-plate/on-axis.fresnel
 ```
+
+PNG verification compares decoded pixels, dimensions and intended DPI rather than
+compressed PNG bytes. Encoder/compression changes therefore do not create false
+staleness failures when the visible and physical output is unchanged.
 
 ## Print calibration sheet
 

@@ -111,6 +111,7 @@ public final class PluginRegistry {
             "docs/plugins/window-foil.md",
             PluginStabilityLevel.STABLE,
             Set.of(
+                    PluginCapability.EXPORT_PNG,
                     PluginCapability.EXPORT_PDF,
                     PluginCapability.PREVIEW_PNG
             ),

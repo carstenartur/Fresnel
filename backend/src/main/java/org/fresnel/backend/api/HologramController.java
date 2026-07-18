@@ -23,9 +23,7 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.Base64;
 
 /**
  * Endpoints for Use Case D — hologram synthesis from a target image.
@@ -43,14 +41,12 @@ public class HologramController {
     /** Cap STL export memory by limiting synchronous relief mesh dimensions. */
     public static final int MAX_STL_SIDE = 512;
 
-    /**
-     * Hard cap on the base64-encoded target image. 8 MB of base64 ≈ 6 MB of decoded
-     * bytes, which already covers any 1024×1024 RGB PNG by a wide margin. Larger
-     * payloads are rejected without ever calling {@link Base64#decode(String)} or
-     * {@link ImageIO#read(java.io.InputStream)} so we cannot be DoS'd by giant
-     * attachments.
-     */
-    public static final int MAX_BASE64_BYTES = 8 * 1024 * 1024;
+    /** Maximum number of Base64 characters accepted for an embedded target. */
+    public static final int MAX_BASE64_BYTES = HologramImageDecoder.MAX_BASE64_CHARACTERS;
+    /** Maximum source-image width or height inspected before pixel decoding. */
+    public static final int MAX_SOURCE_IMAGE_SIDE = HologramImageDecoder.MAX_SOURCE_SIDE;
+    /** Maximum source-image pixel count inspected before pixel decoding. */
+    public static final long MAX_SOURCE_IMAGE_PIXELS = HologramImageDecoder.MAX_SOURCE_PIXELS;
 
     @PostMapping(value = "/synthesize.png",
             consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -107,21 +103,9 @@ public class HologramController {
             throw new IllegalArgumentException("sidePx > " + MAX_SIDE + " requires async render-job");
         if ((req.sidePx() & (req.sidePx() - 1)) != 0)
             throw new IllegalArgumentException("sidePx must be a power of two");
-        String b64 = stripDataUrlPrefix(req.targetImageBase64());
-        if (b64.length() > MAX_BASE64_BYTES)
-            throw new IllegalArgumentException("targetImageBase64 too large (>"
-                    + MAX_BASE64_BYTES + " bytes); resize before upload");
-        byte[] raw = Base64.getDecoder().decode(b64);
-        BufferedImage src = ImageIO.read(new ByteArrayInputStream(raw));
-        if (src == null) throw new IllegalArgumentException("could not decode targetImageBase64 as image");
+        BufferedImage src = HologramImageDecoder.decode(req.targetImageBase64());
         BufferedImage normalised = toSquareGreyscale(src, req.sidePx());
         return new HologramParameters(normalised, req.iterations(), type, req.dpi());
-    }
-
-    private static String stripDataUrlPrefix(String s) {
-        int comma = s.indexOf(',');
-        if (s.startsWith("data:") && comma > 0) return s.substring(comma + 1);
-        return s;
     }
 
     /** Centre-fit then resize to {@code n × n} greyscale. */

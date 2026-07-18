@@ -40,12 +40,44 @@ jobs:
           set -o pipefail
           mvn -B -ntp test 2>&1 | tee maven-test.log
 
-      - name: Upload Maven failure log
+      - name: Verify documentation jobs and checked-in manifest
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p target/docs
+          bash packaging/docs-jobs.sh manifest \
+            docs/jobs \
+            docs/assets/plugins \
+            target/docs/example-manifest.json \
+            2>&1 | tee docs-job-verification.log
+          if ! cmp -s \
+              docs/generated/example-manifest.json \
+              target/docs/example-manifest.json; then
+            echo "The checked-in documentation manifest is stale." >&2
+            diff -u \
+              docs/generated/example-manifest.json \
+              target/docs/example-manifest.json || true
+            exit 1
+          fi
+
+      - name: Upload generated documentation manifest
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: documentation-example-manifest
+          path: target/docs/example-manifest.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload failure logs
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: maven-test-log
-          path: maven-test.log
+          name: test-failure-logs
+          path: |
+            maven-test.log
+            docs-job-verification.log
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Publish JUnit test report

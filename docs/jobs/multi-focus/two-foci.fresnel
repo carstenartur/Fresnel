@@ -3,17 +3,18 @@
   "format": "io.github.carstenartur.fresnel.job",
   "formatVersion": 1,
   "plugin": {
-    "id": "zone-plate",
+    "id": "multi-focus",
     "parameterSchemaVersion": 1,
-    "algorithmVersion": "zone-plate/1"
+    "algorithmVersion": "multi-focus/1"
   },
   "parameters": {
     "apertureDiameterMm": 10.0,
-    "focalLengthMm": 250.0,
+    "focusPoints": [
+      { "xMm": -3.0, "yMm": 0.0, "zMm": 300.0 },
+      { "xMm": 3.0, "yMm": 0.0, "zMm": 300.0 }
+    ],
     "wavelengthNm": 550.0,
     "dpi": 1200.0,
-    "targetOffsetXmm": 0.0,
-    "targetOffsetYmm": 0.0,
     "maskType": "BINARY_AMPLITUDE",
     "polarity": "POSITIVE"
   },
@@ -22,7 +23,7 @@
       {
         "id": "documentation-preview",
         "format": "png",
-        "filename": "on-axis.png"
+        "filename": "two-foci.png"
       }
     ]
   },
