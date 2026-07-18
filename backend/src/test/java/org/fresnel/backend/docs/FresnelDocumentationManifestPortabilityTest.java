@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,6 +43,35 @@ class FresnelDocumentationManifestPortabilityTest {
                 IllegalStateException.class,
                 () -> service.generate(tempDir.resolve("jobs"), tempDir.resolve("assets")));
         assertTrue(error.getMessage().contains("case-insensitive filesystem"));
+    }
+
+    @Test
+    void usesTheRepositoryDocsDirectoryWhenAnAncestorIsAlsoNamedDocs() throws Exception {
+        Path repositoryRoot = tempDir.resolve("docs/checkout");
+        Path jobRoot = Files.createDirectories(
+                repositoryRoot.resolve("docs/jobs/zone-plate"));
+        Path assetRoot = Files.createDirectories(
+                repositoryRoot.resolve("docs/assets/plugins/zone-plate"));
+
+        Files.copy(
+                repositoryFile("docs/jobs/zone-plate/on-axis.fresnel"),
+                jobRoot.resolve("on-axis.fresnel"),
+                StandardCopyOption.REPLACE_EXISTING);
+        Files.copy(
+                repositoryFile("docs/assets/plugins/zone-plate/on-axis.png"),
+                assetRoot.resolve("on-axis.png"),
+                StandardCopyOption.REPLACE_EXISTING);
+
+        FresnelDocumentationManifest manifest = service.generate(
+                repositoryRoot.resolve("docs/jobs"),
+                repositoryRoot.resolve("docs/assets/plugins"));
+
+        assertEquals(1, manifest.examples().size());
+        FresnelDocumentationManifest.Example example = manifest.examples().getFirst();
+        assertEquals("docs/jobs/zone-plate/on-axis.fresnel", example.job());
+        assertEquals(
+                "docs/assets/plugins/zone-plate/on-axis.png",
+                example.artifacts().getFirst().path());
     }
 
     private static Path repositoryFile(String relativePath) {

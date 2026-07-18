@@ -6,7 +6,6 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
@@ -16,7 +15,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -133,9 +134,16 @@ class FresnelDocumentationManifestServiceTest {
     @Test
     void manifestSerializationIsDeterministicAndMigratedPngsHaveNoOrphans()
             throws Exception {
-        assertEquals(
-                new String(service.write(manifest), StandardCharsets.UTF_8),
-                new String(service.write(manifest), StandardCharsets.UTF_8));
+        byte[] first = service.write(manifest);
+        byte[] second = service.write(manifest);
+        assertArrayEquals(first, second);
+        assertEquals((byte) '\n', first[first.length - 1]);
+        if (first.length > 1) {
+            assertNotEquals((byte) '\n', first[first.length - 2],
+                    "manifest must end with exactly one LF");
+            assertNotEquals((byte) '\r', first[first.length - 2],
+                    "manifest must use LF rather than CRLF");
+        }
 
         Set<String> manifestAssets = manifest.examples().stream()
                 .flatMap(example -> example.artifacts().stream())
