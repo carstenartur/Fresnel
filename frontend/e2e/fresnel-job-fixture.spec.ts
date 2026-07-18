@@ -12,11 +12,13 @@ test('opens and resaves the checked-in zone plate example', async ({ page }) => 
   await fileInput(page).setInputFiles(EXAMPLE_JOB);
   await expect(page.getByRole('tab', { name: 'Single ZP' }))
     .toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByLabel('Aperture diameter (mm)', { exact: true }))
+
+  const form = page.locator('[data-plugin-schema="zone-plate"]');
+  await expect(form.getByRole('spinbutton', { name: /^Aperture diameter \(mm\)/ }))
     .toHaveValue('10');
-  await expect(page.getByLabel('Focal length (mm)', { exact: true }))
+  await expect(form.getByRole('spinbutton', { name: /^Focal length \(mm\)/ }))
     .toHaveValue('1000');
-  await expect(page.getByLabel('Wavelength (nm)', { exact: true }))
+  await expect(form.getByRole('spinbutton', { name: /^Wavelength \(nm\)/ }))
     .toHaveValue('550');
 
   const [download] = await Promise.all([
