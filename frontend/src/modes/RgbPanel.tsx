@@ -1,20 +1,26 @@
 import { useState } from 'react';
 import {
-  downloadRgbPng, fetchRgbPreviewPng, validatePlugin,
-  type DesignValidationReport, type RgbZonePlateRequest, type SingleZonePlateRequest,
+  downloadRgbPng,
+  fetchRgbPreviewPng,
+  type RgbZonePlateRequest,
+  type SingleZonePlateRequest,
 } from '../api';
 import {
   initialJobParameters,
   SaveJobControl,
   type JobPanelProps,
 } from '../jobs/JobFileControls';
-import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
+import { PluginActionBar } from '../schema/PluginActionBar';
+import { PluginEditorShell } from '../schema/PluginEditorShell';
+import { PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const BASE_DEFAULT: SingleZonePlateRequest = {
   apertureDiameterMm: 5,
   focalLengthMm: 100,
-  wavelengthNm: 550,    // ignored by RGB renderer
+  wavelengthNm: 550,
   dpi: 600,
+  targetOffsetXmm: 0,
+  targetOffsetYmm: 0,
   maskType: 'BINARY_AMPLITUDE',
   polarity: 'POSITIVE',
 };
@@ -33,56 +39,69 @@ export function RgbPanel({ initialJob }: JobPanelProps) {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
-  const updateBase = (patch: Partial<SingleZonePlateRequest>) =>
-    setRequest((current) => ({ ...current, base: { ...current.base, ...patch } }));
-  const update = (patch: Partial<RgbZonePlateRequest>) =>
-    setRequest((current) => ({ ...current, ...patch }));
-
-  const renderPreview = async () => {
-    setBusy(true); setError(null);
+  const renderPreview = async (parameters: RgbZonePlateRequest) => {
+    setBusy(true);
+    setError(null);
     try {
-      setPreview(await fetchRgbPreviewPng(request));
-      setValidationReport(await validatePlugin('rgb-zone-plate', request));
+      setPreview(await fetchRgbPreviewPng(parameters));
+    } catch (renderError) {
+      setError(renderError instanceof Error ? renderError.message : String(renderError));
+    } finally {
+      setBusy(false);
     }
-    catch (e) { setValidationReport(null); setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
   };
 
   return (
     <>
-      <h2>Geometry</h2>
-      <NumberField label="Aperture (mm)" value={request.base.apertureDiameterMm} min={0.1} step={0.1}
-        onChange={(v) => updateBase({ apertureDiameterMm: v })} />
-      <NumberField label="Focal length (mm)" value={request.base.focalLengthMm} min={1} step={1}
-        onChange={(v) => updateBase({ focalLengthMm: v })} />
-      <NumberField label="DPI" value={request.base.dpi} min={50} step={50}
-        onChange={(v) => updateBase({ dpi: v })} />
+      <h2>RGB zone plate</h2>
+      <PluginEditorShell
+        pluginId="rgb-zone-plate"
+        value={request}
+        onChange={setRequest}
+        disabled={busy}
+        applyDefaultsOnLoad={!initialJob}
+      >
+        {(schema, structuralValidation, domainValidation) => {
+          const normalized = structuralValidation?.valid
+            ? structuralValidation.normalizedParameters
+            : undefined;
+          const structurallyValid = Boolean(normalized);
+          const productionReady = structurallyValid && domainValidation?.valid === true;
+          return (
+            <>
+              <PluginActionBar
+                capabilities={schema.capabilities}
+                busy={busy}
+                actions={{
+                  PREVIEW_PNG: {
+                    label: busy ? 'Rendering…' : 'Render preview',
+                    primary: true,
+                    disabled: !structurallyValid,
+                    run: () => normalized && renderPreview(normalized),
+                  },
+                  EXPORT_PNG: {
+                    label: 'PNG',
+                    disabled: !productionReady,
+                    run: () => normalized
+                      && downloadRgbPng(normalized, 'fresnel-rgb.png'),
+                  },
+                }}
+              />
+              <SaveJobControl
+                pluginId="rgb-zone-plate"
+                parameters={normalized ?? null}
+                disabled={busy || !structurallyValid}
+              />
+              {error && <p className="error-message">{error}</p>}
 
-      <h2>Channel wavelengths (nm)</h2>
-      <NumberField label="Red" value={request.redNm} min={100} max={2000} step={1}
-        onChange={(redNm) => update({ redNm })} />
-      <NumberField label="Green" value={request.greenNm} min={100} max={2000} step={1}
-        onChange={(greenNm) => update({ greenNm })} />
-      <NumberField label="Blue" value={request.blueNm} min={100} max={2000} step={1}
-        onChange={(blueNm) => update({ blueNm })} />
-
-      <div className="actions">
-        <button onClick={renderPreview} disabled={busy}>
-          {busy ? 'Rendering…' : 'Render preview'}
-        </button>
-        <button className="secondary" disabled={busy}
-                onClick={() => downloadRgbPng(request, 'fresnel-rgb.png')}>
-          PNG
-        </button>
-      </div>
-      <SaveJobControl pluginId="rgb-zone-plate" parameters={request} disabled={busy} />
-      {error && <p className="error-message">{error}</p>}
-
-      <PreviewPane url={previewUrl} alt="RGB zone plate preview" />
-      <ValidationReportView report={validationReport} />
+              <PreviewPane url={previewUrl} alt="RGB zone plate preview" />
+              <ValidationReportView report={domainValidation} />
+            </>
+          );
+        }}
+      </PluginEditorShell>
     </>
   );
 }

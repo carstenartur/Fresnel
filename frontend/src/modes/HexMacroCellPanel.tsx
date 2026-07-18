@@ -4,8 +4,7 @@ import {
   downloadHexPng,
   fetchHexPreviewPng,
   hexInfo,
-  validatePlugin,
-  type DesignValidationReport, type HexInfo,
+  type HexInfo,
   type HexMacroCellRequest,
 } from '../api';
 import {
@@ -13,7 +12,9 @@ import {
   SaveJobControl,
   type JobPanelProps,
 } from '../jobs/JobFileControls';
-import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
+import { PluginActionBar } from '../schema/PluginActionBar';
+import { PluginEditorShell } from '../schema/PluginEditorShell';
+import { PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: HexMacroCellRequest = {
   macroRadiusMm: 30,
@@ -29,75 +30,88 @@ const DEFAULT: HexMacroCellRequest = {
 };
 
 export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
-  const [req, setReq] = useState<HexMacroCellRequest>(() =>
+  const [request, setRequest] = useState<HexMacroCellRequest>(() =>
     initialJobParameters(initialJob, 'hex-macro-cell', DEFAULT));
   const [info, setInfo] = useState<HexInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
-  const update = (p: Partial<HexMacroCellRequest>) => setReq((r) => ({ ...r, ...p }));
-
-  const renderPreview = async () => {
-    setBusy(true); setError(null);
+  const renderPreview = async (parameters: HexMacroCellRequest) => {
+    setBusy(true);
+    setError(null);
     try {
-      setPreview(await fetchHexPreviewPng(req));
-      setInfo(await hexInfo(req));
-      setValidationReport(await validatePlugin('hex-macro-cell', req));
+      setPreview(await fetchHexPreviewPng(parameters));
+      setInfo(await hexInfo(parameters));
+    } catch (renderError) {
+      setError(renderError instanceof Error ? renderError.message : String(renderError));
+    } finally {
+      setBusy(false);
     }
-    catch (e) { setValidationReport(null); setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
   };
 
   return (
     <>
       <h2>Hex macro cell</h2>
-      <NumberField label="Macro radius (mm)" value={req.macroRadiusMm} min={1} step={1}
-        onChange={(v) => update({ macroRadiusMm: v })} />
-      <NumberField label="Sub-element diameter (mm)" value={req.subDiameterMm} min={0.1} step={0.1}
-        onChange={(v) => update({ subDiameterMm: v })} />
-      <NumberField label="Sub-element pitch (mm)" value={req.subPitchMm} min={0.1} step={0.1}
-        onChange={(v) => update({ subPitchMm: v })} />
-      <NumberField label="Focal length (mm)" value={req.focalLengthMm} min={1} step={1}
-        onChange={(v) => update({ focalLengthMm: v })} />
+      <PluginEditorShell
+        pluginId="hex-macro-cell"
+        value={request}
+        onChange={setRequest}
+        disabled={busy}
+        applyDefaultsOnLoad={!initialJob}
+      >
+        {(schema, structuralValidation, domainValidation) => {
+          const normalized = structuralValidation?.valid
+            ? structuralValidation.normalizedParameters
+            : undefined;
+          const structurallyValid = Boolean(normalized);
+          const productionReady = structurallyValid && domainValidation?.valid === true;
+          return (
+            <>
+              {info && (
+                <p style={{ fontSize: 12, color: '#6b7280' }}>
+                  {info.subElements.toLocaleString()} sub-elements ·{' '}
+                  {info.imageSidePx.toLocaleString()} px per side
+                </p>
+              )}
 
-      <h2>Target offset</h2>
-      <NumberField label="Target X (mm)" value={req.targetOffsetXmm ?? 0} step={1}
-        onChange={(v) => update({ targetOffsetXmm: v })} />
-      <NumberField label="Target Y (mm)" value={req.targetOffsetYmm ?? 0} step={1}
-        onChange={(v) => update({ targetOffsetYmm: v })} />
+              <PluginActionBar
+                capabilities={schema.capabilities}
+                busy={busy}
+                actions={{
+                  PREVIEW_PNG: {
+                    label: busy ? 'Rendering…' : 'Render preview',
+                    primary: true,
+                    disabled: !structurallyValid,
+                    run: () => normalized && renderPreview(normalized),
+                  },
+                  EXPORT_PNG: {
+                    label: 'PNG',
+                    disabled: !productionReady,
+                    run: () => normalized
+                      && downloadHexPng(normalized, 'fresnel-hex-macro.png'),
+                  },
+                  EXPORT_PDF: {
+                    label: 'PDF',
+                    disabled: !productionReady,
+                    run: () => normalized
+                      && downloadHexPdf(normalized, 'FIT', 'fresnel-hex-macro.pdf'),
+                  },
+                }}
+              />
+              <SaveJobControl
+                pluginId="hex-macro-cell"
+                parameters={normalized ?? null}
+                disabled={busy || !structurallyValid}
+              />
+              {error && <p className="error-message">{error}</p>}
 
-      <h2>Print</h2>
-      <NumberField label="Wavelength (nm)" value={req.wavelengthNm} min={100} max={2000} step={1}
-        onChange={(v) => update({ wavelengthNm: v })} />
-      <NumberField label="DPI" value={req.dpi} min={50} step={50}
-        onChange={(v) => update({ dpi: v })} />
-
-      {info && (
-        <p style={{ fontSize: 12, color: '#6b7280' }}>
-          {info.subElements.toLocaleString()} sub-elements · {info.imageSidePx.toLocaleString()} px per side
-        </p>
-      )}
-
-      <div className="actions">
-        <button onClick={renderPreview} disabled={busy}>
-          {busy ? 'Rendering…' : 'Render preview'}
-        </button>
-        <button className="secondary" disabled={busy}
-                onClick={() => downloadHexPng(req, 'fresnel-hex-macro.png')}>
-          PNG
-        </button>
-        <button className="secondary" disabled={busy}
-                onClick={() => downloadHexPdf(req, 'FIT', 'fresnel-hex-macro.pdf')}>
-          PDF
-        </button>
-      </div>
-      <SaveJobControl pluginId="hex-macro-cell" parameters={req} disabled={busy} />
-      {error && <p className="error-message">{error}</p>}
-
-      <PreviewPane url={previewUrl} alt="Hex macro cell preview" />
-      <ValidationReportView report={validationReport} />
+              <PreviewPane url={previewUrl} alt="Hex macro cell preview" />
+              <ValidationReportView report={domainValidation} />
+            </>
+          );
+        }}
+      </PluginEditorShell>
     </>
   );
 }

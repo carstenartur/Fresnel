@@ -1,0 +1,28 @@
+{
+  "formatVersion": 1,
+  "pluginId": "multi-focus",
+  "parameterSchemaVersion": 1,
+  "groups": [
+    {
+      "id": "aperture",
+      "title": "Aperture",
+      "fields": ["apertureDiameterMm"]
+    },
+    {
+      "id": "focus-points",
+      "title": "Focus points",
+      "fields": ["focusPoints"]
+    },
+    {
+      "id": "production",
+      "title": "Print",
+      "fields": ["wavelengthNm", "dpi", "maskType", "polarity"]
+    }
+  ],
+  "widgets": {
+    "focusPoints": { "type": "focus-point-list" },
+    "maskType": { "type": "select" },
+    "polarity": { "type": "select" }
+  },
+  "extensions": ["production-actions", "validation"]
+}

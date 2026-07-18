@@ -1,15 +1,20 @@
 import { useState } from 'react';
 import {
-  downloadFoilPdf, fetchFoilPreviewPng, foilInfo,
-  validatePlugin,
-  type DesignValidationReport, type FoilInfo, type WindowFoilRequest,
+  downloadFoilPdf,
+  fetchFoilPreviewPng,
+  foilInfo,
+  type FoilInfo,
+  type WindowFoilRequest,
 } from '../api';
 import {
   initialJobParameters,
   SaveJobControl,
   type JobPanelProps,
 } from '../jobs/JobFileControls';
-import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
+import { PluginActionBar } from '../schema/PluginActionBar';
+import { PluginEditorShell } from '../schema/PluginEditorShell';
+import { WindowCellLayoutWidget } from '../schema/widgets/WindowCellLayoutWidget';
+import { PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: WindowFoilRequest = {
   sheetWidthMm: 200,
@@ -21,85 +26,106 @@ const DEFAULT: WindowFoilRequest = {
   dpi: 150,
   maskType: 'BINARY_AMPLITUDE',
   polarity: 'POSITIVE',
+  cellSpecs: [],
   drawCropMarks: true,
 };
 
-const SHEETS = ['FIT', 'A4', 'A3', 'A2', 'A1', 'A0'];
+const SHEETS = ['FIT', 'A4', 'A3', 'A2', 'A1', 'A0'] as const;
+const CUSTOM_WIDGETS = {
+  'window-cell-layout': WindowCellLayoutWidget,
+} as const;
 
 export function WindowFoilPanel({ initialJob }: JobPanelProps) {
-  const [req, setReq] = useState<WindowFoilRequest>(() =>
+  const [request, setRequest] = useState<WindowFoilRequest>(() =>
     initialJobParameters(initialJob, 'window-foil', DEFAULT));
   const [info, setInfo] = useState<FoilInfo | null>(null);
-  const [sheet, setSheet] = useState('A4');
+  const [sheet, setSheet] = useState<(typeof SHEETS)[number]>('A4');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
-  const update = (p: Partial<WindowFoilRequest>) => setReq((r) => ({ ...r, ...p }));
-
-  const renderPreview = async () => {
-    setBusy(true); setError(null);
+  const renderPreview = async (parameters: WindowFoilRequest) => {
+    setBusy(true);
+    setError(null);
     try {
-      setPreview(await fetchFoilPreviewPng(req));
-      setInfo(await foilInfo(req));
-      setValidationReport(await validatePlugin('window-foil', req));
-    } catch (e) { setValidationReport(null); setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
+      setPreview(await fetchFoilPreviewPng(parameters));
+      setInfo(await foilInfo(parameters));
+    } catch (renderError) {
+      setError(renderError instanceof Error ? renderError.message : String(renderError));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <>
-      <h2>Sheet</h2>
-      <NumberField label="Sheet width (mm)" value={req.sheetWidthMm} min={10} step={10}
-        onChange={(v) => update({ sheetWidthMm: v })} />
-      <NumberField label="Sheet height (mm)" value={req.sheetHeightMm} min={10} step={10}
-        onChange={(v) => update({ sheetHeightMm: v })} />
+      <h2>Window foil</h2>
+      <PluginEditorShell
+        pluginId="window-foil"
+        value={request}
+        onChange={setRequest}
+        disabled={busy}
+        customWidgets={CUSTOM_WIDGETS}
+        applyDefaultsOnLoad={!initialJob}
+      >
+        {(schema, structuralValidation, domainValidation) => {
+          const normalized = structuralValidation?.valid
+            ? structuralValidation.normalizedParameters
+            : undefined;
+          const structurallyValid = Boolean(normalized);
+          const productionReady = structurallyValid && domainValidation?.valid === true;
+          return (
+            <>
+              <div className="field" data-editor-extension="production-actions">
+                <label htmlFor="window-foil-pdf-sheet">PDF sheet size</label>
+                <select
+                  id="window-foil-pdf-sheet"
+                  value={sheet}
+                  disabled={busy}
+                  onChange={(event) => setSheet(event.target.value as (typeof SHEETS)[number])}
+                >
+                  {SHEETS.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </div>
 
-      <h2>Macro cells</h2>
-      <NumberField label="Macro radius (mm)" value={req.macroRadiusMm} min={1} step={1}
-        onChange={(v) => update({ macroRadiusMm: v })} />
-      <NumberField label="Sub-diameter (mm)" value={req.subDiameterMm} min={0.1} step={0.1}
-        onChange={(v) => update({ subDiameterMm: v })} />
-      <NumberField label="Sub-pitch (mm)" value={req.subPitchMm} min={0.1} step={0.1}
-        onChange={(v) => update({ subPitchMm: v })} />
+              {info && (
+                <p style={{ fontSize: 12, color: '#6b7280' }}>
+                  {info.cells} cells · image {info.imageWidthPx.toLocaleString()} ×{' '}
+                  {info.imageHeightPx.toLocaleString()} px
+                </p>
+              )}
 
-      <h2>Print</h2>
-      <NumberField label="Wavelength (nm)" value={req.wavelengthNm} min={100} max={2000} step={1}
-        onChange={(v) => update({ wavelengthNm: v })} />
-      <NumberField label="DPI" value={req.dpi} min={50} step={50}
-        onChange={(v) => update({ dpi: v })} />
-      <div className="field">
-        <label><input type="checkbox" checked={!!req.drawCropMarks}
-                      onChange={(e) => update({ drawCropMarks: e.target.checked })} /> Draw crop marks</label>
-      </div>
-      <div className="field">
-        <label htmlFor="sheet">PDF sheet size</label>
-        <select id="sheet" value={sheet} onChange={(e) => setSheet(e.target.value)}>
-          {SHEETS.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
+              <PluginActionBar
+                capabilities={schema.capabilities}
+                busy={busy}
+                actions={{
+                  PREVIEW_PNG: {
+                    label: busy ? 'Rendering…' : 'Render preview',
+                    primary: true,
+                    disabled: !structurallyValid,
+                    run: () => normalized && renderPreview(normalized),
+                  },
+                  EXPORT_PDF: {
+                    label: `PDF (${sheet})`,
+                    disabled: !productionReady,
+                    run: () => normalized
+                      && downloadFoilPdf(normalized, sheet, 'fresnel-window-foil.pdf'),
+                  },
+                }}
+              />
+              <SaveJobControl
+                pluginId="window-foil"
+                parameters={normalized ?? null}
+                disabled={busy || !structurallyValid}
+              />
+              {error && <p className="error-message">{error}</p>}
 
-      {info && (
-        <p style={{ fontSize: 12, color: '#6b7280' }}>
-          {info.cells} cells · image {info.imageWidthPx.toLocaleString()} × {info.imageHeightPx.toLocaleString()} px
-        </p>
-      )}
-
-      <div className="actions">
-        <button onClick={renderPreview} disabled={busy}>
-          {busy ? 'Rendering…' : 'Render preview'}
-        </button>
-        <button className="secondary" disabled={busy}
-                onClick={() => downloadFoilPdf(req, sheet, 'fresnel-window-foil.pdf')}>
-          PDF ({sheet})
-        </button>
-      </div>
-      <SaveJobControl pluginId="window-foil" parameters={req} disabled={busy} />
-      {error && <p className="error-message">{error}</p>}
-
-      <PreviewPane url={previewUrl} alt="Window foil preview" />
-      <ValidationReportView report={validationReport} />
+              <PreviewPane url={previewUrl} alt="Window foil preview" />
+              <ValidationReportView report={domainValidation} />
+            </>
+          );
+        }}
+      </PluginEditorShell>
     </>
   );
 }

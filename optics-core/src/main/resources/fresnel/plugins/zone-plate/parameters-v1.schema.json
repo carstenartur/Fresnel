@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Fresnel/schemas/plugins/zone-plate/parameters-v1.schema.json",
+  "title": "Zone Plate parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apertureDiameterMm",
+    "focalLengthMm",
+    "wavelengthNm",
+    "dpi"
+  ],
+  "default": {
+    "apertureDiameterMm": 10.0,
+    "focalLengthMm": 1000.0,
+    "wavelengthNm": 550.0,
+    "dpi": 1200.0,
+    "targetOffsetXmm": 0.0,
+    "targetOffsetYmm": 0.0,
+    "maskType": "BINARY_AMPLITUDE",
+    "polarity": "POSITIVE"
+  },
+  "properties": {
+    "apertureDiameterMm": {
+      "type": "number",
+      "title": "Aperture diameter",
+      "description": "Outer diameter of the zone plate.",
+      "exclusiveMinimum": 0,
+      "default": 10.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 0.1
+    },
+    "focalLengthMm": {
+      "type": "number",
+      "title": "Focal length",
+      "description": "Design focal length measured from the mask plane.",
+      "exclusiveMinimum": 0,
+      "default": 1000.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 1.0
+    },
+    "wavelengthNm": {
+      "type": "number",
+      "title": "Wavelength",
+      "description": "Design wavelength in vacuum.",
+      "minimum": 100,
+      "maximum": 2000,
+      "default": 550.0,
+      "x-fresnel-unit": "nm",
+      "x-fresnel-step": 1.0
+    },
+    "targetOffsetXmm": {
+      "type": "number",
+      "title": "Target offset X",
+      "description": "Lateral target displacement along X.",
+      "default": 0.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 1.0
+    },
+    "targetOffsetYmm": {
+      "type": "number",
+      "title": "Target offset Y",
+      "description": "Lateral target displacement along Y.",
+      "default": 0.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 1.0
+    },
+    "dpi": {
+      "type": "number",
+      "title": "Printer DPI",
+      "description": "Raster resolution used for preview and fabrication exports.",
+      "minimum": 50,
+      "default": 1200.0,
+      "x-fresnel-unit": "dpi",
+      "x-fresnel-step": 50.0
+    },
+    "maskType": {
+      "type": "string",
+      "title": "Mask type",
+      "enum": ["BINARY_AMPLITUDE", "GREYSCALE_PHASE"],
+      "default": "BINARY_AMPLITUDE",
+      "x-fresnel-enum-labels": {
+        "BINARY_AMPLITUDE": "Binary amplitude",
+        "GREYSCALE_PHASE": "Greyscale phase"
+      }
+    },
+    "polarity": {
+      "type": "string",
+      "title": "Polarity",
+      "enum": ["POSITIVE", "NEGATIVE"],
+      "default": "POSITIVE",
+      "x-fresnel-enum-labels": {
+        "POSITIVE": "Positive",
+        "NEGATIVE": "Negative (inverted)"
+      }
+    }
+  }
+}

@@ -6,18 +6,31 @@ function fileInput(page: import('@playwright/test').Page) {
   return page.locator('input[type="file"][accept*=".fresnel"]');
 }
 
+function zonePlateForm(page: import('@playwright/test').Page) {
+  return page.locator('[data-plugin-schema="zone-plate"]');
+}
+
+function zonePlateNumber(
+  page: import('@playwright/test').Page,
+  name: RegExp,
+) {
+  return zonePlateForm(page).getByRole('spinbutton', { name });
+}
+
 test('saves and reopens the current zone plate as a canonical .fresnel job', async ({ page }) => {
   await page.goto('/');
 
-  const aperture = page.getByLabel('Aperture diameter (mm)', { exact: true });
-  const focalLength = page.getByLabel('Focal length (mm)', { exact: true });
-  const wavelength = page.getByLabel('Wavelength (nm)', { exact: true });
+  const aperture = zonePlateNumber(page, /^Aperture diameter \(mm\)/);
+  const focalLength = zonePlateNumber(page, /^Focal length \(mm\)/);
+  const wavelength = zonePlateNumber(page, /^Wavelength \(nm\)/);
+  const dpi = zonePlateNumber(page, /^Printer DPI/);
   await aperture.fill('8');
   await focalLength.fill('500');
   await wavelength.fill('632');
+  await dpi.fill('2400');
 
   const save = page.getByRole('button', { name: 'Save job (.fresnel)' });
-  await expect(save).toBeEnabled();
+  await expect(save).toBeEnabled({ timeout: 30_000 });
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -37,16 +50,19 @@ test('saves and reopens the current zone plate as a canonical .fresnel job', asy
   expect(job.parameters.apertureDiameterMm).toBe(8);
   expect(job.parameters.focalLengthMm).toBe(500);
   expect(job.parameters.wavelengthNm).toBe(632);
+  expect(job.parameters.dpi).toBe(2400);
   expect(job.provenance.parameterSha256).toMatch(/^[0-9a-f]{64}$/);
 
   // Prove that the downloaded public artifact is also accepted by the GUI and
   // restores the normalized parameter state.
   await aperture.fill('5');
   await focalLength.fill('250');
+  await dpi.fill('1200');
   await fileInput(page).setInputFiles(savedPath);
   await expect(aperture).toHaveValue('8');
   await expect(focalLength).toHaveValue('500');
   await expect(wavelength).toHaveValue('632');
+  await expect(dpi).toHaveValue('2400');
 });
 
 test('preserves production and compatibility metadata while editing a loaded job', async ({ page }) => {
@@ -93,11 +109,13 @@ test('preserves production and compatibility metadata while editing a loaded job
     mimeType: MEDIA_TYPE,
     buffer: Buffer.from(JSON.stringify(sourceJob)),
   });
-  await page.getByLabel('Focal length (mm)', { exact: true }).fill('1250');
+  await zonePlateNumber(page, /^Focal length \(mm\)/).fill('1250');
 
+  const save = page.getByRole('button', { name: 'Save job (.fresnel)' });
+  await expect(save).toBeEnabled({ timeout: 30_000 });
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Save job (.fresnel)' }).click(),
+    save.click(),
   ]);
   const stream = await download.createReadStream();
   let json = '';
@@ -147,8 +165,11 @@ test('opens a job in the editor selected by its stable plugin id', async ({ page
 
   await expect(page.getByRole('tab', { name: 'Hex macro' }))
     .toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByLabel('Macro radius (mm)')).toHaveValue('42');
-  await expect(page.getByLabel('Focal length (mm)')).toHaveValue('850');
+  const hexForm = page.locator('[data-plugin-schema="hex-macro-cell"]');
+  await expect(hexForm.getByRole('spinbutton', { name: /^Macro radius \(mm\)/ }))
+    .toHaveValue('42');
+  await expect(hexForm.getByRole('spinbutton', { name: /^Focal length \(mm\)/ }))
+    .toHaveValue('850');
   await expect(page.getByRole('status')).toContainText('Opened "hex-example.fresnel"');
 });
 
@@ -174,15 +195,15 @@ test('migrates a legacy design JSON before populating the editor', async ({ page
 
   await expect(page.getByRole('tab', { name: 'Single ZP' }))
     .toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByLabel('Aperture diameter (mm)', { exact: true })).toHaveValue('12');
-  await expect(page.getByLabel('Focal length (mm)', { exact: true })).toHaveValue('750');
+  await expect(zonePlateNumber(page, /^Aperture diameter \(mm\)/)).toHaveValue('12');
+  await expect(zonePlateNumber(page, /^Focal length \(mm\)/)).toHaveValue('750');
   await expect(page.getByRole('status')).toContainText('Migrated legacy design');
 });
 
 test('rejects a future job version without replacing the current editor state', async ({ page }) => {
   await page.goto('/');
 
-  const aperture = page.getByLabel('Aperture diameter (mm)', { exact: true });
+  const aperture = zonePlateNumber(page, /^Aperture diameter \(mm\)/);
   await aperture.fill('7');
 
   const futureJob = {

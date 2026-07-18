@@ -1,0 +1,37 @@
+{
+  "formatVersion": 1,
+  "pluginId": "hologram",
+  "parameterSchemaVersion": 1,
+  "groups": [
+    {
+      "id": "target",
+      "title": "Target",
+      "fields": ["targetImageBase64", "sidePx"]
+    },
+    {
+      "id": "algorithm",
+      "title": "Algorithm",
+      "fields": ["iterations", "outputType", "dpi"]
+    },
+    {
+      "id": "fabrication",
+      "title": "Phase-relief fabrication",
+      "fields": ["wavelengthNm", "refractiveIndexDelta", "maxPhaseShiftRad"],
+      "collapsible": true,
+      "advanced": true,
+      "visibleWhen": {
+        "path": "outputType",
+        "equals": "GREYSCALE_PHASE"
+      }
+    }
+  ],
+  "widgets": {
+    "targetImageBase64": { "type": "hologram-target-image" },
+    "sidePx": {
+      "type": "number-with-presets",
+      "presets": [64, 128, 256, 512, 1024]
+    },
+    "outputType": { "type": "radio" }
+  },
+  "extensions": ["reconstruction-preview", "production-actions", "validation"]
+}

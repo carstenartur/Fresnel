@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Fresnel/schemas/plugins/window-foil/parameters-v1.schema.json",
+  "title": "Window Foil parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheetWidthMm",
+    "sheetHeightMm",
+    "macroRadiusMm",
+    "subDiameterMm",
+    "subPitchMm",
+    "wavelengthNm",
+    "dpi"
+  ],
+  "default": {
+    "sheetWidthMm": 200.0,
+    "sheetHeightMm": 100.0,
+    "macroRadiusMm": 25.0,
+    "subDiameterMm": 8.0,
+    "subPitchMm": 9.0,
+    "wavelengthNm": 550.0,
+    "dpi": 150.0,
+    "maskType": "BINARY_AMPLITUDE",
+    "polarity": "POSITIVE",
+    "cellSpecs": [],
+    "drawCropMarks": true
+  },
+  "properties": {
+    "sheetWidthMm": {
+      "type": "number",
+      "title": "Sheet width",
+      "exclusiveMinimum": 0,
+      "default": 200.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 10.0
+    },
+    "sheetHeightMm": {
+      "type": "number",
+      "title": "Sheet height",
+      "exclusiveMinimum": 0,
+      "default": 100.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 10.0
+    },
+    "macroRadiusMm": {
+      "type": "number",
+      "title": "Macro radius",
+      "exclusiveMinimum": 0,
+      "default": 25.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 1.0
+    },
+    "subDiameterMm": {
+      "type": "number",
+      "title": "Sub-element diameter",
+      "exclusiveMinimum": 0,
+      "default": 8.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 0.1
+    },
+    "subPitchMm": {
+      "type": "number",
+      "title": "Sub-element pitch",
+      "exclusiveMinimum": 0,
+      "default": 9.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 0.1
+    },
+    "wavelengthNm": {
+      "type": "number",
+      "title": "Wavelength",
+      "minimum": 100,
+      "maximum": 2000,
+      "default": 550.0,
+      "x-fresnel-unit": "nm",
+      "x-fresnel-step": 1.0
+    },
+    "dpi": {
+      "type": "number",
+      "title": "Printer DPI",
+      "minimum": 50,
+      "default": 150.0,
+      "x-fresnel-unit": "dpi",
+      "x-fresnel-step": 50.0
+    },
+    "maskType": {
+      "type": "string",
+      "title": "Mask type",
+      "enum": ["BINARY_AMPLITUDE", "GREYSCALE_PHASE"],
+      "default": "BINARY_AMPLITUDE"
+    },
+    "polarity": {
+      "type": "string",
+      "title": "Polarity",
+      "enum": ["POSITIVE", "NEGATIVE"],
+      "default": "POSITIVE"
+    },
+    "cellSpecs": {
+      "type": "array",
+      "title": "Cell specifications",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["focalLengthMm"],
+        "properties": {
+          "focalLengthMm": {
+            "type": "number",
+            "title": "Focal length",
+            "exclusiveMinimum": 0,
+            "x-fresnel-unit": "mm"
+          },
+          "targetOffsetXmm": {
+            "type": "number",
+            "title": "Target offset X",
+            "default": 0.0,
+            "x-fresnel-unit": "mm"
+          },
+          "targetOffsetYmm": {
+            "type": "number",
+            "title": "Target offset Y",
+            "default": 0.0,
+            "x-fresnel-unit": "mm"
+          }
+        }
+      }
+    },
+    "drawCropMarks": {
+      "type": "boolean",
+      "title": "Draw crop marks",
+      "default": true
+    }
+  }
+}

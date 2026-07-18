@@ -1,0 +1,28 @@
+{
+  "formatVersion": 1,
+  "pluginId": "hex-macro-cell",
+  "parameterSchemaVersion": 1,
+  "groups": [
+    {
+      "id": "geometry",
+      "title": "Geometry",
+      "fields": ["macroRadiusMm", "subDiameterMm", "subPitchMm", "focalLengthMm"]
+    },
+    {
+      "id": "target",
+      "title": "Target offset",
+      "fields": ["targetOffsetXmm", "targetOffsetYmm"],
+      "collapsible": true
+    },
+    {
+      "id": "production",
+      "title": "Print",
+      "fields": ["wavelengthNm", "dpi", "maskType", "polarity"]
+    }
+  ],
+  "widgets": {
+    "maskType": { "type": "select" },
+    "polarity": { "type": "select" }
+  },
+  "extensions": ["preview-info", "production-actions", "validation"]
+}

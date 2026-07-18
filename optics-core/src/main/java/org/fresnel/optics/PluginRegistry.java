@@ -11,28 +11,19 @@ import java.util.stream.Collectors;
  * Static registry of all Fresnel plugins.
  *
  * <p>This is the single machine-readable source of truth for plugin metadata.
- * It replaces the previously duplicated lists scattered across Java code,
- * TypeScript UI definitions and documentation.
+ * It replaces duplicated lists scattered across Java code, TypeScript UI
+ * definitions and documentation.</p>
  *
  * <h2>Adding a new plugin</h2>
  * <ol>
  *   <li>Create the parameter record and renderer in {@code optics-core}.</li>
- *   <li>Add a {@link PluginDescriptor} constant below.</li>
- *   <li>Register it in {@link #ALL}.</li>
+ *   <li>Add versioned parameter and UI schemas under
+ *       {@code src/main/resources/fresnel/plugins/&lt;id&gt;/}.</li>
+ *   <li>Add a {@link PluginDescriptor} constant below and register it in
+ *       {@link #ALL}.</li>
  * </ol>
- *
- * <h2>Usage</h2>
- * <pre>{@code
- * PluginDescriptor zp = PluginRegistry.findById("zone-plate").orElseThrow();
- * boolean hasPdf = zp.supportsExport(PluginCapability.EXPORT_PDF);
- * List<PluginDescriptor> pdfPlugins = PluginRegistry.withCapability(PluginCapability.EXPORT_PDF);
- * }</pre>
  */
 public final class PluginRegistry {
-
-    // -----------------------------------------------------------------------
-    // Plugin descriptors
-    // -----------------------------------------------------------------------
 
     /** Single Fresnel zone plate — binary amplitude or greyscale phase. */
     public static final PluginDescriptor ZONE_PLATE = new PluginDescriptor(
@@ -41,7 +32,6 @@ public final class PluginRegistry {
             "Single Fresnel zone plate — binary amplitude or greyscale phase",
             "ZonePlateRenderer",
             "SingleZonePlateParameters",
-            "single",
             "docs/plugins/zone-plate.md",
             PluginStabilityLevel.STABLE,
             Set.of(
@@ -55,7 +45,8 @@ public final class PluginRegistry {
                     PluginCapability.PRINTABILITY_ANALYSIS,
                     PluginCapability.OPTICAL_QUALITY_REPORT
             ),
-            Set.of(PropagationMode.FRESNEL_TF, PropagationMode.FRAUNHOFER)
+            Set.of(PropagationMode.FRESNEL_TF, PropagationMode.FRAUNHOFER),
+            schema("zone-plate", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
     );
 
     /** Zone plate rendered at three wavelengths and composited into one RGB image. */
@@ -65,14 +56,14 @@ public final class PluginRegistry {
             "Zone plate rendered at three wavelengths and composited into one RGB image",
             "RgbZonePlateRenderer",
             "RgbZonePlateParameters",
-            "rgb",
             "docs/plugins/rgb-zone-plate.md",
             PluginStabilityLevel.STABLE,
             Set.of(
                     PluginCapability.EXPORT_PNG,
                     PluginCapability.PREVIEW_PNG
             ),
-            Set.of()
+            Set.of(),
+            schema("rgb-zone-plate", PluginEditorMode.SCHEMA)
     );
 
     /** Aperture divided among multiple focal targets. */
@@ -82,14 +73,14 @@ public final class PluginRegistry {
             "Aperture divided among multiple focal targets",
             "MultiFocusRenderer",
             "MultiFocusParameters",
-            "multi",
             "docs/plugins/multi-focus.md",
             PluginStabilityLevel.STABLE,
             Set.of(
                     PluginCapability.EXPORT_PNG,
                     PluginCapability.PREVIEW_PNG
             ),
-            Set.of()
+            Set.of(),
+            schema("multi-focus", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
     );
 
     /** Hexagonal array of sub-zone-plates focusing to a common image point. */
@@ -99,16 +90,15 @@ public final class PluginRegistry {
             "Hexagonal array of sub-zone-plates focusing to a common image point",
             "HexMacroCellRenderer",
             "HexMacroCellParameters",
-            "hex",
             "docs/plugins/hex-macro-cell.md",
             PluginStabilityLevel.STABLE,
             Set.of(
                     PluginCapability.EXPORT_PNG,
-                    PluginCapability.EXPORT_SVG,
                     PluginCapability.EXPORT_PDF,
                     PluginCapability.PREVIEW_PNG
             ),
-            Set.of()
+            Set.of(),
+            schema("hex-macro-cell", PluginEditorMode.SCHEMA)
     );
 
     /** Rectangular sheet tiled with hex macro cells. */
@@ -118,14 +108,14 @@ public final class PluginRegistry {
             "Rectangular sheet tiled with hex macro cells",
             "WindowFoilRenderer",
             "WindowFoilParameters",
-            "foil",
             "docs/plugins/window-foil.md",
             PluginStabilityLevel.STABLE,
             Set.of(
                     PluginCapability.EXPORT_PDF,
                     PluginCapability.PREVIEW_PNG
             ),
-            Set.of()
+            Set.of(),
+            schema("window-foil", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
     );
 
     /** Computer-generated hologram via the Gerchberg–Saxton algorithm. */
@@ -135,7 +125,6 @@ public final class PluginRegistry {
             "Computer-generated hologram via the Gerchberg–Saxton algorithm",
             "HologramSynthesizer",
             "HologramParameters",
-            "hologram",
             "docs/plugins/hologram.md",
             PluginStabilityLevel.STABLE,
             Set.of(
@@ -143,17 +132,13 @@ public final class PluginRegistry {
                     PluginCapability.EXPORT_STL,
                     PluginCapability.PREVIEW_PNG
             ),
-            Set.of()
+            Set.of(),
+            schema("hologram", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
     );
 
-    // -----------------------------------------------------------------------
-    // Registry
-    // -----------------------------------------------------------------------
-
     /**
-     * Immutable ordered list of all registered plugins.
-     * The order matches the frontend tab order in {@code App.tsx}:
-     * single, hex, foil, multi, rgb, hologram.
+     * Immutable public plugin order. The frontend consumes this order directly
+     * from {@code GET /api/plugins}; no second tab/mode ordering is maintained.
      */
     public static final List<PluginDescriptor> ALL = List.of(
             ZONE_PLATE,
@@ -165,34 +150,30 @@ public final class PluginRegistry {
     );
 
     private static final Map<String, PluginDescriptor> BY_ID =
-            ALL.stream().collect(Collectors.toUnmodifiableMap(PluginDescriptor::id, Function.identity()));
+            ALL.stream().collect(Collectors.toUnmodifiableMap(
+                    PluginDescriptor::id, Function.identity()));
 
     private PluginRegistry() {}
 
-    // -----------------------------------------------------------------------
-    // Lookup
-    // -----------------------------------------------------------------------
+    private static PluginSchemaDescriptor schema(String pluginId, PluginEditorMode editorMode) {
+        String root = "fresnel/plugins/" + pluginId + "/";
+        return new PluginSchemaDescriptor(
+                1,
+                root + "parameters-v1.schema.json",
+                root + "ui-v1.json",
+                editorMode);
+    }
 
-    /**
-     * Returns the plugin with the given id, or {@link Optional#empty()} if none
-     * is registered under that id.
-     *
-     * @param id stable plugin id (e.g. {@code "zone-plate"})
-     */
+    /** Returns the plugin with the given id, or empty when it is unknown. */
     public static Optional<PluginDescriptor> findById(String id) {
         return Optional.ofNullable(BY_ID.get(id));
     }
 
-    /**
-     * Returns the plugin with the given id.
-     *
-     * @param id stable plugin id
-     * @throws IllegalArgumentException if no plugin is registered under {@code id}
-     */
+    /** Returns the plugin with the given id or throws for an unknown public id. */
     public static PluginDescriptor requireById(String id) {
-        PluginDescriptor d = BY_ID.get(id);
-        if (d == null) throw new IllegalArgumentException("unknown plugin id: " + id);
-        return d;
+        PluginDescriptor descriptor = BY_ID.get(id);
+        if (descriptor == null) throw new IllegalArgumentException("unknown plugin id: " + id);
+        return descriptor;
     }
 
     /** Returns {@code true} if a plugin with the given id is registered. */
@@ -200,39 +181,38 @@ public final class PluginRegistry {
         return BY_ID.containsKey(id);
     }
 
-    // -----------------------------------------------------------------------
-    // Capability queries
-    // -----------------------------------------------------------------------
-
-    /**
-     * Returns all plugins that support the given capability.
-     *
-     * @param capability the capability to filter by
-     * @return immutable list of matching descriptors, preserving registration order
-     */
+    /** Returns all plugins advertising the given capability in registry order. */
     public static List<PluginDescriptor> withCapability(PluginCapability capability) {
         return ALL.stream()
-                .filter(d -> d.supports(capability))
+                .filter(descriptor -> descriptor.supports(capability))
                 .collect(Collectors.toUnmodifiableList());
     }
 
-    // -----------------------------------------------------------------------
-    // Integrity check (called from tests)
-    // -----------------------------------------------------------------------
-
     /**
-     * Verifies that all registered plugin ids are unique and non-blank.
-     * Throws {@link IllegalStateException} if the registry is inconsistent.
-     * Called from unit tests to guard against accidental duplicate registrations.
+     * Verifies unique plugin IDs and unique schema resources. Called from tests to
+     * turn metadata drift into an immediate build failure.
      */
     static void verifyIntegrity() {
         long distinctIds = ALL.stream().map(PluginDescriptor::id).distinct().count();
         if (distinctIds != ALL.size()) {
             throw new IllegalStateException("Duplicate plugin ids detected in PluginRegistry");
         }
-        for (PluginDescriptor d : ALL) {
-            if (!BY_ID.containsKey(d.id())) {
-                throw new IllegalStateException("BY_ID index is out of sync for id: " + d.id());
+        long distinctParameterSchemas = ALL.stream()
+                .map(descriptor -> descriptor.schema().parameterSchemaResource())
+                .distinct().count();
+        if (distinctParameterSchemas != ALL.size()) {
+            throw new IllegalStateException("Duplicate parameter schema resources detected");
+        }
+        long distinctUiSchemas = ALL.stream()
+                .map(descriptor -> descriptor.schema().uiSchemaResource())
+                .distinct().count();
+        if (distinctUiSchemas != ALL.size()) {
+            throw new IllegalStateException("Duplicate UI schema resources detected");
+        }
+        for (PluginDescriptor descriptor : ALL) {
+            if (!BY_ID.containsKey(descriptor.id())) {
+                throw new IllegalStateException(
+                        "BY_ID index is out of sync for id: " + descriptor.id());
             }
         }
     }

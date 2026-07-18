@@ -1,17 +1,21 @@
-import { useState, type ChangeEvent } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  downloadHologramPng, downloadHologramStl, fileToBase64, reconstructHologramPng, synthesizeHologramPng,
-  validatePlugin,
-  type DesignValidationReport, type HologramRequest,
+  downloadHologramPng,
+  downloadHologramStl,
+  reconstructHologramPng,
+  synthesizeHologramPng,
+  type HologramRequest,
 } from '../api';
 import {
   initialJobParameters,
   SaveJobControl,
   type JobPanelProps,
 } from '../jobs/JobFileControls';
-import { NumberField, PreviewPane, useBlobUrl, ValidationReportView } from './shared';
-
-const SIDES = [64, 128, 256, 512, 1024];
+import { FRESNEL_JOB_MAX_BYTES } from '../jobApi';
+import { PluginActionBar } from '../schema/PluginActionBar';
+import { PluginEditorShell } from '../schema/PluginEditorShell';
+import { HologramTargetImageWidget } from '../schema/widgets/HologramTargetImageWidget';
+import { PreviewPane, useBlobUrl, ValidationReportView } from './shared';
 
 const DEFAULT: HologramRequest = {
   targetImageBase64: '',
@@ -19,129 +23,175 @@ const DEFAULT: HologramRequest = {
   iterations: 40,
   outputType: 'GREYSCALE_PHASE',
   dpi: 600,
+  wavelengthNm: 550,
+  refractiveIndexDelta: 0.5,
+  maxPhaseShiftRad: 2 * Math.PI,
 };
+
+const CUSTOM_WIDGETS = {
+  'hologram-target-image': HologramTargetImageWidget,
+} as const;
 
 export function HologramPanel({ initialJob }: JobPanelProps) {
   const [request, setRequest] = useState<HologramRequest>(() =>
     initialJobParameters(initialJob, 'hologram', DEFAULT));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [maskUrl, setMaskUrl] = useBlobUrl();
-  const [reconUrl, setReconUrl] = useBlobUrl();
+  const [reconstructionUrl, setReconstructionUrl] = useBlobUrl();
 
-  const update = (patch: Partial<HologramRequest>) =>
-    setRequest((current) => ({ ...current, ...patch }));
+  const estimatedJobBytes = useMemo(
+    () => new TextEncoder().encode(JSON.stringify(request)).byteLength,
+    [request],
+  );
+  const requestHasTarget = request.targetImageBase64.length > 0;
+  const jobFitsFileLimit = estimatedJobBytes <= FRESNEL_JOB_MAX_BYTES;
 
-  const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      update({ targetImageBase64: await fileToBase64(file) });
-      setError(null);
-    } catch (fileError) {
-      setError(fileError instanceof Error ? fileError.message : String(fileError));
-    }
-  };
-
-  const build = (): HologramRequest | null => {
-    if (!request.targetImageBase64) {
-      setError('please choose a target image');
+  const requireTarget = (parameters: HologramRequest): HologramRequest | null => {
+    if (!parameters.targetImageBase64) {
+      setError('Please choose a target image.');
       return null;
     }
-    return request;
+    return parameters;
   };
 
-  const synthesise = async () => {
-    const req = build(); if (!req) return;
-    setBusy(true); setError(null);
+  const synthesise = async (parameters: HologramRequest) => {
+    const built = requireTarget(parameters);
+    if (!built) return;
+    setBusy(true);
+    setError(null);
     try {
-      setMaskUrl(await synthesizeHologramPng(req));
-      setValidationReport(await validatePlugin('hologram', req));
+      setMaskUrl(await synthesizeHologramPng(built));
+    } catch (renderError) {
+      setError(renderError instanceof Error ? renderError.message : String(renderError));
+    } finally {
+      setBusy(false);
     }
-    catch (e) { setValidationReport(null); setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
   };
 
-  const reconstruct = async () => {
-    const req = build(); if (!req) return;
-    setBusy(true); setError(null);
-    try { setReconUrl(await reconstructHologramPng(req, true)); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
+  const reconstruct = async (parameters: HologramRequest) => {
+    const built = requireTarget(parameters);
+    if (!built) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setReconstructionUrl(await reconstructHologramPng(built, true));
+    } catch (reconstructionError) {
+      setError(reconstructionError instanceof Error
+        ? reconstructionError.message
+        : String(reconstructionError));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <>
-      <h2>Target</h2>
-      <div className="field">
-        <label>Target image (PNG / JPEG)</label>
-        <input type="file" accept="image/*" onChange={onFile} />
-      </div>
-      <div className="field">
-        <label htmlFor="side">Side (px)</label>
-        <select id="side" value={request.sidePx}
-                onChange={(e) => update({ sidePx: Number(e.target.value) })}>
-          {SIDES.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
-
-      <h2>Algorithm</h2>
-      <NumberField label="GS iterations" value={request.iterations} min={1} max={500} step={5}
-                   onChange={(iterations) => update({ iterations })} />
-      <div className="field">
-        <label htmlFor="out">Output type</label>
-        <select id="out" value={request.outputType}
-                onChange={(e) => update({
-                  outputType: e.target.value as 'BINARY_PHASE' | 'GREYSCALE_PHASE',
-                })}>
-          <option value="GREYSCALE_PHASE">Greyscale phase</option>
-          <option value="BINARY_PHASE">Binary phase</option>
-        </select>
-      </div>
-      <NumberField label="DPI" value={request.dpi} min={50} step={50}
-                   onChange={(dpi) => update({ dpi })} />
-
-      <div className="actions">
-        <button onClick={synthesise} disabled={busy || !request.targetImageBase64}>
-          {busy ? 'Synthesising…' : 'Synthesise mask'}
-        </button>
-        <button className="secondary" onClick={reconstruct}
-                disabled={busy || !request.targetImageBase64}>
-          Simulate reconstruction
-        </button>
-        <button className="secondary" onClick={async () => {
-            const req = build(); if (!req) return;
-            try { await downloadHologramPng(req, 'fresnel-hologram.png'); }
-            catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-          }} disabled={busy || !request.targetImageBase64}>
-          PNG
-        </button>
-        <button className="secondary" onClick={async () => {
-            const req = build(); if (!req) return;
-            try { await downloadHologramStl(req, 'fresnel-hologram-relief.stl'); }
-            catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-          }} disabled={busy || !request.targetImageBase64}>
-          STL
-        </button>
-      </div>
-      <SaveJobControl
+      <h2>Hologram</h2>
+      <PluginEditorShell
         pluginId="hologram"
-        parameters={request.targetImageBase64 ? request : null}
+        value={request}
+        onChange={setRequest}
         disabled={busy}
-      />
-      {error && <p className="error-message">{error}</p>}
+        customWidgets={CUSTOM_WIDGETS}
+        applyDefaultsOnLoad={!initialJob}
+        domainValidationEnabled={requestHasTarget}
+      >
+        {(schema, structuralValidation, domainValidation) => {
+          const normalized = structuralValidation?.valid
+            ? structuralValidation.normalizedParameters
+            : undefined;
+          const structurallyValid = Boolean(normalized);
+          const hasTarget = Boolean(normalized?.targetImageBase64);
+          const productionReady = hasTarget && structurallyValid && domainValidation?.valid === true;
+          return (
+            <>
+              {requestHasTarget && !jobFitsFileLimit && (
+                <div className="warning" role="alert">
+                  This embedded target is too large for the current 1 MiB `.fresnel` job envelope.
+                  Synthesis remains available, but saving the design job is disabled. Use a smaller
+                  source image until a bounded asset container is introduced.
+                </div>
+              )}
 
-      <PreviewPane url={maskUrl} alt="Hologram phase mask">
-        <span style={{ color: '#9ca3af' }}>Choose a target image and synthesise.</span>
-      </PreviewPane>
-      {reconUrl && (
-        <>
-          <h2 style={{ marginTop: 16 }}>Simulated reconstruction</h2>
-          <PreviewPane url={reconUrl} alt="Reconstruction preview" />
-        </>
-      )}
-      <ValidationReportView report={validationReport} />
+              <PluginActionBar
+                capabilities={schema.capabilities}
+                busy={busy}
+                actions={{
+                  PREVIEW_PNG: {
+                    label: busy ? 'Synthesising…' : 'Synthesise mask',
+                    primary: true,
+                    disabled: !hasTarget || !structurallyValid,
+                    run: () => normalized && synthesise(normalized),
+                  },
+                  EXPORT_PNG: {
+                    label: 'PNG',
+                    disabled: !productionReady,
+                    run: async () => {
+                      if (!normalized) return;
+                      const built = requireTarget(normalized);
+                      if (!built) return;
+                      try {
+                        await downloadHologramPng(built, 'fresnel-hologram.png');
+                      } catch (exportError) {
+                        setError(exportError instanceof Error
+                          ? exportError.message
+                          : String(exportError));
+                      }
+                    },
+                  },
+                  EXPORT_STL: {
+                    label: 'STL',
+                    disabled: !productionReady,
+                    run: async () => {
+                      if (!normalized) return;
+                      const built = requireTarget(normalized);
+                      if (!built) return;
+                      try {
+                        await downloadHologramStl(built, 'fresnel-hologram-relief.stl');
+                      } catch (exportError) {
+                        setError(exportError instanceof Error
+                          ? exportError.message
+                          : String(exportError));
+                      }
+                    },
+                  },
+                }}
+              />
+
+              {schema.uiSchema.extensions?.includes('reconstruction-preview') && (
+                <div className="actions" data-editor-extension="reconstruction-preview">
+                  <button
+                    className="secondary"
+                    onClick={() => normalized && void reconstruct(normalized)}
+                    disabled={busy || !hasTarget || !structurallyValid}
+                  >
+                    Simulate reconstruction
+                  </button>
+                </div>
+              )}
+
+              <SaveJobControl
+                pluginId="hologram"
+                parameters={hasTarget && jobFitsFileLimit ? normalized ?? null : null}
+                disabled={busy || !structurallyValid}
+              />
+              {error && <p className="error-message">{error}</p>}
+
+              <PreviewPane url={maskUrl} alt="Hologram phase mask">
+                <span style={{ color: '#9ca3af' }}>Choose a target image and synthesise.</span>
+              </PreviewPane>
+              {reconstructionUrl && (
+                <>
+                  <h2 style={{ marginTop: 16 }}>Simulated reconstruction</h2>
+                  <PreviewPane url={reconstructionUrl} alt="Reconstruction preview" />
+                </>
+              )}
+              <ValidationReportView report={domainValidation} />
+            </>
+          );
+        }}
+      </PluginEditorShell>
     </>
   );
 }

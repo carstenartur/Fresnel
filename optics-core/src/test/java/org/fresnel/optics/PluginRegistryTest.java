@@ -6,45 +6,57 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PluginRegistryTest {
-
-    // ---- Completeness ----
 
     @Test
     void registryContainsAllExpectedPlugins() {
         Set<String> ids = new HashSet<>();
-        for (PluginDescriptor d : PluginRegistry.ALL) {
-            ids.add(d.id());
-        }
-        assertTrue(ids.contains("zone-plate"),     "zone-plate missing");
-        assertTrue(ids.contains("rgb-zone-plate"),  "rgb-zone-plate missing");
-        assertTrue(ids.contains("multi-focus"),     "multi-focus missing");
-        assertTrue(ids.contains("hex-macro-cell"),  "hex-macro-cell missing");
-        assertTrue(ids.contains("window-foil"),     "window-foil missing");
-        assertTrue(ids.contains("hologram"),        "hologram missing");
+        for (PluginDescriptor descriptor : PluginRegistry.ALL) ids.add(descriptor.id());
+        assertTrue(ids.contains("zone-plate"), "zone-plate missing");
+        assertTrue(ids.contains("rgb-zone-plate"), "rgb-zone-plate missing");
+        assertTrue(ids.contains("multi-focus"), "multi-focus missing");
+        assertTrue(ids.contains("hex-macro-cell"), "hex-macro-cell missing");
+        assertTrue(ids.contains("window-foil"), "window-foil missing");
+        assertTrue(ids.contains("hologram"), "hologram missing");
         assertEquals(6, PluginRegistry.ALL.size(), "unexpected plugin count");
     }
 
     @Test
-    void allPluginsHaveNonBlankRequiredFields() {
-        for (PluginDescriptor d : PluginRegistry.ALL) {
-            assertNotNull(d.id(),            d.id() + ": id is null");
-            assertFalse(d.id().isBlank(),    d.id() + ": id is blank");
-            assertNotNull(d.displayName(),   d.id() + ": displayName is null");
-            assertFalse(d.displayName().isBlank(), d.id() + ": displayName is blank");
-            assertNotNull(d.description(),   d.id() + ": description is null");
-            assertNotNull(d.rendererClass(), d.id() + ": rendererClass is null");
-            assertNotNull(d.parameterType(), d.id() + ": parameterType is null");
-            assertNotNull(d.frontendModeId(), d.id() + ": frontendModeId is null");
-            assertNotNull(d.stability(),     d.id() + ": stability is null");
-            assertNotNull(d.capabilities(),  d.id() + ": capabilities is null");
-            assertNotNull(d.propagationModes(), d.id() + ": propagationModes is null");
-        }
+    void registryOrderIsThePublicNavigationOrder() {
+        assertEquals(List.of(
+                        "zone-plate",
+                        "hex-macro-cell",
+                        "window-foil",
+                        "multi-focus",
+                        "rgb-zone-plate",
+                        "hologram"),
+                PluginRegistry.ALL.stream().map(PluginDescriptor::id).toList());
     }
 
-    // ---- Uniqueness ----
+    @Test
+    void allPluginsHaveNonBlankRequiredFields() {
+        for (PluginDescriptor descriptor : PluginRegistry.ALL) {
+            assertNotNull(descriptor.id(), descriptor.id() + ": id is null");
+            assertFalse(descriptor.id().isBlank(), descriptor.id() + ": id is blank");
+            assertNotNull(descriptor.displayName(), descriptor.id() + ": displayName is null");
+            assertFalse(descriptor.displayName().isBlank(), descriptor.id() + ": displayName is blank");
+            assertNotNull(descriptor.description(), descriptor.id() + ": description is null");
+            assertNotNull(descriptor.rendererClass(), descriptor.id() + ": rendererClass is null");
+            assertNotNull(descriptor.parameterType(), descriptor.id() + ": parameterType is null");
+            assertNotNull(descriptor.documentationUrl(), descriptor.id() + ": documentationUrl is null");
+            assertNotNull(descriptor.stability(), descriptor.id() + ": stability is null");
+            assertNotNull(descriptor.capabilities(), descriptor.id() + ": capabilities is null");
+            assertNotNull(descriptor.propagationModes(), descriptor.id() + ": propagationModes is null");
+            assertNotNull(descriptor.schema(), descriptor.id() + ": schema is null");
+        }
+    }
 
     @Test
     void pluginIdsAreUnique() {
@@ -57,21 +69,12 @@ class PluginRegistryTest {
 
     @Test
     void pluginIdsAreLowercaseAndHyphenated() {
-        for (PluginDescriptor d : PluginRegistry.ALL) {
-            assertEquals(d.id().toLowerCase(java.util.Locale.ROOT), d.id(),
-                    d.id() + ": id must be lowercase");
-            assertTrue(d.id().matches("[a-z][a-z0-9-]*"),
-                    d.id() + ": id must match [a-z][a-z0-9-]*");
+        for (PluginDescriptor descriptor : PluginRegistry.ALL) {
+            assertEquals(descriptor.id().toLowerCase(java.util.Locale.ROOT), descriptor.id(),
+                    descriptor.id() + ": id must be lowercase");
+            assertTrue(descriptor.id().matches("[a-z][a-z0-9-]*"),
+                    descriptor.id() + ": id must match [a-z][a-z0-9-]*");
         }
-    }
-
-    @Test
-    void frontendModeIdsAreUnique() {
-        long distinct = PluginRegistry.ALL.stream()
-                .map(PluginDescriptor::frontendModeId)
-                .distinct()
-                .count();
-        assertEquals(PluginRegistry.ALL.size(), distinct, "duplicate frontendModeId values detected");
     }
 
     @Test
@@ -79,15 +82,13 @@ class PluginRegistryTest {
         assertDoesNotThrow(PluginRegistry::verifyIntegrity);
     }
 
-    // ---- Lookup ----
-
     @Test
     void findByIdReturnsCorrectDescriptor() {
-        PluginDescriptor zp = PluginRegistry.findById("zone-plate").orElseThrow();
-        assertEquals("zone-plate", zp.id());
-        assertEquals("ZonePlateRenderer", zp.rendererClass());
-        assertEquals("SingleZonePlateParameters", zp.parameterType());
-        assertEquals("single", zp.frontendModeId());
+        PluginDescriptor zonePlate = PluginRegistry.findById("zone-plate").orElseThrow();
+        assertEquals("zone-plate", zonePlate.id());
+        assertEquals("ZonePlateRenderer", zonePlate.rendererClass());
+        assertEquals("SingleZonePlateParameters", zonePlate.parameterType());
+        assertEquals(PluginEditorMode.SCHEMA_WITH_EXTENSIONS, zonePlate.schema().editorMode());
     }
 
     @Test
@@ -111,77 +112,76 @@ class PluginRegistryTest {
         assertFalse(PluginRegistry.hasPlugin("unknown"));
     }
 
-    // ---- Capability queries ----
-
     @Test
     void withCapabilityReturnsPdfPlugins() {
         List<PluginDescriptor> pdf = PluginRegistry.withCapability(PluginCapability.EXPORT_PDF);
         assertTrue(pdf.size() >= 2, "expected at least zone-plate and hex-macro-cell");
-        assertTrue(pdf.stream().anyMatch(d -> d.id().equals("zone-plate")));
-        assertTrue(pdf.stream().anyMatch(d -> d.id().equals("hex-macro-cell")));
-        assertTrue(pdf.stream().anyMatch(d -> d.id().equals("window-foil")));
+        assertTrue(pdf.stream().anyMatch(descriptor -> descriptor.id().equals("zone-plate")));
+        assertTrue(pdf.stream().anyMatch(descriptor -> descriptor.id().equals("hex-macro-cell")));
+        assertTrue(pdf.stream().anyMatch(descriptor -> descriptor.id().equals("window-foil")));
     }
 
     @Test
     void withCapabilityExportStlReturnsOnlyHologram() {
         List<PluginDescriptor> stl = PluginRegistry.withCapability(PluginCapability.EXPORT_STL);
         assertEquals(1, stl.size());
-        assertEquals("hologram", stl.get(0).id());
+        assertEquals("hologram", stl.getFirst().id());
     }
 
     @Test
     void withCapabilityPropagationPreviewReturnsOnlyZonePlate() {
-        List<PluginDescriptor> prop = PluginRegistry.withCapability(PluginCapability.PROPAGATION_PREVIEW);
-        assertEquals(1, prop.size());
-        assertEquals("zone-plate", prop.get(0).id());
+        List<PluginDescriptor> propagation =
+                PluginRegistry.withCapability(PluginCapability.PROPAGATION_PREVIEW);
+        assertEquals(1, propagation.size());
+        assertEquals("zone-plate", propagation.getFirst().id());
     }
 
     @Test
     void withCapabilityOpticalQualityReportReturnsOnlyZonePlate() {
-        List<PluginDescriptor> qr = PluginRegistry.withCapability(PluginCapability.OPTICAL_QUALITY_REPORT);
-        assertEquals(1, qr.size());
-        assertEquals("zone-plate", qr.get(0).id());
+        List<PluginDescriptor> reports =
+                PluginRegistry.withCapability(PluginCapability.OPTICAL_QUALITY_REPORT);
+        assertEquals(1, reports.size());
+        assertEquals("zone-plate", reports.getFirst().id());
     }
-
-    // ---- Zone plate descriptor detail ----
 
     @Test
     void zonePlateDescriptorHasExpectedCapabilities() {
-        PluginDescriptor zp = PluginRegistry.ZONE_PLATE;
-        assertTrue(zp.supports(PluginCapability.EXPORT_PNG));
-        assertTrue(zp.supports(PluginCapability.EXPORT_SVG));
-        assertTrue(zp.supports(PluginCapability.EXPORT_PDF));
-        assertTrue(zp.supports(PluginCapability.EXPORT_DXF));
-        assertTrue(zp.supports(PluginCapability.EXPORT_GERBER));
-        assertTrue(zp.supports(PluginCapability.PREVIEW_PNG));
-        assertTrue(zp.supports(PluginCapability.PROPAGATION_PREVIEW));
-        assertTrue(zp.supportsPrintabilityAnalysis());
-        assertTrue(zp.supportsOpticalQualityReport());
-        assertFalse(zp.supportsExperimentalValidation());
+        PluginDescriptor zonePlate = PluginRegistry.ZONE_PLATE;
+        assertTrue(zonePlate.supports(PluginCapability.EXPORT_PNG));
+        assertTrue(zonePlate.supports(PluginCapability.EXPORT_SVG));
+        assertTrue(zonePlate.supports(PluginCapability.EXPORT_PDF));
+        assertTrue(zonePlate.supports(PluginCapability.EXPORT_DXF));
+        assertTrue(zonePlate.supports(PluginCapability.EXPORT_GERBER));
+        assertTrue(zonePlate.supports(PluginCapability.PREVIEW_PNG));
+        assertTrue(zonePlate.supports(PluginCapability.PROPAGATION_PREVIEW));
+        assertTrue(zonePlate.supportsPrintabilityAnalysis());
+        assertTrue(zonePlate.supportsOpticalQualityReport());
+        assertFalse(zonePlate.supportsExperimentalValidation());
     }
 
     @Test
     void zonePlateDescriptorHasBothPropagationModes() {
-        PluginDescriptor zp = PluginRegistry.ZONE_PLATE;
-        assertTrue(zp.supports(PropagationMode.FRESNEL_TF));
-        assertTrue(zp.supports(PropagationMode.FRAUNHOFER));
+        PluginDescriptor zonePlate = PluginRegistry.ZONE_PLATE;
+        assertTrue(zonePlate.supports(PropagationMode.FRESNEL_TF));
+        assertTrue(zonePlate.supports(PropagationMode.FRAUNHOFER));
     }
 
     @Test
     void hologramDescriptorHasStlAndPng() {
-        PluginDescriptor h = PluginRegistry.HOLOGRAM;
-        assertTrue(h.supports(PluginCapability.EXPORT_STL));
-        assertTrue(h.supports(PluginCapability.EXPORT_PNG));
-        assertFalse(h.supports(PluginCapability.EXPORT_PDF));
-        assertTrue(h.propagationModes().isEmpty());
+        PluginDescriptor hologram = PluginRegistry.HOLOGRAM;
+        assertTrue(hologram.supports(PluginCapability.EXPORT_STL));
+        assertTrue(hologram.supports(PluginCapability.EXPORT_PNG));
+        assertFalse(hologram.supports(PluginCapability.EXPORT_PDF));
+        assertTrue(hologram.propagationModes().isEmpty());
     }
 
     @Test
     void allPluginsHaveAtLeastOnePngCapability() {
-        for (PluginDescriptor d : PluginRegistry.ALL) {
+        for (PluginDescriptor descriptor : PluginRegistry.ALL) {
             assertTrue(
-                    d.supports(PluginCapability.EXPORT_PNG) || d.supports(PluginCapability.PREVIEW_PNG),
-                    d.id() + " must support at least one PNG capability");
+                    descriptor.supports(PluginCapability.EXPORT_PNG)
+                            || descriptor.supports(PluginCapability.PREVIEW_PNG),
+                    descriptor.id() + " must support at least one PNG capability");
         }
     }
 }

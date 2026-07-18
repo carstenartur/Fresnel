@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Fresnel/schemas/plugins/hologram/parameters-v1.schema.json",
+  "title": "Hologram parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["targetImageBase64", "sidePx", "iterations", "dpi"],
+  "default": {
+    "targetImageBase64": "",
+    "sidePx": 128,
+    "iterations": 40,
+    "outputType": "GREYSCALE_PHASE",
+    "dpi": 600.0,
+    "wavelengthNm": 550.0,
+    "refractiveIndexDelta": 0.5,
+    "maxPhaseShiftRad": 6.283185307179586
+  },
+  "properties": {
+    "targetImageBase64": {
+      "type": "string",
+      "title": "Target image",
+      "description": "Base64-encoded local target image. The schema never supplies a remote URL.",
+      "contentEncoding": "base64",
+      "default": "",
+      "x-fresnel-widget": "hologram-target-image",
+      "x-fresnel-sensitive-size": true
+    },
+    "sidePx": {
+      "type": "integer",
+      "title": "Side",
+      "minimum": 16,
+      "maximum": 1024,
+      "default": 128,
+      "x-fresnel-unit": "px",
+      "x-fresnel-power-of-two": true
+    },
+    "iterations": {
+      "type": "integer",
+      "title": "Gerchberg–Saxton iterations",
+      "minimum": 1,
+      "maximum": 500,
+      "default": 40,
+      "x-fresnel-step": 5,
+      "x-fresnel-expensive": true
+    },
+    "outputType": {
+      "type": "string",
+      "title": "Output type",
+      "enum": ["BINARY_PHASE", "GREYSCALE_PHASE"],
+      "default": "GREYSCALE_PHASE"
+    },
+    "dpi": {
+      "type": "number",
+      "title": "Printer DPI",
+      "exclusiveMinimum": 0,
+      "default": 600.0,
+      "x-fresnel-unit": "dpi",
+      "x-fresnel-step": 50.0
+    },
+    "wavelengthNm": {
+      "type": "number",
+      "title": "Fabrication wavelength",
+      "exclusiveMinimum": 0,
+      "default": 550.0,
+      "x-fresnel-unit": "nm"
+    },
+    "refractiveIndexDelta": {
+      "type": "number",
+      "title": "Refractive-index difference",
+      "exclusiveMinimum": 0,
+      "default": 0.5
+    },
+    "maxPhaseShiftRad": {
+      "type": "number",
+      "title": "Maximum phase shift",
+      "exclusiveMinimum": 0,
+      "default": 6.283185307179586,
+      "x-fresnel-unit": "rad"
+    }
+  }
+}

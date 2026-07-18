@@ -2,6 +2,7 @@ package org.fresnel.backend.api;
 
 import org.fresnel.optics.PluginCapability;
 import org.fresnel.optics.PluginDescriptor;
+import org.fresnel.optics.PluginEditorMode;
 import org.fresnel.optics.PluginRegistry;
 import org.fresnel.optics.PluginStabilityLevel;
 import org.fresnel.optics.PropagationMode;
@@ -15,22 +16,16 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * Read-only metadata endpoint for all registered Fresnel plugins.
- *
- * <h2>Endpoints</h2>
- * <ul>
- *   <li>{@code GET /api/plugins} — list all plugin descriptors</li>
- *   <li>{@code GET /api/plugins/{id}} — get a single descriptor by plugin id</li>
- * </ul>
- *
- * <p>Responses contain plain JSON-serialisable views of {@link PluginDescriptor}.
- * The controller does not expose internal class types directly; it maps to simple
- * records so that the JSON shape is stable and independent of the optics-core model.
- */
+/** Read-only metadata and schema endpoints for registered Fresnel plugins. */
 @RestController
 @RequestMapping("/api/plugins")
 public class PluginController {
+
+    private final PluginSchemaService schemaService;
+
+    public PluginController(PluginSchemaService schemaService) {
+        this.schemaService = schemaService;
+    }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public List<PluginMetadata> listPlugins() {
@@ -47,54 +42,54 @@ public class PluginController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // ---- JSON view ----
+    /** Returns the current versioned parameter and UI schemas for one plugin. */
+    @GetMapping(value = "/{id}/schema", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<PluginSchemaDocument> getPluginSchema(@PathVariable("id") String id) {
+        return schemaService.findByPluginId(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 
     /**
-     * JSON-serialisable view of a {@link PluginDescriptor}.
-     *
-     * <p>Using a dedicated view record keeps the HTTP response contract decoupled
-     * from the optics-core model, making future additions non-breaking.
-     *
-     * <p>{@code capabilities} and {@code propagationModes} are returned as sorted
-     * lists (alphabetical by name) so that the JSON array order is deterministic
-     * across JDK versions and runs.
+     * Stable, data-only JSON view. Java implementation names, frontend component
+     * aliases and classpath schema resource names remain internal to the process.
      */
     public record PluginMetadata(
             String id,
             String displayName,
             String description,
-            String rendererClass,
-            String parameterType,
-            String frontendModeId,
             String documentationUrl,
             PluginStabilityLevel stability,
             List<PluginCapability> capabilities,
             List<PropagationMode> propagationModes,
+            int parameterSchemaVersion,
+            PluginEditorMode editorMode,
+            String schemaUrl,
             boolean supportsPrintabilityAnalysis,
             boolean supportsOpticalQualityReport,
             boolean supportsExperimentalValidation,
             boolean supportsPropagationPreview
     ) {
-        static PluginMetadata from(PluginDescriptor d) {
+        static PluginMetadata from(PluginDescriptor descriptor) {
             return new PluginMetadata(
-                    d.id(),
-                    d.displayName(),
-                    d.description(),
-                    d.rendererClass(),
-                    d.parameterType(),
-                    d.frontendModeId(),
-                    d.documentationUrl(),
-                    d.stability(),
-                    d.capabilities().stream()
+                    descriptor.id(),
+                    descriptor.displayName(),
+                    descriptor.description(),
+                    descriptor.documentationUrl(),
+                    descriptor.stability(),
+                    descriptor.capabilities().stream()
                             .sorted(Comparator.comparing(Enum::name))
                             .toList(),
-                    d.propagationModes().stream()
+                    descriptor.propagationModes().stream()
                             .sorted(Comparator.comparing(Enum::name))
                             .toList(),
-                    d.supportsPrintabilityAnalysis(),
-                    d.supportsOpticalQualityReport(),
-                    d.supportsExperimentalValidation(),
-                    d.supportsPropagationPreview()
+                    descriptor.schema().parameterSchemaVersion(),
+                    descriptor.schema().editorMode(),
+                    "/api/plugins/" + descriptor.id() + "/schema",
+                    descriptor.supportsPrintabilityAnalysis(),
+                    descriptor.supportsOpticalQualityReport(),
+                    descriptor.supportsExperimentalValidation(),
+                    descriptor.supportsPropagationPreview()
             );
         }
     }

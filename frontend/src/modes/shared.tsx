@@ -1,18 +1,89 @@
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { DesignValidationReport, ValidationLayer } from '../api';
 
-export function NumberField({ label, value, min, max, step, onChange }: {
-  label: string; value: number; min?: number; max?: number; step?: number;
-  onChange: (v: number) => void;
+export function NumberField({
+  label,
+  value,
+  min,
+  max,
+  step,
+  disabled = false,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+  onChange: (value: number) => void;
 }) {
   const inputId = useId();
+  const errorId = `${inputId}-error`;
+  const [text, setText] = useState(() => finiteText(value));
+  const parsed = parseCompleteFiniteNumber(text);
+  const valid = useMemo(
+    () => parsed !== null
+      && (min === undefined || parsed >= min)
+      && (max === undefined || parsed <= max),
+    [parsed, min, max],
+  );
+
+  useEffect(() => {
+    setText(finiteText(value));
+  }, [value]);
+
+  const updateText = (next: string) => {
+    setText(next);
+    const number = parseCompleteFiniteNumber(next);
+    // Keep incomplete text local. Complete finite values, including values
+    // outside the advertised range, remain in the public parameter object so
+    // canonical backend validation can explain the actual submitted value.
+    if (number !== null) onChange(number);
+  };
+
   return (
     <div className="field">
       <label htmlFor={inputId}>{label}</label>
-      <input id={inputId} type="number" value={value} min={min} max={max} step={step}
-             onChange={(e) => onChange(Number(e.target.value))} />
+      <input
+        id={inputId}
+        type="number"
+        inputMode="decimal"
+        value={text}
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+        aria-invalid={!valid}
+        aria-describedby={!valid ? errorId : undefined}
+        onChange={(event) => updateText(event.target.value)}
+      />
+      {!valid && (
+        <small id={errorId} className="error-message" style={{ display: 'block' }}>
+          Enter a finite number within the allowed range.
+        </small>
+      )}
     </div>
   );
+}
+
+function parseCompleteFiniteNumber(text: string): number | null {
+  const trimmed = text.trim();
+  if (!/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(trimmed)) return null;
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? value : null;
+}
+
+function finiteText(value: number): string {
+  return Number.isFinite(value) ? String(value) : '';
 }
 
 export function PreviewPane({ url, alt, children }: { url: string | null; alt: string; children?: ReactNode; }) {
@@ -25,16 +96,25 @@ export function PreviewPane({ url, alt, children }: { url: string | null; alt: s
   );
 }
 
-/** Manage a single object-URL for a Blob, revoking on update / unmount. */
-export function useBlobUrl(): [string | null, (b: Blob) => void] {
+/** Manage one owned object URL, revoking it exactly once on replacement/unmount. */
+export function useBlobUrl(): [string | null, (blob: Blob) => void] {
   const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
-  const set = (b: Blob) => {
-    setUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(b);
-    });
-  };
+  const ownedUrl = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    if (ownedUrl.current) {
+      URL.revokeObjectURL(ownedUrl.current);
+      ownedUrl.current = null;
+    }
+  }, []);
+
+  const set = useCallback((blob: Blob) => {
+    if (ownedUrl.current) URL.revokeObjectURL(ownedUrl.current);
+    const next = URL.createObjectURL(blob);
+    ownedUrl.current = next;
+    setUrl(next);
+  }, []);
+
   return [url, set];
 }
 
@@ -56,10 +136,13 @@ export function ValidationReportView({ report }: { report: DesignValidationRepor
 
       <h4 style={{ margin: '8px 0 4px', fontSize: 13 }}>Metrics</h4>
       <dl>
-        {report.metrics.map((m) => (
-          <div key={`${m.layer}:${m.key}`} style={{ display: 'contents' }}>
-            <dt>{m.label} <span style={{ color: '#9ca3af' }}>({LAYER_LABELS[m.layer]})</span></dt>
-            <dd>{formatMetricValue(m.value, m.unit)}</dd>
+        {report.metrics.map((metric) => (
+          <div key={`${metric.layer}:${metric.key}`} style={{ display: 'contents' }}>
+            <dt>
+              {metric.label}{' '}
+              <span style={{ color: '#9ca3af' }}>({LAYER_LABELS[metric.layer]})</span>
+            </dt>
+            <dd>{formatMetricValue(metric.value, metric.unit)}</dd>
           </div>
         ))}
       </dl>
@@ -68,19 +151,21 @@ export function ValidationReportView({ report }: { report: DesignValidationRepor
       {report.findings.length === 0 && (
         <div className="warning info">No findings.</div>
       )}
-      {report.findings.map((f) => (
-        <div key={`${f.layer}:${f.code}`}
-             className={`warning ${f.severity === 'ERROR' ? 'error' : f.severity === 'INFO' ? 'info' : ''}`}>
-          <strong>{f.code}</strong> ({LAYER_LABELS[f.layer]}): {f.message}
+      {report.findings.map((finding) => (
+        <div
+          key={`${finding.layer}:${finding.code}`}
+          className={`warning ${finding.severity === 'ERROR' ? 'error' : finding.severity === 'INFO' ? 'info' : ''}`}
+        >
+          <strong>{finding.code}</strong> ({LAYER_LABELS[finding.layer]}): {finding.message}
         </div>
       ))}
 
       <h4 style={{ margin: '10px 0 4px', fontSize: 13 }}>Assumptions / limitations</h4>
       <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
-        {report.assumptions.map((a, idx) => (
-          <li key={`${a.layer}:${idx}`}>
-            {a.statement}
-            {a.limitation ? ' (limitation)' : ''}
+        {report.assumptions.map((assumption, index) => (
+          <li key={`${assumption.layer}:${index}`}>
+            {assumption.statement}
+            {assumption.limitation ? ' (limitation)' : ''}
           </li>
         ))}
       </ul>
