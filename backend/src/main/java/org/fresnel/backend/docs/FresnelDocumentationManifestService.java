@@ -7,10 +7,8 @@ import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,35 +33,46 @@ public final class FresnelDocumentationManifestService {
 
     public FresnelDocumentationManifest generate(Path jobRoot, Path assetRoot)
             throws IOException {
-        Path normalizedJobRoot = requireDirectory(jobRoot, "documentation job root");
-        Path normalizedAssetRoot = requireDirectory(assetRoot, "documentation asset root");
+        Path normalizedJobRoot = FresnelDocumentationFiles.requireDirectory(
+                jobRoot, "documentation job root");
+        Path normalizedAssetRoot = FresnelDocumentationFiles.requireDirectory(
+                assetRoot, "documentation asset root");
         String jobRootDisplay = documentationPath(normalizedJobRoot);
         String assetRootDisplay = documentationPath(normalizedAssetRoot);
 
-        List<Path> jobs = discoverJobs(normalizedJobRoot);
+        List<Path> jobs = FresnelDocumentationFiles.discoverJobs(normalizedJobRoot);
         if (jobs.isEmpty()) {
             throw new IllegalArgumentException(
                     "No .fresnel jobs found beneath " + normalizedJobRoot);
         }
 
         List<FresnelDocumentationManifest.Example> examples = new ArrayList<>();
-        Set<String> exampleIds = new HashSet<>();
-        Set<String> artifactPaths = new HashSet<>();
+        Set<String> exampleKeys = new HashSet<>();
+        Set<String> artifactPathKeys = new HashSet<>();
 
         for (Path jobPath : jobs) {
             Map<String, byte[]> generated = new HashMap<>();
             FresnelJobExecutionResult result = executor.execute(
-                    Files.readAllBytes(jobPath),
-                    (artifact, content) -> generated.put(artifact.filename(), content.clone()));
+                    FresnelDocumentationFiles.readRegularFile(
+                            jobPath, "documentation job"),
+                    (artifact, content) -> {
+                        byte[] previous = generated.put(
+                                artifact.filename(), content.clone());
+                        if (previous != null) {
+                            throw new IllegalStateException(
+                                    "Executor produced duplicate filename " + artifact.filename());
+                        }
+                    });
 
             Path relativeJob = normalizedJobRoot.relativize(jobPath);
-            String relativeWithoutExtension = portable(relativeJob);
+            String relativeWithoutExtension = FresnelDocumentationFiles.portable(relativeJob);
             relativeWithoutExtension = relativeWithoutExtension.substring(
                     0, relativeWithoutExtension.length() - ".fresnel".length());
             String exampleId = relativeWithoutExtension;
-            if (!exampleIds.add(exampleId)) {
+            if (!exampleKeys.add(FresnelDocumentationFiles.portableKey(exampleId))) {
                 throw new IllegalStateException(
-                        "Duplicate documentation example id: " + exampleId);
+                        "Duplicate documentation example id on a case-insensitive filesystem: "
+                                + exampleId);
             }
 
             List<FresnelDocumentationManifest.Artifact> artifacts = new ArrayList<>();
@@ -71,18 +80,18 @@ public final class FresnelDocumentationManifestService {
                 String relativeArtifact = result.job().plugin().id()
                         + "/" + artifact.filename();
                 String displayPath = appendPortable(assetRootDisplay, relativeArtifact);
-                if (!artifactPaths.add(displayPath)) {
+                if (!artifactPathKeys.add(FresnelDocumentationFiles.portableKey(displayPath))) {
                     throw new IllegalStateException(
-                            "More than one documentation job claims artifact " + displayPath);
+                            "More than one documentation job claims artifact " + displayPath
+                                    + " on a case-insensitive filesystem");
                 }
 
-                Path tracked = normalizedAssetRoot.resolve(relativeArtifact).normalize();
-                if (!tracked.startsWith(normalizedAssetRoot)
-                        || !Files.isRegularFile(tracked)) {
-                    throw new IllegalStateException(
-                            "Missing or unsafe documentation artifact: " + tracked);
-                }
-                byte[] trackedContent = Files.readAllBytes(tracked);
+                Path tracked = FresnelDocumentationFiles.requireRegularDescendant(
+                        normalizedAssetRoot,
+                        Path.of(relativeArtifact),
+                        "documentation artifact");
+                byte[] trackedContent = FresnelDocumentationFiles.readRegularFile(
+                        tracked, "documentation artifact");
                 String trackedHash = FresnelJobExecutor.normalizedSha256(
                         artifact.mediaType(), trackedContent, artifact.dpi());
                 if (!trackedHash.equals(artifact.normalizedSha256())) {
@@ -110,7 +119,9 @@ public final class FresnelDocumentationManifestService {
             examples.add(new FresnelDocumentationManifest.Example(
                     exampleId,
                     result.job().plugin().id(),
-                    appendPortable(jobRootDisplay, portable(relativeJob)),
+                    appendPortable(
+                            jobRootDisplay,
+                            FresnelDocumentationFiles.portable(relativeJob)),
                     result.job().formatVersion(),
                     result.job().plugin().parameterSchemaVersion(),
                     result.job().plugin().algorithmVersion(),
@@ -127,26 +138,6 @@ public final class FresnelDocumentationManifestService {
         return mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(manifest);
     }
 
-    private static List<Path> discoverJobs(Path root) throws IOException {
-        List<Path> jobs = new ArrayList<>();
-        try (var paths = Files.walk(root)) {
-            paths.filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().endsWith(".fresnel"))
-                    .sorted(Comparator.comparing(Path::toString))
-                    .forEach(jobs::add);
-        }
-        return jobs;
-    }
-
-    private static Path requireDirectory(Path path, String label) {
-        if (path == null) throw new IllegalArgumentException(label + " must not be null");
-        Path normalized = path.toAbsolutePath().normalize();
-        if (!Files.isDirectory(normalized)) {
-            throw new IllegalArgumentException(label + " is not a directory: " + path);
-        }
-        return normalized;
-    }
-
     /**
      * Makes manifests stable whether Maven starts in the repository root or a
      * module directory by keeping only the repository-relative `docs/...` suffix.
@@ -155,18 +146,15 @@ public final class FresnelDocumentationManifestService {
         Path normalized = path.normalize();
         for (int index = 0; index < normalized.getNameCount(); index++) {
             if ("docs".equals(normalized.getName(index).toString())) {
-                return portable(normalized.subpath(index, normalized.getNameCount()));
+                return FresnelDocumentationFiles.portable(
+                        normalized.subpath(index, normalized.getNameCount()));
             }
         }
-        return portable(normalized);
+        return FresnelDocumentationFiles.portable(normalized);
     }
 
     private static String appendPortable(String root, String relative) {
         if (root == null || root.isBlank() || ".".equals(root)) return relative;
         return root.endsWith("/") ? root + relative : root + "/" + relative;
-    }
-
-    private static String portable(Path path) {
-        return path.toString().replace('\\', '/');
     }
 }
