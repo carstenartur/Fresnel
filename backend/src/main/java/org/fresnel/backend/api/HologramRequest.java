@@ -5,11 +5,12 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import org.fresnel.optics.HologramParameters;
 
+import java.io.IOException;
+
 /**
- * REST request body for hologram synthesis. The target image is supplied as a
- * base64-encoded PNG / JPEG (so JSON requests work without multipart forms);
- * server-side it is decoded, converted to greyscale, and resized to the requested
- * power-of-two square side via nearest-neighbour sampling.
+ * REST and canonical-job request body for hologram synthesis. The target image is
+ * supplied as bounded base64-encoded PNG/JPEG data, inspected before pixel decoding,
+ * converted to greyscale and resized to the requested power-of-two square side.
  */
 public record HologramRequest(
         @NotNull String targetImageBase64,
@@ -21,6 +22,21 @@ public record HologramRequest(
         @Positive Double refractiveIndexDelta,
         @Positive Double maxPhaseShiftRad
 ) {
+    public HologramRequest {
+        // Empty data remains a valid UI default until the user chooses an image.
+        // Every actual embedded source is format/dimension checked without reading
+        // its pixel raster. This protects REST calls and canonical job execution,
+        // including SOURCE outputs that later preserve the original dimensions.
+        if (targetImageBase64 != null && !targetImageBase64.isBlank()) {
+            try {
+                HologramImageDecoder.validate(targetImageBase64);
+            } catch (IOException e) {
+                throw new IllegalArgumentException(
+                        "Hologram target image could not be inspected", e);
+            }
+        }
+    }
+
     public double resolvedWavelengthNm() {
         return wavelengthNm == null ? 550.0 : wavelengthNm;
     }
