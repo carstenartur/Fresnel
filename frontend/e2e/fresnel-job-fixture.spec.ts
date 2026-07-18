@@ -17,7 +17,7 @@ test('opens and resaves the checked-in zone plate example', async ({ page }) => 
   await expect(form.getByRole('spinbutton', { name: /^Aperture diameter \(mm\)/ }))
     .toHaveValue('10');
   await expect(form.getByRole('spinbutton', { name: /^Focal length \(mm\)/ }))
-    .toHaveValue('1000');
+    .toHaveValue('250');
   await expect(form.getByRole('spinbutton', { name: /^Wavelength \(nm\)/ }))
     .toHaveValue('550');
 
@@ -32,6 +32,7 @@ test('opens and resaves the checked-in zone plate example', async ({ page }) => 
 
   expect(saved.plugin.id).toBe('zone-plate');
   expect(saved.parameters.apertureDiameterMm).toBe(10);
+  expect(saved.parameters.focalLengthMm).toBe(250);
   expect(saved.production.outputs).toEqual([
     {
       id: 'documentation-preview',
