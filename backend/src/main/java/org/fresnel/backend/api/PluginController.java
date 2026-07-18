@@ -50,13 +50,14 @@ public class PluginController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /** Stable JSON view that does not expose classpath schema resource names. */
+    /**
+     * Stable, data-only JSON view. Java implementation names, frontend component
+     * aliases and classpath schema resource names remain internal to the process.
+     */
     public record PluginMetadata(
             String id,
             String displayName,
             String description,
-            String rendererClass,
-            String parameterType,
             String documentationUrl,
             PluginStabilityLevel stability,
             List<PluginCapability> capabilities,
@@ -74,8 +75,6 @@ public class PluginController {
                     descriptor.id(),
                     descriptor.displayName(),
                     descriptor.description(),
-                    descriptor.rendererClass(),
-                    descriptor.parameterType(),
                     descriptor.documentationUrl(),
                     descriptor.stability(),
                     descriptor.capabilities().stream()
