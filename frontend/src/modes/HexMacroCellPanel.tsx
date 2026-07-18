@@ -65,41 +65,51 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
         disabled={busy}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema) => (
-          <>
-            {info && (
-              <p style={{ fontSize: 12, color: '#6b7280' }}>
-                {info.subElements.toLocaleString()} sub-elements ·{' '}
-                {info.imageSidePx.toLocaleString()} px per side
-              </p>
-            )}
+        {(schema, structuralValidation) => {
+          const structurallyValid = structuralValidation?.valid === true;
+          return (
+            <>
+              {info && (
+                <p style={{ fontSize: 12, color: '#6b7280' }}>
+                  {info.subElements.toLocaleString()} sub-elements ·{' '}
+                  {info.imageSidePx.toLocaleString()} px per side
+                </p>
+              )}
 
-            <PluginActionBar
-              capabilities={schema.capabilities}
-              busy={busy}
-              actions={{
-                PREVIEW_PNG: {
-                  label: busy ? 'Rendering…' : 'Render preview',
-                  primary: true,
-                  run: renderPreview,
-                },
-                EXPORT_PNG: {
-                  label: 'PNG',
-                  run: () => downloadHexPng(request, 'fresnel-hex-macro.png'),
-                },
-                EXPORT_PDF: {
-                  label: 'PDF',
-                  run: () => downloadHexPdf(request, 'FIT', 'fresnel-hex-macro.pdf'),
-                },
-              }}
-            />
-            <SaveJobControl pluginId="hex-macro-cell" parameters={request} disabled={busy} />
-            {error && <p className="error-message">{error}</p>}
+              <PluginActionBar
+                capabilities={schema.capabilities}
+                busy={busy}
+                actions={{
+                  PREVIEW_PNG: {
+                    label: busy ? 'Rendering…' : 'Render preview',
+                    primary: true,
+                    disabled: !structurallyValid,
+                    run: renderPreview,
+                  },
+                  EXPORT_PNG: {
+                    label: 'PNG',
+                    disabled: !structurallyValid,
+                    run: () => downloadHexPng(request, 'fresnel-hex-macro.png'),
+                  },
+                  EXPORT_PDF: {
+                    label: 'PDF',
+                    disabled: !structurallyValid,
+                    run: () => downloadHexPdf(request, 'FIT', 'fresnel-hex-macro.pdf'),
+                  },
+                }}
+              />
+              <SaveJobControl
+                pluginId="hex-macro-cell"
+                parameters={request}
+                disabled={busy || !structurallyValid}
+              />
+              {error && <p className="error-message">{error}</p>}
 
-            <PreviewPane url={previewUrl} alt="Hex macro cell preview" />
-            <ValidationReportView report={validationReport} />
-          </>
-        )}
+              <PreviewPane url={previewUrl} alt="Hex macro cell preview" />
+              <ValidationReportView report={validationReport} />
+            </>
+          );
+        }}
       </PluginEditorShell>
     </>
   );
