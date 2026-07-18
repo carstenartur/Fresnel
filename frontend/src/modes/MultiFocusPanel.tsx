@@ -40,12 +40,12 @@ export function MultiFocusPanel({ initialJob }: JobPanelProps) {
   const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
-  const renderPreview = async () => {
+  const renderPreview = async (parameters: MultiFocusRequest) => {
     setBusy(true);
     setError(null);
     try {
-      setPreview(await fetchMultiFocusPreviewPng(request));
-      setValidationReport(await validatePlugin('multi-focus', request));
+      setPreview(await fetchMultiFocusPreviewPng(parameters));
+      setValidationReport(await validatePlugin('multi-focus', parameters));
     } catch (renderError) {
       setValidationReport(null);
       setError(renderError instanceof Error ? renderError.message : String(renderError));
@@ -66,7 +66,10 @@ export function MultiFocusPanel({ initialJob }: JobPanelProps) {
         applyDefaultsOnLoad={!initialJob}
       >
         {(schema, structuralValidation) => {
-          const structurallyValid = structuralValidation?.valid === true;
+          const normalized = structuralValidation?.valid
+            ? structuralValidation.normalizedParameters
+            : undefined;
+          const structurallyValid = Boolean(normalized);
           return (
             <>
               <PluginActionBar
@@ -77,18 +80,19 @@ export function MultiFocusPanel({ initialJob }: JobPanelProps) {
                     label: busy ? 'Rendering…' : 'Render preview',
                     primary: true,
                     disabled: !structurallyValid,
-                    run: renderPreview,
+                    run: () => normalized && renderPreview(normalized),
                   },
                   EXPORT_PNG: {
                     label: 'PNG',
                     disabled: !structurallyValid,
-                    run: () => downloadMultiFocusPng(request, 'fresnel-multifocus.png'),
+                    run: () => normalized
+                      && downloadMultiFocusPng(normalized, 'fresnel-multifocus.png'),
                   },
                 }}
               />
               <SaveJobControl
                 pluginId="multi-focus"
-                parameters={request}
+                parameters={normalized ?? null}
                 disabled={busy || !structurallyValid}
               />
               {error && <p className="error-message">{error}</p>}
