@@ -12,10 +12,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.regex.Pattern;
 
 /** Generates stable documentation fragments from canonical jobs and plugin schemas. */
 @Service
 public final class FresnelDocumentationRenderer {
+
+    private static final Pattern EXAMPLE_ID_SEGMENT =
+            Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,127}");
 
     private final FresnelJobService jobService;
     private final PluginSchemaService schemaService;
@@ -64,13 +68,30 @@ public final class FresnelDocumentationRenderer {
     }
 
     public String renderMarkedParameterBlock(String exampleId, byte[] jobBytes) {
+        String id = validateExampleId(exampleId);
+        return "<!-- fresnel-example:" + id + ":start -->\n"
+                + renderParameterTable(jobBytes)
+                + "<!-- fresnel-example:" + id + ":end -->";
+    }
+
+    private static String validateExampleId(String exampleId) {
         if (exampleId == null || exampleId.isBlank()) {
             throw new IllegalArgumentException("documentation example id must not be empty");
         }
         String id = exampleId.trim();
-        return "<!-- fresnel-example:" + id + ":start -->\n"
-                + renderParameterTable(jobBytes)
-                + "<!-- fresnel-example:" + id + ":end -->";
+        if (id.contains("--")) {
+            throw new IllegalArgumentException(
+                    "documentation example id must not contain an HTML comment delimiter");
+        }
+        for (String segment : id.split("/", -1)) {
+            if (!EXAMPLE_ID_SEGMENT.matcher(segment).matches()
+                    || ".".equals(segment)
+                    || "..".equals(segment)) {
+                throw new IllegalArgumentException(
+                        "documentation example id contains an unsafe segment: " + exampleId);
+            }
+        }
+        return id;
     }
 
     private static JsonNode resolveSchema(JsonNode root, String path) {
@@ -98,11 +119,13 @@ public final class FresnelDocumentationRenderer {
     }
 
     private static String formatValue(JsonNode schema, JsonNode value) {
-        if (schema.path("x-fresnel-sensitive-size").asBoolean(false)
+        if ((schema.path("x-fresnel-sensitive-size").asBoolean(false)
+                || "base64".equals(schema.path("contentEncoding").asText()))
                 && value.isTextual()) {
             return value.textValue().isEmpty()
                     ? "No embedded data"
-                    : "Embedded data (" + value.textValue().length() + " Base64 characters)";
+                    : "Embedded data (approximately "
+                            + decodedBase64Bytes(value.textValue()) + " bytes decoded)";
         }
 
         String rendered;
@@ -112,11 +135,7 @@ public final class FresnelDocumentationRenderer {
                     ? "0"
                     : decimal.stripTrailingZeros().toPlainString();
         } else if (value.isTextual()) {
-            JsonNode labels = schema.get("x-fresnel-enum-labels");
-            JsonNode label = labels == null ? null : labels.get(value.textValue());
-            rendered = label != null && label.isTextual()
-                    ? label.textValue()
-                    : humanize(value.textValue());
+            rendered = formatTextValue(schema, value.textValue());
         } else if (value.isBoolean()) {
             rendered = value.booleanValue() ? "Yes" : "No";
         } else if (value.isArray()) {
@@ -131,6 +150,18 @@ public final class FresnelDocumentationRenderer {
 
         String unit = schema.path("x-fresnel-unit").asText("");
         return unit.isBlank() ? rendered : rendered + " " + unit;
+    }
+
+    private static String formatTextValue(JsonNode schema, String value) {
+        JsonNode enumValues = schema.get("enum");
+        if (enumValues != null && enumValues.isArray()) {
+            JsonNode labels = schema.get("x-fresnel-enum-labels");
+            JsonNode label = labels == null ? null : labels.get(value);
+            return label != null && label.isTextual()
+                    ? label.textValue()
+                    : humanize(value);
+        }
+        return value;
     }
 
     private static String formatArray(JsonNode itemSchema, JsonNode values) {
@@ -161,6 +192,11 @@ public final class FresnelDocumentationRenderer {
         return rendered.isEmpty() ? value.toString() : rendered;
     }
 
+    private static long decodedBase64Bytes(String value) {
+        long padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+        return Math.max(0, value.length() * 3L / 4L - padding);
+    }
+
     private static String humanize(String value) {
         String lower = value.toLowerCase(java.util.Locale.ROOT).replace('_', ' ');
         return lower.isEmpty()
@@ -169,7 +205,15 @@ public final class FresnelDocumentationRenderer {
     }
 
     private static String escape(String value) {
-        return value.replace("|", "\\|").replace("\n", " ");
+        return value
+                .replace("\\", "\\\\")
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("`", "&#96;")
+                .replace("|", "\\|")
+                .replace('\r', ' ')
+                .replace('\n', ' ');
     }
 
     private record Row(String label, String value) {}
