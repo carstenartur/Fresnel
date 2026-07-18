@@ -73,6 +73,13 @@ class FresnelDocumentationFilesTest {
         assertArrayEquals(originalOutside, Files.readAllBytes(outside));
     }
 
+    @Test
+    void portableKeysNormalizeCaseSeparatorsAndUnicodeComposition() {
+        assertEquals(
+                FresnelDocumentationFiles.portableKey("Plugin\\Caf\u00e9.PNG"),
+                FresnelDocumentationFiles.portableKey("plugin/Cafe\u0301.png"));
+    }
+
     private static void createSymbolicLinkOrAbort(Path link, Path target) throws Exception {
         try {
             Files.createSymbolicLink(link, target);
