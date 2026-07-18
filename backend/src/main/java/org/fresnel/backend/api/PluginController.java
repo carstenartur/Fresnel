@@ -57,7 +57,6 @@ public class PluginController {
             String description,
             String rendererClass,
             String parameterType,
-            String frontendModeId,
             String documentationUrl,
             PluginStabilityLevel stability,
             List<PluginCapability> capabilities,
@@ -77,7 +76,6 @@ public class PluginController {
                     descriptor.description(),
                     descriptor.rendererClass(),
                     descriptor.parameterType(),
-                    descriptor.frontendModeId(),
                     descriptor.documentationUrl(),
                     descriptor.stability(),
                     descriptor.capabilities().stream()
