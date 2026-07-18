@@ -13,15 +13,15 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Integration tests for documentation images that have not yet been migrated to
- * public `.fresnel` production jobs.
+ * Integration test for the remaining documentation image that has not yet been
+ * migrated to a public `.fresnel` production job.
  *
- * <p>Zone Plate, RGB Zone Plate, Multi-Focus and Hex Macro Cell examples no
- * longer live here. Their source of truth is `docs/jobs/<plugin>/*.fresnel`,
- * executed and drift-checked through `FresnelJobExecutor` in the backend module.</p>
+ * <p>Zone Plate, RGB Zone Plate, Multi-Focus, Hex Macro Cell and Hologram examples
+ * now come from `docs/jobs/<plugin>/*.fresnel` and are drift-checked through
+ * `FresnelJobExecutor` in the backend module.</p>
  *
- * <p>By default remaining images are written to
- * {@code target/doc-images/<plugin>/}. To regenerate their committed assets under
+ * <p>By default the remaining Window Foil image is written to
+ * {@code target/doc-images/window-foil/}. To regenerate its committed asset under
  * {@code docs/assets/plugins/}, pass {@code -Dfresnel.docs=generate}.</p>
  */
 class PluginDocImagesTest {
@@ -75,25 +75,5 @@ class PluginDocImagesTest {
         RenderResult r = WindowFoilRenderer.render(p);
         Path f = savePng(r.image(), dir, "foil-sheet.png");
         assertImage(r.image(), f, 400, 250);
-    }
-
-    @Test
-    void hologram_generateDocImages() throws IOException {
-        Path dir = pluginDir("hologram");
-
-        BufferedImage target = HologramParameters.syntheticCheckerTarget(512, 8);
-        Path fTarget = savePng(target, dir, "target.png");
-        assertImage(target, fTarget, 512, 512);
-
-        HologramParameters p = new HologramParameters(
-                target, 100, HologramParameters.OutputType.GREYSCALE_PHASE, 1200.0);
-        RenderResult r = HologramSynthesizer.synthesize(p);
-        Path fMask = savePng(r.image(), dir, "hologram-mask.png");
-        assertImage(r.image(), fMask, 400, 400);
-
-        BufferedImage recon = HologramSynthesizer.reconstruct(
-                r.image(), HologramParameters.OutputType.GREYSCALE_PHASE);
-        Path fRecon = savePng(recon, dir, "reconstruction.png");
-        assertImage(recon, fRecon, 400, 400);
     }
 }
