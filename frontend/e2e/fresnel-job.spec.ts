@@ -23,9 +23,11 @@ test('saves and reopens the current zone plate as a canonical .fresnel job', asy
   const aperture = zonePlateNumber(page, /^Aperture diameter \(mm\)/);
   const focalLength = zonePlateNumber(page, /^Focal length \(mm\)/);
   const wavelength = zonePlateNumber(page, /^Wavelength \(nm\)/);
+  const dpi = zonePlateNumber(page, /^Printer DPI/);
   await aperture.fill('8');
   await focalLength.fill('500');
   await wavelength.fill('632');
+  await dpi.fill('2400');
 
   const save = page.getByRole('button', { name: 'Save job (.fresnel)' });
   await expect(save).toBeEnabled({ timeout: 30_000 });
@@ -48,16 +50,19 @@ test('saves and reopens the current zone plate as a canonical .fresnel job', asy
   expect(job.parameters.apertureDiameterMm).toBe(8);
   expect(job.parameters.focalLengthMm).toBe(500);
   expect(job.parameters.wavelengthNm).toBe(632);
+  expect(job.parameters.dpi).toBe(2400);
   expect(job.provenance.parameterSha256).toMatch(/^[0-9a-f]{64}$/);
 
   // Prove that the downloaded public artifact is also accepted by the GUI and
   // restores the normalized parameter state.
   await aperture.fill('5');
   await focalLength.fill('250');
+  await dpi.fill('1200');
   await fileInput(page).setInputFiles(savedPath);
   await expect(aperture).toHaveValue('8');
   await expect(focalLength).toHaveValue('500');
   await expect(wavelength).toHaveValue('632');
+  await expect(dpi).toHaveValue('2400');
 });
 
 test('preserves production and compatibility metadata while editing a loaded job', async ({ page }) => {
@@ -106,9 +111,11 @@ test('preserves production and compatibility metadata while editing a loaded job
   });
   await zonePlateNumber(page, /^Focal length \(mm\)/).fill('1250');
 
+  const save = page.getByRole('button', { name: 'Save job (.fresnel)' });
+  await expect(save).toBeEnabled({ timeout: 30_000 });
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Save job (.fresnel)' }).click(),
+    save.click(),
   ]);
   const stream = await download.createReadStream();
   let json = '';
