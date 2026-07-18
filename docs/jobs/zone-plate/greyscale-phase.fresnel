@@ -1,0 +1,33 @@
+{
+  "$schema": "https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json",
+  "format": "io.github.carstenartur.fresnel.job",
+  "formatVersion": 1,
+  "plugin": {
+    "id": "zone-plate",
+    "parameterSchemaVersion": 1,
+    "algorithmVersion": "zone-plate/1"
+  },
+  "parameters": {
+    "apertureDiameterMm": 10.0,
+    "focalLengthMm": 250.0,
+    "wavelengthNm": 550.0,
+    "dpi": 1200.0,
+    "targetOffsetXmm": 0.0,
+    "targetOffsetYmm": 0.0,
+    "maskType": "GREYSCALE_PHASE",
+    "polarity": "POSITIVE"
+  },
+  "production": {
+    "outputs": [
+      {
+        "id": "documentation-preview",
+        "format": "png",
+        "filename": "greyscale-phase.png"
+      }
+    ]
+  },
+  "provenance": {
+    "createdWith": "Fresnel documentation",
+    "applicationVersion": "development"
+  }
+}
