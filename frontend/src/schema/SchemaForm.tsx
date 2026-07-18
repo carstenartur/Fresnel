@@ -485,7 +485,7 @@ function resolveFieldSchema(root: PluginParameterSchema, path: string): Paramete
     if (!current) throw new Error(`UI schema refers to unknown parameter field: ${path}`);
     properties = current.properties;
   }
-  return current;
+  return current as ParameterFieldSchema;
 }
 
 function isRequired(root: PluginParameterSchema, path: string): boolean {
