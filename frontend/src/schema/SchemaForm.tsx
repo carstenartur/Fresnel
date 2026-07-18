@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import type {
   ParameterFieldSchema,
+  PluginParameterFieldError,
   PluginParameterSchema,
   PluginUiSchema,
   PluginUiWidget,
@@ -11,6 +12,7 @@ export interface SchemaCustomWidgetProps {
   schema: ParameterFieldSchema;
   value: unknown;
   disabled: boolean;
+  errors: readonly PluginParameterFieldError[];
   onChange: (value: unknown) => void;
 }
 
@@ -23,6 +25,7 @@ export function SchemaForm<T extends object>({
   onChange,
   disabled = false,
   customWidgets = {},
+  fieldErrors = [],
 }: {
   parameterSchema: PluginParameterSchema;
   uiSchema: PluginUiSchema;
@@ -30,6 +33,7 @@ export function SchemaForm<T extends object>({
   onChange: (next: T) => void;
   disabled?: boolean;
   customWidgets?: Readonly<Record<string, SchemaCustomWidget>>;
+  fieldErrors?: readonly PluginParameterFieldError[];
 }) {
   const formId = useId().replace(/:/g, '');
 
@@ -54,6 +58,7 @@ export function SchemaForm<T extends object>({
               value={fieldValue}
               required={isRequired(parameterSchema, path)}
               disabled={disabled}
+              errors={errorsForPath(fieldErrors, path)}
               customWidgets={customWidgets}
               onChange={(next) => changeField(path, next)}
             />
@@ -101,6 +106,7 @@ function SchemaField({
   value,
   required,
   disabled,
+  errors,
   customWidgets,
   onChange,
 }: {
@@ -111,6 +117,7 @@ function SchemaField({
   value: unknown;
   required: boolean;
   disabled: boolean;
+  errors: readonly PluginParameterFieldError[];
   customWidgets: Readonly<Record<string, SchemaCustomWidget>>;
   onChange: (value: unknown) => void;
 }) {
@@ -119,19 +126,26 @@ function SchemaField({
     const CustomWidget = customWidgets[widgetType];
     if (!CustomWidget) {
       return (
-        <p key={path} className="error-message" data-schema-field={path}>
-          The trusted widget “{widgetType}” is not registered for {schema.title ?? path}.
-        </p>
+        <div data-schema-field={path}>
+          <p className="error-message">
+            The trusted widget “{widgetType}” is not registered for {schema.title ?? path}.
+          </p>
+          <FieldErrors id={`${id}-backend-errors`} errors={errors} />
+        </div>
       );
     }
     return (
-      <CustomWidget
-        path={path}
-        schema={schema}
-        value={value}
-        disabled={disabled}
-        onChange={onChange}
-      />
+      <div data-schema-field-wrapper={path}>
+        <CustomWidget
+          path={path}
+          schema={schema}
+          value={value}
+          disabled={disabled}
+          errors={errors}
+          onChange={onChange}
+        />
+        <FieldErrors id={`${id}-backend-errors`} errors={errors} />
+      </div>
     );
   }
 
@@ -144,6 +158,7 @@ function SchemaField({
         value={value}
         required={required}
         disabled={disabled}
+        errors={errors}
         presets={widget?.type === 'number-with-presets' ? widget.presets : undefined}
         onChange={onChange}
       />
@@ -158,6 +173,7 @@ function SchemaField({
         value={value}
         required={required}
         disabled={disabled}
+        errors={errors}
         onChange={onChange}
       />
     );
@@ -170,6 +186,7 @@ function SchemaField({
         schema={schema}
         value={value}
         disabled={disabled}
+        errors={errors}
         onChange={onChange}
       />
     );
@@ -183,15 +200,19 @@ function SchemaField({
         value={value}
         required={required}
         disabled={disabled}
+        errors={errors}
         onChange={onChange}
       />
     );
   }
 
   return (
-    <p className="error-message" data-schema-field={path}>
-      No standard renderer is available for {schema.title ?? path} ({schema.type}).
-    </p>
+    <div data-schema-field={path}>
+      <p className="error-message">
+        No standard renderer is available for {schema.title ?? path} ({schema.type}).
+      </p>
+      <FieldErrors id={`${id}-backend-errors`} errors={errors} />
+    </div>
   );
 }
 
@@ -202,6 +223,7 @@ function SchemaNumberField({
   value,
   required,
   disabled,
+  errors,
   presets,
   onChange,
 }: {
@@ -211,15 +233,19 @@ function SchemaNumberField({
   value: unknown;
   required: boolean;
   disabled: boolean;
+  errors: readonly PluginParameterFieldError[];
   presets?: Array<number | string>;
   onChange: (value: unknown) => void;
 }) {
-  const initial = numericText(value, schema.default);
-  const [text, setText] = useState(initial);
-  const parsed = Number(text);
-  const valid = useMemo(() => isValidNumber(text, parsed, schema), [text, parsed, schema]);
+  const [text, setText] = useState(() => numericText(value, schema.default));
+  const parsed = parseCompleteFiniteNumber(text);
+  const localValid = useMemo(
+    () => parsed !== null && isNumberWithinSchema(parsed, schema),
+    [parsed, schema],
+  );
   const descriptionId = schema.description ? `${id}-description` : undefined;
-  const errorId = !valid ? `${id}-error` : undefined;
+  const localErrorId = !localValid ? `${id}-local-error` : undefined;
+  const backendErrorId = errors.length > 0 ? `${id}-backend-errors` : undefined;
   const listId = presets && presets.length > 0 ? `${id}-presets` : undefined;
 
   useEffect(() => {
@@ -228,8 +254,11 @@ function SchemaNumberField({
 
   const updateText = (next: string) => {
     setText(next);
-    const number = Number(next);
-    if (isValidNumber(next, number, schema)) onChange(number);
+    const number = parseCompleteFiniteNumber(next);
+    // Incomplete text remains local. Complete finite values are submitted even
+    // when locally outside range so canonical validation can report the exact
+    // public parameter value instead of an old or silently coerced value.
+    if (number !== null) onChange(number);
   };
 
   return (
@@ -248,8 +277,8 @@ function SchemaNumberField({
         list={listId}
         required={required}
         disabled={disabled}
-        aria-invalid={!valid}
-        aria-describedby={[descriptionId, errorId].filter(Boolean).join(' ') || undefined}
+        aria-invalid={!localValid || errors.length > 0}
+        aria-describedby={describedBy(descriptionId, localErrorId, backendErrorId)}
         onChange={(event) => updateText(event.target.value)}
       />
       {listId && (
@@ -262,11 +291,12 @@ function SchemaNumberField({
           {schema.description}
         </small>
       )}
-      {!valid && (
-        <small id={errorId} className="error-message" style={{ display: 'block' }}>
+      {!localValid && (
+        <small id={localErrorId} className="error-message" style={{ display: 'block' }}>
           Enter a finite {schema.type === 'integer' ? 'integer' : 'number'} within the allowed range.
         </small>
       )}
+      <FieldErrors id={backendErrorId} errors={errors} />
     </div>
   );
 }
@@ -278,6 +308,7 @@ function SchemaSelectField({
   value,
   required,
   disabled,
+  errors,
   onChange,
 }: {
   id: string;
@@ -286,6 +317,7 @@ function SchemaSelectField({
   value: unknown;
   required: boolean;
   disabled: boolean;
+  errors: readonly PluginParameterFieldError[];
   onChange: (value: unknown) => void;
 }) {
   const options = schema.enum ?? [];
@@ -294,6 +326,7 @@ function SchemaSelectField({
     : typeof schema.default === 'string' ? schema.default : '';
   const labels = schema['x-fresnel-enum-labels'] ?? {};
   const descriptionId = schema.description ? `${id}-description` : undefined;
+  const backendErrorId = errors.length > 0 ? `${id}-backend-errors` : undefined;
 
   return (
     <div className="field" data-schema-field={path}>
@@ -305,7 +338,8 @@ function SchemaSelectField({
         value={current}
         required={required}
         disabled={disabled}
-        aria-describedby={descriptionId}
+        aria-invalid={errors.length > 0}
+        aria-describedby={describedBy(descriptionId, backendErrorId)}
         onChange={(event) => onChange(event.target.value)}
       >
         {options.map((option) => (
@@ -317,6 +351,7 @@ function SchemaSelectField({
           {schema.description}
         </small>
       )}
+      <FieldErrors id={backendErrorId} errors={errors} />
     </div>
   );
 }
@@ -327,6 +362,7 @@ function SchemaBooleanField({
   schema,
   value,
   disabled,
+  errors,
   onChange,
 }: {
   id: string;
@@ -334,11 +370,14 @@ function SchemaBooleanField({
   schema: ParameterFieldSchema;
   value: unknown;
   disabled: boolean;
+  errors: readonly PluginParameterFieldError[];
   onChange: (value: unknown) => void;
 }) {
   const checked = typeof value === 'boolean'
     ? value
     : typeof schema.default === 'boolean' ? schema.default : false;
+  const descriptionId = schema.description ? `${id}-description` : undefined;
+  const backendErrorId = errors.length > 0 ? `${id}-backend-errors` : undefined;
   return (
     <div className="field" data-schema-field={path}>
       <label htmlFor={id}>
@@ -347,13 +386,18 @@ function SchemaBooleanField({
           type="checkbox"
           checked={checked}
           disabled={disabled}
+          aria-invalid={errors.length > 0}
+          aria-describedby={describedBy(descriptionId, backendErrorId)}
           onChange={(event) => onChange(event.target.checked)}
         />{' '}
         {fieldLabel(schema, path)}
       </label>
       {schema.description && (
-        <small style={{ display: 'block', color: '#6b7280' }}>{schema.description}</small>
+        <small id={descriptionId} style={{ display: 'block', color: '#6b7280' }}>
+          {schema.description}
+        </small>
       )}
+      <FieldErrors id={backendErrorId} errors={errors} />
     </div>
   );
 }
@@ -365,6 +409,7 @@ function SchemaTextField({
   value,
   required,
   disabled,
+  errors,
   onChange,
 }: {
   id: string;
@@ -373,12 +418,14 @@ function SchemaTextField({
   value: unknown;
   required: boolean;
   disabled: boolean;
+  errors: readonly PluginParameterFieldError[];
   onChange: (value: unknown) => void;
 }) {
   const current = typeof value === 'string'
     ? value
     : typeof schema.default === 'string' ? schema.default : '';
   const descriptionId = schema.description ? `${id}-description` : undefined;
+  const backendErrorId = errors.length > 0 ? `${id}-backend-errors` : undefined;
   return (
     <div className="field" data-schema-field={path}>
       <label htmlFor={id}>
@@ -389,7 +436,8 @@ function SchemaTextField({
         value={current}
         required={required}
         disabled={disabled}
-        aria-describedby={descriptionId}
+        aria-invalid={errors.length > 0}
+        aria-describedby={describedBy(descriptionId, backendErrorId)}
         onChange={(event) => onChange(event.target.value)}
       />
       {schema.description && (
@@ -397,8 +445,36 @@ function SchemaTextField({
           {schema.description}
         </small>
       )}
+      <FieldErrors id={backendErrorId} errors={errors} />
     </div>
   );
+}
+
+function FieldErrors({
+  id,
+  errors,
+}: {
+  id: string | undefined;
+  errors: readonly PluginParameterFieldError[];
+}) {
+  if (!id || errors.length === 0) return null;
+  return (
+    <div id={id} className="error-message" style={{ fontSize: 12, marginTop: 4 }}>
+      {errors.map((error, index) => (
+        <div key={`${error.path}:${error.code}:${index}`}>{error.message}</div>
+      ))}
+    </div>
+  );
+}
+
+function errorsForPath(
+  errors: readonly PluginParameterFieldError[],
+  path: string,
+): PluginParameterFieldError[] {
+  return errors.filter((error) =>
+    error.path === path
+    || error.path.startsWith(`${path}.`)
+    || error.path.startsWith(`${path}[`));
 }
 
 function resolveFieldSchema(root: PluginParameterSchema, path: string): ParameterFieldSchema {
@@ -409,7 +485,7 @@ function resolveFieldSchema(root: PluginParameterSchema, path: string): Paramete
     if (!current) throw new Error(`UI schema refers to unknown parameter field: ${path}`);
     properties = current.properties;
   }
-  return current as ParameterFieldSchema;
+  return current;
 }
 
 function isRequired(root: PluginParameterSchema, path: string): boolean {
@@ -447,8 +523,14 @@ function setValueAtPath(
   return { ...source, [head]: setValueAtPath(child, tail.join('.'), value) };
 }
 
-function isValidNumber(text: string, value: number, schema: ParameterFieldSchema): boolean {
-  if (text.trim() === '' || !Number.isFinite(value)) return false;
+function parseCompleteFiniteNumber(text: string): number | null {
+  const trimmed = text.trim();
+  if (!/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(trimmed)) return null;
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? value : null;
+}
+
+function isNumberWithinSchema(value: number, schema: ParameterFieldSchema): boolean {
   if (schema.type === 'integer' && !Number.isInteger(value)) return false;
   if (schema.minimum !== undefined && value < schema.minimum) return false;
   if (schema.maximum !== undefined && value > schema.maximum) return false;
@@ -473,6 +555,11 @@ function fieldLabel(schema: ParameterFieldSchema, path: string): string {
 function humanizeEnum(value: string): string {
   const lower = value.toLowerCase().replace(/_/g, ' ');
   return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+function describedBy(...ids: Array<string | undefined>): string | undefined {
+  const joined = ids.filter(Boolean).join(' ');
+  return joined || undefined;
 }
 
 function toDomId(path: string): string {
