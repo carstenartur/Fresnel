@@ -3,6 +3,7 @@ import type {
   ParameterFieldSchema,
   PluginParameterFieldError,
   PluginParameterSchema,
+  PluginUiCondition,
   PluginUiSchema,
   PluginUiWidget,
 } from '../pluginSchemaApi';
@@ -36,18 +37,25 @@ export function SchemaForm<T extends object>({
   fieldErrors?: readonly PluginParameterFieldError[];
 }) {
   const formId = useId().replace(/:/g, '');
+  const source = value as Record<string, unknown>;
 
   const changeField = (path: string, fieldValue: unknown) => {
-    const next = setValueAtPath(value as Record<string, unknown>, path, fieldValue);
+    const next = setValueAtPath(source, path, fieldValue);
     onChange(next as T);
   };
 
   return (
     <div data-plugin-schema={uiSchema.pluginId}>
       {uiSchema.groups.map((group) => {
-        const controls = group.fields.map((path) => {
+        if (!conditionMatches(group.visibleWhen, source)) return null;
+
+        const visiblePaths = group.fields.filter((path) =>
+          conditionMatches(uiSchema.widgets?.[path]?.visibleWhen, source));
+        if (visiblePaths.length === 0) return null;
+
+        const controls = visiblePaths.map((path) => {
           const schema = resolveFieldSchema(parameterSchema, path);
-          const fieldValue = getValueAtPath(value as Record<string, unknown>, path);
+          const fieldValue = getValueAtPath(source, path);
           return (
             <SchemaField
               key={path}
@@ -122,7 +130,20 @@ function SchemaField({
   onChange: (value: unknown) => void;
 }) {
   const widgetType = widget?.type ?? schema['x-fresnel-widget'];
-  if (widgetType && widgetType !== 'select' && widgetType !== 'number-with-presets') {
+  const readOnly = schema.readOnly === true || widget?.readOnly === true || widgetType === 'read-only';
+  if (readOnly) {
+    return (
+      <SchemaReadOnlyField
+        id={id}
+        path={path}
+        schema={schema}
+        value={value}
+        errors={errors}
+      />
+    );
+  }
+
+  if (widgetType && !isStandardWidget(widgetType)) {
     const CustomWidget = customWidgets[widgetType];
     if (!CustomWidget) {
       return (
@@ -159,7 +180,21 @@ function SchemaField({
         required={required}
         disabled={disabled}
         errors={errors}
-        presets={widget?.type === 'number-with-presets' ? widget.presets : undefined}
+        presets={widgetType === 'number-with-presets' ? widget?.presets : undefined}
+        onChange={onChange}
+      />
+    );
+  }
+  if (schema.type === 'string' && schema.enum && widgetType === 'radio') {
+    return (
+      <SchemaRadioField
+        id={id}
+        path={path}
+        schema={schema}
+        value={value}
+        required={required}
+        disabled={disabled}
+        errors={errors}
         onChange={onChange}
       />
     );
@@ -356,6 +391,75 @@ function SchemaSelectField({
   );
 }
 
+function SchemaRadioField({
+  id,
+  path,
+  schema,
+  value,
+  required,
+  disabled,
+  errors,
+  onChange,
+}: {
+  id: string;
+  path: string;
+  schema: ParameterFieldSchema;
+  value: unknown;
+  required: boolean;
+  disabled: boolean;
+  errors: readonly PluginParameterFieldError[];
+  onChange: (value: unknown) => void;
+}) {
+  const options = schema.enum ?? [];
+  const current = typeof value === 'string'
+    ? value
+    : typeof schema.default === 'string' ? schema.default : '';
+  const labels = schema['x-fresnel-enum-labels'] ?? {};
+  const descriptionId = schema.description ? `${id}-description` : undefined;
+  const backendErrorId = errors.length > 0 ? `${id}-backend-errors` : undefined;
+
+  return (
+    <fieldset
+      className="field"
+      data-schema-field={path}
+      disabled={disabled}
+      aria-invalid={errors.length > 0}
+      aria-describedby={describedBy(descriptionId, backendErrorId)}
+      style={{ border: 0, padding: 0, margin: '0 0 10px' }}
+    >
+      <legend>
+        {fieldLabel(schema, path)}{required ? ' *' : ''}
+      </legend>
+      {options.map((option, index) => {
+        const optionId = `${id}-${index}`;
+        return (
+          <label key={option} htmlFor={optionId} style={{ display: 'block' }}>
+            <input
+              id={optionId}
+              name={id}
+              type="radio"
+              value={option}
+              checked={current === option}
+              required={required}
+              disabled={disabled}
+              onChange={(event) => {
+                if (event.target.checked) onChange(option);
+              }}
+            />{' '}
+            {labels[option] ?? humanizeEnum(option)}
+          </label>
+        );
+      })}
+      {schema.description && (
+        <small id={descriptionId} style={{ display: 'block', color: '#6b7280' }}>
+          {schema.description}
+        </small>
+      )}
+      <FieldErrors id={backendErrorId} errors={errors} />
+    </fieldset>
+  );
+}
+
 function SchemaBooleanField({
   id,
   path,
@@ -450,6 +554,43 @@ function SchemaTextField({
   );
 }
 
+function SchemaReadOnlyField({
+  id,
+  path,
+  schema,
+  value,
+  errors,
+}: {
+  id: string;
+  path: string;
+  schema: ParameterFieldSchema;
+  value: unknown;
+  errors: readonly PluginParameterFieldError[];
+}) {
+  const descriptionId = schema.description ? `${id}-description` : undefined;
+  const backendErrorId = errors.length > 0 ? `${id}-backend-errors` : undefined;
+  return (
+    <div className="field" data-schema-field={path}>
+      <label htmlFor={id}>{fieldLabel(schema, path)}</label>
+      <output
+        id={id}
+        aria-readonly="true"
+        aria-invalid={errors.length > 0}
+        aria-describedby={describedBy(descriptionId, backendErrorId)}
+        style={{ display: 'block' }}
+      >
+        {formatReadOnlyValue(value ?? schema.default)}
+      </output>
+      {schema.description && (
+        <small id={descriptionId} style={{ display: 'block', color: '#6b7280' }}>
+          {schema.description}
+        </small>
+      )}
+      <FieldErrors id={backendErrorId} errors={errors} />
+    </div>
+  );
+}
+
 function FieldErrors({
   id,
   errors,
@@ -503,6 +644,21 @@ function isRequired(root: PluginParameterSchema, path: string): boolean {
   return false;
 }
 
+function conditionMatches(
+  condition: PluginUiCondition | undefined,
+  source: Record<string, unknown>,
+): boolean {
+  if (!condition) return true;
+  const actual = getValueAtPath(source, condition.path);
+  if (Object.prototype.hasOwnProperty.call(condition, 'equals')) {
+    return Object.is(actual, condition.equals);
+  }
+  if (Object.prototype.hasOwnProperty.call(condition, 'notEquals')) {
+    return !Object.is(actual, condition.notEquals);
+  }
+  return condition.oneOf?.some((candidate) => Object.is(actual, candidate)) ?? false;
+}
+
 function getValueAtPath(source: Record<string, unknown>, path: string): unknown {
   let current: unknown = source;
   for (const segment of path.split('.')) {
@@ -552,6 +708,14 @@ function fieldLabel(schema: ParameterFieldSchema, path: string): string {
   return unit && !base.toLowerCase().includes(unit.toLowerCase()) ? `${base} (${unit})` : base;
 }
 
+function formatReadOnlyValue(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return JSON.stringify(value);
+}
+
 function humanizeEnum(value: string): string {
   const lower = value.toLowerCase().replace(/_/g, ' ');
   return lower.charAt(0).toUpperCase() + lower.slice(1);
@@ -560,6 +724,13 @@ function humanizeEnum(value: string): string {
 function describedBy(...ids: Array<string | undefined>): string | undefined {
   const joined = ids.filter(Boolean).join(' ');
   return joined || undefined;
+}
+
+function isStandardWidget(widgetType: string): boolean {
+  return widgetType === 'select'
+    || widgetType === 'number-with-presets'
+    || widgetType === 'radio'
+    || widgetType === 'read-only';
 }
 
 function toDomId(path: string): string {
