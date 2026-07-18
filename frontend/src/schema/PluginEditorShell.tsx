@@ -53,14 +53,18 @@ export function PluginEditorShell<T extends object>({
   const [validationSnapshot, setValidationSnapshot] =
     useState<ValidationSnapshot<T> | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [visibleFormValid, setVisibleFormValid] = useState(false);
+  const shellRef = useRef<HTMLDivElement>(null);
   const defaultsApplied = useRef(false);
   const onChangeRef = useRef(onChange);
   const validationCallbackRef = useRef(onStructuralValidation);
   const validationRequestId = useRef(0);
+  const validityFrame = useRef<number | null>(null);
   const valueFingerprint = JSON.stringify(value);
   const validation = validationSnapshot?.fingerprint === valueFingerprint
     ? validationSnapshot.result
     : null;
+  const effectiveValidation = visibleFormValid ? validation : null;
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -71,13 +75,17 @@ export function PluginEditorShell<T extends object>({
   }, [onStructuralValidation]);
 
   useEffect(() => {
+    validationCallbackRef.current?.(effectiveValidation);
+  }, [effectiveValidation]);
+
+  useEffect(() => {
     let active = true;
     defaultsApplied.current = false;
     setSchema(null);
     setSchemaError(null);
     setValidationSnapshot(null);
     setValidationError(null);
-    validationCallbackRef.current?.(null);
+    setVisibleFormValid(false);
 
     fetchPluginSchema<T>(pluginId)
       .then((loaded) => {
@@ -106,7 +114,6 @@ export function PluginEditorShell<T extends object>({
     // actions invalid immediately instead of leaving a short stale-valid window
     // during the debounce.
     setValidationError(null);
-    validationCallbackRef.current?.(null);
 
     const timer = window.setTimeout(async () => {
       try {
@@ -114,22 +121,48 @@ export function PluginEditorShell<T extends object>({
         if (requestId !== validationRequestId.current) return;
         setValidationSnapshot({ fingerprint, result });
         setValidationError(null);
-        validationCallbackRef.current?.(result);
       } catch (requestError) {
         if (requestId !== validationRequestId.current) return;
         setValidationSnapshot(null);
         setValidationError(requestError instanceof Error
           ? requestError.message
           : String(requestError));
-        validationCallbackRef.current?.(null);
       }
     }, 200);
 
     return () => window.clearTimeout(timer);
   }, [pluginId, schema, value, valueFingerprint]);
 
+  const scheduleVisibleValidityCheck = () => {
+    if (validityFrame.current !== null) window.cancelAnimationFrame(validityFrame.current);
+    validityFrame.current = window.requestAnimationFrame(() => {
+      validityFrame.current = null;
+      const schemaForm = shellRef.current?.querySelector('[data-plugin-schema]');
+      const visiblyInvalid = schemaForm?.querySelector('[aria-invalid="true"]');
+      setVisibleFormValid(Boolean(schemaForm) && !visiblyInvalid);
+    });
+  };
+
+  useEffect(() => {
+    scheduleVisibleValidityCheck();
+    return () => {
+      if (validityFrame.current !== null) {
+        window.cancelAnimationFrame(validityFrame.current);
+        validityFrame.current = null;
+      }
+    };
+    // Validation errors can add aria-invalid to a control without changing the
+    // public parameter object, so both states participate in the visible check.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema, valueFingerprint, validation]);
+
   return (
-    <div data-plugin-editor-shell={pluginId}>
+    <div
+      ref={shellRef}
+      data-plugin-editor-shell={pluginId}
+      onInputCapture={scheduleVisibleValidityCheck}
+      onChangeCapture={scheduleVisibleValidityCheck}
+    >
       {schema ? (
         <SchemaForm
           parameterSchema={schema.parameterSchema}
@@ -174,7 +207,7 @@ export function PluginEditorShell<T extends object>({
         </p>
       )}
 
-      {schema && children?.(schema, validation)}
+      {schema && children?.(schema, effectiveValidation)}
     </div>
   );
 }
