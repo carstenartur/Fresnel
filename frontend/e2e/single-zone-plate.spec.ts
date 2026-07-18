@@ -26,9 +26,11 @@ test('single zone plate preview renders and PNG export downloads', async ({ page
   await expect(preview).toBeVisible({ timeout: 30_000 });
   await expect(preview).toHaveJSProperty('complete', true);
 
+  const png = page.getByRole('button', { name: /^PNG$/ });
+  await expect(png).toBeEnabled({ timeout: 30_000 });
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: /^PNG$/ }).click(),
+    png.click(),
   ]);
   expect(download.suggestedFilename()).toMatch(/\.png$/);
   const stream = await download.createReadStream();
