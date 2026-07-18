@@ -2,8 +2,6 @@ import { useState } from 'react';
 import {
   downloadMultiFocusPng,
   fetchMultiFocusPreviewPng,
-  validatePlugin,
-  type DesignValidationReport,
   type MultiFocusRequest,
 } from '../api';
 import {
@@ -37,7 +35,6 @@ export function MultiFocusPanel({ initialJob }: JobPanelProps) {
     initialJobParameters(initialJob, 'multi-focus', DEFAULT));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
   const renderPreview = async (parameters: MultiFocusRequest) => {
@@ -45,9 +42,7 @@ export function MultiFocusPanel({ initialJob }: JobPanelProps) {
     setError(null);
     try {
       setPreview(await fetchMultiFocusPreviewPng(parameters));
-      setValidationReport(await validatePlugin('multi-focus', parameters));
     } catch (renderError) {
-      setValidationReport(null);
       setError(renderError instanceof Error ? renderError.message : String(renderError));
     } finally {
       setBusy(false);
@@ -65,11 +60,12 @@ export function MultiFocusPanel({ initialJob }: JobPanelProps) {
         customWidgets={CUSTOM_WIDGETS}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema, structuralValidation) => {
+        {(schema, structuralValidation, domainValidation) => {
           const normalized = structuralValidation?.valid
             ? structuralValidation.normalizedParameters
             : undefined;
           const structurallyValid = Boolean(normalized);
+          const productionReady = structurallyValid && domainValidation?.valid === true;
           return (
             <>
               <PluginActionBar
@@ -84,7 +80,7 @@ export function MultiFocusPanel({ initialJob }: JobPanelProps) {
                   },
                   EXPORT_PNG: {
                     label: 'PNG',
-                    disabled: !structurallyValid,
+                    disabled: !productionReady,
                     run: () => normalized
                       && downloadMultiFocusPng(normalized, 'fresnel-multifocus.png'),
                   },
@@ -98,7 +94,7 @@ export function MultiFocusPanel({ initialJob }: JobPanelProps) {
               {error && <p className="error-message">{error}</p>}
 
               <PreviewPane url={previewUrl} alt="Multi-focus preview" />
-              <ValidationReportView report={validationReport} />
+              <ValidationReportView report={domainValidation} />
             </>
           );
         }}
