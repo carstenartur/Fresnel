@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FresnelJobDocument.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">FresnelJobDocument.java</span></div><h1>FresnelJobDocument.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import tools.jackson.databind.JsonNode;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Versioned, JSON-based exchange document for a Fresnel design or production job.
+ *
+ * &lt;p&gt;The public contract deliberately contains stable plugin ids and plain data only.
+ * Renderer class names, Java code and other executable implementation references are
+ * not part of the format.&lt;/p&gt;
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L19">public record FresnelJobDocument(</span>
+        @JsonProperty(&quot;$schema&quot;) String schema,
+        String format,
+        int formatVersion,
+        PluginRef plugin,
+        JsonNode parameters,
+        ProductionPlan production,
+        Provenance provenance
+) {
+
+    public static final String FORMAT_IDENTIFIER = &quot;io.github.carstenartur.fresnel.job&quot;;
+    public static final int CURRENT_FORMAT_VERSION = 1;
+    public static final int CURRENT_PARAMETER_SCHEMA_VERSION = 1;
+    public static final String MEDIA_TYPE = &quot;application/vnd.carstenartur.fresnel.job+json&quot;;
+    public static final String FILE_EXTENSION = &quot;.fresnel&quot;;
+    public static final String SCHEMA_URL =
+            &quot;https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json&quot;;
+    public static final int MAX_FILE_BYTES = 1024 * 1024;
+
+    /** Stable reference to the design plugin and its public compatibility versions. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record PluginRef(
+            String id,
+            Integer parameterSchemaVersion,
+            String algorithmVersion
+    ) {
+<span class="fc" id="L45">        public PluginRef {</span>
+<span class="pc bpc" id="L46" title="2 of 4 branches missed.">            if (id == null || id.isBlank()) {</span>
+<span class="nc" id="L47">                throw new IllegalArgumentException(&quot;Fresnel job plugin.id must not be empty&quot;);</span>
+            }
+<span class="pc bpc" id="L49" title="1 of 4 branches missed.">            if (parameterSchemaVersion == null || parameterSchemaVersion &lt; 1) {</span>
+<span class="fc" id="L50">                throw new IllegalArgumentException(</span>
+                        &quot;Fresnel job plugin.parameterSchemaVersion must be at least 1&quot;);
+            }
+<span class="pc bpc" id="L53" title="1 of 4 branches missed.">            if (algorithmVersion == null || algorithmVersion.isBlank()) {</span>
+<span class="fc" id="L54">                throw new IllegalArgumentException(</span>
+                        &quot;Fresnel job plugin.algorithmVersion must not be empty&quot;);
+            }
+<span class="fc" id="L57">            id = id.trim();</span>
+<span class="fc" id="L58">            algorithmVersion = algorithmVersion.trim();</span>
+<span class="fc" id="L59">        }</span>
+    }
+
+    /** Optional non-empty list of outputs requested from the design. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ProductionPlan(List&lt;ProductionOutput&gt; outputs) {
+<span class="fc" id="L65">        public ProductionPlan {</span>
+            // Keep null entries until the canonical service can report their exact
+            // array index instead of failing inside List.copyOf during JSON binding.
+<span class="fc bfc" id="L68" title="All 2 branches covered.">            outputs = outputs == null</span>
+<span class="fc" id="L69">                    ? null</span>
+<span class="fc" id="L70">                    : Collections.unmodifiableList(new ArrayList&lt;&gt;(outputs));</span>
+<span class="fc" id="L71">        }</span>
+    }
+
+    /**
+     * One requested output. Format-specific options may use the common PDF fields or
+     * the optional data-only {@code options} object.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L79">    public record ProductionOutput(</span>
+            String id,
+            String format,
+            String filename,
+            String sheet,
+            Double printScale,
+            JsonNode options
+    ) {}
+
+    /** Non-sensitive metadata needed to diagnose and reproduce a design. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+<span class="fc" id="L90">    public record Provenance(</span>
+            String createdWith,
+            String applicationVersion,
+            String parameterSha256
+    ) {}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

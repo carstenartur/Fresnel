@@ -115,7 +115,7 @@ public class DesignController {
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; exportPng(@Valid @RequestBody SingleZonePlateRequest req) throws IOException {
-<span class="nc" id="L118">        return renderSinglePng(req.toParameters(), &quot;attachment&quot;, &quot;fresnel-zone-plate.png&quot;);</span>
+<span class="fc" id="L118">        return renderSinglePng(req.toParameters(), &quot;attachment&quot;, &quot;fresnel-zone-plate.png&quot;);</span>
     }
 
     @PostMapping(value = &quot;/export.svg&quot;,
