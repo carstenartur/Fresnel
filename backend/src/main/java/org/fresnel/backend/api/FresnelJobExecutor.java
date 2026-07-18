@@ -19,26 +19,31 @@ import org.fresnel.optics.SvgExporter;
 import org.fresnel.optics.WindowFoilRenderer;
 import org.fresnel.optics.ZonePlateRenderer;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Executes the production plan of a canonical {@link FresnelJobDocument} without
  * depending on HTTP, browser state or test-only switches.
  *
  * <p>The same service is suitable for documentation generation, a CLI, batch
- * execution and later REST production endpoints. Input always passes through
+ * execution and REST production endpoints. Input always passes through
  * {@link FresnelJobService}; output paths are delegated to an injected
  * {@link FresnelJobOutputSink}.</p>
  */
@@ -51,6 +56,7 @@ public class FresnelJobExecutor {
     private static final String DXF = "application/dxf";
     private static final String GERBER = "application/vnd.gerber";
     private static final String STL = "model/stl";
+    private static final Set<String> HOLOGRAM_PNG_OPTION_FIELDS = Set.of("hologramPng");
 
     private final FresnelJobService jobService;
     private final ObjectMapper mapper;
@@ -95,10 +101,6 @@ public class FresnelJobExecutor {
     private RenderedOutput render(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
-        if (output.options() != null && output.options().size() > 0) {
-            throw new IllegalArgumentException(
-                    "Production output options are not implemented for " + output.id());
-        }
         return switch (job.plugin().id()) {
             case "zone-plate" -> renderZonePlate(job, output);
             case "hex-macro-cell" -> renderHexMacroCell(job, output);
@@ -114,6 +116,7 @@ public class FresnelJobExecutor {
     private RenderedOutput renderZonePlate(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
+        requireNoOptions(output);
         SingleZonePlateRequest request = mapper.convertValue(
                 job.parameters(), SingleZonePlateRequest.class);
         SingleZonePlateParameters parameters = request.toParameters();
@@ -152,6 +155,7 @@ public class FresnelJobExecutor {
     private RenderedOutput renderHexMacroCell(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
+        requireNoOptions(output);
         HexMacroCellRequest request = mapper.convertValue(
                 job.parameters(), HexMacroCellRequest.class);
         RenderResult rendered = HexMacroCellRenderer.render(request.toParameters());
@@ -167,6 +171,7 @@ public class FresnelJobExecutor {
     private RenderedOutput renderWindowFoil(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
+        requireNoOptions(output);
         WindowFoilRequest request = mapper.convertValue(
                 job.parameters(), WindowFoilRequest.class);
         if (!"pdf".equals(output.format())) {
@@ -180,6 +185,7 @@ public class FresnelJobExecutor {
     private RenderedOutput renderMultiFocus(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
+        requireNoOptions(output);
         MultiFocusRequest request = mapper.convertValue(
                 job.parameters(), MultiFocusRequest.class);
         if (!"png".equals(output.format())) {
@@ -193,6 +199,7 @@ public class FresnelJobExecutor {
     private RenderedOutput renderRgb(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
+        requireNoOptions(output);
         RgbZonePlateRequest request = mapper.convertValue(
                 job.parameters(), RgbZonePlateRequest.class);
         if (!"png".equals(output.format())) {
@@ -210,13 +217,9 @@ public class FresnelJobExecutor {
             FresnelJobDocument.ProductionOutput output) throws IOException {
         HologramRequest request = mapper.convertValue(job.parameters(), HologramRequest.class);
         return switch (output.format()) {
-            case "png" -> {
-                HologramParameters parameters = HologramController.decode(request);
-                RenderResult rendered = HologramSynthesizer.synthesize(parameters);
-                yield new RenderedOutput(
-                        PngExporter.toPngBytes(rendered, parameters.dpi()), PNG, parameters.dpi());
-            }
+            case "png" -> renderHologramPng(request, output);
             case "stl" -> {
+                requireNoOptions(output);
                 if (request.sidePx() > HologramController.MAX_STL_SIDE) {
                     throw new IllegalArgumentException(
                             "sidePx > " + HologramController.MAX_STL_SIDE
@@ -243,6 +246,89 @@ public class FresnelJobExecutor {
             }
             default -> throw unsupported(job.plugin().id(), output.format());
         };
+    }
+
+    private RenderedOutput renderHologramPng(
+            HologramRequest request,
+            FresnelJobDocument.ProductionOutput output) throws IOException {
+        HologramPngKind kind = hologramPngKind(output);
+        if (kind == HologramPngKind.SOURCE) {
+            return new RenderedOutput(
+                    encodePng(decodeEmbeddedTarget(request.targetImageBase64())), PNG, null);
+        }
+
+        HologramParameters parameters = HologramController.decode(request);
+        RenderResult mask = HologramSynthesizer.synthesize(parameters);
+        if (kind == HologramPngKind.MASK) {
+            return new RenderedOutput(
+                    PngExporter.toPngBytes(mask, parameters.dpi()), PNG, parameters.dpi());
+        }
+        BufferedImage reconstruction = HologramSynthesizer.reconstruct(
+                mask.image(), parameters.outputType());
+        return new RenderedOutput(encodePng(reconstruction), PNG, null);
+    }
+
+    private static HologramPngKind hologramPngKind(
+            FresnelJobDocument.ProductionOutput output) {
+        JsonNode options = output.options();
+        if (options == null || options.isEmpty()) return HologramPngKind.MASK;
+        for (Map.Entry<String, JsonNode> entry : options.properties()) {
+            if (!HOLOGRAM_PNG_OPTION_FIELDS.contains(entry.getKey())) {
+                throw new IllegalArgumentException(
+                        "Unsupported Hologram PNG option: " + entry.getKey());
+            }
+        }
+        JsonNode value = options.get("hologramPng");
+        if (value == null || !value.isTextual() || value.textValue().isBlank()) {
+            throw new IllegalArgumentException(
+                    "Hologram PNG option hologramPng must be SOURCE, MASK or RECONSTRUCTION");
+        }
+        try {
+            return HologramPngKind.valueOf(
+                    value.textValue().trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Hologram PNG option hologramPng must be SOURCE, MASK or RECONSTRUCTION", e);
+        }
+    }
+
+    private static BufferedImage decodeEmbeddedTarget(String encoded) throws IOException {
+        if (encoded == null) {
+            throw new IllegalArgumentException("Hologram target image must not be null");
+        }
+        int comma = encoded.indexOf(',');
+        String base64 = encoded.startsWith("data:") && comma > 0
+                ? encoded.substring(comma + 1)
+                : encoded;
+        if (base64.length() > HologramController.MAX_BASE64_BYTES) {
+            throw new IllegalArgumentException("Hologram target image is too large");
+        }
+        final byte[] raw;
+        try {
+            raw = Base64.getDecoder().decode(base64);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Hologram target image is not valid Base64", e);
+        }
+        BufferedImage image = ImageIO.read(new ByteArrayInputStream(raw));
+        if (image == null) {
+            throw new IllegalArgumentException("Hologram target image could not be decoded");
+        }
+        return image;
+    }
+
+    private static byte[] encodePng(BufferedImage image) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        if (!ImageIO.write(image, "png", output)) {
+            throw new IOException("No PNG writer is available");
+        }
+        return output.toByteArray();
+    }
+
+    private static void requireNoOptions(FresnelJobDocument.ProductionOutput output) {
+        if (output.options() != null && !output.options().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Production output options are not implemented for " + output.id());
+        }
     }
 
     private static RenderResult scaledForPdf(
@@ -359,6 +445,12 @@ public class FresnelJobExecutor {
         digest.update((byte) (value >>> 16));
         digest.update((byte) (value >>> 8));
         digest.update((byte) value);
+    }
+
+    private enum HologramPngKind {
+        SOURCE,
+        MASK,
+        RECONSTRUCTION
     }
 
     private record RenderedOutput(byte[] content, String mediaType, Double dpi) {
