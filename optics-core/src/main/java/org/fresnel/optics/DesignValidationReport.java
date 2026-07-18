@@ -11,6 +11,11 @@ import java.util.Map;
  * specific derived getter. The canonical constructor always recomputes it from
  * the normalized findings, so callers cannot create a report whose flag
  * contradicts its ERROR findings.</p>
+ *
+ * <p>The component is boxed so older persisted experiment records that predate
+ * this serialized field can still be read. A missing JSON property binds as
+ * {@code null}; the constructor immediately replaces it with the canonical
+ * findings-derived value.</p>
  */
 public record DesignValidationReport(
         String pluginId,
@@ -24,7 +29,7 @@ public record DesignValidationReport(
         List<ValidationAssumption> assumptions,
         List<ValidationMetric> metrics,
         List<ValidationFinding> findings,
-        boolean valid
+        Boolean valid
 ) {
     public DesignValidationReport {
         parameterSnapshot = java.util.Collections.unmodifiableMap(
@@ -68,6 +73,6 @@ public record DesignValidationReport(
                 assumptions,
                 metrics,
                 findings,
-                false);
+                null);
     }
 }
