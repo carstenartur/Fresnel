@@ -7,6 +7,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -115,6 +116,8 @@ final class FresnelDocumentationFiles {
     }
 
     static String portableKey(String value) {
-        return value.replace('\\', '/').toLowerCase(Locale.ROOT);
+        String portable = value.replace('\\', '/');
+        return Normalizer.normalize(portable, Normalizer.Form.NFC)
+                .toLowerCase(Locale.ROOT);
     }
 }
