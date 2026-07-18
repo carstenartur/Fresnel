@@ -82,8 +82,9 @@ public final class FresnelDocumentationManifestService {
                     throw new IllegalStateException(
                             "Missing or unsafe documentation artifact: " + tracked);
                 }
+                byte[] trackedContent = Files.readAllBytes(tracked);
                 String trackedHash = FresnelJobExecutor.normalizedSha256(
-                        artifact.mediaType(), Files.readAllBytes(tracked), artifact.dpi());
+                        artifact.mediaType(), trackedContent, artifact.dpi());
                 if (!trackedHash.equals(artifact.normalizedSha256())) {
                     throw new IllegalStateException(
                             "Stale documentation artifact " + tracked
@@ -99,7 +100,7 @@ public final class FresnelDocumentationManifestService {
                         artifact.outputId(),
                         displayPath,
                         artifact.mediaType(),
-                        artifact.sizeBytes(),
+                        trackedContent.length,
                         artifact.widthPx(),
                         artifact.heightPx(),
                         artifact.dpi(),
