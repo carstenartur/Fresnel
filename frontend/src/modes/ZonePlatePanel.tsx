@@ -11,7 +11,6 @@ import {
   downloadExportSvg,
   fetchPreviewPng,
   validate,
-  validatePlugin,
   type DesignMetrics,
   type DesignValidationReport,
   type ExperimentalComparison,
@@ -85,7 +84,6 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
   const [metrics, setMetrics] = useState<DesignMetrics | null>(null);
   const [qualityReport, setQualityReport] = useState<OpticalQualityReport | null>(null);
   const [warnings, setWarnings] = useState<Warning[]>([]);
-  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [valid, setValid] = useState(false);
   const [previewUrl, setPreviewUrl] = useBlobUrl();
   const [busy, setBusy] = useState(false);
@@ -110,7 +108,6 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
     setMetrics(null);
     setQualityReport(null);
     setWarnings([]);
-    setValidationReport(null);
     setValid(false);
     setError(null);
   }, [request]);
@@ -125,21 +122,21 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
     const validationId = ++lastValidationId.current;
     let active = true;
 
-    const runDomainValidation = async () => {
+    const runOpticalValidation = async () => {
       try {
         const response = await validate(normalized);
-        if (!active || validationId !== lastValidationId.current) return;
-        const report = await validatePlugin('zone-plate', normalized);
         if (!active || validationId !== lastValidationId.current) return;
 
         setMetrics(response.metrics);
         setQualityReport(response.qualityReport ?? null);
         setWarnings(response.warnings);
-        setValid(response.valid && report.valid);
-        setValidationReport(report);
+        setValid(response.valid);
         setError(null);
 
-        if (!initialPreviewRendered.current && response.valid && report.valid) {
+        // Preview is a design aid, not a production release. It may be requested
+        // for any structurally valid parameter object; automatic first rendering
+        // remains limited to the ordinary valid default/happy path.
+        if (!initialPreviewRendered.current && response.valid) {
           initialPreviewRendered.current = true;
           setPreviewUrl(await fetchPreviewPng(normalized));
         }
@@ -148,7 +145,6 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
         setMetrics(null);
         setQualityReport(null);
         setWarnings([]);
-        setValidationReport(null);
         setValid(false);
         setError(validationError instanceof Error
           ? validationError.message
@@ -156,7 +152,7 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
       }
     };
 
-    void runDomainValidation();
+    void runOpticalValidation();
     return () => { active = false; };
   }, [structuralValidation, setPreviewUrl]);
 
@@ -187,13 +183,10 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
   const updateMeasuredFocus = (patch: Partial<MeasuredFocus>) =>
     setMeasuredFocus((current) => ({ ...current, ...patch }));
 
-  const buildExperimentRecord = (): ExperimentRecord => {
-    const normalized = structuralValidation?.valid
-      ? structuralValidation.normalizedParameters
-      : undefined;
-    if (!normalized || !validationReport) {
-      throw new Error('Validation report is not ready yet.');
-    }
+  const buildExperimentRecord = (
+    validationReport: DesignValidationReport,
+    normalized: SingleZonePlateRequest,
+  ): ExperimentRecord => {
     const photoReferences = photoReferenceText
       .split('\n')
       .map((line) => line.trim())
@@ -220,11 +213,14 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
     };
   };
 
-  const runExperimentComparison = async () => {
+  const runExperimentComparison = async (
+    validationReport: DesignValidationReport,
+    normalized: SingleZonePlateRequest,
+  ) => {
     setComparingExperiment(true);
     setExperimentError(null);
     try {
-      const record = await compareExperiment(buildExperimentRecord());
+      const record = await compareExperiment(buildExperimentRecord(validationReport, normalized));
       setComparison(record.comparison ?? null);
     } catch (comparisonError) {
       setExperimentError(comparisonError instanceof Error
@@ -247,13 +243,15 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
         disabled={busy}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema, shellValidation) => {
+        {(schema, shellValidation, domainValidation) => {
           const extensions = new Set(schema.uiSchema.extensions ?? []);
           const normalized = shellValidation?.valid
             ? shellValidation.normalizedParameters
             : undefined;
           const structurallyValid = Boolean(normalized);
-          const productionReady = structurallyValid && valid;
+          const productionReady = structurallyValid
+            && valid
+            && domainValidation?.valid === true;
           const supportsPropagation = schema.capabilities.includes('PROPAGATION_PREVIEW');
 
           return (
@@ -344,18 +342,23 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
 
               {extensions.has('validation') && (
                 <div data-editor-extension="validation">
-                  <ZonePlateWarnings warnings={warnings} valid={valid} />
+                  {(metrics || domainValidation) && (
+                    <ZonePlateWarnings
+                      warnings={warnings}
+                      valid={valid && domainValidation?.valid === true}
+                    />
+                  )}
                   <PreviewPane url={previewUrl} alt="Fresnel zone plate preview" />
                   {metrics && <ZonePlateMetrics metrics={metrics} />}
                   {qualityReport && <ZonePlateQualityReport report={qualityReport} />}
-                  <ValidationReportView report={validationReport} />
+                  <ValidationReportView report={domainValidation} />
                 </div>
               )}
 
               {extensions.has('experiment') && (
                 <ExperimentValidationPanel
                   req={normalized ?? request}
-                  validationReport={productionReady ? validationReport : null}
+                  validationReport={productionReady ? domainValidation : null}
                   designId={experimentDesignId}
                   setDesignId={setExperimentDesignId}
                   setup={experimentSetup}
@@ -367,11 +370,18 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
                   comparison={comparison}
                   error={experimentError}
                   loading={comparingExperiment}
-                  onCompare={runExperimentComparison}
+                  onCompare={() => domainValidation && normalized
+                    ? runExperimentComparison(domainValidation, normalized)
+                    : Promise.resolve()}
                   onExportJson={async () => {
                     try {
                       setExperimentError(null);
-                      await downloadExperimentJson(buildExperimentRecord());
+                      if (!domainValidation || !normalized) {
+                        throw new Error('Validation report is not ready yet.');
+                      }
+                      await downloadExperimentJson(
+                        buildExperimentRecord(domainValidation, normalized),
+                      );
                     } catch (exportError) {
                       setExperimentError(exportError instanceof Error
                         ? exportError.message
@@ -381,7 +391,12 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
                   onExportMarkdown={async () => {
                     try {
                       setExperimentError(null);
-                      await downloadExperimentMarkdown(buildExperimentRecord());
+                      if (!domainValidation || !normalized) {
+                        throw new Error('Validation report is not ready yet.');
+                      }
+                      await downloadExperimentMarkdown(
+                        buildExperimentRecord(domainValidation, normalized),
+                      );
                     } catch (exportError) {
                       setExperimentError(exportError instanceof Error
                         ? exportError.message
