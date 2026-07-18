@@ -7,8 +7,8 @@ import { HexMacroCellPanel } from './modes/HexMacroCellPanel';
 import { HologramPanel } from './modes/HologramPanel';
 import { MultiFocusPanel } from './modes/MultiFocusPanel';
 import { RgbPanel } from './modes/RgbPanel';
-import { SingleZonePlatePanel } from './modes/SingleZonePlatePanel';
 import { WindowFoilPanel } from './modes/WindowFoilPanel';
+import { ZonePlatePanel } from './modes/ZonePlatePanel';
 
 type DesignModeKey = 'single' | 'hex' | 'foil' | 'multi' | 'rgb' | 'hologram';
 type ModeKey = DesignModeKey | 'compare' | 'assistant';
@@ -92,7 +92,7 @@ export function App() {
   let panel: JSX.Element;
   switch (mode) {
     case 'single':
-      panel = <SingleZonePlatePanel key={panelKey} initialJob={initialJob} />;
+      panel = <ZonePlatePanel key={panelKey} initialJob={initialJob} />;
       break;
     case 'hex':
       panel = <HexMacroCellPanel key={panelKey} initialJob={initialJob} />;
