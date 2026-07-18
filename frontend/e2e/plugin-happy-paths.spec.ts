@@ -167,5 +167,5 @@ test('Hologram completes synthesis, PNG export and embedded-asset job round trip
   await jobInput(page).setInputFiles(savedPath!);
   await expect(page).toHaveURL(/\/plugins\/hologram$/);
   await expect(form.getByLabel('Side (px)')).toHaveValue('64');
-  await expect(form.getByRole('status')).toContainText('Embedded image data');
+  await expect(form.getByRole('status')).toContainText('Embedded target image loaded');
 });
