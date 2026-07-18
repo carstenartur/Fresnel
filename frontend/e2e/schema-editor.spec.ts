@@ -5,6 +5,73 @@ const ONE_PIXEL_PNG = Buffer.from(
   'base64',
 );
 
+test('Zone Plate standard fields and actions come from the plugin schema', async ({ page }) => {
+  const schemaResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/api/plugins/zone-plate/schema'));
+
+  await page.goto('/plugins/zone-plate');
+  const schemaResponse = await schemaResponsePromise;
+  expect(schemaResponse.ok()).toBeTruthy();
+
+  const form = page.locator('[data-plugin-schema="zone-plate"]');
+  await expect(form).toBeVisible();
+  await expect(form.locator('[data-schema-group="geometry"]')).toBeVisible();
+  await expect(form.locator('[data-schema-group="off-axis-target"]')).toBeVisible();
+  await expect(form.locator('[data-schema-group="production"]')).toBeVisible();
+
+  const aperture = page.getByLabel('Aperture diameter (mm)');
+  await aperture.fill('0');
+  await expect(aperture).toHaveAttribute('aria-invalid', 'true');
+  await aperture.fill('12');
+  await page.getByLabel('Focal length (mm)').fill('750');
+  await page.getByLabel('Wavelength (nm)').fill('532');
+  await page.getByLabel('Target offset X (mm)').fill('2');
+  await page.getByLabel('Target offset Y (mm)').fill('-1');
+  await page.getByLabel('Printer DPI').fill('2400');
+  await page.getByLabel('Mask type').selectOption('GREYSCALE_PHASE');
+  await page.getByLabel('Polarity').selectOption('NEGATIVE');
+
+  const actionBar = page.locator('[data-plugin-action-bar="true"]');
+  await expect(actionBar.getByRole('button', { name: 'Render preview' })).toBeVisible();
+  await expect(actionBar.getByRole('button', { name: 'PNG' })).toBeVisible();
+  await expect(actionBar.getByRole('button', { name: 'SVG' })).toBeVisible();
+  await expect(actionBar.getByRole('button', { name: 'PDF', exact: true })).toBeVisible();
+  await expect(actionBar.getByRole('button', { name: 'DXF' })).toBeVisible();
+  await expect(actionBar.getByRole('button', { name: 'Gerber' })).toBeVisible();
+  await expect(actionBar.getByRole('button', { name: 'Calibration PDF' })).toBeVisible();
+  await expect(actionBar.getByRole('button', { name: 'STL' })).toHaveCount(0);
+
+  await expect(page.getByRole('heading', { name: 'Experimental validation' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Optical propagation preview' })).toBeVisible();
+
+  await actionBar.getByRole('button', { name: 'Render preview' }).click();
+  await expect(page.getByRole('img', { name: 'Fresnel zone plate preview' }))
+    .toBeVisible({ timeout: 30_000 });
+
+  const save = page.getByRole('button', { name: 'Save job (.fresnel)' });
+  await expect(save).toBeEnabled({ timeout: 30_000 });
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    save.click(),
+  ]);
+  const stream = await download.createReadStream();
+  let json = '';
+  for await (const chunk of stream) json += chunk.toString();
+  const job = JSON.parse(json);
+
+  expect(job.plugin.id).toBe('zone-plate');
+  expect(job.parameters).toMatchObject({
+    apertureDiameterMm: 12,
+    focalLengthMm: 750,
+    wavelengthNm: 532,
+    targetOffsetXmm: 2,
+    targetOffsetYmm: -1,
+    dpi: 2400,
+    maskType: 'GREYSCALE_PHASE',
+    polarity: 'NEGATIVE',
+  });
+});
+
 test('stable plugin route renders and edits the Hex schema form', async ({ page }) => {
   const schemaResponsePromise = page.waitForResponse((response) =>
     response.url().endsWith('/api/plugins/hex-macro-cell/schema'));
@@ -148,6 +215,7 @@ test('tab navigation and browser history use stable plugin-id routes', async ({ 
   await expect(page).toHaveURL(/\/plugins\/zone-plate$/);
   await expect(page.getByRole('tab', { name: 'Single ZP' }))
     .toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('[data-plugin-schema="zone-plate"]')).toBeVisible();
 
   await page.goBack();
   await expect(page).toHaveURL(/\/plugins\/hex-macro-cell$/);
