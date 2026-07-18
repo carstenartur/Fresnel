@@ -4,8 +4,6 @@ import {
   downloadHexPng,
   fetchHexPreviewPng,
   hexInfo,
-  validatePlugin,
-  type DesignValidationReport,
   type HexInfo,
   type HexMacroCellRequest,
 } from '../api';
@@ -37,7 +35,6 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
   const [info, setInfo] = useState<HexInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
   const renderPreview = async (parameters: HexMacroCellRequest) => {
@@ -46,9 +43,7 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
     try {
       setPreview(await fetchHexPreviewPng(parameters));
       setInfo(await hexInfo(parameters));
-      setValidationReport(await validatePlugin('hex-macro-cell', parameters));
     } catch (renderError) {
-      setValidationReport(null);
       setError(renderError instanceof Error ? renderError.message : String(renderError));
     } finally {
       setBusy(false);
@@ -65,11 +60,12 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
         disabled={busy}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema, structuralValidation) => {
+        {(schema, structuralValidation, domainValidation) => {
           const normalized = structuralValidation?.valid
             ? structuralValidation.normalizedParameters
             : undefined;
           const structurallyValid = Boolean(normalized);
+          const productionReady = structurallyValid && domainValidation?.valid === true;
           return (
             <>
               {info && (
@@ -91,13 +87,13 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
                   },
                   EXPORT_PNG: {
                     label: 'PNG',
-                    disabled: !structurallyValid,
+                    disabled: !productionReady,
                     run: () => normalized
                       && downloadHexPng(normalized, 'fresnel-hex-macro.png'),
                   },
                   EXPORT_PDF: {
                     label: 'PDF',
-                    disabled: !structurallyValid,
+                    disabled: !productionReady,
                     run: () => normalized
                       && downloadHexPdf(normalized, 'FIT', 'fresnel-hex-macro.pdf'),
                   },
@@ -111,7 +107,7 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
               {error && <p className="error-message">{error}</p>}
 
               <PreviewPane url={previewUrl} alt="Hex macro cell preview" />
-              <ValidationReportView report={validationReport} />
+              <ValidationReportView report={domainValidation} />
             </>
           );
         }}
