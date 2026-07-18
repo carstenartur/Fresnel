@@ -4,10 +4,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
@@ -37,6 +40,53 @@ class FresnelDocumentationRendererTest {
             assertTrue(markdown.contains(generated),
                     () -> "Stale generated parameter block for " + exampleId);
         }
+    }
+
+    @Test
+    void markedBlocksRejectUnsafeHtmlCommentIdentifiers() throws Exception {
+        byte[] job = Files.readAllBytes(repositoryFile(
+                "docs/jobs/zone-plate/on-axis.fresnel"));
+
+        for (String unsafe : List.of(
+                "zone-plate/bad--marker",
+                "zone-plate/../escape",
+                "zone plate/on-axis",
+                "/zone-plate")) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> renderer.renderMarkedParameterBlock(unsafe, job), unsafe);
+        }
+    }
+
+    @Test
+    void embeddedBase64DataIsSummarizedWithoutLeakingItIntoMarkdown() {
+        String embedded = "PHNjcmlwdD4=";
+        byte[] job = ("""
+                {
+                  "format": "io.github.carstenartur.fresnel.job",
+                  "formatVersion": 1,
+                  "plugin": {
+                    "id": "hologram",
+                    "parameterSchemaVersion": 1,
+                    "algorithmVersion": "hologram/1"
+                  },
+                  "parameters": {
+                    "targetImageBase64": "%s",
+                    "sidePx": 16,
+                    "iterations": 1,
+                    "outputType": "GREYSCALE_PHASE",
+                    "dpi": 600,
+                    "wavelengthNm": 550,
+                    "refractiveIndexDelta": 0.5,
+                    "maxPhaseShiftRad": 6.283185307179586
+                  }
+                }
+                """).formatted(embedded).getBytes(StandardCharsets.UTF_8);
+
+        String table = renderer.renderParameterTable(job);
+
+        assertTrue(table.contains("Embedded data (approximately 8 bytes decoded)"));
+        assertFalse(table.contains(embedded));
+        assertFalse(table.contains("<script>"));
     }
 
     private static Path repositoryFile(String relativePath) {
