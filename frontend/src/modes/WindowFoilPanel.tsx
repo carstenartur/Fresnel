@@ -3,8 +3,6 @@ import {
   downloadFoilPdf,
   fetchFoilPreviewPng,
   foilInfo,
-  validatePlugin,
-  type DesignValidationReport,
   type FoilInfo,
   type WindowFoilRequest,
 } from '../api';
@@ -44,7 +42,6 @@ export function WindowFoilPanel({ initialJob }: JobPanelProps) {
   const [sheet, setSheet] = useState<(typeof SHEETS)[number]>('A4');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
   const renderPreview = async (parameters: WindowFoilRequest) => {
@@ -53,9 +50,7 @@ export function WindowFoilPanel({ initialJob }: JobPanelProps) {
     try {
       setPreview(await fetchFoilPreviewPng(parameters));
       setInfo(await foilInfo(parameters));
-      setValidationReport(await validatePlugin('window-foil', parameters));
     } catch (renderError) {
-      setValidationReport(null);
       setError(renderError instanceof Error ? renderError.message : String(renderError));
     } finally {
       setBusy(false);
@@ -73,11 +68,12 @@ export function WindowFoilPanel({ initialJob }: JobPanelProps) {
         customWidgets={CUSTOM_WIDGETS}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema, structuralValidation) => {
+        {(schema, structuralValidation, domainValidation) => {
           const normalized = structuralValidation?.valid
             ? structuralValidation.normalizedParameters
             : undefined;
           const structurallyValid = Boolean(normalized);
+          const productionReady = structurallyValid && domainValidation?.valid === true;
           return (
             <>
               <div className="field" data-editor-extension="production-actions">
@@ -111,7 +107,7 @@ export function WindowFoilPanel({ initialJob }: JobPanelProps) {
                   },
                   EXPORT_PDF: {
                     label: `PDF (${sheet})`,
-                    disabled: !structurallyValid,
+                    disabled: !productionReady,
                     run: () => normalized
                       && downloadFoilPdf(normalized, sheet, 'fresnel-window-foil.pdf'),
                   },
@@ -125,7 +121,7 @@ export function WindowFoilPanel({ initialJob }: JobPanelProps) {
               {error && <p className="error-message">{error}</p>}
 
               <PreviewPane url={previewUrl} alt="Window foil preview" />
-              <ValidationReportView report={validationReport} />
+              <ValidationReportView report={domainValidation} />
             </>
           );
         }}
