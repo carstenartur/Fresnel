@@ -15,6 +15,8 @@ test('single zone plate preview renders and PNG export downloads', async ({ page
   await form.getByRole('spinbutton', { name: /^Aperture diameter \(mm\)/ }).fill('8');
   await form.getByRole('spinbutton', { name: /^Focal length \(mm\)/ }).fill('500');
   await form.getByRole('spinbutton', { name: /^Wavelength \(nm\)/ }).fill('632');
+  // Keep the fabrication fixture above the two-pixels-per-outer-zone hard limit.
+  await form.getByRole('spinbutton', { name: /^Printer DPI/ }).fill('2400');
 
   const render = page.getByRole('button', { name: /Render preview/ });
   await expect(render).toBeEnabled({ timeout: 30_000 });
