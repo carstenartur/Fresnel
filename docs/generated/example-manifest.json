@@ -19,6 +19,42 @@
       "normalizedSha256" : "e59d37e81e000d079ce92a34f597b313035b431641f691570c8aab74775768e4"
     } ]
   }, {
+    "id" : "hologram/checker",
+    "pluginId" : "hologram",
+    "job" : "docs/jobs/hologram/checker.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "hologram/1",
+    "parameterSha256" : "36e86e3f381231d667fdd92821a03100ec07816f38990b2d73592745ca3d260c",
+    "artifacts" : [ {
+      "id" : "target-source",
+      "path" : "docs/assets/plugins/hologram/target.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 4444,
+      "widthPx" : 512,
+      "heightPx" : 512,
+      "dpi" : null,
+      "normalizedSha256" : "48373f6f88a89b4bc57c6efdc611ff3332c247eac8f528e0daa481a577018f26"
+    }, {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/hologram/hologram-mask.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 262900,
+      "widthPx" : 512,
+      "heightPx" : 512,
+      "dpi" : 1200.0,
+      "normalizedSha256" : "6eb499e91ea5da891403471b505334a2f10221fbe3c0fc7a09ddaedd0364b945"
+    }, {
+      "id" : "reconstruction-preview",
+      "path" : "docs/assets/plugins/hologram/reconstruction.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 178493,
+      "widthPx" : 512,
+      "heightPx" : 512,
+      "dpi" : null,
+      "normalizedSha256" : "94dd7b8eca11a656939e2d85d01a22d584915c469e792fd0d60351f2b29c7f64"
+    } ]
+  }, {
     "id" : "multi-focus/line-focus",
     "pluginId" : "multi-focus",
     "job" : "docs/jobs/multi-focus/line-focus.fresnel",
@@ -71,6 +107,24 @@
       "heightPx" : 473,
       "dpi" : 1200.0,
       "normalizedSha256" : "57780a63a9359ab120b277fc582a6c4a2bbb4eda4719b2c4593fff8c8425b4a8"
+    } ]
+  }, {
+    "id" : "window-foil/foil-sheet",
+    "pluginId" : "window-foil",
+    "job" : "docs/jobs/window-foil/foil-sheet.fresnel",
+    "jobFormatVersion" : 1,
+    "parameterSchemaVersion" : 1,
+    "algorithmVersion" : "window-foil/1",
+    "parameterSha256" : "ec6d0f0544c7446b33c9e14212e30e9a34a96988b006fb6a746681bb8774bd2a",
+    "artifacts" : [ {
+      "id" : "documentation-preview",
+      "path" : "docs/assets/plugins/window-foil/foil-sheet.png",
+      "mediaType" : "image/png",
+      "sizeBytes" : 17109,
+      "widthPx" : 473,
+      "heightPx" : 315,
+      "dpi" : 200.0,
+      "normalizedSha256" : "fa371f2e572cf27ed2ddb7e12f1eeee9cb000e8c9750b18bfbb9ad907a06f4bf"
     } ]
   }, {
     "id" : "zone-plate/greyscale-phase",
