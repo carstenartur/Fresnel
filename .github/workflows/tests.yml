@@ -40,12 +40,22 @@ jobs:
           set -o pipefail
           mvn -B -ntp test 2>&1 | tee maven-test.log
 
-      - name: Upload Maven failure log
+      - name: Verify documentation jobs through the public CLI
+        shell: bash
+        run: |
+          set -o pipefail
+          bash packaging/docs-jobs.sh verify-all docs/jobs docs/assets/plugins \
+            2>&1 | tee docs-job-verification.log
+
+      - name: Upload failure logs
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: maven-test-log
-          path: maven-test.log
+          name: test-failure-logs
+          path: |
+            maven-test.log
+            docs-job-verification.log
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Publish JUnit test report
