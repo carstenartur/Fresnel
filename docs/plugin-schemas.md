@@ -55,7 +55,9 @@ components. A schema or server response can therefore select a registered
 plugin, but cannot name a module to import or arbitrary code to execute.
 
 Opening a `.fresnel` job navigates directly from `job.plugin.id`; no
-`kind -> tab -> mode -> component` translation is involved.
+`kind -> tab -> mode -> component` translation is involved. If the backend ever
+advertises an ID without a trusted local component, the UI shows an explicit
+integration error rather than silently hiding that plugin.
 
 ## Parameter schema
 
@@ -163,7 +165,9 @@ All six current plugins use `PluginEditorShell`. The shell owns:
 3. initializing schema defaults for a new design,
 4. rendering `SchemaForm`,
 5. resolving only explicitly supplied trusted widgets,
-6. handing the loaded schema to capability-driven actions and extensions.
+6. debouncing canonical structural validation,
+7. handing the loaded schema and validation state to capability-driven actions
+   and extensions.
 
 The plugin panels now retain only renderer-specific operations and trusted
 advanced state. Standard labels, groups, defaults, units, enum choices and
@@ -175,7 +179,67 @@ numeric constraints are no longer duplicated in each panel.
 - the trusted frontend implementation provides the typed action handler.
 
 Endpoint URLs are selected by typed API helpers, never derived dynamically from
-capability strings.
+capability strings. Preview, export and `.fresnel` saving remain disabled until
+the common structural validator accepts the current parameter object.
+
+## Canonical structural validation API
+
+Editors submit their public parameter object directly to:
+
+```text
+POST /api/plugins/{pluginId}/parameters/validate
+Content-Type: application/json
+```
+
+The body is the parameter object itself, not another UI-specific envelope. A
+successful response includes the normalized object used by `.fresnel` import:
+
+```json
+{
+  "pluginId": "zone-plate",
+  "parameterSchemaVersion": 1,
+  "valid": true,
+  "normalizedParameters": {
+    "apertureDiameterMm": 10.0,
+    "focalLengthMm": 1000.0,
+    "wavelengthNm": 550.0,
+    "dpi": 1200.0,
+    "targetOffsetXmm": 0.0,
+    "targetOffsetYmm": 0.0,
+    "maskType": "BINARY_AMPLITUDE",
+    "polarity": "POSITIVE"
+  },
+  "errors": []
+}
+```
+
+Invalid data returns HTTP 200 with `valid: false` and stable machine-readable
+paths, allowing the form to remain an ordinary validation workflow rather than
+an exceptional transport failure:
+
+```json
+{
+  "pluginId": "multi-focus",
+  "parameterSchemaVersion": 1,
+  "valid": false,
+  "errors": [
+    {
+      "path": "focusPoints[0].zMm",
+      "code": "CONSTRAINT_VIOLATION",
+      "message": "must be greater than 0"
+    }
+  ]
+}
+```
+
+Unknown plugin IDs still return 404. Unknown parameter properties are reported
+with `UNKNOWN_FIELD`; no class name, command or renderer selector can enter the
+canonical parameter object.
+
+The endpoint constructs an in-memory canonical job and delegates to
+`FresnelJobService`. GUI validation, file import, desktop-open handling and
+future CLI execution therefore share DTO conversion, defaults, nested bean
+validation and unknown-field rules.
 
 ## Editor modes
 
@@ -196,8 +260,9 @@ The generic UI keeps three validation concerns separate:
 
 1. **UI editing state** — incomplete numeric text is shown locally and never
    silently coerced to zero or an earlier value.
-2. **Structural normalization** — parameter JSON is checked through the same
-   backend importer used for `.fresnel` jobs.
+2. **Structural normalization** — parameter JSON is checked through
+   `POST /api/plugins/{pluginId}/parameters/validate`, which delegates to the
+   same backend importer used for `.fresnel` jobs.
 3. **Domain validation** — optical, numerical and manufacturing reports remain
    authoritative plugin-specific backend operations.
 
@@ -227,7 +292,7 @@ and usually a new parameter schema version.
 5. Register a trusted local editor component for that ID.
 6. Add a trusted widget only when an ordinary control cannot represent the data.
 7. Supply typed capability action handlers; never infer endpoint URLs from names.
-8. Update schema/DTO/default/enum and stable-route tests.
+8. Update schema/DTO/default/enum, parameter-validation and stable-route tests.
 9. Verify save/open round trips through the `.fresnel` job API.
 10. Add or update plugin documentation examples.
 
