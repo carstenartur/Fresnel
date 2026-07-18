@@ -20,7 +20,7 @@ public record WindowFoilRequest(
         @NotNull @Positive Double dpi,
         MaskType maskType,
         Polarity polarity,
-        List<CellSpecDto> cellSpecs,
+        List<@NotNull CellSpecDto> cellSpecs,
         Boolean drawCropMarks
 ) {
 
