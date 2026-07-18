@@ -10,7 +10,6 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -39,6 +38,8 @@ public class PluginSchemaService {
     private static final Set<String> TRUSTED_WIDGETS = Set.of(
             "number-with-presets",
             "select",
+            "radio",
+            "read-only",
             "focus-point-list",
             "window-cell-layout",
             "hologram-target-image");
@@ -60,6 +61,16 @@ public class PluginSchemaService {
             "x-fresnel-enum-labels",
             "x-fresnel-sensitive-size",
             "x-fresnel-power-of-two");
+
+    private static final Set<String> UI_SCHEMA_FIELDS = Set.of(
+            "formatVersion", "pluginId", "parameterSchemaVersion",
+            "groups", "widgets", "extensions");
+    private static final Set<String> UI_GROUP_FIELDS = Set.of(
+            "id", "title", "fields", "collapsible", "advanced", "visibleWhen");
+    private static final Set<String> UI_WIDGET_FIELDS = Set.of(
+            "type", "presets", "visibleWhen", "readOnly");
+    private static final Set<String> UI_CONDITION_FIELDS = Set.of(
+            "path", "equals", "notEquals", "oneOf");
 
     private final Map<String, PluginSchemaDocument> byPluginId;
     private final List<PluginSchemaDocument> all;
@@ -193,6 +204,7 @@ public class PluginSchemaService {
             JsonNode parameterSchema,
             JsonNode uiSchema) {
         String path = descriptor.schema().uiSchemaResource();
+        rejectUnknownFields(uiSchema, UI_SCHEMA_FIELDS, path);
         requireInteger(uiSchema, "formatVersion", path, CURRENT_UI_FORMAT_VERSION);
         requireText(uiSchema, "pluginId", path, descriptor.id());
         requireInteger(
@@ -215,8 +227,13 @@ public class PluginSchemaService {
             if (!group.isObject()) {
                 throw new IllegalStateException(groupPath + " must be an object");
             }
+            rejectUnknownFields(group, UI_GROUP_FIELDS, groupPath);
             String groupId = requireNonBlankText(group, "id", groupPath);
             requireNonBlankText(group, "title", groupPath);
+            requireOptionalBoolean(group, "collapsible", groupPath);
+            requireOptionalBoolean(group, "advanced", groupPath);
+            validateCondition(group.get("visibleWhen"), parameterSchema, expectedFields,
+                    groupPath + ".visibleWhen");
             if (!groupIds.add(groupId)) {
                 throw new IllegalStateException(path + " contains duplicate group id: " + groupId);
             }
@@ -251,23 +268,37 @@ public class PluginSchemaService {
                 throw new IllegalStateException(path + ".widgets must be an object");
             }
             for (Map.Entry<String, JsonNode> entry : widgets.properties()) {
+                String widgetPath = path + ".widgets." + entry.getKey();
                 if (!groupedFields.contains(entry.getKey())) {
                     throw new IllegalStateException(
                             path + ".widgets refers to unknown field: " + entry.getKey());
                 }
                 if (!entry.getValue().isObject()) {
-                    throw new IllegalStateException(
-                            path + ".widgets." + entry.getKey() + " must be an object");
+                    throw new IllegalStateException(widgetPath + " must be an object");
                 }
-                String type = requireNonBlankText(
-                        entry.getValue(), "type", path + ".widgets." + entry.getKey());
+                rejectUnknownFields(entry.getValue(), UI_WIDGET_FIELDS, widgetPath);
+                String type = requireNonBlankText(entry.getValue(), "type", widgetPath);
                 if (!TRUSTED_WIDGETS.contains(type)) {
                     throw new IllegalStateException(path + " requests untrusted widget: " + type);
                 }
+                requireOptionalBoolean(entry.getValue(), "readOnly", widgetPath);
+                validateCondition(entry.getValue().get("visibleWhen"), parameterSchema,
+                        expectedFields, widgetPath + ".visibleWhen");
+
+                JsonNode fieldSchema = resolveFieldSchema(parameterSchema, entry.getKey());
+                validateWidgetType(type, fieldSchema, widgetPath);
                 JsonNode presets = entry.getValue().get("presets");
-                if (presets != null && (!presets.isArray() || presets.isEmpty())) {
-                    throw new IllegalStateException(
-                            path + ".widgets." + entry.getKey() + ".presets must be a non-empty array");
+                if (presets != null) {
+                    if (!"number-with-presets".equals(type)
+                            || !presets.isArray() || presets.isEmpty()) {
+                        throw new IllegalStateException(
+                                widgetPath + ".presets is only valid as a non-empty array for number-with-presets");
+                    }
+                    for (JsonNode preset : presets) {
+                        if (!preset.isNumber()) {
+                            throw new IllegalStateException(widgetPath + ".presets must contain only numbers");
+                        }
+                    }
                 }
             }
         }
@@ -287,6 +318,92 @@ public class PluginSchemaService {
                     throw new IllegalStateException(
                             path + " contains duplicate editor extension: " + extension.textValue());
                 }
+            }
+        }
+    }
+
+    private static void validateWidgetType(String type, JsonNode fieldSchema, String path) {
+        String fieldType = fieldSchema.path("type").asText();
+        if ("number-with-presets".equals(type)
+                && !("number".equals(fieldType) || "integer".equals(fieldType))) {
+            throw new IllegalStateException(path + " requires a numeric parameter field");
+        }
+        if (("select".equals(type) || "radio".equals(type))
+                && (!("string".equals(fieldType))
+                || !fieldSchema.path("enum").isArray()
+                || fieldSchema.path("enum").isEmpty())) {
+            throw new IllegalStateException(path + " requires a non-empty string enum");
+        }
+    }
+
+    private static void validateCondition(
+            JsonNode condition,
+            JsonNode parameterSchema,
+            Set<String> expectedFields,
+            String path) {
+        if (condition == null || condition.isNull()) return;
+        if (!condition.isObject()) {
+            throw new IllegalStateException(path + " must be an object");
+        }
+        rejectUnknownFields(condition, UI_CONDITION_FIELDS, path);
+        String fieldPath = requireNonBlankText(condition, "path", path);
+        if (!expectedFields.contains(fieldPath)) {
+            throw new IllegalStateException(path + " refers to unknown parameter field: " + fieldPath);
+        }
+
+        int operators = (condition.has("equals") ? 1 : 0)
+                + (condition.has("notEquals") ? 1 : 0)
+                + (condition.has("oneOf") ? 1 : 0);
+        if (operators != 1) {
+            throw new IllegalStateException(
+                    path + " must define exactly one of equals, notEquals or oneOf");
+        }
+
+        JsonNode fieldSchema = resolveFieldSchema(parameterSchema, fieldPath);
+        if (condition.has("equals")) {
+            validateConditionValue(condition.get("equals"), fieldSchema, path + ".equals");
+        } else if (condition.has("notEquals")) {
+            validateConditionValue(condition.get("notEquals"), fieldSchema, path + ".notEquals");
+        } else {
+            JsonNode values = condition.get("oneOf");
+            if (values == null || !values.isArray() || values.isEmpty()) {
+                throw new IllegalStateException(path + ".oneOf must be a non-empty array");
+            }
+            Set<String> seen = new HashSet<>();
+            for (int index = 0; index < values.size(); index++) {
+                JsonNode value = values.get(index);
+                validateConditionValue(value, fieldSchema, path + ".oneOf[" + index + "]");
+                if (!seen.add(value.toString())) {
+                    throw new IllegalStateException(path + ".oneOf contains a duplicate value: " + value);
+                }
+            }
+        }
+    }
+
+    private static void validateConditionValue(JsonNode value, JsonNode fieldSchema, String path) {
+        if (value == null || value.isNull()) return;
+        String type = fieldSchema.path("type").asText();
+        boolean compatible = switch (type) {
+            case "string" -> value.isTextual();
+            case "number" -> value.isNumber();
+            case "integer" -> value.isIntegralNumber();
+            case "boolean" -> value.isBoolean();
+            default -> false;
+        };
+        if (!compatible) {
+            throw new IllegalStateException(path + " does not match parameter type " + type);
+        }
+        JsonNode enumValues = fieldSchema.get("enum");
+        if (enumValues != null && enumValues.isArray()) {
+            boolean found = false;
+            for (JsonNode candidate : enumValues) {
+                if (candidate.equals(value)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                throw new IllegalStateException(path + " is not a declared enum value: " + value);
             }
         }
     }
@@ -316,6 +433,18 @@ public class PluginSchemaService {
         }
     }
 
+    private static JsonNode resolveFieldSchema(JsonNode parameterSchema, String path) {
+        JsonNode current = parameterSchema;
+        for (String segment : path.split("\\.")) {
+            JsonNode properties = current.get("properties");
+            current = properties == null ? null : properties.get(segment);
+            if (current == null || !current.isObject()) {
+                throw new IllegalStateException("Could not resolve parameter schema field: " + path);
+            }
+        }
+        return current;
+    }
+
     private static void validateCustomKeywords(JsonNode node, String path) {
         if (node.isObject()) {
             for (Map.Entry<String, JsonNode> entry : node.properties()) {
@@ -339,6 +468,21 @@ public class PluginSchemaService {
             if (!properties.has(entry.getKey())) {
                 throw new IllegalStateException(path + " contains unknown property: " + entry.getKey());
             }
+        }
+    }
+
+    private static void rejectUnknownFields(JsonNode object, Set<String> allowed, String path) {
+        for (Map.Entry<String, JsonNode> entry : object.properties()) {
+            if (!allowed.contains(entry.getKey())) {
+                throw new IllegalStateException(path + " contains unsupported field: " + entry.getKey());
+            }
+        }
+    }
+
+    private static void requireOptionalBoolean(JsonNode parent, String field, String path) {
+        JsonNode value = parent.get(field);
+        if (value != null && !value.isBoolean()) {
+            throw new IllegalStateException(path + "." + field + " must be a boolean");
         }
     }
 
