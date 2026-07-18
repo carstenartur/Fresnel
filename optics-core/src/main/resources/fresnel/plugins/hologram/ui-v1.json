@@ -18,7 +18,11 @@
       "title": "Phase-relief fabrication",
       "fields": ["wavelengthNm", "refractiveIndexDelta", "maxPhaseShiftRad"],
       "collapsible": true,
-      "advanced": true
+      "advanced": true,
+      "visibleWhen": {
+        "path": "outputType",
+        "equals": "GREYSCALE_PHASE"
+      }
     }
   ],
   "widgets": {
@@ -27,7 +31,7 @@
       "type": "number-with-presets",
       "presets": [64, 128, 256, 512, 1024]
     },
-    "outputType": { "type": "select" }
+    "outputType": { "type": "radio" }
   },
   "extensions": ["reconstruction-preview", "production-actions", "validation"]
 }
