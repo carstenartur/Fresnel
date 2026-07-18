@@ -26,11 +26,17 @@ class PluginControllerTest {
     @Autowired MockMvc mvc;
 
     @Test
-    void listPluginsReturnsAllSixPlugins() throws Exception {
+    void listPluginsReturnsAllSixPluginsInRegistryOrder() throws Exception {
         mvc.perform(get("/api/plugins"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(6)));
+                .andExpect(jsonPath("$", hasSize(6)))
+                .andExpect(jsonPath("$[0].id").value("zone-plate"))
+                .andExpect(jsonPath("$[1].id").value("hex-macro-cell"))
+                .andExpect(jsonPath("$[2].id").value("window-foil"))
+                .andExpect(jsonPath("$[3].id").value("multi-focus"))
+                .andExpect(jsonPath("$[4].id").value("rgb-zone-plate"))
+                .andExpect(jsonPath("$[5].id").value("hologram"));
     }
 
     @Test
@@ -48,7 +54,7 @@ class PluginControllerTest {
     }
 
     @Test
-    void listPluginsIncludesSchemaMetadataWithoutClasspathPaths() throws Exception {
+    void listPluginsIncludesSchemaMetadataWithoutInternalPathsOrModeAliases() throws Exception {
         mvc.perform(get("/api/plugins"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").exists())
@@ -56,7 +62,7 @@ class PluginControllerTest {
                 .andExpect(jsonPath("$[0].description").exists())
                 .andExpect(jsonPath("$[0].rendererClass").exists())
                 .andExpect(jsonPath("$[0].parameterType").exists())
-                .andExpect(jsonPath("$[0].frontendModeId").exists())
+                .andExpect(jsonPath("$[0].frontendModeId").doesNotExist())
                 .andExpect(jsonPath("$[0].stability").exists())
                 .andExpect(jsonPath("$[0].capabilities").isArray())
                 .andExpect(jsonPath("$[0].propagationModes").isArray())
@@ -75,7 +81,7 @@ class PluginControllerTest {
                 .andExpect(jsonPath("$.displayName").value("Zone Plate"))
                 .andExpect(jsonPath("$.rendererClass").value("ZonePlateRenderer"))
                 .andExpect(jsonPath("$.parameterType").value("SingleZonePlateParameters"))
-                .andExpect(jsonPath("$.frontendModeId").value("single"))
+                .andExpect(jsonPath("$.frontendModeId").doesNotExist())
                 .andExpect(jsonPath("$.stability").value("STABLE"))
                 .andExpect(jsonPath("$.parameterSchemaVersion").value(1))
                 .andExpect(jsonPath("$.editorMode").value("SCHEMA_WITH_EXTENSIONS"));
