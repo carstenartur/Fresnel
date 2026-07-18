@@ -13,6 +13,7 @@ Usage:
   bash packaging/docs-jobs.sh render-all <job-root> <asset-root>
   bash packaging/docs-jobs.sh verify-all <job-root> <asset-root>
   bash packaging/docs-jobs.sh list <job-root>
+  bash packaging/docs-jobs.sh table <job.fresnel>
 USAGE
   exit 2
 fi
