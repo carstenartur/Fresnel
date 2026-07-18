@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import type { DesignValidationReport, ValidationLayer } from '../api';
 
 export function NumberField({
@@ -92,12 +92,12 @@ export function PreviewPane({ url, alt, children }: { url: string | null; alt: s
 export function useBlobUrl(): [string | null, (blob: Blob) => void] {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
-  const set = (blob: Blob) => {
+  const set = useCallback((blob: Blob) => {
     setUrl((previous) => {
       if (previous) URL.revokeObjectURL(previous);
       return URL.createObjectURL(blob);
     });
-  };
+  }, []);
   return [url, set];
 }
 
