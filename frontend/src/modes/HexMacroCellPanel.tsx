@@ -40,13 +40,13 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
   const [validationReport, setValidationReport] = useState<DesignValidationReport | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
 
-  const renderPreview = async () => {
+  const renderPreview = async (parameters: HexMacroCellRequest) => {
     setBusy(true);
     setError(null);
     try {
-      setPreview(await fetchHexPreviewPng(request));
-      setInfo(await hexInfo(request));
-      setValidationReport(await validatePlugin('hex-macro-cell', request));
+      setPreview(await fetchHexPreviewPng(parameters));
+      setInfo(await hexInfo(parameters));
+      setValidationReport(await validatePlugin('hex-macro-cell', parameters));
     } catch (renderError) {
       setValidationReport(null);
       setError(renderError instanceof Error ? renderError.message : String(renderError));
@@ -66,7 +66,10 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
         applyDefaultsOnLoad={!initialJob}
       >
         {(schema, structuralValidation) => {
-          const structurallyValid = structuralValidation?.valid === true;
+          const normalized = structuralValidation?.valid
+            ? structuralValidation.normalizedParameters
+            : undefined;
+          const structurallyValid = Boolean(normalized);
           return (
             <>
               {info && (
@@ -84,23 +87,25 @@ export function HexMacroCellPanel({ initialJob }: JobPanelProps) {
                     label: busy ? 'Rendering…' : 'Render preview',
                     primary: true,
                     disabled: !structurallyValid,
-                    run: renderPreview,
+                    run: () => normalized && renderPreview(normalized),
                   },
                   EXPORT_PNG: {
                     label: 'PNG',
                     disabled: !structurallyValid,
-                    run: () => downloadHexPng(request, 'fresnel-hex-macro.png'),
+                    run: () => normalized
+                      && downloadHexPng(normalized, 'fresnel-hex-macro.png'),
                   },
                   EXPORT_PDF: {
                     label: 'PDF',
                     disabled: !structurallyValid,
-                    run: () => downloadHexPdf(request, 'FIT', 'fresnel-hex-macro.pdf'),
+                    run: () => normalized
+                      && downloadHexPdf(normalized, 'FIT', 'fresnel-hex-macro.pdf'),
                   },
                 }}
               />
               <SaveJobControl
                 pluginId="hex-macro-cell"
-                parameters={request}
+                parameters={normalized ?? null}
                 disabled={busy || !structurallyValid}
               />
               {error && <p className="error-message">{error}</p>}
