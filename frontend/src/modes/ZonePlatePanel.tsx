@@ -208,8 +208,10 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
         disabled={busy}
         applyDefaultsOnLoad={!initialJob}
       >
-        {(schema) => {
+        {(schema, structuralValidation) => {
           const extensions = new Set(schema.uiSchema.extensions ?? []);
+          const structurallyValid = structuralValidation?.valid === true;
+          const fullyValid = structurallyValid && valid;
           const supportsPropagation = schema.capabilities.includes('PROPAGATION_PREVIEW');
 
           return (
@@ -243,38 +245,39 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
                   PREVIEW_PNG: {
                     label: busy ? 'Rendering…' : 'Render preview',
                     primary: true,
+                    disabled: !fullyValid,
                     run: renderPreview,
                   },
                   EXPORT_PNG: {
                     label: 'PNG',
-                    disabled: !valid,
+                    disabled: !fullyValid,
                     run: () => downloadExportPng(request, 'fresnel-zone-plate.png'),
                   },
                   EXPORT_SVG: {
                     label: 'SVG',
-                    disabled: !valid,
+                    disabled: !fullyValid,
                     run: () => downloadExportSvg(request, 'fresnel-zone-plate.svg'),
                   },
                   EXPORT_PDF: {
                     label: 'PDF',
-                    disabled: !valid,
+                    disabled: !fullyValid,
                     run: () => downloadExportPdf(request, sheet, 'fresnel-zone-plate.pdf'),
                   },
                   EXPORT_DXF: {
                     label: 'DXF',
                     title: 'DXF outlines for laser cutters / pen plotters',
-                    disabled: !valid,
+                    disabled: !fullyValid,
                     run: () => downloadExportDxf(request, 'fresnel-zone-plate.dxf'),
                   },
                   EXPORT_GERBER: {
                     label: 'Gerber',
                     title: 'Gerber RS-274X for PCB-style fabrication',
-                    disabled: !valid,
+                    disabled: !fullyValid,
                     run: () => downloadExportGerber(request, 'fresnel-zone-plate.gbr'),
                   },
                   PRINTABILITY_ANALYSIS: {
                     label: 'Calibration PDF',
-                    disabled: !valid,
+                    disabled: !fullyValid,
                     run: () => downloadCalibrationPdf({
                       dpi: request.dpi,
                       printScale: 1,
@@ -288,7 +291,7 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
               <SaveJobControl
                 pluginId="zone-plate"
                 parameters={request}
-                disabled={!valid || busy}
+                disabled={!fullyValid || busy}
               />
               {error && <p className="error-message">{error}</p>}
 
@@ -305,7 +308,7 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
               {extensions.has('experiment') && (
                 <ExperimentValidationPanel
                   req={request}
-                  validationReport={validationReport}
+                  validationReport={fullyValid ? validationReport : null}
                   designId={experimentDesignId}
                   setDesignId={setExperimentDesignId}
                   setup={experimentSetup}
@@ -342,7 +345,7 @@ export function ZonePlatePanel({ initialJob }: JobPanelProps) {
               )}
 
               {extensions.has('propagation') && supportsPropagation && (
-                <PropagationPanel req={request} />
+                <PropagationPanel req={request} disabled={!fullyValid} />
               )}
             </>
           );
