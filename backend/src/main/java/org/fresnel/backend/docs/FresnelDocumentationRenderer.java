@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 
 /** Generates stable documentation fragments from canonical jobs and plugin schemas. */
 @Service
@@ -97,6 +98,13 @@ public final class FresnelDocumentationRenderer {
     }
 
     private static String formatValue(JsonNode schema, JsonNode value) {
+        if (schema.path("x-fresnel-sensitive-size").asBoolean(false)
+                && value.isTextual()) {
+            return value.textValue().isEmpty()
+                    ? "No embedded data"
+                    : "Embedded data (" + value.textValue().length() + " Base64 characters)";
+        }
+
         String rendered;
         if (value.isNumber()) {
             BigDecimal decimal = value.decimalValue();
@@ -111,6 +119,10 @@ public final class FresnelDocumentationRenderer {
                     : humanize(value.textValue());
         } else if (value.isBoolean()) {
             rendered = value.booleanValue() ? "Yes" : "No";
+        } else if (value.isArray()) {
+            rendered = formatArray(schema.path("items"), value);
+        } else if (value.isObject()) {
+            rendered = formatObject(schema, value);
         } else if (value.isNull()) {
             rendered = "—";
         } else {
@@ -119,6 +131,34 @@ public final class FresnelDocumentationRenderer {
 
         String unit = schema.path("x-fresnel-unit").asText("");
         return unit.isBlank() ? rendered : rendered + " " + unit;
+    }
+
+    private static String formatArray(JsonNode itemSchema, JsonNode values) {
+        if (values.isEmpty()) return "None";
+        StringJoiner joiner = new StringJoiner("; ");
+        int index = 1;
+        for (JsonNode value : values) {
+            String item = value.isObject()
+                    ? formatObject(itemSchema, value)
+                    : formatValue(itemSchema, value);
+            joiner.add(index++ + ". " + item);
+        }
+        return joiner.toString();
+    }
+
+    private static String formatObject(JsonNode schema, JsonNode value) {
+        JsonNode properties = schema.path("properties");
+        if (!properties.isObject()) return value.toString();
+
+        StringJoiner joiner = new StringJoiner(", ");
+        for (Map.Entry<String, JsonNode> property : properties.properties()) {
+            JsonNode propertyValue = value.get(property.getKey());
+            if (propertyValue == null) continue;
+            String label = property.getValue().path("title").asText(property.getKey());
+            joiner.add(label + " = " + formatValue(property.getValue(), propertyValue));
+        }
+        String rendered = joiner.toString();
+        return rendered.isEmpty() ? value.toString() : rendered;
     }
 
     private static String humanize(String value) {
