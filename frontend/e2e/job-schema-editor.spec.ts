@@ -43,8 +43,8 @@ test('opening a .fresnel job selects its stable schema-driven plugin route', asy
   await expect(page.getByLabel('Sub-element diameter (mm)')).toHaveValue('7');
   await expect(page.getByLabel('Sub-element pitch (mm)')).toHaveValue('8');
   await expect(page.getByLabel('Focal length (mm)')).toHaveValue('850');
-  await expect(page.getByLabel('Target X (mm)')).toHaveValue('3');
-  await expect(page.getByLabel('Target Y (mm)')).toHaveValue('-2');
+  await expect(page.getByLabel('Target offset X (mm)')).toHaveValue('3');
+  await expect(page.getByLabel('Target offset Y (mm)')).toHaveValue('-2');
   await expect(page.getByLabel('Wavelength (nm)')).toHaveValue('532');
   await expect(page.getByLabel('Printer DPI')).toHaveValue('1200');
   await expect(page.getByLabel('Mask type')).toHaveValue('GREYSCALE_PHASE');
