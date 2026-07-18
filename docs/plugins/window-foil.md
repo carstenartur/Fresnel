@@ -1,12 +1,12 @@
-# Plugin: Window Foil (`WindowFoilRenderer`)
+# Plugin: Window Foil (`window-foil`)
 
 The **window foil** plugin renders a rectangular print sheet tiled with hexagonal
-macro cells on a gap-less flat-top hex grid.  It is designed for creating
-printable diffractive foils that can be applied to windows, lenses or flat
-substrates to produce ambient light projections.
+macro cells on a gap-less flat-top hex grid. It is designed for creating printable
+diffractive foils that can be applied to windows, lenses or flat substrates to
+produce ambient light projections.
 
-Each cell uses [Hex Macro Cell](hex-macro-cell.md) semantics.  Cells can share
-a single focal specification or cycle through a list of focal lengths and target
+Each cell uses [Hex Macro Cell](hex-macro-cell.md) semantics. Cells can share a
+single focal specification or cycle through a list of focal lengths and target
 offsets to create varied projection patterns.
 
 Optional **crop marks** are drawn at sheet corners and at the top of each macro
@@ -34,19 +34,42 @@ cell to aid alignment after printing and cutting.
 
 ![Window foil sheet](../assets/plugins/window-foil/foil-sheet.png)
 
-Multiple hex macro cells tile the sheet gap-less.  Crop marks are visible at the
-corners.
+[Download the source job](../jobs/window-foil/foil-sheet.fresnel)
+
+<!-- fresnel-example:window-foil/foil-sheet:start -->
+| Parameter | Value |
+|---|---:|
+| Sheet width | 60 mm |
+| Sheet height | 40 mm |
+| Macro radius | 12 mm |
+| Sub-element diameter | 4 mm |
+| Sub-element pitch | 4.5 mm |
+| Wavelength | 550 nm |
+| Printer DPI | 200 dpi |
+| Mask type | Binary amplitude |
+| Polarity | Positive |
+| Draw crop marks | Yes |
+| Cell specifications | 1. Focal length = 1000 mm, Target offset X = 0 mm, Target offset Y = 0 mm |
+<!-- fresnel-example:window-foil/foil-sheet:end -->
+
+Multiple hex macro cells tile the sheet gap-less. Crop marks are visible at the
+corners. Opening the job restores the exact per-cell list in the trusted layout
+widget.
+
+Window Foil now advertises both PNG and PDF production capabilities. The PNG
+button in the schema-driven action bar uses the same renderer as this public job;
+the PDF action retains its sheet-size selector.
 
 ## Java API
 
 ```java
-// Single focal length for all cells
+// Single focal length for all cells, matching the documentation job
 WindowFoilParameters p = new WindowFoilParameters(
-        120.0, 80.0,          // sheet size, mm
-        15.0,                  // macro cell radius, mm
-        5.0, 5.5,              // sub-element diameter / pitch, mm
+        60.0, 40.0,           // sheet size, mm
+        12.0,                  // macro cell radius, mm
+        4.0, 4.5,              // sub-element diameter / pitch, mm
         550.0,                 // wavelength, nm
-        600.0,                 // DPI
+        200.0,                 // DPI
         MaskType.BINARY_AMPLITUDE, Polarity.POSITIVE,
         List.of(WindowFoilParameters.CellSpec.onAxis(1000.0)),
         true                   // crop marks
@@ -68,8 +91,13 @@ WindowFoilParameters pMulti = new WindowFoilParameters(
 int n = WindowFoilRenderer.countCells(p);
 ```
 
-## Regenerating the example images
+## Reproducing and verifying the example
 
 ```bash
-mvn -pl optics-core test -Dtest=PluginDocImagesTest#windowFoil_generateDocImages -Dfresnel.docs=generate
+bash packaging/docs-jobs.sh render \
+  docs/jobs/window-foil/foil-sheet.fresnel \
+  docs/assets/plugins/window-foil
+
+bash packaging/docs-jobs.sh verify-manifest \
+  docs/jobs docs/assets/plugins docs/generated/example-manifest.json
 ```
