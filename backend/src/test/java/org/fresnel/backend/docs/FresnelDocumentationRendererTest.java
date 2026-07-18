@@ -23,7 +23,8 @@ class FresnelDocumentationRendererTest {
             new Example("hex-macro-cell", "on-axis", "hex-macro-cell.md"),
             new Example("multi-focus", "two-foci", "multi-focus.md"),
             new Example("multi-focus", "line-focus", "multi-focus.md"),
-            new Example("rgb-zone-plate", "rgb", "rgb-zone-plate.md"));
+            new Example("rgb-zone-plate", "rgb", "rgb-zone-plate.md"),
+            new Example("hologram", "checker", "hologram.md"));
 
     @Autowired FresnelDocumentationRenderer renderer;
 
