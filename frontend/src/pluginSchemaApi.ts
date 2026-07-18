@@ -16,8 +16,9 @@ export type PluginCapability =
   | 'OPTICAL_QUALITY_REPORT'
   | 'EXPERIMENTAL_VALIDATION';
 
+/** Registry IDs are runtime data and are checked against the trusted editor map. */
 export interface PluginMetadata {
-  id: FresnelPluginId;
+  id: string;
   displayName: string;
   description: string;
   documentationUrl: string;
