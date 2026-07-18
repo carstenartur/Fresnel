@@ -96,6 +96,20 @@ class PluginSchemaServiceTest {
     }
 
     @Test
+    void hologramUiUsesAValidatedRadioAndSingleOperatorVisibilityCondition() {
+        JsonNode ui = service.requireByPluginId("hologram").uiSchema();
+        assertEquals("radio", ui.get("widgets").get("outputType").get("type").asText());
+
+        JsonNode fabrication = ui.get("groups").get(2);
+        JsonNode condition = fabrication.get("visibleWhen");
+        assertEquals("fabrication", fabrication.get("id").asText());
+        assertEquals("outputType", condition.get("path").asText());
+        assertEquals("GREYSCALE_PHASE", condition.get("equals").asText());
+        assertFalse(condition.has("notEquals"));
+        assertFalse(condition.has("oneOf"));
+    }
+
+    @Test
     void callersReceiveDefensiveJsonCopies() {
         PluginSchemaDocument first = service.requireByPluginId("zone-plate");
         PluginSchemaDocument second = service.requireByPluginId("zone-plate");
