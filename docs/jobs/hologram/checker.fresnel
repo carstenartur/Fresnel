@@ -1,0 +1,46 @@
+{
+  "$schema": "https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json",
+  "format": "io.github.carstenartur.fresnel.job",
+  "formatVersion": 1,
+  "plugin": {
+    "id": "hologram",
+    "parameterSchemaVersion": 1,
+    "algorithmVersion": "hologram/1"
+  },
+  "parameters": {
+    "targetImageBase64": "iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAAAAADRE4smAAAFJUlEQVR4nO3UMREDMRAEQcsYHoz4RwLxYAziApVruvPTJlNa72dmD++P/av73+E9f04AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngLj1DB84w/tt/+q+HyBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4C49Q4f2MP7Y//qvh8gTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAuPUMHzjD+23/6r4fIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngLj1Dh/Yw/tj/+q+HyBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4C49QwfOMP7bf/qvh8gTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAuPUOH9jD+2P/6r4fIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngLj1DB84w/tt/+q+HyBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4C4H1pyI7lWuIeMAAAAAElFTkSuQmCC",
+    "sidePx": 512,
+    "iterations": 100,
+    "outputType": "GREYSCALE_PHASE",
+    "dpi": 1200.0,
+    "wavelengthNm": 550.0,
+    "refractiveIndexDelta": 0.5,
+    "maxPhaseShiftRad": 6.283185307179586
+  },
+  "production": {
+    "outputs": [
+      {
+        "id": "target-source",
+        "format": "png",
+        "filename": "target.png",
+        "options": { "hologramPng": "SOURCE" }
+      },
+      {
+        "id": "documentation-preview",
+        "format": "png",
+        "filename": "hologram-mask.png",
+        "options": { "hologramPng": "MASK" }
+      },
+      {
+        "id": "reconstruction-preview",
+        "format": "png",
+        "filename": "reconstruction.png",
+        "options": { "hologramPng": "RECONSTRUCTION" }
+      }
+    ]
+  },
+  "provenance": {
+    "createdWith": "Fresnel documentation",
+    "applicationVersion": "development"
+  }
+}
