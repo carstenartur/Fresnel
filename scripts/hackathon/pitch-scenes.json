@@ -1,16 +1,29 @@
 {
   "formatVersion": 1,
-  "title": "Fresnel \u2014 Reproducible Computational Optics",
+  "title": "Fresnel — Reproducible Computational Optics",
   "scenes": [
+    {
+      "id": "notice",
+      "kind": "hero",
+      "headline": "Fresnel",
+      "subheadline": "Hackathon pitch · subtitles only",
+      "images": [
+        "docs/assets/plugins/zone-plate/on-axis.png"
+      ],
+      "footerNotice": "Subtitles-only build — voice narration could not be generated because TTS API quota was unavailable.",
+      "durationSeconds": 5.5,
+      "narration": ""
+    },
     {
       "id": "title",
       "kind": "hero",
       "headline": "Computational optics you can reproduce",
-      "subheadline": "Design \u00b7 validate \u00b7 fabricate \u00b7 measure",
+      "subheadline": "Design · validate · fabricate · measure",
       "images": [
         "docs/assets/plugins/zone-plate/on-axis.png"
       ],
-      "narration": "Fresnel turns physical optical targets into reproducible diffractive designs. It combines calculation, validation, fabrication exports, and experimental records in one open workflow."
+      "narration": "Fresnel turns physical optical targets into reproducible diffractive designs. It combines calculation, validation, fabrication exports, and experimental records in one open workflow.",
+      "durationSeconds": 13.9
     },
     {
       "id": "problem",
@@ -23,74 +36,81 @@
         "docs/assets/plugins/multi-focus/two-foci.png",
         "docs/assets/plugins/hologram/hologram-mask.png"
       ],
-      "narration": "Diffractive optics is often demonstrated through isolated formulas or notebooks. Fresnel makes the workflow usable: zone plates, multi-focus elements, RGB designs, printable foils, macro cells, and computer-generated holograms all use the same application lifecycle."
+      "narration": "Diffractive optics is often demonstrated through isolated formulas or notebooks. Fresnel makes the workflow usable: zone plates, multi-focus elements, RGB designs, printable foils, macro cells, and computer-generated holograms all use the same application lifecycle.",
+      "durationSeconds": 19.9
     },
     {
       "id": "target",
       "kind": "editor",
       "headline": "Start with the physical target",
-      "subheadline": "10 millimetre aperture \u00b7 1 metre focus \u00b7 532 nanometres \u00b7 1200 DPI",
+      "subheadline": "10 millimetre aperture · 1 metre focus · 532 nanometres · 1200 DPI",
       "images": [
         "build/hackathon-video/assets/02-physical-target.png",
         "docs/assets/plugins/zone-plate/on-axis.png"
       ],
-      "narration": "The user specifies physical intent, not implementation code: aperture, focal distance, wavelength, printer resolution, mask type, and polarity. The schema-driven editor applies the same typed contract used by files, APIs, and tests."
+      "narration": "The user specifies physical intent, not implementation code: aperture, focal distance, wavelength, printer resolution, mask type, and polarity. The schema-driven editor applies the same typed contract used by files, APIs, and tests.",
+      "durationSeconds": 18.4
     },
     {
       "id": "validation",
       "kind": "editor",
       "headline": "Validate before fabrication",
-      "subheadline": "Analytical optics \u00b7 numerical checks \u00b7 printability",
+      "subheadline": "Analytical optics · numerical checks · printability",
       "images": [
         "build/hackathon-video/assets/03-preview-and-validation.png",
         "docs/assets/plugins/zone-plate/greyscale-phase.png"
       ],
-      "narration": "A preview is only a design aid. Before production, Fresnel performs deterministic optical and manufacturing checks. Warnings, metrics, assumptions, and quality reports remain separate from any generative explanation."
+      "narration": "A preview is only a design aid. Before production, Fresnel performs deterministic optical and manufacturing checks. Warnings, metrics, assumptions, and quality reports remain separate from any generative explanation.",
+      "durationSeconds": 16.1
     },
     {
       "id": "job",
       "kind": "contract",
       "headline": "The design is a portable production job",
-      "subheadline": ".fresnel \u00b7 versioned schema \u00b7 stable plugin identity \u00b7 content hash",
+      "subheadline": ".fresnel · versioned schema · stable plugin identity · content hash",
       "images": [
         "docs/assets/plugins/zone-plate/negative-polarity.png"
       ],
       "code": "{\n  \"format\": \"io.github.carstenartur.fresnel.job\",\n  \"formatVersion\": 1,\n  \"plugin\": {\n    \"id\": \"zone-plate\",\n    \"parameterSchemaVersion\": 1,\n    \"algorithmVersion\": \"zone-plate/1\"\n  },\n  \"parameters\": { \"focalLengthMm\": 1000, \"wavelengthNm\": 532 }\n}",
-      "narration": "Every design can be saved as a versioned dot Fresnel job. It contains stable plugin identity, schema and algorithm versions, normalized parameters, production instructions, and provenance. The same file can be reopened, reviewed, rendered, and archived."
+      "narration": "Every design can be saved as a versioned dot Fresnel job. It contains stable plugin identity, schema and algorithm versions, normalized parameters, production instructions, and provenance. The same file can be reopened, reviewed, rendered, and archived.",
+      "durationSeconds": 18.5
     },
     {
       "id": "exports",
       "kind": "exports",
       "headline": "One validated design, many real outputs",
-      "subheadline": "PNG \u00b7 SVG \u00b7 PDF \u00b7 DXF \u00b7 Gerber \u00b7 STL",
+      "subheadline": "PNG · SVG · PDF · DXF · Gerber · STL",
       "images": [
         "docs/assets/plugins/window-foil/foil-sheet.png",
         "docs/assets/plugins/hex-macro-cell/on-axis.png"
       ],
-      "narration": "Once a design is production-ready, the same normalized parameters drive raster previews, vector exports, printable PDFs, laser-cutter outlines, Gerber fabrication files, and three-dimensional output where supported."
+      "narration": "Once a design is production-ready, the same normalized parameters drive raster previews, vector exports, printable PDFs, laser-cutter outlines, Gerber fabrication files, and three-dimensional output where supported.",
+      "durationSeconds": 15.3
     },
     {
       "id": "hologram",
       "kind": "before-after",
       "headline": "Make the hackathon visible as a hologram",
-      "subheadline": "OpenAI Hackathon target \u2192 phase mask \u2192 reconstructed field",
+      "subheadline": "OpenAI Hackathon target → phase mask → reconstructed field",
       "images": [
         "@generated/openai-hackathon-target",
         "@generated/openai-hackathon-mask",
         "@generated/openai-hackathon-reconstruction"
       ],
-      "narration": "For the competition pitch, Fresnel can turn the phrase OpenAI Hackathon into a real computer-generated hologram. The workflow remains the same: start from a bounded target image, compute a phase mask, and inspect the reconstructed optical field."
+      "narration": "For the competition pitch, Fresnel can turn the phrase OpenAI Hackathon into a real computer-generated hologram. The workflow remains the same: start from a bounded target image, compute a phase mask, and inspect the reconstructed optical field.",
+      "durationSeconds": 15.5
     },
     {
       "id": "reproducibility",
       "kind": "pipeline",
       "headline": "Documentation is executable evidence",
-      "subheadline": "job \u2192 validation \u2192 renderer \u2192 artifact \u2192 manifest hash",
+      "subheadline": "job → validation → renderer → artifact → manifest hash",
       "images": [
         "docs/assets/plugins/multi-focus/line-focus.png",
         "docs/assets/plugins/rgb-zone-plate/rgb.png"
       ],
-      "narration": "The documentation images are not hand-made illustrations. Checked-in jobs generate the artifacts, and a manifest records dimensions, resolution, parameter hashes, and normalized output hashes. Drift becomes a testable change instead of an undocumented screenshot."
+      "narration": "The documentation images are not hand-made illustrations. Checked-in jobs generate the artifacts, and a manifest records dimensions, resolution, parameter hashes, and normalized output hashes. Drift becomes a testable change instead of an undocumented screenshot.",
+      "durationSeconds": 18.7
     },
     {
       "id": "close",
@@ -100,7 +120,8 @@
       "images": [
         "docs/assets/plugins/rgb-zone-plate/rgb.png"
       ],
-      "narration": "Fresnel makes computational optics understandable and repeatable, from physical intent to a fabrication-ready result. For the hackathon, that foundation now extends to a competition-specific hologram scene and a grounded path toward a future natural-language experiment copilot."
+      "narration": "Fresnel makes computational optics understandable and repeatable, from physical intent to a fabrication-ready result. For the hackathon, that foundation now extends to a competition-specific hologram scene and a grounded path toward a future natural-language experiment copilot.",
+      "durationSeconds": 16.8
     }
   ]
 }
