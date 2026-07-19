@@ -58,8 +58,10 @@ The backend then:
 7. validates it through `DesignValidationReports`;
 8. returns a canonical `.fresnel` job only after those steps succeed.
 
-The final job stores no API key, hidden prompt or conversation transcript. It remains
-renderable and editable without a model provider or network connection.
+The final job stores no API key, hidden prompt or conversation transcript. Its provenance
+identifies the provider and model that assisted the draft, while its parameter hash is
+recomputed from the accepted normalized values. It remains renderable and editable without
+a model provider or network connection.
 
 ## Providers
 
@@ -87,7 +89,16 @@ Provider ID: `openai`
 
 The OpenAI implementation uses the Responses API with strict JSON-schema structured
 output. The default model is `gpt-5.6`, but model, endpoint and timeout are configurable.
-Only the bounded Zone Plate schema and user request are sent.
+The bounded context contains only:
+
+- the user's optical request;
+- current user-edited Zone Plate parameters, when supplied;
+- current versioned Fresnel defaults;
+- the current bounded Zone Plate parameter schema.
+
+Requests set `store: false`, use low reasoning effort and cap generated output. The strict
+response schema allows only known top-level Zone Plate parameter paths; alternatives use a
+closed list of `{path, value}` overrides instead of arbitrary object properties.
 
 Configuration:
 
@@ -114,7 +125,7 @@ Provider contract tests use a local HTTP server.
 GET /api/assistant/providers
 ```
 
-Example:
+This read-only endpoint is public. Example:
 
 ```json
 [
@@ -134,11 +145,13 @@ Example:
 ```
 
 Availability reveals only configuration state. It does not expose a secret or quota value.
+Provider entries are returned in deterministic ID order.
 
 ### Natural-language proposal
 
 ```http
 POST /api/assistant/propose
+Authorization: Basic …
 Content-Type: application/json
 ```
 
@@ -148,6 +161,11 @@ Content-Type: application/json
   "request": "Create a printable 532 nm zone plate with a 1 m focus at 1200 DPI."
 }
 ```
+
+The proposal endpoint requires authentication for every provider because a configured
+provider may consume paid quota. The natural-language request is limited to 8,000
+characters before a provider is invoked. Deployment credentials must be overridden from
+the local-development defaults.
 
 When the request contains enough optical intent, the response includes:
 
@@ -172,6 +190,9 @@ Open `/assistant` or select **Assistant** in the application.
 6. Save the canonical `.fresnel` job or open it in the trusted Zone Plate editor.
 7. Reopen or re-render the file without the provider.
 
+After any edit or applied alternative, previous validation is invalidated. Saving and editor
+handoff remain disabled until the modified draft passes deterministic Fresnel validation.
+
 ## Existing deterministic Design Assistant
 
 The earlier numeric recommendation endpoint remains available and unchanged:
@@ -195,10 +216,11 @@ Automated coverage includes:
 
 - deterministic natural-language extraction;
 - missing-intent clarification;
-- unknown-path rejection;
-- canonical job normalization and parameter hash;
+- unknown-path and duplicate-path rejection;
+- request-size and authentication boundaries;
+- canonical job normalization, provider/model provenance and parameter hash;
 - deterministic validation after the proposal boundary;
-- OpenAI request/response contract tests against a local server;
+- strict, non-stored OpenAI request contract tests against a local server;
 - quota/error classification without secret leakage;
 - browser proposal review, user editing, validation, preview, download and editor handoff;
 - deterministic Playwright screenshots for the pitch-video pipeline.
