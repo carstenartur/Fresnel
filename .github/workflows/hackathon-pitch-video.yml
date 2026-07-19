@@ -44,16 +44,16 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             espeak-ng ffmpeg fonts-dejavu-core python3-pil
 
-      - name: Build backend
-        run: mvn -B -ntp -DskipTests -Pno-frontend package
+      - name: Build packaged application with frontend
+        run: mvn -B -ntp -DskipTests package
 
-      - name: Install frontend and Playwright
+      - name: Install Playwright
         working-directory: frontend
         run: |
           npm ci --legacy-peer-deps
           npx playwright install --with-deps chromium
 
-      - name: Start backend and Vite UI
+      - name: Start packaged application
         env:
           FRESNEL_DATA_DIR: ${{ runner.temp }}/fresnel-pitch-data
         run: |
@@ -62,35 +62,62 @@ jobs:
           echo $! > backend.pid
           for i in $(seq 1 60); do
             if curl -sf -u user:user http://127.0.0.1:8080/api/plugins >/dev/null; then
-              echo "Backend ready after ${i}s"
-              break
-            fi
-            if [ "$i" -eq 60 ]; then
-              cat backend.log
-              exit 1
-            fi
-            sleep 1
-          done
-
-          (
-            cd frontend
-            nohup npm run dev -- --host 127.0.0.1 --strictPort > ../vite.log 2>&1 &
-            echo $! > ../vite.pid
-          )
-          for i in $(seq 1 60); do
-            if curl -sf http://127.0.0.1:5173/ >/dev/null; then
-              echo "Vite UI ready after ${i}s"
+              echo "Fresnel ready after ${i}s"
               exit 0
             fi
             sleep 1
           done
-          cat vite.log
+          cat backend.log
           exit 1
+
+      - name: Verify packaged SPA assets
+        run: |
+          python3 - <<'PY'
+          import base64
+          import re
+          import urllib.request
+
+          base = "http://127.0.0.1:8080"
+          authorization = "Basic " + base64.b64encode(b"user:user").decode("ascii")
+
+          def fetch(path):
+              request = urllib.request.Request(
+                  base + path,
+                  headers={"Authorization": authorization},
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return response.headers.get_content_type(), response.read()
+
+          index_type, index = fetch("/")
+          if index_type != "text/html":
+              raise SystemExit(f"Expected text/html for index, got {index_type}")
+
+          asset_paths = sorted(set(
+              match.decode("utf-8")
+              for match in re.findall(rb'/assets/[^"\' ]+\.(?:js|css)', index)
+          ))
+          if not any(path.endswith(".js") for path in asset_paths):
+              raise SystemExit("Bundled index does not reference a JavaScript asset")
+          if not any(path.endswith(".css") for path in asset_paths):
+              raise SystemExit("Bundled index does not reference a CSS asset")
+
+          for path in asset_paths:
+              content_type, body = fetch(path)
+              if body.lstrip().lower().startswith((b"<!doctype html", b"<html")):
+                  raise SystemExit(f"{path} was incorrectly served as index.html")
+              if path.endswith(".js") and content_type not in {
+                  "application/javascript", "text/javascript"
+              }:
+                  raise SystemExit(f"Unexpected JavaScript MIME type for {path}: {content_type}")
+              if path.endswith(".css") and content_type != "text/css":
+                  raise SystemExit(f"Unexpected CSS MIME type for {path}: {content_type}")
+              print(f"verified {path}: {content_type}, {len(body)} bytes")
+          PY
 
       - name: Capture real UI assets
         working-directory: frontend
         env:
-          FRESNEL_PITCH_BASE_URL: http://127.0.0.1:5173
+          FRESNEL_PITCH_BASE_URL: http://127.0.0.1:8080
           FRESNEL_PITCH_USER: user
           FRESNEL_PITCH_PASSWORD: user
         run: node scripts/capture-hackathon-assets.mjs
@@ -108,9 +135,6 @@ jobs:
       - name: Stop application
         if: always()
         run: |
-          if [ -f vite.pid ]; then
-            kill "$(cat vite.pid)" || true
-          fi
           if [ -f backend.pid ]; then
             kill "$(cat backend.pid)" || true
           fi
@@ -136,7 +160,6 @@ jobs:
           name: fresnel-pitch-video-diagnostics
           path: |
             backend.log
-            vite.log
             build/hackathon-video/
           retention-days: 7
           if-no-files-found: ignore
