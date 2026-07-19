@@ -20,6 +20,10 @@ import java.util.Map;
 @Component
 public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotProvider {
 
+    private static final List<String> PARAMETER_PATHS = List.of(
+            "apertureDiameterMm", "focalLengthMm", "wavelengthNm", "dpi",
+            "targetOffsetXmm", "targetOffsetYmm", "maskType", "polarity");
+
     private final ObjectMapper mapper;
     private final HttpClient httpClient;
     private final boolean enabled;
@@ -100,6 +104,9 @@ public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotP
 
         Map<String, Object> requestBody = new LinkedHashMap<>();
         requestBody.put("model", model);
+        requestBody.put("store", false);
+        requestBody.put("reasoning", Map.of("effort", "low"));
+        requestBody.put("max_output_tokens", 4000);
         requestBody.put("instructions", """
                 Translate the user's optical intent into a restricted Fresnel Zone Plate proposal.
                 Use only the parameter paths permitted by the supplied schema. Do not invent plugins,
@@ -108,8 +115,7 @@ public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotP
                 when wavelength or focal distance cannot be determined. Generated prose is advisory;
                 Fresnel's deterministic validation remains authoritative.
                 """);
-        requestBody.put("input", "User request:\n" + context.request()
-                + "\n\nCurrent Zone Plate parameter schema:\n" + context.parameterSchema());
+        requestBody.put("input", providerInput(context));
         requestBody.put("text", Map.of("format", Map.of(
                 "type", "json_schema",
                 "name", "fresnel_experiment_proposal",
@@ -155,7 +161,7 @@ public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotP
             String outputText = extractOutputText(responseJson);
             StructuredProposal structured = mapper.convertValue(
                     mapper.readTree(outputText), StructuredProposal.class);
-            return structured.toProposal();
+            return structured.toProposal(mapper);
         } catch (CopilotProviderException e) {
             throw e;
         } catch (Exception e) {
@@ -163,6 +169,17 @@ public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotP
                     "MALFORMED_PROVIDER_RESPONSE",
                     "OpenAI returned a response that did not match the experiment proposal contract.", e);
         }
+    }
+
+    private static String providerInput(ExperimentCopilotContext context) {
+        String current = context.currentParameters() == null
+                ? "{}"
+                : context.currentParameters().toString();
+        String defaults = context.defaults() == null ? "{}" : context.defaults().toString();
+        return "User request:\n" + context.request()
+                + "\n\nCurrent user-edited parameters (retain unless the request changes them):\n" + current
+                + "\n\nCurrent Fresnel defaults:\n" + defaults
+                + "\n\nCurrent Zone Plate parameter schema:\n" + context.parameterSchema();
     }
 
     private static CopilotProviderException classifyHttpFailure(int status) {
@@ -217,18 +234,26 @@ public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotP
                         Map.of("type", "number"),
                         Map.of("type", "string"),
                         Map.of("type", "null")));
+        Map<String, Object> pathSchema = Map.of(
+                "type", "string",
+                "enum", PARAMETER_PATHS);
         Map<String, Object> parameterSchema = Map.of(
                 "type", "object",
                 "additionalProperties", false,
                 "required", List.of("path", "value", "source", "rationale"),
                 "properties", Map.of(
-                        "path", Map.of("type", "string", "enum", List.of(
-                                "apertureDiameterMm", "focalLengthMm", "wavelengthNm", "dpi",
-                                "targetOffsetXmm", "targetOffsetYmm", "maskType", "polarity")),
+                        "path", pathSchema,
                         "value", valueSchema,
                         "source", Map.of("type", "string", "enum", List.of(
                                 "USER_SUPPLIED", "COPILOT_INFERRED")),
                         "rationale", Map.of("type", "string")));
+        Map<String, Object> overrideSchema = Map.of(
+                "type", "object",
+                "additionalProperties", false,
+                "required", List.of("path", "value"),
+                "properties", Map.of(
+                        "path", pathSchema,
+                        "value", valueSchema));
         Map<String, Object> alternativeSchema = Map.of(
                 "type", "object",
                 "additionalProperties", false,
@@ -237,8 +262,8 @@ public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotP
                         "label", Map.of("type", "string"),
                         "description", Map.of("type", "string"),
                         "parameterOverrides", Map.of(
-                                "type", "object",
-                                "additionalProperties", valueSchema)));
+                                "type", "array",
+                                "items", overrideSchema)));
         return Map.of(
                 "type", "object",
                 "additionalProperties", false,
@@ -259,13 +284,13 @@ public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotP
             List<StructuredAlternative> alternatives,
             String summary) {
 
-        ExperimentProposal toProposal() {
+        ExperimentProposal toProposal(ObjectMapper mapper) {
             List<ExperimentProposal.Parameter> mappedParameters = parameters == null
                     ? List.of()
                     : parameters.stream().map(StructuredParameter::toParameter).toList();
             List<ExperimentProposal.Alternative> mappedAlternatives = alternatives == null
                     ? List.of()
-                    : alternatives.stream().map(StructuredAlternative::toAlternative).toList();
+                    : alternatives.stream().map(item -> item.toAlternative(mapper)).toList();
             return new ExperimentProposal(
                     selectedPluginId,
                     mappedParameters,
@@ -285,12 +310,31 @@ public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotP
         }
     }
 
+    private record StructuredOverride(String path, JsonNode value) {}
+
     private record StructuredAlternative(
             String label,
             String description,
-            JsonNode parameterOverrides) {
-        ExperimentProposal.Alternative toAlternative() {
-            return new ExperimentProposal.Alternative(label, description, parameterOverrides);
+            List<StructuredOverride> parameterOverrides) {
+        ExperimentProposal.Alternative toAlternative(ObjectMapper mapper) {
+            LinkedHashMap<String, JsonNode> overrides = new LinkedHashMap<>();
+            if (parameterOverrides != null) {
+                for (StructuredOverride override : parameterOverrides) {
+                    if (override == null || override.path() == null
+                            || override.value() == null || override.value().isNull()) {
+                        continue;
+                    }
+                    if (overrides.putIfAbsent(override.path(), override.value().deepCopy()) != null) {
+                        throw new CopilotProviderException(
+                                "MALFORMED_PROVIDER_RESPONSE",
+                                "OpenAI returned the same alternative parameter more than once.");
+                    }
+                }
+            }
+            return new ExperimentProposal.Alternative(
+                    label,
+                    description,
+                    mapper.valueToTree(overrides));
         }
     }
 }
