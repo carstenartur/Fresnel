@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -39,7 +40,15 @@ def caption_chunks(text: str) -> list[str]:
         )
         for index in range(0, len(lines), 2):
             chunks.append("\n".join(lines[index:index + 2]))
-    return chunks or [text.strip()]
+    return chunks
+
+
+def digest(path: Path) -> str:
+    value = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            value.update(block)
+    return value.hexdigest()
 
 
 def main() -> None:
@@ -54,7 +63,10 @@ def main() -> None:
     scene_start = 0.0
     for scene in scenes_document["scenes"]:
         duration = durations[scene["id"]]
-        chunks = caption_chunks(scene["narration"])
+        chunks = caption_chunks(scene.get("narration", ""))
+        if not chunks:
+            scene_start += duration
+            continue
         weights = [max(1, len(re.sub(r"\s+", " ", chunk))) for chunk in chunks]
         total_weight = sum(weights)
         cursor = scene_start
@@ -69,16 +81,11 @@ def main() -> None:
 
     srt = []
     for index, (start, end, text) in enumerate(cues, start=1):
-        # Tiny gaps make transitions between adjacent captions visually calmer.
         visible_end = max(start + 0.35, end - 0.06)
         srt.append(f"{index}\n{srt_time(start)} --> {srt_time(visible_end)}\n{text}\n\n")
     SRT_PATH.write_text("".join(srt), encoding="utf8")
 
     temp = OUTPUT_DIR / "fresnel-pitch.refined.mp4"
-    # libass scales SRT margins from its internal script resolution. A small
-    # MarginV therefore places the captions in the actual lower safe area of a
-    # 1080p frame; the previous value of 34 lifted them over image labels and
-    # editor controls.
     subtitle_filter = (
         f"subtitles={SRT_PATH.as_posix()}:"
         "force_style='FontName=DejaVu Sans,FontSize=11,PrimaryColour=&H00FFFFFF&,"
@@ -89,23 +96,10 @@ def main() -> None:
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-i", str(UNCAPTIONED),
         "-vf", subtitle_filter,
-        "-af", "loudnorm=I=-16:TP=-1.5:LRA=7",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-        "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "1",
-        "-movflags", "+faststart", str(temp),
+        "-an", "-movflags", "+faststart", str(temp),
     ], check=True)
     temp.replace(FINAL)
-
-    # The build script wrote the manifest before this refinement pass.
-    # Recalculate the final video and subtitle fields while retaining its input inventory.
-    import hashlib
-
-    def digest(path: Path) -> str:
-        value = hashlib.sha256()
-        with path.open("rb") as handle:
-            for block in iter(lambda: handle.read(1024 * 1024), b""):
-                value.update(block)
-        return value.hexdigest()
 
     manifest["video"]["sha256"] = digest(FINAL)
     manifest["video"]["sizeBytes"] = FINAL.stat().st_size
