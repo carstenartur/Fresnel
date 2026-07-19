@@ -93,14 +93,7 @@ async function fill(label, value) {
   await control.blur();
 }
 
-try {
-  await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
-  await page.waitForTimeout(1500);
-  await capture('00-loaded-page.png');
-  await page.getByRole('heading', { name: 'Fresnel Designer' })
-    .waitFor({ state: 'visible', timeout: 30_000 });
-  await page.locator('[data-plugin-schema="zone-plate"]')
-    .waitFor({ state: 'visible', timeout: 45_000 });
+async function installStableCaptureStyles() {
   await page.addStyleTag({
     content: `
       *, *::before, *::after {
@@ -113,6 +106,17 @@ try {
       .panel::-webkit-scrollbar { display: none; }
     `,
   });
+}
+
+try {
+  await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+  await page.waitForTimeout(1500);
+  await capture('00-loaded-page.png');
+  await page.getByRole('heading', { name: 'Fresnel Designer' })
+    .waitFor({ state: 'visible', timeout: 30_000 });
+  await page.locator('[data-plugin-schema="zone-plate"]')
+    .waitFor({ state: 'visible', timeout: 45_000 });
+  await installStableCaptureStyles();
 
   const panel = page.locator('aside.panel');
   await panel.waitFor({ state: 'visible' });
@@ -152,6 +156,39 @@ try {
   });
   await page.waitForTimeout(350);
   await capture('04-validation-details.png', panel);
+
+  // Reproduce the hackathon vertical slice through the real offline mock provider.
+  await page.goto(`${baseUrl}/assistant`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+  await page.getByRole('heading', { name: 'Experiment Copilot' })
+    .waitFor({ state: 'visible', timeout: 30_000 });
+  await installStableCaptureStyles();
+  await page.getByLabel('Optical goal').fill(
+    'Create a printable 532 nm zone plate with a 1 m focal distance at 1200 DPI. ' +
+      'Prefer a robust design that is easy to fabricate.',
+  );
+  await page.getByRole('button', { name: 'Create grounded proposal' }).click();
+  await page.getByTestId('copilot-parameter-review')
+    .waitFor({ state: 'visible', timeout: 30_000 });
+  await page.locator('[data-parameter-path="apertureDiameterMm"] [data-source="COPILOT_INFERRED"]')
+    .waitFor({ state: 'visible', timeout: 30_000 });
+  await page.evaluate(() => {
+    const panelElement = document.querySelector('aside.panel');
+    if (panelElement) panelElement.scrollTop = 0;
+  });
+  await page.waitForTimeout(350);
+  await capture('05-grounded-copilot-proposal.png', page.locator('aside.panel'));
+
+  await page.getByRole('button', { name: 'Validate & preview' }).click();
+  await page.getByTestId('copilot-validation')
+    .waitFor({ state: 'visible', timeout: 60_000 });
+  await page.getByTestId('copilot-preview')
+    .waitFor({ state: 'visible', timeout: 60_000 });
+  await page.evaluate(() => {
+    const panelElement = document.querySelector('aside.panel');
+    if (panelElement) panelElement.scrollTop = panelElement.scrollHeight;
+  });
+  await page.waitForTimeout(350);
+  await capture('06-grounded-copilot-validation.png', page.locator('aside.panel'));
 
   await writeDiagnostics();
   await writeFile(
