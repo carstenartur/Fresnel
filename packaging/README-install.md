@@ -271,9 +271,11 @@ on the next start.
 ## Building the installers locally
 
 ```bash
-# Builds the jar plus the Windows ZIP and Linux tar.gz under
+# Activating an explicit Maven profile suppresses activeByDefault profiles, so
+# name both the frontend build and the release archive profile explicitly.
+# The command builds the jar plus the Windows ZIP and Linux tar.gz under
 # backend/target/dist/.
-mvn -B -ntp -Prelease-package -pl backend -am package
+mvn -B -ntp -Pfrontend,release-package -pl backend -am package
 
 # Native installers (requires jpackage from JDK 21+):
 JPACKAGE_TYPE=deb bash packaging/jpackage/build-linux.sh    # on Linux
