@@ -1,153 +1,244 @@
-# Optical Design Assistant
+# Grounded Experiment Copilot
 
-> **This assistant is advisory.**
-> All recommendations are based on the paraxial thin-lens approximation and the
-> physical assumptions stated below. Verify every design experimentally before use.
+> **Generated proposals are advisory.**
+> Fresnel's schema normalization, deterministic optical validation and manufacturing
+> findings remain authoritative. A provider cannot suppress an error or make a design
+> fabrication-ready by saying that it is safe.
 
 ## Purpose
 
-The Optical Design Assistant bridges the gap between a user's practical goal and the
-concrete Fresnel design parameters needed to achieve it. Given a printer resolution,
-page size, light source wavelength, and target focal distance, it:
+The Experiment Copilot turns a natural-language optical goal into a reviewable draft of
+an existing Fresnel plugin contract. It is not a general chatbot and cannot execute code,
+read files, invoke renderers or select arbitrary endpoints.
 
-1. Generates several plausible Zone Plate design candidates.
-2. Evaluates each candidate for optical quality, printability and fabrication risk.
-3. Returns a ranked list and recommends the best option with a human-readable explanation.
+The first supported vertical slice is:
 
-## Endpoint
-
+```text
+natural-language Zone Plate goal
+  → restricted typed proposal
+  → visible assumptions and value origins
+  → user review and edits
+  → canonical schema normalization
+  → deterministic validation and preview
+  → versioned .fresnel job
 ```
+
+Example:
+
+> Create a printable 532 nm zone plate with a 1 m focal distance at 1200 DPI.
+> Prefer a robust design that is easy to fabricate.
+
+The review UI distinguishes:
+
+- **User supplied** values explicitly found in the request or edited by the user;
+- **Copilot inferred** values, including the deterministically selected printable aperture;
+- **Fresnel defaults** taken from the current versioned parameter schema;
+- **Deterministic validation results** produced after the proposal boundary.
+
+## Trust boundary
+
+Providers return only an `ExperimentProposal` containing:
+
+```text
+selectedPluginId
+parameters[] { path, value, source, rationale }
+unresolvedQuestions[]
+alternatives[]
+summary
+```
+
+The backend then:
+
+1. rejects unknown providers, plugins, parameter paths and duplicate fields;
+2. overlays only known Zone Plate schema defaults and optional current user parameters;
+3. asks clarification when wavelength or focal distance is genuinely missing;
+4. derives an omitted aperture through the deterministic existing `DesignAssistant`;
+5. creates an in-memory candidate job;
+6. normalizes it through `FresnelJobService`;
+7. validates it through `DesignValidationReports`;
+8. returns a canonical `.fresnel` job only after those steps succeed.
+
+The final job stores no API key, hidden prompt or conversation transcript. Its provenance
+identifies the provider and model that assisted the draft, while its parameter hash is
+recomputed from the accepted normalized values. It remains renderable and editable without
+a model provider or network connection.
+
+## Providers
+
+### Deterministic mock provider
+
+Provider ID: `mock`
+
+The mock provider is always available and performs a deliberately bounded extraction for
+the Zone Plate MVP. It understands explicit wavelength, focal distance, DPI, aperture,
+mask type and polarity. It never performs an external request.
+
+This provider supports:
+
+- ordinary unit and browser tests;
+- offline evaluation and demonstrations;
+- the reproducible hackathon video;
+- operation when paid API quota is unavailable.
+
+It is not presented as a language model. Its status and model identifier make the
+implementation explicit in the UI and API.
+
+### OpenAI provider
+
+Provider ID: `openai`
+
+The OpenAI implementation uses the Responses API with strict JSON-schema structured
+output. The default model is `gpt-5.6`, but model, endpoint and timeout are configurable.
+The bounded context contains only:
+
+- the user's optical request;
+- current user-edited Zone Plate parameters, when supplied;
+- current versioned Fresnel defaults;
+- the current bounded Zone Plate parameter schema.
+
+Requests set `store: false`, use low reasoning effort and cap generated output. The strict
+response schema allows only known top-level Zone Plate parameter paths; alternatives use a
+closed list of `{path, value}` overrides instead of arbitrary object properties.
+
+Configuration:
+
+| Setting | Environment variable | Default |
+|---|---|---|
+| enabled | `FRESNEL_COPILOT_OPENAI_ENABLED` | `true` |
+| API key | `OPENAI_API_KEY` | none |
+| model | `OPENAI_COPILOT_MODEL` | `gpt-5.6` |
+| endpoint | `OPENAI_COPILOT_ENDPOINT` | `https://api.openai.com/v1/responses` |
+| timeout | `OPENAI_COPILOT_TIMEOUT_SECONDS` | `60` |
+
+The provider reports classified, secret-safe failures for missing configuration,
+authentication, quota/rate limits, network errors, refusals and malformed structured
+responses. Upstream response bodies and secret values are not exposed to browser clients.
+
+No normal Maven, JUnit, frontend or pull-request test makes a paid external model call.
+Provider contract tests use a local HTTP server.
+
+## API
+
+### Provider status
+
+```http
+GET /api/assistant/providers
+```
+
+This read-only endpoint is public. Example:
+
+```json
+[
+  {
+    "id": "mock",
+    "displayName": "Deterministic Fresnel demo",
+    "modelId": "deterministic-zone-plate-parser/1",
+    "available": true
+  },
+  {
+    "id": "openai",
+    "displayName": "OpenAI structured proposal",
+    "modelId": "gpt-5.6",
+    "available": false
+  }
+]
+```
+
+Availability reveals only configuration state. It does not expose a secret or quota value.
+Provider entries are returned in deterministic ID order.
+
+### Natural-language proposal
+
+```http
+POST /api/assistant/propose
+Authorization: Basic …
+Content-Type: application/json
+```
+
+```json
+{
+  "provider": "mock",
+  "request": "Create a printable 532 nm zone plate with a 1 m focus at 1200 DPI."
+}
+```
+
+The proposal endpoint requires authentication for every provider because a configured
+provider may consume paid quota. The natural-language request is limited to 8,000
+characters before a provider is invoked. Deployment credentials must be overridden from
+the local-development defaults.
+
+When the request contains enough optical intent, the response includes:
+
+- field-level value origin and rationale;
+- normalized Zone Plate parameters;
+- deterministic validation report;
+- reviewable alternatives;
+- canonical `.fresnel` job.
+
+When core intent is missing, `ready` is `false`, clarification questions are returned and
+no job or validation result is fabricated.
+
+## User workflow
+
+Open `/assistant` or select **Assistant** in the application.
+
+1. Choose an available provider.
+2. Describe the optical goal.
+3. Review every proposed value and its source badge.
+4. Edit a value, reset it to the Fresnel default or apply an alternative.
+5. Run **Validate & preview**.
+6. Save the canonical `.fresnel` job or open it in the trusted Zone Plate editor.
+7. Reopen or re-render the file without the provider.
+
+After any edit or applied alternative, previous validation is invalidated. Saving and editor
+handoff remain disabled until the modified draft passes deterministic Fresnel validation.
+
+## Existing deterministic Design Assistant
+
+The earlier numeric recommendation endpoint remains available and unchanged:
+
+```http
 POST /api/assistant/recommend
 Content-Type: application/json
 ```
 
-### Request – `DesignGoalRequest`
+It accepts printer resolution, page size, wavelength, target focus and an optional
+maximum aperture. The existing `DesignAssistant` generates compact, balanced and
+wide-aperture candidates and ranks them deterministically from printability, numerical
+aperture, zone count and validation warnings.
 
-| Field               | Type     | Required | Description                                      |
-|---------------------|----------|----------|--------------------------------------------------|
-| `dpi`               | `number` | yes      | Printer resolution in dots per inch              |
-| `pageSizeWidthMm`   | `number` | yes      | Printable page width in mm                       |
-| `pageSizeHeightMm`  | `number` | yes      | Printable page height in mm                      |
-| `wavelengthNm`      | `number` | yes      | Design wavelength in nm (e.g. 532 for green laser)|
-| `targetFocusMm`     | `number` | yes      | Target focal distance in mm                      |
-| `maxApertureMm`     | `number` | no       | Optional hard cap on aperture diameter in mm     |
+This numeric endpoint is also reused inside the new copilot trust boundary when a user
+does not specify an aperture: the model does not invent the value; Fresnel chooses it.
 
-### Response – `AssistantRecommendationResponse`
+## Testing and reproducibility
 
-| Field             | Type                   | Description                                     |
-|-------------------|------------------------|-------------------------------------------------|
-| `recommended`     | `CandidateDesignDto`   | Highest-ranked candidate                        |
-| `alternatives`    | `CandidateDesignDto[]` | Remaining candidates, rank 2 onward             |
-| `globalWarnings`  | `AssistantWarning[]`   | Advisory warnings about the whole recommendation|
+Automated coverage includes:
 
-Each `CandidateDesignDto` contains:
+- deterministic natural-language extraction;
+- missing-intent clarification;
+- unknown-path and duplicate-path rejection;
+- request-size and authentication boundaries;
+- canonical job normalization, provider/model provenance and parameter hash;
+- deterministic validation after the proposal boundary;
+- strict, non-stored OpenAI request contract tests against a local server;
+- quota/error classification without secret leakage;
+- browser proposal review, user editing, validation, preview, download and editor handoff;
+- deterministic Playwright screenshots for the pitch-video pipeline.
 
-| Field            | Type                       | Description                                |
-|------------------|----------------------------|--------------------------------------------|
-| `label`          | `string`                   | Human-readable name                        |
-| `parameters`     | `SingleZonePlateParameters`| Zone plate design parameters               |
-| `rank`           | `int`                      | 1-based rank (1 = best)                    |
-| `compositeScore` | `double`                   | Normalized composite score in [0, 1]       |
-| `reasons`        | `RecommendationReason[]`   | Per-dimension scoring notes                |
-| `warnings`       | `AssistantWarning[]`       | Design-specific warnings                   |
-| `validation`     | `ValidationResponse`       | Full metrics and optical quality report    |
+The browser demonstration proves:
 
-## Example — first vertical slice
-
-**Goal:** 600 dpi, A4 transparency film, green laser (532 nm), target focus 2 m.
-
-### Request
-
-```json
-{
-  "dpi": 600,
-  "pageSizeWidthMm": 210,
-  "pageSizeHeightMm": 297,
-  "wavelengthNm": 532,
-  "targetFocusMm": 2000
-}
+```text
+request → grounded proposal → accepted edit → deterministic validation
+        → preview → saved job → trusted editor round trip
 ```
 
-### Response (abbreviated)
+## Current limitations
 
-```json
-{
-  "recommended": {
-    "label": "Compact Zone Plate (D = 5.0 mm)",
-    "rank": 1,
-    "compositeScore": 0.7,
-    "parameters": {
-      "apertureDiameterMm": 5.0,
-      "focalLengthMm": 2000.0,
-      "wavelengthNm": 532.0,
-      "dpi": 600.0,
-      "maskType": "BINARY_AMPLITUDE",
-      "polarity": "POSITIVE"
-    },
-    "reasons": [
-      { "dimension": "printability",    "description": "5.0 px per outer zone — good printability at 600 dpi" },
-      { "dimension": "focus_quality",   "description": "NA = 0.00125, Airy disk = 1302 µm, depth of focus = 52041 µm" },
-      { "dimension": "zone_adequacy",   "description": "13 Fresnel zones — adequate diffraction quality" },
-      { "dimension": "fabrication_risk","description": "No printability warnings — low fabrication risk" },
-      { "dimension": "physical_size",   "description": "Aperture diameter 5.0 mm fits on the specified page" }
-    ],
-    "warnings": [],
-    "validation": { "valid": true, "warnings": [], ... }
-  },
-  "alternatives": [
-    { "label": "Balanced Zone Plate (D = 7.1 mm)", "rank": 2, ... },
-    { "label": "Wide-Aperture Zone Plate (D = 10.1 mm)", "rank": 3, ... }
-  ],
-  "globalWarnings": [
-    {
-      "code": "ADVISORY",
-      "message": "This recommendation is advisory and based on stated physical assumptions ..."
-    }
-  ]
-}
-```
+The first iteration intentionally supports only the Zone Plate plugin. It does not:
 
-## Scoring model
-
-The composite score is rule-based and deterministic: four dimensions are computed for
-every candidate from deterministic validation data (`ValidationResult`), normalized to
-[0, 1] across the candidate set, and combined.
-
-| Dimension          | Weight | Metric                                     |
-|--------------------|--------|--------------------------------------------|
-| Printability       | 40 %   | Pixels per outermost Fresnel zone          |
-| Focus quality      | 30 %   | Numerical aperture (NA)                    |
-| Zone adequacy      | 20 %   | Total number of Fresnel zones              |
-| Fabrication risk   | 10 %   | 1.0 = no warnings, 0.5 = warning, 0.0 = error |
-
-Ties are broken by submission order (deterministic).
-
-## Candidate generation
-
-Three aperture diameters are generated for each Zone Plate recommendation:
-
-| Candidate      | Target px / outer zone | Typical result |
-|----------------|------------------------|----------------|
-| Compact        | 5.0 (recommended min)  | Best printability, fewest zones |
-| Balanced       | 3.5                    | Medium trade-off |
-| Wide-aperture  | 2.5                    | Most zones, near printability warning |
-
-All apertures are clamped to `min(pageSizeWidthMm, pageSizeHeightMm)` and
-`maxApertureMm` if provided.
-
-## Physical assumptions
-
-- **Paraxial thin-lens approximation** — zone radii follow $r_n = \sqrt{n \lambda f}$.
-- **Binary amplitude mask** — transmission ≈ 50 %, first-order efficiency ≈ 1/π².
-- **On-axis design** — off-axis aberrations are not modelled.
-- **Monochromatic light** — chromatic focal shift is reported but not optimised.
-- **Printer fidelity** — a pixel is assumed to be a perfect square dot. Real printers
-  may have lower effective resolution due to dot gain and ink spread.
-- **No wave-optical simulation** — propagation is not simulated; use the
-  [Propagation Preview](plugins/zone-plate.md) for that.
-
-## Related
-
-- Plugin metadata: [PluginRegistry](../../optics-core/src/main/java/org/fresnel/optics/PluginRegistry.java)
-- Comparison and ranking primitives: [issue #42](https://github.com/carstenartur/Fresnel/issues/42)
-- Validation reports: [Shared validation model](index.md#shared-validation-model) (issue #54)
+- fabricate or control hardware autonomously;
+- execute arbitrary code or shell commands;
+- use generated prose as optical validation;
+- silently accept missing wavelength or focal intent;
+- make paid external calls in normal tests;
+- claim that a mock-provider demo came from an LLM.
