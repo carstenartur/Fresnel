@@ -17,11 +17,13 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Trust boundary between generated proposals and deterministic Fresnel services.
@@ -31,6 +33,7 @@ public final class ExperimentCopilotService {
 
     private static final String MVP_PLUGIN_ID = "zone-plate";
     private static final Set<String> CORE_INTENT_FIELDS = Set.of("wavelengthNm", "focalLengthMm");
+    private static final Pattern PROVIDER_ID = Pattern.compile("[a-z0-9][a-z0-9-]{0,39}");
 
     private final Map<String, ExperimentCopilotProvider> providers;
     private final FresnelJobService jobService;
@@ -43,12 +46,15 @@ public final class ExperimentCopilotService {
             PluginSchemaService schemaService,
             ObjectMapper mapper) {
         LinkedHashMap<String, ExperimentCopilotProvider> indexed = new LinkedHashMap<>();
-        for (ExperimentCopilotProvider provider : providers) {
-            ExperimentCopilotProvider previous = indexed.put(provider.id(), provider);
-            if (previous != null) {
-                throw new IllegalStateException("Duplicate experiment copilot provider id: " + provider.id());
-            }
-        }
+        providers.stream()
+                .sorted(Comparator.comparing(ExperimentCopilotService::providerId))
+                .forEach(provider -> {
+                    String id = providerId(provider);
+                    ExperimentCopilotProvider previous = indexed.put(id, provider);
+                    if (previous != null) {
+                        throw new IllegalStateException("Duplicate experiment copilot provider id: " + id);
+                    }
+                });
         this.providers = Map.copyOf(indexed);
         this.jobService = jobService;
         this.schemaService = schemaService;
@@ -57,6 +63,7 @@ public final class ExperimentCopilotService {
 
     public List<ExperimentCopilotProviderStatus> providerStatuses() {
         return providers.values().stream()
+                .sorted(Comparator.comparing(ExperimentCopilotService::providerId))
                 .map(provider -> new ExperimentCopilotProviderStatus(
                         provider.id(),
                         provider.displayName(),
@@ -169,7 +176,7 @@ public final class ExperimentCopilotService {
                 rawParameters,
                 null,
                 new FresnelJobDocument.Provenance(
-                        "Fresnel experiment copilot (" + provider.id() + ")",
+                        provenanceLabel(provider),
                         null,
                         null));
 
@@ -310,5 +317,23 @@ public final class ExperimentCopilotService {
             result.put(entry.getKey(), entry.getValue().deepCopy());
         }
         return result;
+    }
+
+    private static String providerId(ExperimentCopilotProvider provider) {
+        if (provider == null || provider.id() == null || !PROVIDER_ID.matcher(provider.id()).matches()) {
+            throw new IllegalStateException("Experiment copilot provider has an invalid id");
+        }
+        return provider.id();
+    }
+
+    private static String provenanceLabel(ExperimentCopilotProvider provider) {
+        String model = oneLine(provider.modelId(), "unspecified-model", 120);
+        return "Fresnel experiment copilot [" + provider.id() + "/" + model + "]";
+    }
+
+    private static String oneLine(String value, String fallback, int maxLength) {
+        if (value == null || value.isBlank()) return fallback;
+        String normalized = value.replace('\r', ' ').replace('\n', ' ').trim();
+        return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength);
     }
 }
