@@ -25,10 +25,9 @@ public record ExperimentCopilotContext(
                     "experiment request must not exceed " + MAX_REQUEST_CHARS + " characters");
         }
 
-        if (parameterSchema == null || !parameterSchema.isObject()
-                || !parameterSchema.path("properties").isObject()) {
+        if (parameterSchema == null || !parameterSchema.isObject()) {
             throw new IllegalArgumentException(
-                    "experiment provider context requires a bounded parameter schema");
+                    "experiment provider context requires a parameter schema object");
         }
         parameterSchema = parameterSchema.deepCopy();
         defaults = defaults == null ? null : defaults.deepCopy();
@@ -49,6 +48,10 @@ public record ExperimentCopilotContext(
         }
 
         JsonNode properties = parameterSchema.path("properties");
+        if (!properties.isObject()) {
+            throw new IllegalArgumentException(
+                    "currentParameters require a bounded schema properties object");
+        }
         for (Map.Entry<String, JsonNode> entry : supplied.properties()) {
             JsonNode fieldSchema = properties.get(entry.getKey());
             if (fieldSchema == null) {
