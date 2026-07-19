@@ -82,8 +82,10 @@ jobs:
           FRESNEL_PITCH_PASSWORD: user
         run: node scripts/capture-hackathon-assets.mjs
 
-      - name: Build narration, captions and video
-        run: python3 scripts/hackathon/build-pitch-video.py
+      - name: Build narration, concise captions and video
+        run: |
+          python3 scripts/hackathon/build-pitch-video.py
+          python3 scripts/hackathon/refine-pitch-captions.py
 
       - name: Verify duration and streams
         run: |
