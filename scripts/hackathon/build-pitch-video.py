@@ -6,8 +6,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -115,13 +118,12 @@ def hero_slide(scene: dict[str, Any], paths: list[Path]) -> Image.Image:
     canvas = Image.alpha_composite(base.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(canvas)
     draw.text((110, 110), "FRESNEL", font=font(30, bold=True), fill=ACCENT)
-    words = scene["headline"].split(" ")
+    lines = scene["headline"].split(" ")
     wrapped: list[str] = []
     current = ""
-    headline_font = font(76, bold=True)
-    for word in words:
+    for word in lines:
         candidate = f"{current} {word}".strip()
-        if draw.textlength(candidate, font=headline_font) > 1120 and current:
+        if draw.textlength(candidate, font=font(76, bold=True)) > 1120 and current:
             wrapped.append(current)
             current = word
         else:
@@ -130,7 +132,7 @@ def hero_slide(scene: dict[str, Any], paths: list[Path]) -> Image.Image:
         wrapped.append(current)
     y = 300
     for line in wrapped:
-        draw.text((110, y), line, font=headline_font, fill=TEXT)
+        draw.text((110, y), line, font=font(76, bold=True), fill=TEXT)
         y += 96
     draw.text((114, y + 28), scene.get("subheadline", ""), font=font(36), fill=MUTED)
     rounded(draw, (110, 850, 760, 930), fill="#0d2637", outline="#234a60", width=2)
@@ -194,11 +196,10 @@ def exports_slide(scene: dict[str, Any], paths: list[Path]) -> Image.Image:
     formats = ["PNG", "SVG", "PDF", "DXF", "GERBER", "STL"]
     x = 125
     for label in formats:
-        chip_width = int(draw.textlength(label, font=font(24, bold=True))) + 56
-        rounded(draw, (x, 890, x + chip_width, 958), fill=PANEL_ALT,
-                outline="#2c5571", width=2, radius=18)
+        width = int(draw.textlength(label, font=font(24, bold=True))) + 56
+        rounded(draw, (x, 890, x + width, 958), fill=PANEL_ALT, outline="#2c5571", width=2, radius=18)
         draw.text((x + 28, 910), label, font=font(24, bold=True), fill=ACCENT)
-        x += chip_width + 24
+        x += width + 24
     return canvas
 
 
@@ -258,6 +259,71 @@ def render_slide(scene: dict[str, Any], repo_root: Path) -> Image.Image:
     raise ValueError(f"Unsupported scene kind: {kind}")
 
 
+def synthesize_openai_speech(text: str, output_path: Path) -> None:
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY is required for professional narration. "
+            "The pitch-video pipeline intentionally has no robotic TTS fallback."
+        )
+
+    model = os.environ.get("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
+    voice = os.environ.get("OPENAI_TTS_VOICE", "cedar")
+    instructions = os.environ.get(
+        "OPENAI_TTS_INSTRUCTIONS",
+        "Speak in clear, natural English with a calm, confident, professional presentation style. "
+        "Use smooth phrasing, moderate pacing, and precise emphasis for a hackathon pitch video.",
+    )
+    payload = json.dumps({
+        "model": model,
+        "voice": voice,
+        "input": text,
+        "response_format": "wav",
+        "instructions": instructions,
+    }).encode("utf8")
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/audio/speech",
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=180) as response:
+            audio = response.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf8", errors="replace")
+        raise RuntimeError(f"OpenAI speech synthesis failed: {exc.code} {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"OpenAI speech synthesis failed: {exc}") from exc
+    output_path.write_bytes(audio)
+
+
+def ensure_openai_hackathon_assets(repo_root: Path, output_dir: Path) -> list[Path]:
+    job_path = repo_root / "scripts/hackathon/openai-hackathon.fresnel"
+    generated_dir = output_dir / "generated" / "openai-hackathon"
+    if generated_dir.exists():
+        shutil.rmtree(generated_dir)
+    generated_dir.mkdir(parents=True, exist_ok=True)
+
+    if not job_path.is_file():
+        raise FileNotFoundError(f"Missing hackathon hologram job: {job_path}")
+
+    run("bash", "packaging/docs-jobs.sh", "render", str(job_path), str(generated_dir), cwd=repo_root)
+
+    expected = [
+        generated_dir / "openai-hackathon-target.png",
+        generated_dir / "openai-hackathon-mask.png",
+        generated_dir / "openai-hackathon-reconstruction.png",
+    ]
+    for path in expected:
+        if not path.is_file():
+            raise FileNotFoundError(f"Expected generated hologram asset is missing: {path}")
+    return expected
+
+
 def wav_duration(path: Path) -> float:
     return float(output("ffprobe", "-v", "error", "-show_entries", "format=duration",
                         "-of", "default=noprint_wrappers=1:nokey=1", str(path)))
@@ -287,16 +353,28 @@ def main() -> None:
         shutil.rmtree(work_dir)
     work_dir.mkdir(parents=True)
 
-    tts = shutil.which("espeak-ng") or shutil.which("espeak")
-    if not tts:
-        raise RuntimeError("espeak-ng or espeak is required")
     for command in ("ffmpeg", "ffprobe"):
         if not shutil.which(command):
             raise RuntimeError(f"{command} is required")
 
+    generated_hologram_assets = ensure_openai_hackathon_assets(repo_root, output_dir)
+
     document = json.loads(scenes_path.read_text(encoding="utf8"))
     scenes = document["scenes"]
     results: list[SceneResult] = []
+
+    for scene in scenes:
+        images = []
+        for value in scene.get("images", []):
+            if value == "@generated/openai-hackathon-target":
+                images.append(str(generated_hologram_assets[0].relative_to(repo_root)))
+            elif value == "@generated/openai-hackathon-mask":
+                images.append(str(generated_hologram_assets[1].relative_to(repo_root)))
+            elif value == "@generated/openai-hackathon-reconstruction":
+                images.append(str(generated_hologram_assets[2].relative_to(repo_root)))
+            else:
+                images.append(value)
+        scene["images"] = images
 
     for index, scene in enumerate(scenes, start=1):
         stem = f"{index:02d}-{scene['id']}"
@@ -306,7 +384,7 @@ def main() -> None:
         video = work_dir / f"{stem}.mp4"
 
         render_slide(scene, repo_root).save(slide, format="PNG", optimize=True)
-        run(tts, "-v", "en-us", "-s", "154", "-p", "46", "-w", str(raw_audio), scene["narration"])
+        synthesize_openai_speech(scene["narration"], raw_audio)
         run("ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(raw_audio),
             "-af", "apad=pad_dur=0.65", str(audio))
         duration = wav_duration(audio)
@@ -354,6 +432,7 @@ def main() -> None:
     inputs = sorted({(repo_root / image).resolve() for scene in scenes for image in scene.get("images", [])})
     inputs.extend([
         (repo_root / "build/hackathon-video/assets/capture-manifest.json").resolve(),
+        (repo_root / "scripts/hackathon/openai-hackathon.fresnel").resolve(),
         scenes_path,
     ])
     manifest = {
