@@ -3,12 +3,27 @@
   "title": "Fresnel — Reproducible Computational Optics",
   "scenes": [
     {
+      "id": "notice",
+      "kind": "hero",
+      "headline": "Fresnel",
+      "subheadline": "Hackathon pitch · subtitles only",
+      "images": [
+        "docs/assets/plugins/zone-plate/on-axis.png"
+      ],
+      "footerNotice": "Subtitles-only build — voice narration could not be generated because TTS API quota was unavailable.",
+      "durationSeconds": 5.5,
+      "narration": ""
+    },
+    {
       "id": "title",
       "kind": "hero",
       "headline": "Computational optics you can reproduce",
       "subheadline": "Design · validate · fabricate · measure",
-      "images": ["docs/assets/plugins/zone-plate/on-axis.png"],
-      "narration": "Fresnel turns physical optical targets into reproducible diffractive designs. It combines calculation, validation, fabrication exports, and experimental records in one open workflow."
+      "images": [
+        "docs/assets/plugins/zone-plate/on-axis.png"
+      ],
+      "narration": "Fresnel turns physical optical targets into reproducible diffractive designs. It combines calculation, validation, fabrication exports, and experimental records in one open workflow.",
+      "durationSeconds": 13.9
     },
     {
       "id": "problem",
@@ -21,7 +36,8 @@
         "docs/assets/plugins/multi-focus/two-foci.png",
         "docs/assets/plugins/hologram/hologram-mask.png"
       ],
-      "narration": "Diffractive optics is often demonstrated through isolated formulas or notebooks. Fresnel makes the workflow usable: zone plates, multi-focus elements, RGB designs, printable foils, macro cells, and computer-generated holograms all use the same application lifecycle."
+      "narration": "Diffractive optics is often demonstrated through isolated formulas or notebooks. Fresnel makes the workflow usable: zone plates, multi-focus elements, RGB designs, printable foils, macro cells, and computer-generated holograms all use the same application lifecycle.",
+      "durationSeconds": 19.9
     },
     {
       "id": "target",
@@ -32,7 +48,8 @@
         "build/hackathon-video/assets/02-physical-target.png",
         "docs/assets/plugins/zone-plate/on-axis.png"
       ],
-      "narration": "The user specifies physical intent, not implementation code: aperture, focal distance, wavelength, printer resolution, mask type, and polarity. The schema-driven editor applies the same typed contract used by files, APIs, and tests."
+      "narration": "The user specifies physical intent, not implementation code: aperture, focal distance, wavelength, printer resolution, mask type, and polarity. The schema-driven editor applies the same typed contract used by files, APIs, and tests.",
+      "durationSeconds": 18.4
     },
     {
       "id": "validation",
@@ -43,16 +60,20 @@
         "build/hackathon-video/assets/03-preview-and-validation.png",
         "docs/assets/plugins/zone-plate/greyscale-phase.png"
       ],
-      "narration": "A preview is only a design aid. Before production, Fresnel performs deterministic optical and manufacturing checks. Warnings, metrics, assumptions, and quality reports remain separate from any generative explanation."
+      "narration": "A preview is only a design aid. Before production, Fresnel performs deterministic optical and manufacturing checks. Warnings, metrics, assumptions, and quality reports remain separate from any generative explanation.",
+      "durationSeconds": 16.1
     },
     {
       "id": "job",
       "kind": "contract",
       "headline": "The design is a portable production job",
       "subheadline": ".fresnel · versioned schema · stable plugin identity · content hash",
-      "images": ["docs/assets/plugins/zone-plate/negative-polarity.png"],
+      "images": [
+        "docs/assets/plugins/zone-plate/negative-polarity.png"
+      ],
       "code": "{\n  \"format\": \"io.github.carstenartur.fresnel.job\",\n  \"formatVersion\": 1,\n  \"plugin\": {\n    \"id\": \"zone-plate\",\n    \"parameterSchemaVersion\": 1,\n    \"algorithmVersion\": \"zone-plate/1\"\n  },\n  \"parameters\": { \"focalLengthMm\": 1000, \"wavelengthNm\": 532 }\n}",
-      "narration": "Every design can be saved as a versioned dot Fresnel job. It contains stable plugin identity, schema and algorithm versions, normalized parameters, production instructions, and provenance. The same file can be reopened, reviewed, rendered, and archived."
+      "narration": "Every design can be saved as a versioned dot Fresnel job. It contains stable plugin identity, schema and algorithm versions, normalized parameters, production instructions, and provenance. The same file can be reopened, reviewed, rendered, and archived.",
+      "durationSeconds": 18.5
     },
     {
       "id": "exports",
@@ -63,19 +84,21 @@
         "docs/assets/plugins/window-foil/foil-sheet.png",
         "docs/assets/plugins/hex-macro-cell/on-axis.png"
       ],
-      "narration": "Once a design is production-ready, the same normalized parameters drive raster previews, vector exports, printable PDFs, laser-cutter outlines, Gerber fabrication files, and three-dimensional output where supported."
+      "narration": "Once a design is production-ready, the same normalized parameters drive raster previews, vector exports, printable PDFs, laser-cutter outlines, Gerber fabrication files, and three-dimensional output where supported.",
+      "durationSeconds": 15.3
     },
     {
       "id": "hologram",
       "kind": "before-after",
-      "headline": "The workflow extends beyond zone plates",
-      "subheadline": "Target image → phase mask → reconstructed field",
+      "headline": "Make the hackathon visible as a hologram",
+      "subheadline": "OpenAI Hackathon target → phase mask → reconstructed field",
       "images": [
-        "docs/assets/plugins/hologram/target.png",
-        "docs/assets/plugins/hologram/hologram-mask.png",
-        "docs/assets/plugins/hologram/reconstruction.png"
+        "@generated/openai-hackathon-target",
+        "@generated/openai-hackathon-mask",
+        "@generated/openai-hackathon-reconstruction"
       ],
-      "narration": "The same architecture also supports iterative computer-generated holography. A bounded target image becomes a phase mask through the Gerchberg Saxton algorithm, with a reconstruction preview that makes the result inspectable."
+      "narration": "For the competition pitch, Fresnel can turn the phrase OpenAI Hackathon into a real computer-generated hologram. The workflow remains the same: start from a bounded target image, compute a phase mask, and inspect the reconstructed optical field.",
+      "durationSeconds": 15.5
     },
     {
       "id": "reproducibility",
@@ -86,15 +109,19 @@
         "docs/assets/plugins/multi-focus/line-focus.png",
         "docs/assets/plugins/rgb-zone-plate/rgb.png"
       ],
-      "narration": "The documentation images are not hand-made illustrations. Checked-in jobs generate the artifacts, and a manifest records dimensions, resolution, parameter hashes, and normalized output hashes. Drift becomes a testable change instead of an undocumented screenshot."
+      "narration": "The documentation images are not hand-made illustrations. Checked-in jobs generate the artifacts, and a manifest records dimensions, resolution, parameter hashes, and normalized output hashes. Drift becomes a testable change instead of an undocumented screenshot.",
+      "durationSeconds": 18.7
     },
     {
       "id": "close",
       "kind": "hero",
       "headline": "Fresnel",
       "subheadline": "Open, modular, reproducible computational optics",
-      "images": ["docs/assets/plugins/rgb-zone-plate/rgb.png"],
-      "narration": "Fresnel makes computational optics understandable and repeatable, from physical intent to a fabrication-ready result. The next hackathon step is a grounded natural-language experiment copilot built on top of these deterministic contracts."
+      "images": [
+        "docs/assets/plugins/rgb-zone-plate/rgb.png"
+      ],
+      "narration": "Fresnel makes computational optics understandable and repeatable, from physical intent to a fabrication-ready result. For the hackathon, that foundation now extends to a competition-specific hologram scene and a grounded path toward a future natural-language experiment copilot.",
+      "durationSeconds": 16.8
     }
   ]
 }

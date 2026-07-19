@@ -1,0 +1,52 @@
+{
+  "$schema": "https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json",
+  "format": "io.github.carstenartur.fresnel.job",
+  "formatVersion": 1,
+  "plugin": {
+    "id": "hologram",
+    "parameterSchemaVersion": 1,
+    "algorithmVersion": "hologram/1"
+  },
+  "parameters": {
+    "targetImageBase64": "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",
+    "sidePx": 512,
+    "iterations": 160,
+    "outputType": "GREYSCALE_PHASE",
+    "dpi": 1200.0,
+    "wavelengthNm": 532.0,
+    "refractiveIndexDelta": 0.5,
+    "maxPhaseShiftRad": 6.283185307179586
+  },
+  "production": {
+    "outputs": [
+      {
+        "id": "target-source",
+        "format": "png",
+        "filename": "openai-hackathon-target.png",
+        "options": {
+          "hologramPng": "SOURCE"
+        }
+      },
+      {
+        "id": "documentation-preview",
+        "format": "png",
+        "filename": "openai-hackathon-mask.png",
+        "options": {
+          "hologramPng": "MASK"
+        }
+      },
+      {
+        "id": "reconstruction-preview",
+        "format": "png",
+        "filename": "openai-hackathon-reconstruction.png",
+        "options": {
+          "hologramPng": "RECONSTRUCTION"
+        }
+      }
+    ]
+  },
+  "provenance": {
+    "createdWith": "Fresnel hackathon pitch",
+    "applicationVersion": "development"
+  }
+}

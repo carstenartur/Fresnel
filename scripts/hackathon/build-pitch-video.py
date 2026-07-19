@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the narrated Fresnel pitch video from reproducible project assets."""
+"""Build the subtitle-only Fresnel pitch video from reproducible project assets."""
 
 from __future__ import annotations
 
@@ -24,6 +24,10 @@ TEXT = "#f7fafc"
 MUTED = "#a9bed1"
 ACCENT = "#4fd1c5"
 ACCENT_2 = "#7aa2ff"
+SUBTITLE_ONLY_NOTICE = (
+    "Subtitles-only build — voice narration could not be generated because "
+    "TTS API quota was unavailable."
+)
 
 
 @dataclass(frozen=True)
@@ -31,7 +35,6 @@ class SceneResult:
     scene_id: str
     duration: float
     slide: Path
-    audio: Path
     video: Path
     narration: str
 
@@ -108,6 +111,20 @@ def draw_header(canvas: Image.Image, scene: dict[str, Any]) -> None:
     draw.rounded_rectangle((90, 235, 300, 243), radius=4, fill=ACCENT)
 
 
+def draw_footer_notice(canvas: Image.Image, scene: dict[str, Any]) -> None:
+    notice = scene.get("footerNotice")
+    if notice is True:
+        notice = SUBTITLE_ONLY_NOTICE
+    if not notice:
+        return
+    draw = ImageDraw.Draw(canvas)
+    box = (90, 982, 1830, 1052)
+    rounded(draw, box, fill="#0b1828", outline="#2c5571", width=2, radius=18)
+    notice_font = font(23, bold=True)
+    text_width = draw.textlength(notice, font=notice_font)
+    draw.text(((WIDTH - text_width) / 2, 1004), notice, font=notice_font, fill=TEXT)
+
+
 def hero_slide(scene: dict[str, Any], paths: list[Path]) -> Image.Image:
     base = fit_image(paths[0], (WIDTH, HEIGHT), contain=False).filter(ImageFilter.GaussianBlur(10))
     base = ImageEnhance.Brightness(base).enhance(0.28)
@@ -115,13 +132,12 @@ def hero_slide(scene: dict[str, Any], paths: list[Path]) -> Image.Image:
     canvas = Image.alpha_composite(base.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(canvas)
     draw.text((110, 110), "FRESNEL", font=font(30, bold=True), fill=ACCENT)
-    words = scene["headline"].split(" ")
+    lines = scene["headline"].split(" ")
     wrapped: list[str] = []
     current = ""
-    headline_font = font(76, bold=True)
-    for word in words:
+    for word in lines:
         candidate = f"{current} {word}".strip()
-        if draw.textlength(candidate, font=headline_font) > 1120 and current:
+        if draw.textlength(candidate, font=font(76, bold=True)) > 1120 and current:
             wrapped.append(current)
             current = word
         else:
@@ -130,7 +146,7 @@ def hero_slide(scene: dict[str, Any], paths: list[Path]) -> Image.Image:
         wrapped.append(current)
     y = 300
     for line in wrapped:
-        draw.text((110, y), line, font=headline_font, fill=TEXT)
+        draw.text((110, y), line, font=font(76, bold=True), fill=TEXT)
         y += 96
     draw.text((114, y + 28), scene.get("subheadline", ""), font=font(36), fill=MUTED)
     rounded(draw, (110, 850, 760, 930), fill="#0d2637", outline="#234a60", width=2)
@@ -194,11 +210,10 @@ def exports_slide(scene: dict[str, Any], paths: list[Path]) -> Image.Image:
     formats = ["PNG", "SVG", "PDF", "DXF", "GERBER", "STL"]
     x = 125
     for label in formats:
-        chip_width = int(draw.textlength(label, font=font(24, bold=True))) + 56
-        rounded(draw, (x, 890, x + chip_width, 958), fill=PANEL_ALT,
-                outline="#2c5571", width=2, radius=18)
+        width = int(draw.textlength(label, font=font(24, bold=True))) + 56
+        rounded(draw, (x, 890, x + width, 958), fill=PANEL_ALT, outline="#2c5571", width=2, radius=18)
         draw.text((x + 28, 910), label, font=font(24, bold=True), fill=ACCENT)
-        x += chip_width + 24
+        x += width + 24
     return canvas
 
 
@@ -242,25 +257,57 @@ def render_slide(scene: dict[str, Any], repo_root: Path) -> Image.Image:
             raise FileNotFoundError(f"Missing pitch asset: {path}")
     kind = scene["kind"]
     if kind == "hero":
-        return hero_slide(scene, paths)
-    if kind == "gallery":
-        return gallery_slide(scene, paths)
-    if kind == "editor":
-        return editor_slide(scene, paths)
-    if kind == "contract":
-        return contract_slide(scene, paths)
-    if kind == "exports":
-        return exports_slide(scene, paths)
-    if kind == "before-after":
-        return before_after_slide(scene, paths)
-    if kind == "pipeline":
-        return pipeline_slide(scene, paths)
-    raise ValueError(f"Unsupported scene kind: {kind}")
+        slide = hero_slide(scene, paths)
+    elif kind == "gallery":
+        slide = gallery_slide(scene, paths)
+    elif kind == "editor":
+        slide = editor_slide(scene, paths)
+    elif kind == "contract":
+        slide = contract_slide(scene, paths)
+    elif kind == "exports":
+        slide = exports_slide(scene, paths)
+    elif kind == "before-after":
+        slide = before_after_slide(scene, paths)
+    elif kind == "pipeline":
+        slide = pipeline_slide(scene, paths)
+    else:
+        raise ValueError(f"Unsupported scene kind: {kind}")
+    draw_footer_notice(slide, scene)
+    return slide
 
 
-def wav_duration(path: Path) -> float:
-    return float(output("ffprobe", "-v", "error", "-show_entries", "format=duration",
-                        "-of", "default=noprint_wrappers=1:nokey=1", str(path)))
+def ensure_openai_hackathon_assets(repo_root: Path, output_dir: Path) -> list[Path]:
+    job_path = repo_root / "scripts/hackathon/openai-hackathon.fresnel"
+    generated_dir = output_dir / "generated" / "openai-hackathon"
+    if generated_dir.exists():
+        shutil.rmtree(generated_dir)
+    generated_dir.mkdir(parents=True, exist_ok=True)
+
+    if not job_path.is_file():
+        raise FileNotFoundError(f"Missing hackathon hologram job: {job_path}")
+
+    run("bash", "packaging/docs-jobs.sh", "render", str(job_path), str(generated_dir), cwd=repo_root)
+
+    expected = [
+        generated_dir / "openai-hackathon-target.png",
+        generated_dir / "openai-hackathon-mask.png",
+        generated_dir / "openai-hackathon-reconstruction.png",
+    ]
+    for path in expected:
+        if not path.is_file():
+            raise FileNotFoundError(f"Expected generated hologram asset is missing: {path}")
+    return expected
+
+
+def scene_duration(scene: dict[str, Any]) -> float:
+    configured = scene.get("durationSeconds")
+    if configured is not None:
+        duration = float(configured)
+        if duration <= 0:
+            raise ValueError(f"Scene {scene['id']} has a non-positive duration")
+        return duration
+    words = len(scene.get("narration", "").split())
+    return max(6.0, words / 2.45 + 2.0)
 
 
 def format_srt_time(value: float) -> str:
@@ -287,38 +334,44 @@ def main() -> None:
         shutil.rmtree(work_dir)
     work_dir.mkdir(parents=True)
 
-    tts = shutil.which("espeak-ng") or shutil.which("espeak")
-    if not tts:
-        raise RuntimeError("espeak-ng or espeak is required")
     for command in ("ffmpeg", "ffprobe"):
         if not shutil.which(command):
             raise RuntimeError(f"{command} is required")
+
+    generated_hologram_assets = ensure_openai_hackathon_assets(repo_root, output_dir)
 
     document = json.loads(scenes_path.read_text(encoding="utf8"))
     scenes = document["scenes"]
     results: list[SceneResult] = []
 
+    for scene in scenes:
+        images = []
+        for value in scene.get("images", []):
+            if value == "@generated/openai-hackathon-target":
+                images.append(str(generated_hologram_assets[0].relative_to(repo_root)))
+            elif value == "@generated/openai-hackathon-mask":
+                images.append(str(generated_hologram_assets[1].relative_to(repo_root)))
+            elif value == "@generated/openai-hackathon-reconstruction":
+                images.append(str(generated_hologram_assets[2].relative_to(repo_root)))
+            else:
+                images.append(value)
+        scene["images"] = images
+
     for index, scene in enumerate(scenes, start=1):
         stem = f"{index:02d}-{scene['id']}"
         slide = work_dir / f"{stem}.png"
-        raw_audio = work_dir / f"{stem}-raw.wav"
-        audio = work_dir / f"{stem}.wav"
         video = work_dir / f"{stem}.mp4"
 
         render_slide(scene, repo_root).save(slide, format="PNG", optimize=True)
-        run(tts, "-v", "en-us", "-s", "154", "-p", "46", "-w", str(raw_audio), scene["narration"])
-        run("ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(raw_audio),
-            "-af", "apad=pad_dur=0.65", str(audio))
-        duration = wav_duration(audio)
+        duration = scene_duration(scene)
         fade_out = max(0.0, duration - 0.35)
         run("ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-            "-loop", "1", "-framerate", str(FPS), "-i", str(slide), "-i", str(audio),
+            "-loop", "1", "-framerate", str(FPS), "-i", str(slide),
             "-t", f"{duration:.3f}",
             "-vf", f"fade=t=in:st=0:d=0.35,fade=t=out:st={fade_out:.3f}:d=0.35,format=yuv420p",
-            "-af", f"afade=t=in:st=0:d=0.18,afade=t=out:st={fade_out:.3f}:d=0.35",
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-r", str(FPS),
-            "-c:a", "aac", "-b:a", "160k", "-shortest", str(video))
-        results.append(SceneResult(scene["id"], duration, slide, audio, video, scene["narration"]))
+            "-an", str(video))
+        results.append(SceneResult(scene["id"], duration, slide, video, scene.get("narration", "")))
 
     concat_file = work_dir / "concat.txt"
     concat_file.write_text("".join(f"file '{item.video.as_posix()}'\n" for item in results), encoding="utf8")
@@ -329,11 +382,13 @@ def main() -> None:
     srt_path = output_dir / "fresnel-pitch.en.srt"
     start = 0.0
     cues: list[str] = []
-    for cue_index, result in enumerate(results, start=1):
+    for result in results:
         end = start + result.duration
-        cues.append(
-            f"{cue_index}\n{format_srt_time(start)} --> {format_srt_time(end)}\n{result.narration}\n\n"
-        )
+        if result.narration.strip():
+            cues.append(
+                f"{len(cues) + 1}\n{format_srt_time(start)} --> {format_srt_time(end)}\n"
+                f"{result.narration}\n\n"
+            )
         start = end
     srt_path.write_text("".join(cues), encoding="utf8")
 
@@ -346,7 +401,7 @@ def main() -> None:
     )
     run("ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(uncaptioned),
         "-vf", subtitle_filter, "-c:v", "libx264", "-preset", "medium", "-crf", "18",
-        "-c:a", "copy", "-movflags", "+faststart", str(final_video))
+        "-an", "-movflags", "+faststart", str(final_video))
 
     narration_path = output_dir / "fresnel-pitch-narration.txt"
     narration_path.write_text("\n\n".join(item.narration for item in results) + "\n", encoding="utf8")
@@ -354,6 +409,7 @@ def main() -> None:
     inputs = sorted({(repo_root / image).resolve() for scene in scenes for image in scene.get("images", [])})
     inputs.extend([
         (repo_root / "build/hackathon-video/assets/capture-manifest.json").resolve(),
+        (repo_root / "scripts/hackathon/openai-hackathon.fresnel").resolve(),
         scenes_path,
     ])
     manifest = {
@@ -366,6 +422,10 @@ def main() -> None:
             "fps": FPS,
             "sha256": sha256(final_video),
             "sizeBytes": final_video.stat().st_size,
+        },
+        "audio": {
+            "included": False,
+            "reason": "TTS API quota was unavailable during submission rendering",
         },
         "subtitles": {
             "path": str(srt_path.relative_to(repo_root)),

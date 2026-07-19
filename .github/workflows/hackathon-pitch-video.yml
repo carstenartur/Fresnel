@@ -1,7 +1,7 @@
 name: Hackathon Pitch Video
 
-# Deliberately manual: video capture, speech synthesis and FFmpeg encoding are
-# reproducibility tooling, not part of the normal build or pull-request feedback loop.
+# Deliberately manual: hologram generation, browser capture and FFmpeg encoding
+# are reproducibility tooling, not part of the normal build or pull-request loop.
 on:
   workflow_dispatch:
 
@@ -10,9 +10,9 @@ permissions:
 
 jobs:
   build-pitch-video:
-    name: Build narrated 1080p pitch
+    name: Build subtitle-only 1080p pitch
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
 
@@ -34,7 +34,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            espeak-ng ffmpeg fonts-dejavu-core python3-pil
+            ffmpeg fonts-dejavu-core python3-pil
 
       - name: Build packaged application with frontend
         run: mvn -B -ntp -DskipTests package
@@ -73,17 +73,22 @@ jobs:
           FRESNEL_PITCH_PASSWORD: user
         run: node scripts/capture-hackathon-assets.mjs
 
-      - name: Build narration, concise captions and video
+      - name: Build subtitle-only pitch video
         run: |
-          python3 scripts/hackathon/build-pitch-video.py
-          python3 scripts/hackathon/refine-pitch-captions.py
+          set -o pipefail
+          {
+            python3 scripts/hackathon/build-pitch-video.py
+            python3 scripts/hackathon/refine-pitch-captions.py
+          } 2>&1 | tee pitch-build.log
 
-      - name: Verify duration and streams
+      - name: Verify duration, picture and absence of audio
         run: |
           ffprobe -v error \
             -show_entries format=duration:stream=index,codec_type,codec_name,width,height \
             -of json build/hackathon-video/fresnel-pitch.mp4
           test "$(find build/hackathon-video -name 'fresnel-pitch.mp4' -size +100k | wc -l)" -eq 1
+          test "$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 \
+            build/hackathon-video/fresnel-pitch.mp4 | wc -l)" -eq 0
 
       - name: Stop application
         if: always()
@@ -103,6 +108,7 @@ jobs:
             build/hackathon-video/fresnel-pitch-manifest.json
             build/hackathon-video/assets/capture-manifest.json
             build/hackathon-video/assets/*.png
+            build/hackathon-video/generated/openai-hackathon/*.png
           retention-days: 30
           if-no-files-found: error
 
@@ -113,6 +119,7 @@ jobs:
           name: fresnel-pitch-video-diagnostics
           path: |
             backend.log
+            pitch-build.log
             build/hackathon-video/
           retention-days: 7
           if-no-files-found: ignore
