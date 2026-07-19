@@ -44,16 +44,16 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             espeak-ng ffmpeg fonts-dejavu-core python3-pil
 
-      - name: Build packaged application with frontend
-        run: mvn -B -ntp -DskipTests package
+      - name: Build backend
+        run: mvn -B -ntp -DskipTests -Pno-frontend package
 
-      - name: Install Playwright
+      - name: Install frontend and Playwright
         working-directory: frontend
         run: |
           npm ci --legacy-peer-deps
           npx playwright install --with-deps chromium
 
-      - name: Start packaged application
+      - name: Start backend and Vite UI
         env:
           FRESNEL_DATA_DIR: ${{ runner.temp }}/fresnel-pitch-data
         run: |
@@ -62,18 +62,35 @@ jobs:
           echo $! > backend.pid
           for i in $(seq 1 60); do
             if curl -sf -u user:user http://127.0.0.1:8080/api/plugins >/dev/null; then
-              echo "Fresnel ready after ${i}s"
+              echo "Backend ready after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              cat backend.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          (
+            cd frontend
+            nohup npm run dev -- --host 127.0.0.1 --strictPort > ../vite.log 2>&1 &
+            echo $! > ../vite.pid
+          )
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:5173/ >/dev/null; then
+              echo "Vite UI ready after ${i}s"
               exit 0
             fi
             sleep 1
           done
-          cat backend.log
+          cat vite.log
           exit 1
 
       - name: Capture real UI assets
         working-directory: frontend
         env:
-          FRESNEL_PITCH_BASE_URL: http://127.0.0.1:8080
+          FRESNEL_PITCH_BASE_URL: http://127.0.0.1:5173
           FRESNEL_PITCH_USER: user
           FRESNEL_PITCH_PASSWORD: user
         run: node scripts/capture-hackathon-assets.mjs
@@ -91,6 +108,9 @@ jobs:
       - name: Stop application
         if: always()
         run: |
+          if [ -f vite.pid ]; then
+            kill "$(cat vite.pid)" || true
+          fi
           if [ -f backend.pid ]; then
             kill "$(cat backend.pid)" || true
           fi
@@ -116,6 +136,7 @@ jobs:
           name: fresnel-pitch-video-diagnostics
           path: |
             backend.log
+            vite.log
             build/hackathon-video/
           retention-days: 7
           if-no-files-found: ignore
