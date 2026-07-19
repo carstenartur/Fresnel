@@ -128,6 +128,14 @@ export function AssistantPanel({ onOpenJob }: AssistantPanelProps) {
     clearPreview();
   };
 
+  const updateNumericParameter = (path: NumericPath, rawValue: string) => {
+    // Number('') is 0, which would silently turn a cleared field into an invalid
+    // user decision. Keep the last accepted value until a real finite number exists.
+    if (rawValue.trim() === '') return;
+    const value = Number(rawValue);
+    if (Number.isFinite(value)) updateParameter(path, value);
+  };
+
   const useDefault = (path: ParameterPath) => {
     const parameter = parameterByPath.get(path);
     if (parameter?.defaultValue === undefined || parameter.defaultValue === null) return;
@@ -141,8 +149,13 @@ export function AssistantPanel({ onOpenJob }: AssistantPanelProps) {
 
   const applyAlternative = (alternative: ExperimentAlternative) => {
     if (!draft || !alternative.parameterOverrides) return;
-    setDraft({ ...draft, ...alternative.parameterOverrides });
-    const changed = Object.keys(alternative.parameterOverrides) as ParameterPath[];
+    const presentOverrides = Object.fromEntries(
+      Object.entries(alternative.parameterOverrides)
+        .filter(([, value]) => value !== null && value !== undefined),
+    ) as Partial<SingleZonePlateRequest>;
+    if (Object.keys(presentOverrides).length === 0) return;
+    setDraft({ ...draft, ...presentOverrides });
+    const changed = Object.keys(presentOverrides) as ParameterPath[];
     setSources((current) => ({
       ...current,
       ...Object.fromEntries(changed.map((path) => [path, 'COPILOT_INFERRED'])),
@@ -180,7 +193,7 @@ export function AssistantPanel({ onOpenJob }: AssistantPanelProps) {
   };
 
   const saveJob = async () => {
-    if (!draft || !proposal?.job) return;
+    if (!draft || !proposal?.job || !validation?.valid) return;
     setError(null);
     try {
       await saveFresnelJob(
@@ -197,7 +210,7 @@ export function AssistantPanel({ onOpenJob }: AssistantPanelProps) {
   };
 
   const openInEditor = () => {
-    if (!draft || !proposal?.job || !onOpenJob) return;
+    if (!draft || !proposal?.job || !validation?.valid || !onOpenJob) return;
     onOpenJob(withDraft(proposal.job, draft));
   };
 
@@ -282,10 +295,7 @@ export function AssistantPanel({ onOpenJob }: AssistantPanelProps) {
                       type="number"
                       step={field.step}
                       value={numberValue(draft[field.path])}
-                      onChange={(event) => {
-                        const value = Number(event.target.value);
-                        if (Number.isFinite(value)) updateParameter(field.path, value);
-                      }}
+                      onChange={(event) => updateNumericParameter(field.path, event.target.value)}
                     />
                   </ParameterRow>
                 ))}
@@ -344,8 +354,14 @@ export function AssistantPanel({ onOpenJob }: AssistantPanelProps) {
                 <button onClick={validateAndPreview} disabled={validating}>
                   {validating ? 'Validating…' : 'Validate & preview'}
                 </button>
-                <button onClick={saveJob}>Save job (.fresnel)</button>
-                {onOpenJob && <button onClick={openInEditor}>Open in Zone Plate editor</button>}
+                <button onClick={saveJob} disabled={!validation?.valid}>
+                  Save job (.fresnel)
+                </button>
+                {onOpenJob && (
+                  <button onClick={openInEditor} disabled={!validation?.valid}>
+                    Open in Zone Plate editor
+                  </button>
+                )}
               </div>
 
               {validation && <ValidationSummary validation={validation} />}
