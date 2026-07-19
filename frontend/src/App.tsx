@@ -184,7 +184,12 @@ export function App() {
   } else if (mode === 'compare') {
     panel = <ComparisonPanel key={panelKey} />;
   } else {
-    panel = <AssistantPanel key={panelKey} />;
+    panel = (
+      <AssistantPanel
+        key={panelKey}
+        onOpenJob={(job) => applyJob(job, 'Applied grounded experiment-copilot proposal.')}
+      />
+    );
   }
 
   return (
