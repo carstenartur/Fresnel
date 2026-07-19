@@ -11,6 +11,7 @@ on:
       - 'optics-core/**'
       - 'docs/assets/plugins/**'
       - 'docs/generated/example-manifest.json'
+      - 'packaging/verify-bundled-spa.py'
       - 'scripts/hackathon/**'
 
 permissions:
@@ -71,48 +72,7 @@ jobs:
           exit 1
 
       - name: Verify packaged SPA assets
-        run: |
-          python3 - <<'PY'
-          import base64
-          import re
-          import urllib.request
-
-          base = "http://127.0.0.1:8080"
-          authorization = "Basic " + base64.b64encode(b"user:user").decode("ascii")
-
-          def fetch(path):
-              request = urllib.request.Request(
-                  base + path,
-                  headers={"Authorization": authorization},
-              )
-              with urllib.request.urlopen(request, timeout=30) as response:
-                  return response.headers.get_content_type(), response.read()
-
-          index_type, index = fetch("/")
-          if index_type != "text/html":
-              raise SystemExit(f"Expected text/html for index, got {index_type}")
-
-          asset_paths = sorted(set(
-              match.decode("utf-8")
-              for match in re.findall(rb'/assets/[^"\' ]+\.(?:js|css)', index)
-          ))
-          if not any(path.endswith(".js") for path in asset_paths):
-              raise SystemExit("Bundled index does not reference a JavaScript asset")
-          if not any(path.endswith(".css") for path in asset_paths):
-              raise SystemExit("Bundled index does not reference a CSS asset")
-
-          for path in asset_paths:
-              content_type, body = fetch(path)
-              if body.lstrip().lower().startswith((b"<!doctype html", b"<html")):
-                  raise SystemExit(f"{path} was incorrectly served as index.html")
-              if path.endswith(".js") and content_type not in {
-                  "application/javascript", "text/javascript"
-              }:
-                  raise SystemExit(f"Unexpected JavaScript MIME type for {path}: {content_type}")
-              if path.endswith(".css") and content_type != "text/css":
-                  raise SystemExit(f"Unexpected CSS MIME type for {path}: {content_type}")
-              print(f"verified {path}: {content_type}, {len(body)} bytes")
-          PY
+        run: python3 packaging/verify-bundled-spa.py
 
       - name: Capture real UI assets
         working-directory: frontend
