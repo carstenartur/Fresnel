@@ -65,7 +65,9 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Build jar + ZIP/tar.gz
-        run: mvn -B -ntp -Prelease-package -DskipTests -pl backend -am package
+        # Activating any explicit Maven profile suppresses activeByDefault profiles.
+        # Release packaging therefore names both the frontend and archive profiles.
+        run: mvn -B -ntp -Pfrontend,release-package -DskipTests -pl backend -am package
 
       - name: Smoke-test bundled SPA
         env:
