@@ -85,8 +85,11 @@ jobs:
 
       - name: Build subtitle-only pitch video
         run: |
-          python3 scripts/hackathon/build-pitch-video.py
-          python3 scripts/hackathon/refine-pitch-captions.py
+          set -o pipefail
+          {
+            python3 scripts/hackathon/build-pitch-video.py
+            python3 scripts/hackathon/refine-pitch-captions.py
+          } 2>&1 | tee pitch-build.log
 
       - name: Verify duration, picture and absence of audio
         run: |
@@ -126,6 +129,7 @@ jobs:
           name: fresnel-pitch-video-diagnostics
           path: |
             backend.log
+            pitch-build.log
             build/hackathon-video/
           retention-days: 7
           if-no-files-found: ignore
