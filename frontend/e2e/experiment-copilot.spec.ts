@@ -44,7 +44,8 @@ test('grounds natural language, validates, previews, saves and reopens a zone pl
   expect(saved.parameters.apertureDiameterMm).toBe(8);
   expect(saved.parameters.wavelengthNm).toBe(532);
   expect(saved.parameters.focalLengthMm).toBe(1000);
-  expect(saved.provenance.createdWith).toBe('Fresnel experiment copilot (mock)');
+  expect(saved.provenance.createdWith)
+    .toBe('Fresnel experiment copilot [mock/deterministic-zone-plate-parser/1]');
   expect(saved.provenance.parameterSha256).toMatch(/^[0-9a-f]{64}$/);
 
   await page.getByRole('button', { name: 'Open in Zone Plate editor' }).click();
