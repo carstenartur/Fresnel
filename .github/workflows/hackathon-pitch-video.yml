@@ -1,26 +1,28 @@
 name: Hackathon Pitch Video
 
-# Deliberately manual: video capture, speech synthesis and FFmpeg encoding are
-# reproducibility tooling, not part of the normal build or pull-request feedback loop.
+# Temporary pull-request trigger for producing and reviewing this subtitle-only
+# fallback. Remove it before merge so normal development never renders video.
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/hackathon-pitch-video.yml'
+      - 'frontend/**'
+      - 'backend/**'
+      - 'optics-core/**'
+      - 'docs/assets/plugins/**'
+      - 'packaging/docs-jobs.sh'
+      - 'scripts/hackathon/**'
 
 permissions:
   contents: read
 
 jobs:
   build-pitch-video:
-    name: Build narrated 1080p pitch
+    name: Build subtitle-only 1080p pitch
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      OPENAI_TTS_MODEL: gpt-4o-mini-tts
-      OPENAI_TTS_VOICE: cedar
-      OPENAI_TTS_INSTRUCTIONS: >-
-        Speak in clear, natural English with a calm, confident, professional
-        presentation style. Use smooth phrasing, moderate pacing, and precise
-        emphasis for a hackathon pitch video.
     steps:
       - uses: actions/checkout@v7
 
@@ -37,13 +39,6 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Validate narration prerequisites
-        run: |
-          test -n "$OPENAI_API_KEY" || {
-            echo "OPENAI_API_KEY secret is required for professional narration." >&2
-            exit 1
-          }
 
       - name: Install media tooling
         run: |
@@ -88,17 +83,19 @@ jobs:
           FRESNEL_PITCH_PASSWORD: user
         run: node scripts/capture-hackathon-assets.mjs
 
-      - name: Build narration, concise captions and video
+      - name: Build subtitle-only pitch video
         run: |
           python3 scripts/hackathon/build-pitch-video.py
           python3 scripts/hackathon/refine-pitch-captions.py
 
-      - name: Verify duration and streams
+      - name: Verify duration, picture and absence of audio
         run: |
           ffprobe -v error \
             -show_entries format=duration:stream=index,codec_type,codec_name,width,height \
             -of json build/hackathon-video/fresnel-pitch.mp4
           test "$(find build/hackathon-video -name 'fresnel-pitch.mp4' -size +100k | wc -l)" -eq 1
+          test "$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 \
+            build/hackathon-video/fresnel-pitch.mp4 | wc -l)" -eq 0
 
       - name: Stop application
         if: always()
