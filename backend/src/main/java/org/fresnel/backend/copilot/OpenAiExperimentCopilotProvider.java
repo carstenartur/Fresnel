@@ -1,5 +1,6 @@
 package org.fresnel.backend.copilot;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -27,6 +28,7 @@ public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotP
     private final String model;
     private final Duration timeout;
 
+    @Autowired
     public OpenAiExperimentCopilotProvider(
             ObjectMapper mapper,
             @Value("${fresnel.copilot.openai.enabled:${FRESNEL_COPILOT_OPENAI_ENABLED:true}}") boolean enabled,
@@ -145,7 +147,7 @@ public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotP
         }
 
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw classifyHttpFailure(response.statusCode(), response.body());
+            throw classifyHttpFailure(response.statusCode());
         }
 
         try {
@@ -163,7 +165,7 @@ public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotP
         }
     }
 
-    private static CopilotProviderException classifyHttpFailure(int status, String responseBody) {
+    private static CopilotProviderException classifyHttpFailure(int status) {
         String code = switch (status) {
             case 401, 403 -> "AUTHENTICATION_FAILED";
             case 429 -> "QUOTA_OR_RATE_LIMIT";
