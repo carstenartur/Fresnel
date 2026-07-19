@@ -1,7 +1,6 @@
 package org.fresnel.backend.copilot;
 
 import org.springframework.stereotype.Component;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
@@ -160,13 +159,17 @@ public final class DeterministicExperimentCopilotProvider implements ExperimentC
     }
 
     private static OptionalDouble focusMillimetres(String text) {
-        Matcher matcher = FOCUS_AFTER_VALUE.matcher(text);
-        if (!matcher.find()) matcher = FOCUS_BEFORE_VALUE.matcher(text);
-        if (!matcher.find(0)) return OptionalDouble.empty();
+        OptionalDouble after = focusMillimetres(FOCUS_AFTER_VALUE, text);
+        return after.isPresent() ? after : focusMillimetres(FOCUS_BEFORE_VALUE, text);
+    }
+
+    private static OptionalDouble focusMillimetres(Pattern pattern, String text) {
+        Matcher matcher = pattern.matcher(text);
+        if (!matcher.find()) return OptionalDouble.empty();
         double value = Double.parseDouble(matcher.group(1));
         String unit = matcher.group(2).toLowerCase(Locale.ROOT);
-        return OptionalDouble.of(unit.startsWith("m") && !unit.startsWith("mm")
-                && !unit.startsWith("millimet") ? value * 1000.0 : value);
+        boolean metres = unit.equals("m") || unit.startsWith("meter") || unit.startsWith("metre");
+        return OptionalDouble.of(metres ? value * 1000.0 : value);
     }
 
     private static String normalizeNumberWords(String input) {
