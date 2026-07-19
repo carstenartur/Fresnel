@@ -4,24 +4,34 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 /**
- * Catch-all controller that forwards unknown (non-API) routes to the SPA's
- * {@code index.html}.  Spring Boot serves the file from
- * {@code classpath:/static/index.html} which is populated by the Maven
+ * Forwards the application's concrete client-side routes to the bundled SPA.
+ * Spring Boot serves {@code classpath:/static/index.html}, populated by the Maven
  * frontend build.
  *
- * &lt;p&gt;API routes ({@code /api/**}) and known static resources are matched by
- * earlier handler mappings and therefore never reach this controller.
+ * &lt;p&gt;This mapping is deliberately explicit. A former catch-all mapping used a
+ * regular expression only for the first path segment. Consequently requests such
+ * as {@code /assets/index-abc123.js} matched the segment {@code assets} and were
+ * forwarded to {@code index.html} instead of reaching Spring's static-resource
+ * handler. Browsers then received HTML for JavaScript and CSS files and the
+ * packaged application could not start.&lt;/p&gt;
+ *
+ * &lt;p&gt;API routes and static resources are never SPA routes. Add a route here when
+ * the React application gains another top-level client-side route.&lt;/p&gt;
  */
 @Controller
-<span class="fc" id="L16">public class SpaController {</span>
+<span class="fc" id="L22">public class SpaController {</span>
 
     @RequestMapping(value = {
             &quot;/&quot;,
-            &quot;/{path:[^\\.]*}&quot;,
-            &quot;/{path:[^\\.]*}/**&quot;
+            &quot;/plugins/{pluginId}&quot;,
+            &quot;/plugins/{pluginId}/&quot;,
+            &quot;/compare&quot;,
+            &quot;/compare/&quot;,
+            &quot;/assistant&quot;,
+            &quot;/assistant/&quot;
     })
     public String forward() {
-<span class="fc" id="L24">        return &quot;forward:/index.html&quot;;</span>
+<span class="fc" id="L34">        return &quot;forward:/index.html&quot;;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
