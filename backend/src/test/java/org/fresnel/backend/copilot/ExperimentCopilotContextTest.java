@@ -39,7 +39,7 @@ class ExperimentCopilotContextTest {
     }
 
     @Test
-    void rejectsWrongTypeAndUnknownEnumValue() {
+    void rejectsWrongTypeUnknownEnumAndNullValues() {
         ObjectNode wrongType = mapper.createObjectNode().put("wavelengthNm", "532");
         assertThrows(IllegalArgumentException.class,
                 () -> new ExperimentCopilotContext("request", schema(), defaults(), wrongType));
@@ -47,6 +47,10 @@ class ExperimentCopilotContextTest {
         ObjectNode wrongEnum = mapper.createObjectNode().put("maskType", "EXECUTABLE");
         assertThrows(IllegalArgumentException.class,
                 () -> new ExperimentCopilotContext("request", schema(), defaults(), wrongEnum));
+
+        ObjectNode nullValue = mapper.createObjectNode().putNull("maskType");
+        assertThrows(IllegalArgumentException.class,
+                () -> new ExperimentCopilotContext("request", schema(), defaults(), nullValue));
     }
 
     @Test
