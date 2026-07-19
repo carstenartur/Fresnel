@@ -65,7 +65,38 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Build jar + ZIP/tar.gz
-        run: mvn -B -ntp -Prelease-package -DskipTests -pl backend -am package
+        # Activating any explicit Maven profile suppresses activeByDefault profiles.
+        # Release packaging therefore names both the frontend and archive profiles.
+        run: mvn -B -ntp -Pfrontend,release-package -DskipTests -pl backend -am package
+
+      - name: Smoke-test bundled SPA
+        env:
+          FRESNEL_DATA_DIR: ${{ runner.temp }}/fresnel-release-smoke-data
+        run: |
+          JAR=$(ls backend/target/backend-*.jar | grep -v '\.original$' | head -1)
+          java -jar "$JAR" > bundled-spa-smoke.log 2>&1 &
+          PID=$!
+          cleanup() {
+            kill "$PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for i in $(seq 1 60); do
+            if curl -sf -u user:user http://127.0.0.1:8080/api/plugins >/dev/null; then
+              echo "Packaged application ready after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              cat bundled-spa-smoke.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          python3 packaging/verify-bundled-spa.py || {
+            cat bundled-spa-smoke.log
+            exit 1
+          }
 
       - name: Read project version
         id: version
