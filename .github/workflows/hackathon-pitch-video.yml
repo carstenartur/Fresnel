@@ -1,19 +1,9 @@
 name: Hackathon Pitch Video
 
-# Temporary pull-request trigger for producing and reviewing this subtitle-only
-# fallback. Remove it before merge so normal development never renders video.
+# Deliberately manual: hologram generation, browser capture and FFmpeg encoding
+# are reproducibility tooling, not part of the normal build or pull-request loop.
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-    paths:
-      - '.github/workflows/hackathon-pitch-video.yml'
-      - 'frontend/**'
-      - 'backend/**'
-      - 'optics-core/**'
-      - 'docs/assets/plugins/**'
-      - 'packaging/docs-jobs.sh'
-      - 'scripts/hackathon/**'
 
 permissions:
   contents: read
