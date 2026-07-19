@@ -12,7 +12,15 @@ jobs:
   build-pitch-video:
     name: Build narrated 1080p pitch
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_TTS_MODEL: gpt-4o-mini-tts
+      OPENAI_TTS_VOICE: cedar
+      OPENAI_TTS_INSTRUCTIONS: >-
+        Speak in clear, natural English with a calm, confident, professional
+        presentation style. Use smooth phrasing, moderate pacing, and precise
+        emphasis for a hackathon pitch video.
     steps:
       - uses: actions/checkout@v7
 
@@ -30,11 +38,18 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Validate narration prerequisites
+        run: |
+          test -n "$OPENAI_API_KEY" || {
+            echo "OPENAI_API_KEY secret is required for professional narration." >&2
+            exit 1
+          }
+
       - name: Install media tooling
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            espeak-ng ffmpeg fonts-dejavu-core python3-pil
+            ffmpeg fonts-dejavu-core python3-pil
 
       - name: Build packaged application with frontend
         run: mvn -B -ntp -DskipTests package
@@ -103,6 +118,7 @@ jobs:
             build/hackathon-video/fresnel-pitch-manifest.json
             build/hackathon-video/assets/capture-manifest.json
             build/hackathon-video/assets/*.png
+            build/hackathon-video/generated/openai-hackathon/*.png
           retention-days: 30
           if-no-files-found: error
 
