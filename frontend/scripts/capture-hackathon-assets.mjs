@@ -27,6 +27,28 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 const captures = [];
+const browserEvents = [];
+
+page.on('console', (message) => {
+  browserEvents.push({ type: `console:${message.type()}`, text: message.text() });
+});
+page.on('pageerror', (error) => {
+  browserEvents.push({ type: 'pageerror', text: error.stack ?? error.message });
+});
+page.on('requestfailed', (request) => {
+  browserEvents.push({
+    type: 'requestfailed',
+    text: `${request.method()} ${request.url()} — ${request.failure()?.errorText ?? 'unknown'}`,
+  });
+});
+page.on('response', (response) => {
+  if (response.status() >= 400) {
+    browserEvents.push({
+      type: 'http-error',
+      text: `${response.status()} ${response.request().method()} ${response.url()}`,
+    });
+  }
+});
 
 async function capture(name, locator = page) {
   const target = path.join(outputDir, name);
@@ -43,15 +65,42 @@ async function capture(name, locator = page) {
   });
 }
 
+async function writeDiagnostics(error = null) {
+  const bodyText = await page.locator('body').innerText().catch(() => '');
+  const title = await page.title().catch(() => '');
+  const html = await page.content().catch(() => '');
+  await writeFile(path.join(outputDir, 'loaded-page.html'), html, 'utf8');
+  await writeFile(
+    path.join(outputDir, 'capture-diagnostics.json'),
+    `${JSON.stringify({
+      formatVersion: 1,
+      url: page.url(),
+      title,
+      bodyText: bodyText.slice(0, 20_000),
+      browserEvents,
+      error: error
+        ? { name: error.name, message: error.message, stack: error.stack }
+        : null,
+    }, null, 2)}\n`,
+    'utf8',
+  );
+}
+
 async function fill(label, value) {
   const control = page.locator('[data-plugin-schema="zone-plate"]').getByLabel(label);
+  await control.waitFor({ state: 'visible', timeout: 30_000 });
   await control.fill(value);
   await control.blur();
 }
 
 try {
-  await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle', timeout: 90_000 });
-  await page.locator('[data-plugin-schema="zone-plate"]').waitFor({ state: 'visible' });
+  await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+  await page.waitForTimeout(1500);
+  await capture('00-loaded-page.png');
+  await page.getByRole('heading', { name: 'Fresnel Designer' })
+    .waitFor({ state: 'visible', timeout: 30_000 });
+  await page.locator('[data-plugin-schema="zone-plate"]')
+    .waitFor({ state: 'visible', timeout: 45_000 });
   await page.addStyleTag({
     content: `
       *, *::before, *::after {
@@ -66,6 +115,7 @@ try {
   });
 
   const panel = page.locator('aside.panel');
+  await panel.waitFor({ state: 'visible' });
   await capture('01-default-editor.png', panel);
 
   await fill('Aperture diameter (mm)', '10');
@@ -75,7 +125,7 @@ try {
   await page.waitForTimeout(1200);
   await capture('02-physical-target.png', panel);
 
-  const render = page.getByRole('button', { name: 'Render preview' });
+  const render = page.getByRole('button', { name: 'Render preview', exact: true });
   await render.waitFor({ state: 'visible' });
   await page.waitForFunction(() => {
     const button = [...document.querySelectorAll('button')]
@@ -103,6 +153,7 @@ try {
   await page.waitForTimeout(350);
   await capture('04-validation-details.png', panel);
 
+  await writeDiagnostics();
   await writeFile(
     path.join(outputDir, 'capture-manifest.json'),
     `${JSON.stringify({
@@ -113,6 +164,10 @@ try {
     }, null, 2)}\n`,
     'utf8',
   );
+} catch (error) {
+  await capture('99-capture-failure.png').catch(() => {});
+  await writeDiagnostics(error).catch(() => {});
+  throw error;
 } finally {
   await browser.close();
 }
