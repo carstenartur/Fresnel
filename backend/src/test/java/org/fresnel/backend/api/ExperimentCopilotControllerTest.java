@@ -8,6 +8,9 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.ObjectMapper;
+
+import java.util.Map;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.hasItem;
@@ -23,12 +26,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ExperimentCopilotControllerTest {
 
     @Autowired MockMvc mvc;
+    @Autowired ObjectMapper mapper;
 
     @Test
     @WithAnonymousUser
-    void exposesProviderStatusWithoutCredentials() throws Exception {
+    void exposesProviderStatusWithoutCredentialsInStableOrder() throws Exception {
         mvc.perform(get("/api/assistant/providers"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value("mock"))
                 .andExpect(jsonPath("$[?(@.id == 'mock')].available", hasItem(true)));
     }
 
@@ -71,7 +76,8 @@ class ExperimentCopilotControllerTest {
                 .andExpect(jsonPath("$.normalizedParameters.dpi").value(1200.0))
                 .andExpect(jsonPath("$.validation.pluginId").value("zone-plate"))
                 .andExpect(jsonPath("$.job.format").value(FresnelJobDocument.FORMAT_IDENTIFIER))
-                .andExpect(jsonPath("$.job.provenance.createdWith").value("Fresnel experiment copilot (mock)"))
+                .andExpect(jsonPath("$.job.provenance.createdWith").value(
+                        "Fresnel experiment copilot [mock/deterministic-zone-plate-parser/1]"))
                 .andExpect(jsonPath("$.job.provenance.parameterSha256", not(blankOrNullString())))
                 .andExpect(jsonPath("$.parameters[?(@.path == 'apertureDiameterMm')].source",
                         hasItem("COPILOT_INFERRED")));
@@ -106,5 +112,17 @@ class ExperimentCopilotControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_PROPOSAL"));
+    }
+
+    @Test
+    void oversizedNaturalLanguageRequestIsRejectedBeforeProviderInvocation() throws Exception {
+        String body = mapper.writeValueAsString(Map.of(
+                "provider", "mock",
+                "request", "x".repeat(8001)));
+
+        mvc.perform(post("/api/assistant/propose")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
     }
 }
