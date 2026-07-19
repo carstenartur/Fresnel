@@ -40,15 +40,15 @@
       "durationSeconds": 19.9
     },
     {
-      "id": "target",
+      "id": "copilot",
       "kind": "editor",
-      "headline": "Start with the physical target",
-      "subheadline": "10 millimetre aperture · 1 metre focus · 532 nanometres · 1200 DPI",
+      "headline": "One sentence becomes a grounded optical job",
+      "subheadline": "intent → proposal → review → deterministic validation",
       "images": [
-        "build/hackathon-video/assets/02-physical-target.png",
-        "docs/assets/plugins/zone-plate/on-axis.png"
+        "build/hackathon-video/assets/05-grounded-copilot-proposal.png",
+        "build/hackathon-video/assets/06-grounded-copilot-validation.png"
       ],
-      "narration": "The user specifies physical intent, not implementation code: aperture, focal distance, wavelength, printer resolution, mask type, and polarity. The schema-driven editor applies the same typed contract used by files, APIs, and tests.",
+      "narration": "The experiment copilot translates a natural-language goal into a typed proposal. Every supplied, inferred, and defaulted value remains visible and editable. Only Fresnel's deterministic schema and optical validation can turn the proposal into a reproducible production job.",
       "durationSeconds": 18.4
     },
     {
@@ -72,7 +72,7 @@
         "docs/assets/plugins/zone-plate/negative-polarity.png"
       ],
       "code": "{\n  \"format\": \"io.github.carstenartur.fresnel.job\",\n  \"formatVersion\": 1,\n  \"plugin\": {\n    \"id\": \"zone-plate\",\n    \"parameterSchemaVersion\": 1,\n    \"algorithmVersion\": \"zone-plate/1\"\n  },\n  \"parameters\": { \"focalLengthMm\": 1000, \"wavelengthNm\": 532 }\n}",
-      "narration": "Every design can be saved as a versioned dot Fresnel job. It contains stable plugin identity, schema and algorithm versions, normalized parameters, production instructions, and provenance. The same file can be reopened, reviewed, rendered, and archived.",
+      "narration": "Every accepted design can be saved as a versioned dot Fresnel job. It contains stable plugin identity, schema and algorithm versions, normalized parameters, production instructions, and provenance. The same file can be reopened, reviewed, rendered, and archived without an AI provider.",
       "durationSeconds": 18.5
     },
     {
@@ -116,11 +116,11 @@
       "id": "close",
       "kind": "hero",
       "headline": "Fresnel",
-      "subheadline": "Open, modular, reproducible computational optics",
+      "subheadline": "Natural language in · validated optics out",
       "images": [
         "docs/assets/plugins/rgb-zone-plate/rgb.png"
       ],
-      "narration": "Fresnel makes computational optics understandable and repeatable, from physical intent to a fabrication-ready result. For the hackathon, that foundation now extends to a competition-specific hologram scene and a grounded path toward a future natural-language experiment copilot.",
+      "narration": "Fresnel now combines an approachable natural-language copilot with explicit assumptions, user review, deterministic optical validation, fabrication outputs, and a provider-independent file that remains reproducible offline.",
       "durationSeconds": 16.8
     }
   ]
