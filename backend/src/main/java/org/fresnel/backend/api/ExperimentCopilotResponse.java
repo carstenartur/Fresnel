@@ -1,5 +1,6 @@
 package org.fresnel.backend.api;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import org.fresnel.backend.copilot.ExperimentProposal;
 import org.fresnel.optics.DesignValidationReport;
 import tools.jackson.databind.JsonNode;
@@ -7,6 +8,7 @@ import tools.jackson.databind.JsonNode;
 import java.util.List;
 
 /** Complete review model for a grounded experiment proposal. */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record ExperimentCopilotResponse(
         String providerId,
         String modelId,
