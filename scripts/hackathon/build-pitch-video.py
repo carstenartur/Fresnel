@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
-"""Build the narrated Fresnel pitch video from reproducible project assets."""
+"""Build the subtitle-only Fresnel pitch video from reproducible project assets."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-import os
 import shutil
 import subprocess
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -27,6 +24,10 @@ TEXT = "#f7fafc"
 MUTED = "#a9bed1"
 ACCENT = "#4fd1c5"
 ACCENT_2 = "#7aa2ff"
+SUBTITLE_ONLY_NOTICE = (
+    "Subtitles-only build — voice narration could not be generated because "
+    "TTS API quota was unavailable."
+)
 
 
 @dataclass(frozen=True)
@@ -34,7 +35,6 @@ class SceneResult:
     scene_id: str
     duration: float
     slide: Path
-    audio: Path
     video: Path
     narration: str
 
@@ -109,6 +109,20 @@ def draw_header(canvas: Image.Image, scene: dict[str, Any]) -> None:
     draw.text((90, 108), scene["headline"], font=font(56, bold=True), fill=TEXT)
     draw.text((92, 182), scene.get("subheadline", ""), font=font(29), fill=MUTED)
     draw.rounded_rectangle((90, 235, 300, 243), radius=4, fill=ACCENT)
+
+
+def draw_footer_notice(canvas: Image.Image, scene: dict[str, Any]) -> None:
+    notice = scene.get("footerNotice")
+    if notice is True:
+        notice = SUBTITLE_ONLY_NOTICE
+    if not notice:
+        return
+    draw = ImageDraw.Draw(canvas)
+    box = (90, 982, 1830, 1052)
+    rounded(draw, box, fill="#0b1828", outline="#2c5571", width=2, radius=18)
+    notice_font = font(23, bold=True)
+    text_width = draw.textlength(notice, font=notice_font)
+    draw.text(((WIDTH - text_width) / 2, 1004), notice, font=notice_font, fill=TEXT)
 
 
 def hero_slide(scene: dict[str, Any], paths: list[Path]) -> Image.Image:
@@ -243,62 +257,23 @@ def render_slide(scene: dict[str, Any], repo_root: Path) -> Image.Image:
             raise FileNotFoundError(f"Missing pitch asset: {path}")
     kind = scene["kind"]
     if kind == "hero":
-        return hero_slide(scene, paths)
-    if kind == "gallery":
-        return gallery_slide(scene, paths)
-    if kind == "editor":
-        return editor_slide(scene, paths)
-    if kind == "contract":
-        return contract_slide(scene, paths)
-    if kind == "exports":
-        return exports_slide(scene, paths)
-    if kind == "before-after":
-        return before_after_slide(scene, paths)
-    if kind == "pipeline":
-        return pipeline_slide(scene, paths)
-    raise ValueError(f"Unsupported scene kind: {kind}")
-
-
-def synthesize_openai_speech(text: str, output_path: Path) -> None:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY is required for professional narration. "
-            "The pitch-video pipeline intentionally has no robotic TTS fallback."
-        )
-
-    model = os.environ.get("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
-    voice = os.environ.get("OPENAI_TTS_VOICE", "cedar")
-    instructions = os.environ.get(
-        "OPENAI_TTS_INSTRUCTIONS",
-        "Speak in clear, natural English with a calm, confident, professional presentation style. "
-        "Use smooth phrasing, moderate pacing, and precise emphasis for a hackathon pitch video.",
-    )
-    payload = json.dumps({
-        "model": model,
-        "voice": voice,
-        "input": text,
-        "response_format": "wav",
-        "instructions": instructions,
-    }).encode("utf8")
-    request = urllib.request.Request(
-        "https://api.openai.com/v1/audio/speech",
-        data=payload,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=180) as response:
-            audio = response.read()
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf8", errors="replace")
-        raise RuntimeError(f"OpenAI speech synthesis failed: {exc.code} {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"OpenAI speech synthesis failed: {exc}") from exc
-    output_path.write_bytes(audio)
+        slide = hero_slide(scene, paths)
+    elif kind == "gallery":
+        slide = gallery_slide(scene, paths)
+    elif kind == "editor":
+        slide = editor_slide(scene, paths)
+    elif kind == "contract":
+        slide = contract_slide(scene, paths)
+    elif kind == "exports":
+        slide = exports_slide(scene, paths)
+    elif kind == "before-after":
+        slide = before_after_slide(scene, paths)
+    elif kind == "pipeline":
+        slide = pipeline_slide(scene, paths)
+    else:
+        raise ValueError(f"Unsupported scene kind: {kind}")
+    draw_footer_notice(slide, scene)
+    return slide
 
 
 def ensure_openai_hackathon_assets(repo_root: Path, output_dir: Path) -> list[Path]:
@@ -324,9 +299,15 @@ def ensure_openai_hackathon_assets(repo_root: Path, output_dir: Path) -> list[Pa
     return expected
 
 
-def wav_duration(path: Path) -> float:
-    return float(output("ffprobe", "-v", "error", "-show_entries", "format=duration",
-                        "-of", "default=noprint_wrappers=1:nokey=1", str(path)))
+def scene_duration(scene: dict[str, Any]) -> float:
+    configured = scene.get("durationSeconds")
+    if configured is not None:
+        duration = float(configured)
+        if duration <= 0:
+            raise ValueError(f"Scene {scene['id']} has a non-positive duration")
+        return duration
+    words = len(scene.get("narration", "").split())
+    return max(6.0, words / 2.45 + 2.0)
 
 
 def format_srt_time(value: float) -> str:
@@ -379,24 +360,18 @@ def main() -> None:
     for index, scene in enumerate(scenes, start=1):
         stem = f"{index:02d}-{scene['id']}"
         slide = work_dir / f"{stem}.png"
-        raw_audio = work_dir / f"{stem}-raw.wav"
-        audio = work_dir / f"{stem}.wav"
         video = work_dir / f"{stem}.mp4"
 
         render_slide(scene, repo_root).save(slide, format="PNG", optimize=True)
-        synthesize_openai_speech(scene["narration"], raw_audio)
-        run("ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(raw_audio),
-            "-af", "apad=pad_dur=0.65", str(audio))
-        duration = wav_duration(audio)
+        duration = scene_duration(scene)
         fade_out = max(0.0, duration - 0.35)
         run("ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-            "-loop", "1", "-framerate", str(FPS), "-i", str(slide), "-i", str(audio),
+            "-loop", "1", "-framerate", str(FPS), "-i", str(slide),
             "-t", f"{duration:.3f}",
             "-vf", f"fade=t=in:st=0:d=0.35,fade=t=out:st={fade_out:.3f}:d=0.35,format=yuv420p",
-            "-af", f"afade=t=in:st=0:d=0.18,afade=t=out:st={fade_out:.3f}:d=0.35",
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-r", str(FPS),
-            "-c:a", "aac", "-b:a", "160k", "-shortest", str(video))
-        results.append(SceneResult(scene["id"], duration, slide, audio, video, scene["narration"]))
+            "-an", str(video))
+        results.append(SceneResult(scene["id"], duration, slide, video, scene.get("narration", "")))
 
     concat_file = work_dir / "concat.txt"
     concat_file.write_text("".join(f"file '{item.video.as_posix()}'\n" for item in results), encoding="utf8")
@@ -407,11 +382,13 @@ def main() -> None:
     srt_path = output_dir / "fresnel-pitch.en.srt"
     start = 0.0
     cues: list[str] = []
-    for cue_index, result in enumerate(results, start=1):
+    for result in results:
         end = start + result.duration
-        cues.append(
-            f"{cue_index}\n{format_srt_time(start)} --> {format_srt_time(end)}\n{result.narration}\n\n"
-        )
+        if result.narration.strip():
+            cues.append(
+                f"{len(cues) + 1}\n{format_srt_time(start)} --> {format_srt_time(end)}\n"
+                f"{result.narration}\n\n"
+            )
         start = end
     srt_path.write_text("".join(cues), encoding="utf8")
 
@@ -424,7 +401,7 @@ def main() -> None:
     )
     run("ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(uncaptioned),
         "-vf", subtitle_filter, "-c:v", "libx264", "-preset", "medium", "-crf", "18",
-        "-c:a", "copy", "-movflags", "+faststart", str(final_video))
+        "-an", "-movflags", "+faststart", str(final_video))
 
     narration_path = output_dir / "fresnel-pitch-narration.txt"
     narration_path.write_text("\n\n".join(item.narration for item in results) + "\n", encoding="utf8")
@@ -445,6 +422,10 @@ def main() -> None:
             "fps": FPS,
             "sha256": sha256(final_video),
             "sizeBytes": final_video.stat().st_size,
+        },
+        "audio": {
+            "included": False,
+            "reason": "TTS API quota was unavailable during submission rendering",
         },
         "subtitles": {
             "path": str(srt_path.relative_to(repo_root)),
