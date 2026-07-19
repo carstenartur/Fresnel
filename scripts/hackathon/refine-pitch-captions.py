@@ -75,11 +75,15 @@ def main() -> None:
     SRT_PATH.write_text("".join(srt), encoding="utf8")
 
     temp = OUTPUT_DIR / "fresnel-pitch.refined.mp4"
+    # libass scales SRT margins from its internal script resolution. A small
+    # MarginV therefore places the captions in the actual lower safe area of a
+    # 1080p frame; the previous value of 34 lifted them over image labels and
+    # editor controls.
     subtitle_filter = (
         f"subtitles={SRT_PATH.as_posix()}:"
-        "force_style='FontName=DejaVu Sans,FontSize=13,PrimaryColour=&H00FFFFFF&,"
+        "force_style='FontName=DejaVu Sans,FontSize=11,PrimaryColour=&H00FFFFFF&,"
         "OutlineColour=&H80000000&,BorderStyle=3,BackColour=&H90000000&,Outline=1,"
-        "Shadow=0,MarginV=34,Alignment=2'"
+        "Shadow=0,MarginV=5,Alignment=2'"
     )
     subprocess.run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
