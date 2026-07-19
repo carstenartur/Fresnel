@@ -5,12 +5,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.blankOrNullString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -22,6 +23,28 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ExperimentCopilotControllerTest {
 
     @Autowired MockMvc mvc;
+
+    @Test
+    @WithAnonymousUser
+    void exposesProviderStatusWithoutCredentials() throws Exception {
+        mvc.perform(get("/api/assistant/providers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == 'mock')].available", hasItem(true)));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void proposalEndpointRequiresAuthenticationEvenForMockProvider() throws Exception {
+        mvc.perform(post("/api/assistant/propose")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "provider": "mock",
+                                  "request": "Create a 532 nm zone plate with a 1 m focus."
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
 
     @Test
     void exposesOfflineMockProviderWithoutRequiringApiQuota() throws Exception {
