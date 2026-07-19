@@ -24,7 +24,7 @@ public final class DeterministicExperimentCopilotProvider implements ExperimentC
     private static final Pattern WAVELENGTH = Pattern.compile("(?i)(\\d+(?:\\.\\d+)?)\\s*nm\\b");
     private static final Pattern DPI = Pattern.compile("(?i)(\\d+(?:\\.\\d+)?)\\s*(?:dpi|dots?\\s+per\\s+inch)\\b");
     private static final Pattern APERTURE_AFTER_VALUE = Pattern.compile(
-            "(?i)(\\d+(?:\\.\\d+)?)\\s*mm\\s*(?:aperture|diameter)\\b");
+            "(?i)(\\d+(?:\\.\\d+)?)\\s*mm\\s*(?:aperture|diameter|zone\\s+plate)\\b");
     private static final Pattern APERTURE_BEFORE_VALUE = Pattern.compile(
             "(?i)(?:aperture|diameter)(?:\\s+of|\\s*=)?\\s*(\\d+(?:\\.\\d+)?)\\s*mm\\b");
     private static final Pattern FOCUS_AFTER_VALUE = Pattern.compile(
