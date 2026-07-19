@@ -20,6 +20,8 @@ import org.springframework.security.web.SecurityFilterChain;
  * by id) remain accessible to unauthenticated callers so the SPA stays usable
  * without login. All mutating endpoints (POST design save/persist, POST job
  * submissions, hologram submit, DELETE) require an authenticated principal.
+ * Copilot proposals also require authentication because a configured provider may
+ * consume paid external quota even though the returned proposal is only advisory.
  *
  * <p>Two users are seeded from configuration ({@code fresnel.security.user.*} and
  * {@code fresnel.security.admin.*}) — these are placeholder credentials suitable
@@ -56,6 +58,7 @@ public class SecurityConfig {
                                 "/api/jobs/*",
                                 "/api/jobs/*/events",
                                 "/api/jobs/*/result.png",
+                                "/api/assistant/providers",
                                 "/error", "/", "/index.html",
                                 "/assets/**", "/static/**", "/favicon.ico").permitAll()
                         .requestMatchers(HttpMethod.POST,
@@ -65,8 +68,9 @@ public class SecurityConfig {
                                 "/api/designs/*/info",
                                 "/api/designs/*/preview.png",
                                 "/api/assistant/recommend").permitAll()
-                        // Mutating endpoints require an authenticated user.
+                        // Endpoints that mutate state or may consume configured quota.
                         .requestMatchers(HttpMethod.POST,
+                                "/api/assistant/propose",
                                 "/api/designs/save",
                                 "/api/designs/persist",
                                 "/api/designs/export*",
