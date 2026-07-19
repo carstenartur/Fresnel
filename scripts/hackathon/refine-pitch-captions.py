@@ -89,8 +89,10 @@ def main() -> None:
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-i", str(UNCAPTIONED),
         "-vf", subtitle_filter,
+        "-af", "loudnorm=I=-16:TP=-1.5:LRA=7",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-        "-c:a", "copy", "-movflags", "+faststart", str(temp),
+        "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "1",
+        "-movflags", "+faststart", str(temp),
     ], check=True)
     temp.replace(FINAL)
 
