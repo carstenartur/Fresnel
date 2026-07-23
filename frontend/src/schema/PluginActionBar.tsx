@@ -13,6 +13,7 @@ const ACTION_ORDER: readonly PluginCapability[] = [
   'EXPORT_PNG',
   'EXPORT_SVG',
   'EXPORT_PDF',
+  'EXPORT_PCL',
   'EXPORT_DXF',
   'EXPORT_GERBER',
   'EXPORT_STL',
