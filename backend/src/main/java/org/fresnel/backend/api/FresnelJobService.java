@@ -25,12 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * Canonical parser, validator and serializer for {@link FresnelJobDocument}.
- *
- * <p>This service is deliberately independent of HTTP so that the same import path
- * can later be reused by desktop launch, CLI and documentation generation.</p>
- */
+/** Canonical parser, validator and serializer for {@link FresnelJobDocument}. */
 @Service
 public class FresnelJobService {
 
@@ -40,8 +35,7 @@ public class FresnelJobService {
             DesignDocument.KIND_FOIL, "window-foil",
             DesignDocument.KIND_MULTIFOCUS, "multi-focus",
             DesignDocument.KIND_RGB, "rgb-zone-plate",
-            DesignDocument.KIND_HOLOGRAM, "hologram"
-    );
+            DesignDocument.KIND_HOLOGRAM, "hologram");
 
     private static final Set<String> JOB_FIELDS = Set.of(
             "$schema", "format", "formatVersion", "plugin", "parameters", "production", "provenance");
@@ -67,14 +61,19 @@ public class FresnelJobService {
             "cellSpecs", "drawCropMarks");
     private static final Set<String> MULTI_PARAMETER_FIELDS = Set.of(
             "apertureDiameterMm", "focusPoints", "wavelengthNm", "dpi", "maskType", "polarity");
-    private static final Set<String> RGB_PARAMETER_FIELDS = Set.of("base", "redNm", "greenNm", "blueNm");
+    private static final Set<String> RGB_PARAMETER_FIELDS = Set.of(
+            "base", "redNm", "greenNm", "blueNm");
     private static final Set<String> HOLOGRAM_PARAMETER_FIELDS = Set.of(
             "targetImageBase64", "sidePx", "iterations", "outputType", "dpi",
             "wavelengthNm", "refractiveIndexDelta", "maxPhaseShiftRad");
+    private static final Set<String> GRATING_PARAMETER_FIELDS = Set.of(
+            "widthMm", "heightMm", "lineOrientation", "startPitchUm", "endPitchUm",
+            "progression", "progressionDirection", "dutyCycle", "phaseOffsetCycles",
+            "polarity", "marginMm", "annotationSizeMm", "showAxis", "axisQuantity",
+            "tickCount", "showReferenceBands", "referenceBandSizeMm", "dpi");
     private static final Set<String> FOCUS_POINT_FIELDS = Set.of("xMm", "yMm", "zMm");
     private static final Set<String> CELL_SPEC_FIELDS = Set.of(
             "focalLengthMm", "targetOffsetXmm", "targetOffsetYmm");
-
     private static final Set<String> PDF_SHEETS = Set.of("FIT", "A4", "A3", "A2", "A1", "A0");
 
     private final ObjectMapper mapper;
@@ -94,7 +93,6 @@ public class FresnelJobService {
             throw new IllegalArgumentException(
                     "Fresnel job exceeds the maximum size of " + FresnelJobDocument.MAX_FILE_BYTES + " bytes");
         }
-
         final JsonNode root;
         try {
             root = mapper.readTree(body);
@@ -104,14 +102,12 @@ public class FresnelJobService {
         if (root == null || !root.isObject()) {
             throw new IllegalArgumentException("Fresnel job root must be a JSON object");
         }
-
         boolean legacy = root.has("kind") && !root.has("format");
         validateEnvelopeShape(root, legacy);
         try {
-            if (legacy) {
-                return migrateLegacy(mapper.convertValue(root, DesignDocument.class));
-            }
-            return normalize(mapper.convertValue(root, FresnelJobDocument.class));
+            return legacy
+                    ? migrateLegacy(mapper.convertValue(root, DesignDocument.class))
+                    : normalize(mapper.convertValue(root, FresnelJobDocument.class));
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
@@ -131,23 +127,18 @@ public class FresnelJobService {
 
     /** Convert the former kind/version/payload envelope into the public job format. */
     public FresnelJobDocument migrateLegacy(DesignDocument legacy) {
-        if (legacy == null) {
-            throw new IllegalArgumentException("Legacy design document must not be null");
-        }
+        if (legacy == null) throw new IllegalArgumentException("Legacy design document must not be null");
         if (legacy.version() > DesignDocument.SCHEMA_VERSION) {
             throw new IllegalArgumentException(
                     "Legacy design schema version " + legacy.version() + " is newer than supported ("
                             + DesignDocument.SCHEMA_VERSION + ")");
         }
         String pluginId = LEGACY_KIND_TO_PLUGIN.get(legacy.kind());
-        if (pluginId == null) {
-            throw new IllegalArgumentException("Unknown legacy design kind: " + legacy.kind());
-        }
+        if (pluginId == null) throw new IllegalArgumentException("Unknown legacy design kind: " + legacy.kind());
         if (legacy.payload() == null || !legacy.payload().isObject()) {
             throw new IllegalArgumentException("Legacy design payload must be a JSON object");
         }
-
-        FresnelJobDocument converted = new FresnelJobDocument(
+        return normalize(new FresnelJobDocument(
                 FresnelJobDocument.SCHEMA_URL,
                 FresnelJobDocument.FORMAT_IDENTIFIER,
                 FresnelJobDocument.CURRENT_FORMAT_VERSION,
@@ -157,15 +148,12 @@ public class FresnelJobService {
                         pluginId + "/1"),
                 legacy.payload(),
                 null,
-                new FresnelJobDocument.Provenance("Fresnel", applicationVersion(), null));
-        return normalize(converted);
+                new FresnelJobDocument.Provenance("Fresnel", applicationVersion(), null)));
     }
 
     /** Validate and canonicalize a job without changing its design semantics. */
     public FresnelJobDocument normalize(FresnelJobDocument job) {
-        if (job == null) {
-            throw new IllegalArgumentException("Fresnel job must not be null");
-        }
+        if (job == null) throw new IllegalArgumentException("Fresnel job must not be null");
         if (!FresnelJobDocument.FORMAT_IDENTIFIER.equals(job.format())) {
             throw new IllegalArgumentException(
                     "Unsupported Fresnel job format: " + (job.format() == null ? "<missing>" : job.format()));
@@ -197,7 +185,6 @@ public class FresnelJobService {
         JsonNode parameters = validateAndNormalizeParameters(pluginId, job.parameters());
         FresnelJobDocument.ProductionPlan production = normalizeProduction(descriptor, job.production());
         String parameterHash = parameterSha256(parameters);
-
         FresnelJobDocument.Provenance supplied = job.provenance();
         FresnelJobDocument.Provenance provenance = new FresnelJobDocument.Provenance(
                 supplied == null || isBlank(supplied.createdWith()) ? "Fresnel" : supplied.createdWith().trim(),
@@ -205,11 +192,9 @@ public class FresnelJobService {
                         ? applicationVersion()
                         : supplied.applicationVersion().trim(),
                 parameterHash);
-
         String algorithmVersion = isBlank(job.plugin().algorithmVersion())
                 ? pluginId + "/1"
                 : job.plugin().algorithmVersion().trim();
-
         return new FresnelJobDocument(
                 FresnelJobDocument.SCHEMA_URL,
                 FresnelJobDocument.FORMAT_IDENTIFIER,
@@ -225,7 +210,6 @@ public class FresnelJobService {
             throw new IllegalArgumentException("Fresnel job parameters must be a JSON object");
         }
         validateParameterShape(pluginId, parameters);
-
         Class<?> requestType = switch (pluginId) {
             case "zone-plate" -> SingleZonePlateRequest.class;
             case "rgb-zone-plate" -> RgbZonePlateRequest.class;
@@ -233,16 +217,18 @@ public class FresnelJobService {
             case "hex-macro-cell" -> HexMacroCellRequest.class;
             case "window-foil" -> WindowFoilRequest.class;
             case "hologram" -> HologramRequest.class;
+            case "variable-line-grating" -> VariableLineGratingRequest.class;
             default -> throw new IllegalArgumentException("Unknown plugin id: " + pluginId);
         };
 
-        final Object request;
+        Object request;
         try {
             request = mapper.convertValue(parameters, requestType);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                     "Invalid parameters for plugin " + pluginId + ": " + conciseMessage(e), e);
         }
+        if (request instanceof VariableLineGratingRequest grating) request = grating.normalized();
         validateBean(pluginId, request);
         validateNestedBeans(pluginId, request);
 
@@ -250,7 +236,8 @@ public class FresnelJobService {
         if (request instanceof SingleZonePlateRequest r) {
             normalizedRequest = normalizeSingle(r);
         } else if (request instanceof RgbZonePlateRequest r) {
-            normalizedRequest = new RgbZonePlateRequest(normalizeSingle(r.base()), r.redNm(), r.greenNm(), r.blueNm());
+            normalizedRequest = new RgbZonePlateRequest(
+                    normalizeSingle(r.base()), r.redNm(), r.greenNm(), r.blueNm());
         } else if (request instanceof HexMacroCellRequest r) {
             normalizedRequest = new HexMacroCellRequest(
                     r.macroRadiusMm(), r.subDiameterMm(), r.subPitchMm(), r.focalLengthMm(),
@@ -289,6 +276,14 @@ public class FresnelJobService {
                     r.resolvedWavelengthNm(),
                     r.resolvedRefractiveIndexDelta(),
                     r.resolvedMaxPhaseShiftRad());
+        } else if (request instanceof VariableLineGratingRequest r) {
+            try {
+                r.toParameters();
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                        "Invalid parameters for plugin " + pluginId + ": " + conciseMessage(e), e);
+            }
+            normalizedRequest = r;
         } else {
             throw new IllegalArgumentException("No parameter normalizer for plugin " + pluginId);
         }
@@ -309,9 +304,7 @@ public class FresnelJobService {
 
     private void validateBean(String pluginId, Object request) {
         Set<ConstraintViolation<Object>> violations = validator.validate(request);
-        if (violations.isEmpty()) {
-            return;
-        }
+        if (violations.isEmpty()) return;
         String details = violations.stream()
                 .sorted(Comparator.comparing(v -> v.getPropertyPath().toString()))
                 .map(v -> v.getPropertyPath() + ": " + v.getMessage())
@@ -337,15 +330,11 @@ public class FresnelJobService {
             rejectUnknownFields(root, LEGACY_JOB_FIELDS, "legacy job");
             return;
         }
-
         rejectUnknownFields(root, JOB_FIELDS, "job");
         rejectUnknownFields(root.get("plugin"), PLUGIN_FIELDS, "plugin");
         rejectUnknownFields(root.get("provenance"), PROVENANCE_FIELDS, "provenance");
-
         JsonNode production = root.get("production");
-        if (production == null || production.isNull()) {
-            return;
-        }
+        if (production == null || production.isNull()) return;
         rejectUnknownFields(production, PRODUCTION_FIELDS, "production");
         JsonNode outputs = production.get("outputs");
         if (outputs != null && !outputs.isNull()) {
@@ -366,10 +355,10 @@ public class FresnelJobService {
             case "multi-focus" -> MULTI_PARAMETER_FIELDS;
             case "rgb-zone-plate" -> RGB_PARAMETER_FIELDS;
             case "hologram" -> HOLOGRAM_PARAMETER_FIELDS;
+            case "variable-line-grating" -> GRATING_PARAMETER_FIELDS;
             default -> throw new IllegalArgumentException("Unknown plugin id: " + pluginId);
         };
         rejectUnknownFields(parameters, fields, "parameters");
-
         switch (pluginId) {
             case "rgb-zone-plate" ->
                     rejectUnknownFields(parameters.get("base"), SINGLE_PARAMETER_FIELDS, "parameters.base");
@@ -377,31 +366,21 @@ public class FresnelJobService {
                     rejectArrayObjectFields(parameters.get("focusPoints"), FOCUS_POINT_FIELDS, "parameters.focusPoints");
             case "window-foil" ->
                     rejectArrayObjectFields(parameters.get("cellSpecs"), CELL_SPEC_FIELDS, "parameters.cellSpecs");
-            default -> {
-                // No nested parameter object for this plugin.
-            }
+            default -> { }
         }
     }
 
     private static void rejectArrayObjectFields(JsonNode array, Set<String> fields, String path) {
-        if (array == null || array.isNull()) {
-            return;
-        }
-        if (!array.isArray()) {
-            throw new IllegalArgumentException(path + " must be a JSON array");
-        }
+        if (array == null || array.isNull()) return;
+        if (!array.isArray()) throw new IllegalArgumentException(path + " must be a JSON array");
         for (int i = 0; i < array.size(); i++) {
             rejectUnknownFields(array.get(i), fields, path + "[" + i + "]");
         }
     }
 
     private static void rejectUnknownFields(JsonNode object, Set<String> allowed, String path) {
-        if (object == null || object.isNull()) {
-            return;
-        }
-        if (!object.isObject()) {
-            throw new IllegalArgumentException(path + " must be a JSON object");
-        }
+        if (object == null || object.isNull()) return;
+        if (!object.isObject()) throw new IllegalArgumentException(path + " must be a JSON object");
         for (Map.Entry<String, JsonNode> property : object.properties()) {
             if (!allowed.contains(property.getKey())) {
                 throw new IllegalArgumentException(
@@ -413,17 +392,13 @@ public class FresnelJobService {
     private FresnelJobDocument.ProductionPlan normalizeProduction(
             PluginDescriptor descriptor,
             FresnelJobDocument.ProductionPlan production) {
-        if (production == null) {
-            return null;
-        }
+        if (production == null) return null;
         if (production.outputs() == null || production.outputs().isEmpty()) {
             throw new IllegalArgumentException("production.outputs must contain at least one output");
         }
-
         List<FresnelJobDocument.ProductionOutput> normalized = new ArrayList<>();
         Set<String> ids = new HashSet<>();
         Set<String> filenames = new HashSet<>();
-
         for (int i = 0; i < production.outputs().size(); i++) {
             FresnelJobDocument.ProductionOutput output = production.outputs().get(i);
             if (output == null) {
@@ -435,12 +410,8 @@ public class FresnelJobService {
                 throw new IllegalArgumentException(
                         "Plugin " + descriptor.id() + " does not support " + format + " export");
             }
-
             String id = isBlank(output.id()) ? "output-" + (i + 1) : output.id().trim();
-            if (!ids.add(id)) {
-                throw new IllegalArgumentException("Duplicate production output id: " + id);
-            }
-
+            if (!ids.add(id)) throw new IllegalArgumentException("Duplicate production output id: " + id);
             String filename = isBlank(output.filename())
                     ? descriptor.id() + "-" + id + "." + extensionFor(format)
                     : output.filename().trim();
@@ -461,33 +432,22 @@ public class FresnelJobService {
             } else if ("pdf".equals(format)) {
                 sheet = "FIT";
             }
-
             Double printScale = output.printScale();
             if (printScale != null && (!Double.isFinite(printScale) || printScale <= 0.0)) {
                 throw new IllegalArgumentException("production output printScale must be finite and positive");
             }
-            if (printScale == null && "pdf".equals(format)) {
-                printScale = 1.0;
-            }
+            if (printScale == null && "pdf".equals(format)) printScale = 1.0;
             if (output.options() != null && !output.options().isObject()) {
                 throw new IllegalArgumentException("production output options must be a JSON object");
             }
-
             normalized.add(new FresnelJobDocument.ProductionOutput(
-                    id,
-                    format,
-                    filename,
-                    sheet,
-                    printScale,
-                    output.options()));
+                    id, format, filename, sheet, printScale, output.options()));
         }
         return new FresnelJobDocument.ProductionPlan(normalized);
     }
 
     private static String normalizeFormat(String raw) {
-        if (isBlank(raw)) {
-            throw new IllegalArgumentException("production output format must not be empty");
-        }
+        if (isBlank(raw)) throw new IllegalArgumentException("production output format must not be empty");
         String format = raw.trim().toLowerCase(Locale.ROOT);
         return "gbr".equals(format) ? "gerber" : format;
     }
@@ -497,6 +457,7 @@ public class FresnelJobService {
             case "png" -> PluginCapability.EXPORT_PNG;
             case "svg" -> PluginCapability.EXPORT_SVG;
             case "pdf" -> PluginCapability.EXPORT_PDF;
+            case "pcl" -> PluginCapability.EXPORT_PCL;
             case "dxf" -> PluginCapability.EXPORT_DXF;
             case "gerber" -> PluginCapability.EXPORT_GERBER;
             case "stl" -> PluginCapability.EXPORT_STL;
@@ -509,9 +470,7 @@ public class FresnelJobService {
     }
 
     private static void validatePortableFilename(String filename) {
-        if (filename.length() > 255) {
-            throw new IllegalArgumentException("Production output filename is too long");
-        }
+        if (filename.length() > 255) throw new IllegalArgumentException("Production output filename is too long");
         if (filename.equals(".") || filename.equals("..")
                 || filename.indexOf('/') >= 0
                 || filename.indexOf('\\') >= 0
