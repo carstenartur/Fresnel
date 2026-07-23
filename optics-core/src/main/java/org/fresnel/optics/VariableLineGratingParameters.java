@@ -3,6 +3,11 @@ package org.fresnel.optics;
 /**
  * Physical definition of one orientation-selectable variable-line grating sheet.
  * Exactly one family of parallel lines is represented by {@link #lineOrientation()}.
+ *
+ * <p>Raster resource limits are enforced by {@link VariableLineGratingRasterizer}
+ * at the resolution of the requested output. Keeping that check out of this
+ * physical model allows a high-resolution design to remain valid for vector SVG
+ * or for a lower-resolution trusted printer profile.</p>
  */
 public record VariableLineGratingParameters(
         double widthMm,
@@ -64,13 +69,6 @@ public record VariableLineGratingParameters(
         if (showReferenceBands && 2.0 * referenceBandSizeMm >= orthogonalExtent) {
             throw new IllegalArgumentException(
                     "reference bands must leave a non-empty variable-grating region");
-        }
-        long widthPx = Math.max(1L, Math.round(widthMm / Units.pixelSizeMm(dpi)));
-        long heightPx = Math.max(1L, Math.round(heightMm / Units.pixelSizeMm(dpi)));
-        if (widthPx > Integer.MAX_VALUE || heightPx > Integer.MAX_VALUE
-                || widthPx * heightPx > MAX_RASTER_PIXELS) {
-            throw new IllegalArgumentException(
-                    "requested raster exceeds the safe " + MAX_RASTER_PIXELS + " pixel limit");
         }
     }
 
