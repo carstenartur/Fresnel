@@ -27,7 +27,7 @@
     },
     "parameters": {
       "type": "object",
-      "description": "Plugin-specific parameters. Versioned schemas will be linked here as they become available."
+      "description": "Plugin-specific parameters. Versioned schemas are published by the registered plugin."
     },
     "production": {
       "$ref": "#/$defs/production"
@@ -50,6 +50,7 @@
           "type": "string",
           "enum": [
             "zone-plate",
+            "variable-line-grating",
             "rgb-zone-plate",
             "multi-focus",
             "hex-macro-cell",
@@ -92,7 +93,7 @@
         },
         "format": {
           "type": "string",
-          "enum": ["png", "svg", "pdf", "dxf", "gerber", "gbr", "stl"]
+          "enum": ["png", "svg", "pdf", "pcl", "dxf", "gerber", "gbr", "stl"]
         },
         "filename": {
           "type": "string",
@@ -118,7 +119,8 @@
           "exclusiveMinimum": 0
         },
         "options": {
-          "type": "object"
+          "type": "object",
+          "description": "Output-specific data-only options. Native printer outputs accept trusted profile identifiers and bounded enum values only."
         }
       }
     },
