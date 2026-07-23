@@ -1,0 +1,52 @@
+{
+  "formatVersion": 1,
+  "pluginId": "variable-line-grating",
+  "parameterSchemaVersion": 1,
+  "groups": [
+    {
+      "id": "sheet",
+      "title": "Sheet and orientation",
+      "fields": ["widthMm", "heightMm", "lineOrientation", "marginMm"]
+    },
+    {
+      "id": "progression",
+      "title": "Pitch progression",
+      "fields": [
+        "startPitchUm",
+        "endPitchUm",
+        "progression",
+        "progressionDirection",
+        "dutyCycle",
+        "phaseOffsetCycles",
+        "polarity"
+      ]
+    },
+    {
+      "id": "axis",
+      "title": "Calibration axis",
+      "fields": ["showAxis", "annotationSizeMm", "axisQuantity", "tickCount"],
+      "collapsible": true
+    },
+    {
+      "id": "reference",
+      "title": "Reference bands",
+      "fields": ["showReferenceBands", "referenceBandSizeMm"],
+      "collapsible": true
+    },
+    {
+      "id": "raster",
+      "title": "Ordinary raster output",
+      "fields": ["dpi"],
+      "advanced": true
+    }
+  ],
+  "widgets": {
+    "lineOrientation": { "type": "radio" },
+    "progression": { "type": "select" },
+    "progressionDirection": { "type": "radio" },
+    "polarity": { "type": "radio" },
+    "axisQuantity": { "type": "select" },
+    "dpi": { "type": "number-with-presets", "presets": [150, 300, 600, 1200] }
+  },
+  "extensions": ["preview-info", "production-actions", "validation"]
+}
