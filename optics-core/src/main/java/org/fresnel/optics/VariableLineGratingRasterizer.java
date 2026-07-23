@@ -92,7 +92,8 @@ public final class VariableLineGratingRasterizer {
 
     static String axisLabel(VariableLineGratingParameters p, double u, double selectedDpi) {
         double pitchMm = VariableLineGratingModel.pitchMmAtNormalized(p, u);
-        return switch (p.axisQuantity()) {
+        String position = compact(u * p.activeProgressionLengthMm()) + "MM:";
+        return position + switch (p.axisQuantity()) {
             case PITCH_UM -> compact(pitchMm * 1000.0) + "UM";
             case LINES_PER_MM -> compact(1.0 / pitchMm) + "L/MM";
             case DEVICE_DOTS_PER_PERIOD -> compact(pitchMm * selectedDpi / Units.INCH_MM) + "DOT";
