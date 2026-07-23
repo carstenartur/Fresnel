@@ -27,6 +27,15 @@
     "referenceBandSizeMm": 5.0,
     "dpi": 600.0
   },
+  "production": {
+    "outputs": [
+      {
+        "id": "printable-vector",
+        "format": "svg",
+        "filename": "variable-line-grating-vertical.svg"
+      }
+    ]
+  },
   "provenance": {
     "createdWith": "Fresnel",
     "applicationVersion": "development"
