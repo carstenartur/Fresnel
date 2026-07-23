@@ -143,7 +143,8 @@ public final class VariableLineGratingSvgExporter {
 
     private static String label(VariableLineGratingParameters p, double u, double dpi) {
         double pitchMm = VariableLineGratingModel.pitchMmAtNormalized(p, u);
-        return switch (p.axisQuantity()) {
+        String position = compact(u * p.activeProgressionLengthMm()) + " mm · ";
+        return position + switch (p.axisQuantity()) {
             case PITCH_UM -> compact(pitchMm * 1000.0) + " µm";
             case LINES_PER_MM -> compact(1.0 / pitchMm) + " lines/mm";
             case DEVICE_DOTS_PER_PERIOD -> compact(pitchMm * dpi / Units.INCH_MM) + " dots/period";
