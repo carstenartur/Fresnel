@@ -59,8 +59,10 @@ export function VariableLineGratingPanel({ initialJob }: JobPanelProps) {
       .then((loaded) => {
         if (!active) return;
         setProfiles(loaded);
-        if (loaded.length > 0 && !loaded.some((profile) => profile.id === profileId)) {
-          setProfileId(loaded[0].id);
+        if (loaded.length > 0) {
+          setProfileId((current) => loaded.some((profile) => profile.id === current)
+            ? current
+            : loaded[0].id);
         }
       })
       .catch((loadError) => {
@@ -68,7 +70,7 @@ export function VariableLineGratingPanel({ initialJob }: JobPanelProps) {
         setError(loadError instanceof Error ? loadError.message : String(loadError));
       });
     return () => { active = false; };
-  }, [profileId]);
+  }, []);
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -94,13 +96,12 @@ export function VariableLineGratingPanel({ initialJob }: JobPanelProps) {
   };
 
   const selectedProfile = profiles.find((profile) => profile.id === profileId) ?? null;
-  const testedPageAxis = request.lineOrientation === 'VERTICAL' ? 'page X' : 'page Y';
 
   return (
     <>
       <h2>Variable-line grating</h2>
       <p className="warning info" style={{ marginTop: 0 }}>
-        Generate exactly one line family per output. Vertical lines vary across {testedPageAxis};
+        Generate exactly one line family per output. Vertical lines vary across page X;
         horizontal lines vary across page Y. Print PDF, SVG and PCL at 100% with all
         fit-to-page and driver resampling options disabled.
       </p>
@@ -217,13 +218,15 @@ export function VariableLineGratingPanel({ initialJob }: JobPanelProps) {
                     label: 'PCL 1-bit',
                     disabled: !productionReady || !selectedProfile,
                     title: 'Native device-dot raster; print without a graphics-driver conversion step.',
-                    run: () => normalized && selectedProfile && run(() =>
-                      downloadVariableLineGratingPcl(
+                    run: () => {
+                      if (!normalized || !selectedProfile) return;
+                      return run(() => downloadVariableLineGratingPcl(
                         normalized,
                         selectedProfile.id,
                         compression,
                         `fresnel-grating-${orientationName}.pcl`,
-                      )),
+                      ));
+                    },
                   },
                 }}
               />
