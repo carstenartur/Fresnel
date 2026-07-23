@@ -26,17 +26,18 @@ class PluginControllerTest {
     @Autowired MockMvc mvc;
 
     @Test
-    void listPluginsReturnsAllSixPluginsInRegistryOrder() throws Exception {
+    void listPluginsReturnsAllSevenPluginsInRegistryOrder() throws Exception {
         mvc.perform(get("/api/plugins"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(6)))
+                .andExpect(jsonPath("$", hasSize(7)))
                 .andExpect(jsonPath("$[0].id").value("zone-plate"))
-                .andExpect(jsonPath("$[1].id").value("hex-macro-cell"))
-                .andExpect(jsonPath("$[2].id").value("window-foil"))
-                .andExpect(jsonPath("$[3].id").value("multi-focus"))
-                .andExpect(jsonPath("$[4].id").value("rgb-zone-plate"))
-                .andExpect(jsonPath("$[5].id").value("hologram"));
+                .andExpect(jsonPath("$[1].id").value("variable-line-grating"))
+                .andExpect(jsonPath("$[2].id").value("hex-macro-cell"))
+                .andExpect(jsonPath("$[3].id").value("window-foil"))
+                .andExpect(jsonPath("$[4].id").value("multi-focus"))
+                .andExpect(jsonPath("$[5].id").value("rgb-zone-plate"))
+                .andExpect(jsonPath("$[6].id").value("hologram"));
     }
 
     @Test
@@ -45,6 +46,7 @@ class PluginControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].id", hasItems(
                         "zone-plate",
+                        "variable-line-grating",
                         "rgb-zone-plate",
                         "multi-focus",
                         "hex-macro-cell",
@@ -103,6 +105,20 @@ class PluginControllerTest {
                 .andExpect(jsonPath("$.supportsOpticalQualityReport").value(true))
                 .andExpect(jsonPath("$.supportsPropagationPreview").value(true))
                 .andExpect(jsonPath("$.supportsExperimentalValidation").value(false));
+    }
+
+    @Test
+    void getPluginByIdReturnsVariableLineGratingWithNativePclCapability() throws Exception {
+        mvc.perform(get("/api/plugins/variable-line-grating"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("variable-line-grating"))
+                .andExpect(jsonPath("$.displayName").value("Variable-Line Grating"))
+                .andExpect(jsonPath("$.stability").value("BETA"))
+                .andExpect(jsonPath("$.capabilities", hasItems(
+                        "EXPORT_PNG", "EXPORT_SVG", "EXPORT_PDF", "EXPORT_PCL",
+                        "PREVIEW_PNG", "PRINTABILITY_ANALYSIS")))
+                .andExpect(jsonPath("$.schemaUrl")
+                        .value("/api/plugins/variable-line-grating/schema"));
     }
 
     @Test
