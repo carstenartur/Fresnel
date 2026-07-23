@@ -10,6 +10,7 @@ export type GratingPolarity = 'POSITIVE' | 'NEGATIVE';
 export type AxisQuantity = 'PITCH_UM' | 'LINES_PER_MM' | 'DEVICE_DOTS_PER_PERIOD';
 export type DeviceAxis = 'X' | 'Y';
 export type PclCompression = 'NONE' | 'TIFF';
+export type PclPageOrientation = 'PORTRAIT' | 'LANDSCAPE';
 
 export interface VariableLineGratingRequest {
   widthMm: number;
@@ -69,10 +70,33 @@ export interface PrinterRasterProfile {
   printableWidthDots: number;
   printableHeightDots: number;
   mediaSize: string;
-  pageOrientation: 'PORTRAIT' | 'LANDSCAPE';
+  pageOrientation: PclPageOrientation;
   pageXAxisMapsTo: DeviceAxis;
   pageYAxisMapsTo: DeviceAxis;
   compressionModes: PclCompression[];
+}
+
+export interface PrinterCalibrationResult {
+  printerModel: string;
+  printerProfileId: string;
+  printerProfileVersion: number;
+  mediumDescription: string;
+  qualityMode: string;
+  nominalDpiX: number;
+  nominalDpiY: number;
+  pageOrientation: PclPageOrientation;
+  pageXAxisMapsTo: DeviceAxis;
+  pageYAxisMapsTo: DeviceAxis;
+  lineOrientation: LineOrientation;
+  testedDeviceAxis: DeviceAxis;
+  observedDegradationPositionMm?: number;
+  firstResolvedPitchUm?: number;
+  minimumUsefulFeatureWidthUm?: number;
+  firstResolvedLinesPerMm?: number;
+  effectiveDpi?: number;
+  observationNotes: string;
+  measurementAttachmentReference: string;
+  measuredAt: string;
 }
 
 export async function fetchPrinterRasterProfiles(): Promise<PrinterRasterProfile[]> {
@@ -140,6 +164,20 @@ export async function downloadVariableLineGratingPcl(
       `/api/designs/variable-line-grating/export.pcl?${query.toString()}`,
       request,
       'application/vnd.hp-pcl',
+    ),
+    filename,
+  );
+}
+
+export async function downloadPrinterCalibrationResult(
+  result: PrinterCalibrationResult,
+  filename: string,
+): Promise<void> {
+  downloadBlob(
+    await postBlob(
+      '/api/designs/variable-line-grating/calibration-results/export.json',
+      result,
+      'application/json',
     ),
     filename,
   );
