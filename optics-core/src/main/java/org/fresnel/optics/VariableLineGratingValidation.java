@@ -22,6 +22,8 @@ public final class VariableLineGratingValidation {
             VariableLineGratingParameters p,
             PrinterRasterProfile profile) {
         VariableLineGratingAnalysis.Result analysis = VariableLineGratingAnalysis.analyze(p, profile);
+        VariableLineGratingModel.Layout layout = VariableLineGratingModel.layout(p);
+        Bounds annotation = annotationBounds(p, layout);
         Map<String, String> snapshot = new LinkedHashMap<>();
         snapshot.put("widthMm", fmt(p.widthMm()));
         snapshot.put("heightMm", fmt(p.heightMm()));
@@ -44,16 +46,33 @@ public final class VariableLineGratingValidation {
         snapshot.put("showReferenceBands", Boolean.toString(p.showReferenceBands()));
         snapshot.put("referenceBandSizeMm", fmt(p.referenceBandSizeMm()));
         snapshot.put("dpi", fmt(p.dpi()));
+        snapshot.put("activeXmm", fmt(layout.activeXmm()));
+        snapshot.put("activeYmm", fmt(layout.activeYmm()));
+        snapshot.put("activeWidthMm", fmt(layout.activeWidthMm()));
+        snapshot.put("activeHeightMm", fmt(layout.activeHeightMm()));
+        snapshot.put("annotationXmm", fmt(annotation.xMm()));
+        snapshot.put("annotationYmm", fmt(annotation.yMm()));
+        snapshot.put("annotationWidthMm", fmt(annotation.widthMm()));
+        snapshot.put("annotationHeightMm", fmt(annotation.heightMm()));
         if (profile != null) {
             snapshot.put("printerProfileId", profile.id());
             snapshot.put("printerProfileVersion", Integer.toString(profile.version()));
             snapshot.put("profileDpiX", Integer.toString(profile.dpiX()));
             snapshot.put("profileDpiY", Integer.toString(profile.dpiY()));
+            snapshot.put("pageOrientation", profile.pageOrientation().name());
             snapshot.put("pageXAxisMapsTo", profile.pageXAxisMapsTo().name());
             snapshot.put("pageYAxisMapsTo", profile.pageYAxisMapsTo().name());
         }
 
         List<ValidationMetric> metrics = new ArrayList<>();
+        metrics.add(metric("ACTIVE_X_MM", "Active-area X origin", layout.activeXmm(), "mm"));
+        metrics.add(metric("ACTIVE_Y_MM", "Active-area Y origin", layout.activeYmm(), "mm"));
+        metrics.add(metric("ACTIVE_WIDTH_MM", "Active-area width", layout.activeWidthMm(), "mm"));
+        metrics.add(metric("ACTIVE_HEIGHT_MM", "Active-area height", layout.activeHeightMm(), "mm"));
+        metrics.add(metric("ANNOTATION_X_MM", "Annotation-area X origin", annotation.xMm(), "mm"));
+        metrics.add(metric("ANNOTATION_Y_MM", "Annotation-area Y origin", annotation.yMm(), "mm"));
+        metrics.add(metric("ANNOTATION_WIDTH_MM", "Annotation-area width", annotation.widthMm(), "mm"));
+        metrics.add(metric("ANNOTATION_HEIGHT_MM", "Annotation-area height", annotation.heightMm(), "mm"));
         metrics.add(metric("MIN_PITCH_UM", "Minimum pitch", analysis.minPitchUm(), "µm"));
         metrics.add(metric("MAX_PITCH_UM", "Maximum pitch", analysis.maxPitchUm(), "µm"));
         metrics.add(metric("MIN_OPAQUE_FEATURE_UM", "Minimum opaque feature",
@@ -70,6 +89,15 @@ public final class VariableLineGratingValidation {
                 analysis.minDotsPerClearFeature(), "dots"));
         metrics.add(metric("NOMINAL_CYCLE_COUNT", "Integrated nominal cycle count",
                 analysis.nominalCycleCount(), "cycles"));
+        for (VariableLineGratingAnalysis.ThresholdCrossing crossing : analysis.thresholdCrossings()) {
+            if (!crossing.crossed() || crossing.positionMm() == null) continue;
+            String threshold = compactThreshold(crossing.dotsPerPeriod());
+            metrics.add(metric(
+                    "POSITION_AT_" + threshold + "_DOTS_PER_PERIOD_MM",
+                    "Position at " + threshold + " dots per period",
+                    crossing.positionMm(),
+                    "mm"));
+        }
 
         List<ValidationFinding> findings = new ArrayList<>();
         double minimumFeatureDots = Math.min(
@@ -140,9 +168,36 @@ public final class VariableLineGratingValidation {
                 findings);
     }
 
+    private static Bounds annotationBounds(
+            VariableLineGratingParameters p,
+            VariableLineGratingModel.Layout layout) {
+        if (!p.showAxis()) {
+            return new Bounds(
+                    layout.activeXmm() + layout.activeWidthMm(),
+                    layout.activeYmm() + layout.activeHeightMm(),
+                    0.0,
+                    0.0);
+        }
+        return p.lineOrientation() == LineOrientation.VERTICAL
+                ? new Bounds(
+                        layout.activeXmm(),
+                        layout.activeYmm() + layout.activeHeightMm(),
+                        layout.activeWidthMm(),
+                        p.annotationSizeMm())
+                : new Bounds(
+                        layout.activeXmm() + layout.activeWidthMm(),
+                        layout.activeYmm(),
+                        p.annotationSizeMm(),
+                        layout.activeHeightMm());
+    }
+
     private static ValidationMetric metric(String key, String label, double value, String unit) {
         return new ValidationMetric(
                 ValidationLayer.MANUFACTURING_PRINTABILITY, key, label, value, unit);
+    }
+
+    private static String compactThreshold(double value) {
+        return Long.toString(Math.round(value));
     }
 
     private static String stableHash(Map<String, String> snapshot) {
@@ -163,4 +218,6 @@ public final class VariableLineGratingValidation {
     private static String fmt(double value) {
         return String.format(Locale.ROOT, "%.12g", value);
     }
+
+    private record Bounds(double xMm, double yMm, double widthMm, double heightMm) {}
 }
