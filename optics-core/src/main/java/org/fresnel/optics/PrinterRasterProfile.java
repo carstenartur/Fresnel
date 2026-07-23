@@ -1,5 +1,6 @@
 package org.fresnel.optics;
 
+import java.util.Locale;
 import java.util.Set;
 
 /** Trusted mapping from physical page coordinates to native printer raster coordinates. */
@@ -38,6 +39,7 @@ public record PrinterRasterProfile(
         if (mediaSize == null || mediaSize.isBlank()) {
             throw new IllegalArgumentException("mediaSize must not be blank");
         }
+        mediaSize = mediaSize.trim().toUpperCase(Locale.ROOT);
         if (pageOrientation == null || pageXAxisMapsTo == null || pageYAxisMapsTo == null) {
             throw new IllegalArgumentException("page orientation and axis mapping must not be null");
         }
@@ -68,5 +70,21 @@ public record PrinterRasterProfile(
 
     public int dpiForTestedAxis(LineOrientation orientation) {
         return dpiForDeviceAxis(testedDeviceAxis(orientation));
+    }
+
+    /**
+     * Returns the bounded media-size command for the selected trusted dialect.
+     * Adding another media value therefore requires a reviewed code change rather
+     * than accepting arbitrary command fragments from a job file.
+     */
+    public int mediaSizeCommandValue() {
+        if (dialect != PrinterLanguageDialect.PCL_5E) {
+            throw new IllegalArgumentException("media command is not defined for dialect " + dialect);
+        }
+        return switch (mediaSize) {
+            case "A4" -> 26;
+            default -> throw new IllegalArgumentException(
+                    "unsupported PCL 5e media size in profile " + id + ": " + mediaSize);
+        };
     }
 }
