@@ -19,7 +19,7 @@ public final class VariableLineGratingSvgExporter {
                 .append(n(p.heightMm())).append("\">\n")
                 .append("  <metadata>Variable Line Grating; orientation=")
                 .append(p.lineOrientation()).append("; progression=").append(p.progression())
-                .append("; print at 100%; disable fit-to-page scaling.</metadata>\n")
+                .append("; PRINT 100%; disable fit-to-page scaling.</metadata>\n")
                 .append("  <rect width=\"100%\" height=\"100%\" fill=\"white\"/>\n")
                 .append("  <g fill=\"black\" shape-rendering=\"crispEdges\">\n");
 
