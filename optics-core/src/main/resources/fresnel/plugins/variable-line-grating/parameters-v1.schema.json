@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Fresnel/schemas/plugins/variable-line-grating/parameters-v1.schema.json",
+  "title": "Variable-Line Grating parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "widthMm",
+    "heightMm",
+    "lineOrientation",
+    "startPitchUm",
+    "endPitchUm",
+    "progression",
+    "progressionDirection",
+    "dutyCycle",
+    "phaseOffsetCycles",
+    "polarity",
+    "marginMm",
+    "annotationSizeMm",
+    "showAxis",
+    "axisQuantity",
+    "tickCount",
+    "showReferenceBands",
+    "referenceBandSizeMm",
+    "dpi"
+  ],
+  "default": {
+    "widthMm": 190.0,
+    "heightMm": 277.0,
+    "lineOrientation": "VERTICAL",
+    "startPitchUm": 500.0,
+    "endPitchUm": 40.0,
+    "progression": "LINEAR_SPATIAL_FREQUENCY",
+    "progressionDirection": "NORMAL",
+    "dutyCycle": 0.5,
+    "phaseOffsetCycles": 0.0,
+    "polarity": "POSITIVE",
+    "marginMm": 5.0,
+    "annotationSizeMm": 14.0,
+    "showAxis": true,
+    "axisQuantity": "PITCH_UM",
+    "tickCount": 9,
+    "showReferenceBands": true,
+    "referenceBandSizeMm": 5.0,
+    "dpi": 300.0
+  },
+  "properties": {
+    "widthMm": {
+      "type": "number",
+      "title": "Sheet width",
+      "minimum": 10,
+      "maximum": 210,
+      "default": 190.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 1.0
+    },
+    "heightMm": {
+      "type": "number",
+      "title": "Sheet height",
+      "minimum": 10,
+      "maximum": 297,
+      "default": 277.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 1.0
+    },
+    "lineOrientation": {
+      "type": "string",
+      "title": "Line orientation",
+      "description": "Choose exactly one family: vertical lines test page X; horizontal lines test page Y.",
+      "enum": ["VERTICAL", "HORIZONTAL"],
+      "default": "VERTICAL",
+      "x-fresnel-enum-labels": {
+        "VERTICAL": "Vertical lines — test page X",
+        "HORIZONTAL": "Horizontal lines — test page Y"
+      }
+    },
+    "startPitchUm": {
+      "type": "number",
+      "title": "Start pitch",
+      "minimum": 5,
+      "maximum": 10000,
+      "default": 500.0,
+      "x-fresnel-unit": "µm",
+      "x-fresnel-step": 5.0
+    },
+    "endPitchUm": {
+      "type": "number",
+      "title": "End pitch",
+      "minimum": 5,
+      "maximum": 10000,
+      "default": 40.0,
+      "x-fresnel-unit": "µm",
+      "x-fresnel-step": 5.0
+    },
+    "progression": {
+      "type": "string",
+      "title": "Progression law",
+      "enum": ["LINEAR_PITCH", "LINEAR_SPATIAL_FREQUENCY", "LOGARITHMIC_PITCH"],
+      "default": "LINEAR_SPATIAL_FREQUENCY"
+    },
+    "progressionDirection": {
+      "type": "string",
+      "title": "Progression direction",
+      "enum": ["NORMAL", "REVERSED"],
+      "default": "NORMAL"
+    },
+    "dutyCycle": {
+      "type": "number",
+      "title": "Opaque duty cycle",
+      "exclusiveMinimum": 0,
+      "exclusiveMaximum": 1,
+      "default": 0.5,
+      "x-fresnel-step": 0.05,
+      "x-fresnel-precision": 2
+    },
+    "phaseOffsetCycles": {
+      "type": "number",
+      "title": "Phase offset",
+      "minimum": -1000,
+      "maximum": 1000,
+      "default": 0.0,
+      "x-fresnel-unit": "cycles",
+      "x-fresnel-step": 0.05,
+      "x-fresnel-precision": 3
+    },
+    "polarity": {
+      "type": "string",
+      "title": "Polarity",
+      "enum": ["POSITIVE", "NEGATIVE"],
+      "default": "POSITIVE"
+    },
+    "marginMm": {
+      "type": "number",
+      "title": "Outer margin",
+      "minimum": 0,
+      "maximum": 50,
+      "default": 5.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 0.5
+    },
+    "annotationSizeMm": {
+      "type": "number",
+      "title": "Axis annotation area",
+      "minimum": 1,
+      "maximum": 40,
+      "default": 14.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 1.0
+    },
+    "showAxis": {
+      "type": "boolean",
+      "title": "Show calibrated axis",
+      "default": true
+    },
+    "axisQuantity": {
+      "type": "string",
+      "title": "Axis quantity",
+      "enum": ["PITCH_UM", "LINES_PER_MM", "DEVICE_DOTS_PER_PERIOD"],
+      "default": "PITCH_UM"
+    },
+    "tickCount": {
+      "type": "integer",
+      "title": "Axis tick count",
+      "minimum": 2,
+      "maximum": 21,
+      "default": 9
+    },
+    "showReferenceBands": {
+      "type": "boolean",
+      "title": "Show constant-pitch reference bands",
+      "default": true
+    },
+    "referenceBandSizeMm": {
+      "type": "number",
+      "title": "Reference-band size",
+      "minimum": 0,
+      "maximum": 50,
+      "default": 5.0,
+      "x-fresnel-unit": "mm",
+      "x-fresnel-step": 0.5
+    },
+    "dpi": {
+      "type": "number",
+      "title": "Preview/export DPI",
+      "minimum": 50,
+      "maximum": 2400,
+      "default": 300.0,
+      "x-fresnel-unit": "dpi",
+      "x-fresnel-step": 50.0
+    }
+  }
+}
