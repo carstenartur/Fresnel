@@ -46,7 +46,7 @@ public final class PclExporter {
         ByteArrayOutputStream out = new ByteArrayOutputStream(
                 Math.max(4096, raster.data().length / 2));
         command(out, "E");
-        command(out, "&l26A");
+        command(out, "&l" + profile.mediaSizeCommandValue() + "A");
         command(out, "&l" + profile.pageOrientation().commandValue() + "O");
         command(out, "&u" + profile.dpiForPageX() + "D");
         command(out, "*t" + profile.dpiForPageX() + "R");
