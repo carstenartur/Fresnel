@@ -55,7 +55,7 @@ class VariableLineGratingTest {
         for (int y = 0; y < vr.heightDots(); y++) {
             for (int x = 0; x < vr.widthDots(); x++) {
                 assertEquals(vr.isBlack(x, y), hr.isBlack(y, x),
-                        () -> "orientation transpose mismatch at " + x + "," + y);
+                        "orientation transpose mismatch at " + x + "," + y);
             }
         }
         assertEquals(vr.isBlack(2, 2), vr.isBlack(2, 30),
