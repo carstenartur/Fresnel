@@ -21,7 +21,9 @@ axis and selected device DPI remain unambiguous.
 
 Open either file with Fresnel or choose **Open job…** in the web application. The
 application selects the plugin, restores the orientation and parameters, and lets
-you preview or export the same design as PNG, SVG, PDF or native PCL.
+you preview or export the same design as PNG, SVG, PDF or native PCL. Each example
+also contains an executable SVG production plan, so the command-line job runner
+can generate an independently printable orientation file without Java test code.
 
 ## Parameters
 
@@ -112,10 +114,10 @@ pcl5e-a4-600-portrait-v1
 ```
 
 It defines PCL 5e, A4 portrait, 600 × 600 device DPI, printable origin and
-printable bounds, page orientation, page-X/page-Y mapping and the supported
-compression modes. The profile is code-owned and versioned. Job files and HTTP
-requests can select its identifier but cannot provide arbitrary PCL commands or
-escape sequences.
+printable bounds, media command, page orientation, page-X/page-Y mapping and the
+supported compression modes. The profile is code-owned and versioned. Job files
+and HTTP requests can select its identifier but cannot provide arbitrary PCL
+commands or escape sequences.
 
 The model supports separate X/Y DPI and explicit axis swapping. The initial PCL
 5e encoder deliberately rejects an asymmetric profile because its selected
@@ -131,13 +133,14 @@ raster path:
 1. Convert physical sheet dimensions to page-axis device dots.
 2. Evaluate one binary sample at each addressed dot.
 3. Pack eight samples per byte, most-significant bit first.
-4. Optionally compress each row with deterministic TIFF/PackBits compression.
-5. Emit only commands selected by the trusted PCL 5e profile.
+4. Keep unused padding bits at the end of each row clear.
+5. Optionally compress each row with deterministic TIFF/PackBits compression.
+6. Emit only commands selected by the trusted PCL 5e profile.
 
-The output includes reset, A4 media, portrait orientation, raster resolution,
-printable origin, raster width/height, compression mode, raster start/end, form
-feed and final reset commands. Repeated generation from identical normalized
-parameters and profile produces identical bytes.
+The output includes reset, profile-selected media, page orientation, raster
+resolution, printable origin, raster width/height, compression mode, raster
+start/end, form feed and final reset commands. Repeated generation from identical
+normalized parameters and profile produces identical bytes.
 
 Supported PCL compression values:
 
@@ -157,6 +160,10 @@ printerProfileId=pcl5e-a4-600-portrait-v1
 compression=TIFF
 ```
 
+The automated test suite parses the generated PCL stream, decodes every row and
+compares every addressed dot and padding bit against the source raster for both
+compression modes. A separate golden SHA-256 test detects command or byte drift.
+
 ## PNG, SVG and PDF
 
 - **PNG** uses the same binary raster model at the configured ordinary `dpi`.
@@ -170,10 +177,16 @@ SVG is the preferred editable/vector reference. PCL is the preferred output for
 controlled device-dot experiments. PNG and PDF remain useful for visual checks
 and common print workflows but can be resampled by viewers or drivers.
 
+Raster resource limits are applied when a raster is actually requested. A design
+can therefore retain a high nominal DPI for its metadata while still being
+exported safely as SVG or through a lower-resolution trusted PCL profile. PNG/PDF
+requests that would exceed the bounded pixel budget fail explicitly.
+
 ## Analysis and validation
 
 The plugin reports orientation-aware metrics:
 
+- active-area and annotation-area physical bounds
 - selected page and device axis
 - selected-axis DPI
 - minimum and maximum pitch
@@ -197,22 +210,35 @@ POST /api/designs/variable-line-grating/validation
 Add `printerProfileId` to evaluate the actual mapped device axis. Without a
 profile, validation uses the design DPI and nominal page-axis mapping.
 
-## Recording physical measurements
+## Recording and exporting physical measurements
 
-`PrinterCalibrationResult` is the reusable result contract for a printed target.
-It records:
+`PrinterCalibrationResult` is the reusable first-class result contract for one
+printed orientation. It records:
 
-- printer profile ID and version
-- selected line orientation
-- tested device axis
-- first resolved pitch or lines/mm
-- derived effective DPI
+- printer model, trusted profile ID and profile version
+- medium or transparency description and driver quality mode
+- nominal X/Y DPI
+- page orientation and page-to-device axis mapping
+- selected line orientation and tested device axis
+- observed degradation position along the calibrated axis
+- first repeatably resolved pitch and derived lines/mm
+- minimum useful opaque/clear feature width and derived effective DPI
 - observation notes
+- optional photo or measurement attachment reference
 - measurement timestamp
 
-The current plugin exposes the contract but does not pretend that a software-only
-render proves physical resolution. Toner spread, ink bleed, media transport,
-transparency dimensional change and driver processing remain experimental inputs.
+The graphical editor includes **Record physical calibration result**. Enter one
+observation for vertical lines and export it as JSON, then repeat with a separate
+horizontal job. The backend verifies that the stored profile version, DPI and
+axis mapping still match the trusted profile before it returns the file:
+
+```text
+POST /api/designs/variable-line-grating/calibration-results/export.json
+```
+
+A software-only render does not prove physical resolution. Toner spread, ink
+bleed, media transport, transparency dimensional change and driver processing
+remain experimental inputs and belong in the measurement record.
 
 ## Printing instructions
 
@@ -228,10 +254,62 @@ For a meaningful measurement:
 6. Confirm the physical axis scale before interpreting the smallest resolved
    bands.
 7. Record the first repeatably resolved pitch, not a single isolated visible line.
+8. Export separate calibration-result JSON files for the two orientations.
 
 A viewer or print driver can silently alter SVG, PNG or PDF. The native PCL path
 reduces that uncertainty but does not eliminate printer firmware processing or
 physical material limits.
+
+## Suggested optical experiments
+
+These experiments are optional and do not replace direct microscope, loupe or
+camera inspection of the printed line structure.
+
+### Diffuse window or light-panel inspection
+
+1. Print the two orientation targets on the intended transparent medium.
+2. Place one target against a uniformly illuminated window, diffuse LED panel or
+   other broad, non-hazardous light source.
+3. Photograph the target perpendicular to the sheet with fixed focus, exposure
+   and magnification.
+4. Move from the coarse-pitch end toward the fine-pitch end and identify the first
+   position where opaque and clear bands no longer remain repeatably separable.
+5. Repeat with the second orientation without changing camera or illumination
+   settings.
+
+This primarily measures the printer/material/camera chain. It is the recommended
+starting point because the calibrated axis can be read directly in the same
+image.
+
+### Point-light diffraction and optional wall projection
+
+1. Use a low-power, diffuse LED behind a small aperture or another enclosed,
+   non-hazardous point-like source.
+2. Place the grating between the source and a white wall or matte screen.
+3. Keep source, target and screen fixed and document all distances.
+4. Observe or photograph how the diffraction structure changes along the
+   variable-pitch axis.
+5. Repeat separately for vertical and horizontal lines; the spread direction
+   should rotate by 90 degrees.
+
+Wall projection is qualitative unless geometry, wavelength spectrum and camera
+response are measured. It must not be interpreted as a direct DPI value without
+the printed-line inspection and recorded calibration axis.
+
+## Eye and source safety
+
+- **This target is not solar-protection material, a solar filter, protective
+  eyewear or a certified optical attenuator.**
+- **Never look at the Sun through the printed target and never place it in front
+  of a telescope, binoculars, camera viewfinder or other concentrating optic.**
+- Do not view lasers, high-power LEDs, arc lamps, welding sources or other
+  hazardous emitters directly or through the grating.
+- Use only low-power, enclosed or diffusely illuminated sources for qualitative
+  projection experiments. Observe the wall or screen, not the source.
+- A printed dark area can transmit invisible infrared or ultraviolet radiation;
+  visual darkness is not evidence of eye safety.
+- Follow the printer and media manufacturer's ventilation, handling and fire
+  precautions, especially for transparency films.
 
 ## Java API
 
@@ -247,15 +325,32 @@ byte[] pcl = PclExporter.toPclBytes(parameters, profile, PclCompression.TIFF);
 
 VariableLineGratingAnalysis.Result analysis =
         VariableLineGratingAnalysis.analyze(parameters, profile);
+
+PrinterCalibrationResult result = PrinterCalibrationResult.fromProfile(
+        "Printer model",
+        profile,
+        "Transparency film",
+        "Maximum quality",
+        parameters.lineOrientation(),
+        132.5,
+        84.0,
+        42.0,
+        1000.0 / 84.0,
+        25_400.0 / 42.0,
+        "Bands remain repeatable up to the recorded position.",
+        "photos/vertical-calibration.jpg",
+        java.time.Instant.now());
 ```
 
 ## Security and resource limits
 
 - Width, height, pitch, duty cycle, annotation sizes, tick count and DPI are
   bounded by the public schema and backend validation.
-- Raster creation has an explicit pixel-count limit.
+- Raster creation has an explicit pixel-count limit at the actual output DPI.
 - Output filenames remain portable basenames in `.fresnel` production plans.
 - PCL options are field-whitelisted.
-- Printer profiles are trusted code resources, not user-provided command text.
-- Unsupported profiles, dialects, compression modes or non-representable DPI
-  combinations fail explicitly.
+- Printer profiles and media commands are trusted code resources, not
+  user-provided command text.
+- Calibration-result exports verify their profile snapshot before serialization.
+- Unsupported profiles, media sizes, dialects, compression modes or
+  non-representable DPI combinations fail explicitly.
