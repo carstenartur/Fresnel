@@ -49,6 +49,27 @@ public final class PluginRegistry {
             schema("zone-plate", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
     );
 
+    /** One page-axis calibration grating with phase-correct variable line pitch. */
+    public static final PluginDescriptor VARIABLE_LINE_GRATING = new PluginDescriptor(
+            "variable-line-grating",
+            "Variable-Line Grating",
+            "Orientation-selectable printer calibration grating with native one-bit PCL export",
+            "VariableLineGratingRenderer",
+            "VariableLineGratingParameters",
+            "docs/plugins/variable-line-grating.md",
+            PluginStabilityLevel.BETA,
+            Set.of(
+                    PluginCapability.EXPORT_PNG,
+                    PluginCapability.EXPORT_SVG,
+                    PluginCapability.EXPORT_PDF,
+                    PluginCapability.EXPORT_PCL,
+                    PluginCapability.PREVIEW_PNG,
+                    PluginCapability.PRINTABILITY_ANALYSIS
+            ),
+            Set.of(),
+            schema("variable-line-grating", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
+    );
+
     /** Zone plate rendered at three wavelengths and composited into one RGB image. */
     public static final PluginDescriptor RGB_ZONE_PLATE = new PluginDescriptor(
             "rgb-zone-plate",
@@ -143,6 +164,7 @@ public final class PluginRegistry {
      */
     public static final List<PluginDescriptor> ALL = List.of(
             ZONE_PLATE,
+            VARIABLE_LINE_GRATING,
             HEX_MACRO_CELL,
             WINDOW_FOIL,
             MULTI_FOCUS,

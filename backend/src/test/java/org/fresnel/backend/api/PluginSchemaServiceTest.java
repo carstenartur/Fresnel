@@ -2,11 +2,15 @@ package org.fresnel.backend.api;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.fresnel.optics.AxisQuantity;
+import org.fresnel.optics.GratingProgression;
 import org.fresnel.optics.HologramParameters;
+import org.fresnel.optics.LineOrientation;
 import org.fresnel.optics.MaskType;
 import org.fresnel.optics.PluginDescriptor;
 import org.fresnel.optics.PluginRegistry;
 import org.fresnel.optics.Polarity;
+import org.fresnel.optics.ProgressionDirection;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,6 +34,7 @@ class PluginSchemaServiceTest {
 
     private static final Map<String, Class<?>> REQUEST_TYPES = Map.of(
             "zone-plate", SingleZonePlateRequest.class,
+            "variable-line-grating", VariableLineGratingRequest.class,
             "hex-macro-cell", HexMacroCellRequest.class,
             "window-foil", WindowFoilRequest.class,
             "multi-focus", MultiFocusRequest.class,
@@ -45,7 +50,7 @@ class PluginSchemaServiceTest {
         assertEquals(
                 PluginRegistry.ALL.stream().map(PluginDescriptor::id).toList(),
                 service.all().stream().map(PluginSchemaDocument::pluginId).toList());
-        assertEquals(6, service.all().size());
+        assertEquals(7, service.all().size());
 
         for (PluginDescriptor descriptor : PluginRegistry.ALL) {
             PluginSchemaDocument document = service.requireByPluginId(descriptor.id());
@@ -90,6 +95,14 @@ class PluginSchemaServiceTest {
         assertEquals(enumNames(MaskType.class), enumValues(zonePlate, "maskType"));
         assertEquals(enumNames(Polarity.class), enumValues(zonePlate, "polarity"));
 
+        PluginSchemaDocument grating = service.requireByPluginId("variable-line-grating");
+        assertEquals(enumNames(LineOrientation.class), enumValues(grating, "lineOrientation"));
+        assertEquals(enumNames(GratingProgression.class), enumValues(grating, "progression"));
+        assertEquals(enumNames(ProgressionDirection.class),
+                enumValues(grating, "progressionDirection"));
+        assertEquals(enumNames(AxisQuantity.class), enumValues(grating, "axisQuantity"));
+        assertEquals(enumNames(Polarity.class), enumValues(grating, "polarity"));
+
         PluginSchemaDocument hologram = service.requireByPluginId("hologram");
         assertEquals(enumNames(HologramParameters.OutputType.class),
                 enumValues(hologram, "outputType"));
@@ -107,6 +120,14 @@ class PluginSchemaServiceTest {
         assertEquals("GREYSCALE_PHASE", condition.get("equals").asText());
         assertFalse(condition.has("notEquals"));
         assertFalse(condition.has("oneOf"));
+    }
+
+    @Test
+    void variableLineGratingUiUsesAnExclusiveOrientationRadio() {
+        JsonNode ui = service.requireByPluginId("variable-line-grating").uiSchema();
+        assertEquals("radio", ui.get("widgets").get("lineOrientation").get("type").asText());
+        assertEquals(2, service.requireByPluginId("variable-line-grating")
+                .parameterSchema().get("properties").get("lineOrientation").get("enum").size());
     }
 
     @Test

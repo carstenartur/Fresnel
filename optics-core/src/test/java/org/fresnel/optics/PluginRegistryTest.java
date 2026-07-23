@@ -20,18 +20,20 @@ class PluginRegistryTest {
         Set<String> ids = new HashSet<>();
         for (PluginDescriptor descriptor : PluginRegistry.ALL) ids.add(descriptor.id());
         assertTrue(ids.contains("zone-plate"), "zone-plate missing");
+        assertTrue(ids.contains("variable-line-grating"), "variable-line-grating missing");
         assertTrue(ids.contains("rgb-zone-plate"), "rgb-zone-plate missing");
         assertTrue(ids.contains("multi-focus"), "multi-focus missing");
         assertTrue(ids.contains("hex-macro-cell"), "hex-macro-cell missing");
         assertTrue(ids.contains("window-foil"), "window-foil missing");
         assertTrue(ids.contains("hologram"), "hologram missing");
-        assertEquals(6, PluginRegistry.ALL.size(), "unexpected plugin count");
+        assertEquals(7, PluginRegistry.ALL.size(), "unexpected plugin count");
     }
 
     @Test
     void registryOrderIsThePublicNavigationOrder() {
         assertEquals(List.of(
                         "zone-plate",
+                        "variable-line-grating",
                         "hex-macro-cell",
                         "window-foil",
                         "multi-focus",
@@ -117,8 +119,16 @@ class PluginRegistryTest {
         List<PluginDescriptor> pdf = PluginRegistry.withCapability(PluginCapability.EXPORT_PDF);
         assertTrue(pdf.size() >= 2, "expected at least zone-plate and hex-macro-cell");
         assertTrue(pdf.stream().anyMatch(descriptor -> descriptor.id().equals("zone-plate")));
+        assertTrue(pdf.stream().anyMatch(descriptor -> descriptor.id().equals("variable-line-grating")));
         assertTrue(pdf.stream().anyMatch(descriptor -> descriptor.id().equals("hex-macro-cell")));
         assertTrue(pdf.stream().anyMatch(descriptor -> descriptor.id().equals("window-foil")));
+    }
+
+    @Test
+    void withCapabilityExportPclReturnsOnlyVariableLineGrating() {
+        List<PluginDescriptor> pcl = PluginRegistry.withCapability(PluginCapability.EXPORT_PCL);
+        assertEquals(1, pcl.size());
+        assertEquals("variable-line-grating", pcl.getFirst().id());
     }
 
     @Test

@@ -14,6 +14,7 @@ import { HexMacroCellPanel } from './modes/HexMacroCellPanel';
 import { HologramPanel } from './modes/HologramPanel';
 import { MultiFocusPanel } from './modes/MultiFocusPanel';
 import { RgbPanel } from './modes/RgbPanel';
+import { VariableLineGratingPanel } from './modes/VariableLineGratingPanel';
 import { WindowFoilPanel } from './modes/WindowFoilPanel';
 import { ZonePlatePanel } from './modes/ZonePlatePanel';
 import { fetchPluginMetadata } from './pluginSchemaApi';
@@ -29,6 +30,7 @@ interface EditorRegistration {
 /** Trusted compile-time component registry. Schema data never supplies module names. */
 const EDITOR_REGISTRY: Record<FresnelPluginId, EditorRegistration> = {
   'zone-plate': { label: 'Single ZP', component: ZonePlatePanel },
+  'variable-line-grating': { label: 'Line grating', component: VariableLineGratingPanel },
   'hex-macro-cell': { label: 'Hex macro', component: HexMacroCellPanel },
   'window-foil': { label: 'Window foil', component: WindowFoilPanel },
   'multi-focus': { label: 'Multi-focus', component: MultiFocusPanel },
@@ -38,6 +40,7 @@ const EDITOR_REGISTRY: Record<FresnelPluginId, EditorRegistration> = {
 
 const FALLBACK_PLUGIN_ORDER: readonly FresnelPluginId[] = [
   'zone-plate',
+  'variable-line-grating',
   'hex-macro-cell',
   'window-foil',
   'multi-focus',

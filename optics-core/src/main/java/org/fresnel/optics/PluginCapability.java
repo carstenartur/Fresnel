@@ -20,6 +20,9 @@ public enum PluginCapability {
     /** Plugin can render and export a PDF print sheet. */
     EXPORT_PDF,
 
+    /** Plugin can export a native HP PCL printer-language raster file. */
+    EXPORT_PCL,
+
     /** Plugin can export a DXF CAD file. */
     EXPORT_DXF,
 

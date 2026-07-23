@@ -1,0 +1,43 @@
+{
+  "$schema": "https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json",
+  "format": "io.github.carstenartur.fresnel.job",
+  "formatVersion": 1,
+  "plugin": {
+    "id": "variable-line-grating",
+    "parameterSchemaVersion": 1,
+    "algorithmVersion": "variable-line-grating/1"
+  },
+  "parameters": {
+    "widthMm": 190.0,
+    "heightMm": 277.0,
+    "lineOrientation": "HORIZONTAL",
+    "startPitchUm": 500.0,
+    "endPitchUm": 40.0,
+    "progression": "LINEAR_SPATIAL_FREQUENCY",
+    "progressionDirection": "NORMAL",
+    "dutyCycle": 0.5,
+    "phaseOffsetCycles": 0.0,
+    "polarity": "POSITIVE",
+    "marginMm": 5.0,
+    "annotationSizeMm": 14.0,
+    "showAxis": true,
+    "axisQuantity": "DEVICE_DOTS_PER_PERIOD",
+    "tickCount": 9,
+    "showReferenceBands": true,
+    "referenceBandSizeMm": 5.0,
+    "dpi": 600.0
+  },
+  "production": {
+    "outputs": [
+      {
+        "id": "printable-vector",
+        "format": "svg",
+        "filename": "variable-line-grating-horizontal.svg"
+      }
+    ]
+  },
+  "provenance": {
+    "createdWith": "Fresnel",
+    "applicationVersion": "development"
+  }
+}
