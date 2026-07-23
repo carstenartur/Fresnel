@@ -96,59 +96,100 @@ public final class VariableLineGratingSvgExporter {
         svg.append("  <g fill=\"black\" stroke=\"black\" stroke-width=\"0.15\" ")
                 .append("font-family=\"monospace\" font-size=\"2.4\">\n");
         if (p.lineOrientation() == LineOrientation.VERTICAL) {
-            double y = layout.axisCoordinateMm();
-            svg.append("    <line x1=\"").append(n(layout.activeXmm())).append("\" y1=\"")
-                    .append(n(y)).append("\" x2=\"")
-                    .append(n(layout.activeXmm() + layout.activeWidthMm())).append("\" y2=\"")
-                    .append(n(y)).append("\"/>\n");
-            for (int i = 0; i < p.tickCount(); i++) {
-                double u = i / (double) (p.tickCount() - 1);
-                double x = layout.activeXmm() + u * layout.activeWidthMm();
-                svg.append("    <line x1=\"").append(n(x)).append("\" y1=\"")
-                        .append(n(y - 1.0)).append("\" x2=\"").append(n(x)).append("\" y2=\"")
-                        .append(n(y + 1.0)).append("\"/>\n")
-                        .append("    <text stroke=\"none\" text-anchor=\"middle\" x=\"")
-                        .append(n(x)).append("\" y=\"").append(n(y + 3.5)).append("\">")
-                        .append(label(p, u, p.dpi())).append("</text>\n");
-            }
-            svg.append("    <text stroke=\"none\" text-anchor=\"middle\" x=\"")
-                    .append(n(layout.activeXmm() + layout.activeWidthMm() / 2.0))
-                    .append("\" y=\"").append(n(p.heightMm() - p.marginMm() * 0.45))
-                    .append("\">VERTICAL LINES · PAGE X · PRINT 100%</text>\n");
+            appendHorizontalAxis(svg, p, layout);
         } else {
-            double x = layout.axisCoordinateMm();
-            svg.append("    <line x1=\"").append(n(x)).append("\" y1=\"")
-                    .append(n(layout.activeYmm())).append("\" x2=\"").append(n(x))
-                    .append("\" y2=\"").append(n(layout.activeYmm() + layout.activeHeightMm()))
-                    .append("\"/>\n");
-            for (int i = 0; i < p.tickCount(); i++) {
-                double u = i / (double) (p.tickCount() - 1);
-                double y = layout.activeYmm() + u * layout.activeHeightMm();
-                svg.append("    <line x1=\"").append(n(x - 1.0)).append("\" y1=\"")
-                        .append(n(y)).append("\" x2=\"").append(n(x + 1.0)).append("\" y2=\"")
-                        .append(n(y)).append("\"/>\n")
-                        .append("    <text stroke=\"none\" x=\"").append(n(x + 1.8))
-                        .append("\" y=\"").append(n(y + 0.8)).append("\">")
-                        .append(label(p, u, p.dpi())).append("</text>\n");
-            }
-            double titleX = p.widthMm() - p.marginMm() * 0.45;
-            double titleY = layout.activeYmm() + layout.activeHeightMm() / 2.0;
-            svg.append("    <text stroke=\"none\" text-anchor=\"middle\" transform=\"rotate(90 ")
-                    .append(n(titleX)).append(' ').append(n(titleY)).append(")\" x=\"")
-                    .append(n(titleX)).append("\" y=\"").append(n(titleY))
-                    .append("\">HORIZONTAL LINES · PAGE Y · PRINT 100%</text>\n");
+            appendVerticalAxis(svg, p, layout);
         }
         svg.append("  </g>\n");
     }
 
-    private static String label(VariableLineGratingParameters p, double u, double dpi) {
+    private static void appendHorizontalAxis(
+            StringBuilder svg,
+            VariableLineGratingParameters p,
+            VariableLineGratingModel.Layout layout) {
+        double y = layout.axisCoordinateMm();
+        svg.append("    <line x1=\"").append(n(layout.activeXmm())).append("\" y1=\"")
+                .append(n(y)).append("\" x2=\"")
+                .append(n(layout.activeXmm() + layout.activeWidthMm())).append("\" y2=\"")
+                .append(n(y)).append("\"/>\n");
+        for (int i = 0; i < p.tickCount(); i++) {
+            double u = i / (double) (p.tickCount() - 1);
+            double x = layout.activeXmm() + u * layout.activeWidthMm();
+            String anchor = edgeAwareAnchor(i, p.tickCount());
+            AxisLabel label = axisLabel(p, u, p.dpi());
+            svg.append("    <line x1=\"").append(n(x)).append("\" y1=\"")
+                    .append(n(y - 1.0)).append("\" x2=\"").append(n(x)).append("\" y2=\"")
+                    .append(n(y + 1.0)).append("\"/>\n");
+            appendText(svg, x, y + 3.2, anchor, null, label.position());
+            appendText(svg, x, y + 5.9, anchor, null, label.quantity());
+        }
+        svg.append("    <text stroke=\"none\" text-anchor=\"middle\" x=\"")
+                .append(n(layout.activeXmm() + layout.activeWidthMm() / 2.0))
+                .append("\" y=\"").append(n(p.heightMm() - p.marginMm() * 0.45))
+                .append("\">VERTICAL LINES · PAGE X · PRINT 100%</text>\n");
+    }
+
+    private static void appendVerticalAxis(
+            StringBuilder svg,
+            VariableLineGratingParameters p,
+            VariableLineGratingModel.Layout layout) {
+        double x = layout.axisCoordinateMm();
+        svg.append("    <line x1=\"").append(n(x)).append("\" y1=\"")
+                .append(n(layout.activeYmm())).append("\" x2=\"").append(n(x))
+                .append("\" y2=\"").append(n(layout.activeYmm() + layout.activeHeightMm()))
+                .append("\"/>\n");
+        for (int i = 0; i < p.tickCount(); i++) {
+            double u = i / (double) (p.tickCount() - 1);
+            double y = layout.activeYmm() + u * layout.activeHeightMm();
+            String anchor = edgeAwareAnchor(i, p.tickCount());
+            AxisLabel label = axisLabel(p, u, p.dpi());
+            svg.append("    <line x1=\"").append(n(x - 1.0)).append("\" y1=\"")
+                    .append(n(y)).append("\" x2=\"").append(n(x + 1.0)).append("\" y2=\"")
+                    .append(n(y)).append("\"/>\n");
+            appendText(svg, x + 3.2, y, anchor, rotation(90, x + 3.2, y), label.position());
+            appendText(svg, x + 5.9, y, anchor, rotation(90, x + 5.9, y), label.quantity());
+        }
+        double titleX = p.widthMm() - p.marginMm() * 0.45;
+        double titleY = layout.activeYmm() + layout.activeHeightMm() / 2.0;
+        appendText(svg, titleX, titleY, "middle", rotation(90, titleX, titleY),
+                "HORIZONTAL LINES · PAGE Y · PRINT 100%");
+    }
+
+    private static void appendText(
+            StringBuilder svg,
+            double x,
+            double y,
+            String anchor,
+            String transform,
+            String text) {
+        svg.append("    <text stroke=\"none\" text-anchor=\"").append(anchor).append("\"");
+        if (transform != null) svg.append(" transform=\"").append(transform).append("\"");
+        svg.append(" x=\"").append(n(x)).append("\" y=\"").append(n(y)).append("\">")
+                .append(text).append("</text>\n");
+    }
+
+    private static String edgeAwareAnchor(int index, int count) {
+        if (index == 0) return "start";
+        if (index == count - 1) return "end";
+        return "middle";
+    }
+
+    private static String rotation(int degrees, double x, double y) {
+        return "rotate(" + degrees + " " + n(x) + " " + n(y) + ")";
+    }
+
+    private static AxisLabel axisLabel(
+            VariableLineGratingParameters p,
+            double u,
+            double dpi) {
         double pitchMm = VariableLineGratingModel.pitchMmAtNormalized(p, u);
-        String position = compact(u * p.activeProgressionLengthMm()) + " mm · ";
-        return position + switch (p.axisQuantity()) {
+        String position = compact(u * p.activeProgressionLengthMm()) + " mm";
+        String quantity = switch (p.axisQuantity()) {
             case PITCH_UM -> compact(pitchMm * 1000.0) + " µm";
             case LINES_PER_MM -> compact(1.0 / pitchMm) + " lines/mm";
             case DEVICE_DOTS_PER_PERIOD -> compact(pitchMm * dpi / Units.INCH_MM) + " dots/period";
         };
+        return new AxisLabel(position, quantity);
     }
 
     private static String compact(double value) {
@@ -165,4 +206,6 @@ public final class VariableLineGratingSvgExporter {
         if (end > 0 && s.charAt(end - 1) == '.') end--;
         return end == 0 ? "0" : s.substring(0, end);
     }
+
+    private record AxisLabel(String position, String quantity) {}
 }
