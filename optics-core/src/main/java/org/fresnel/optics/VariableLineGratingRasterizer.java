@@ -60,15 +60,15 @@ public final class VariableLineGratingRasterizer {
                 double u = i / (double) (p.tickCount() - 1);
                 int x = dotX(layout.activeXmm() + u * layout.activeWidthMm(), dpiPageX);
                 target.vertical(x, axisY - 4 * scale, axisY + 4 * scale);
-                String label = axisLabel(p, u, dpiPageX);
-                int labelX = x - RasterText5x7.textWidth(label, scale) / 2;
-                RasterText5x7.draw(target, labelX, axisY + 6 * scale, label, scale);
+                AxisLabel label = axisLabel(p, u, dpiPageX);
+                drawCenteredHorizontal(target, x, axisY + 6 * scale, label.position(), scale);
+                drawCenteredHorizontal(target, x, axisY + 14 * scale, label.quantity(), scale);
             }
             String title = "VERTICAL LINES PAGE-X PRINT-100%";
             int titleX = Math.max(0, (target.width - RasterText5x7.textWidth(title, scale)) / 2);
             int titleY = Math.min(target.height - 7 * scale - 1,
                     dotY(p.heightMm() - p.marginMm() * 0.55, dpiPageY));
-            RasterText5x7.draw(target, titleX, Math.max(axisY + 15 * scale, titleY), title, scale);
+            RasterText5x7.draw(target, titleX, Math.max(axisY + 23 * scale, titleY), title, scale);
         } else {
             int axisX = dotX(layout.axisCoordinateMm(), dpiPageX);
             int y0 = dotY(layout.activeYmm(), dpiPageY);
@@ -78,8 +78,9 @@ public final class VariableLineGratingRasterizer {
                 double u = i / (double) (p.tickCount() - 1);
                 int y = dotY(layout.activeYmm() + u * layout.activeHeightMm(), dpiPageY);
                 target.horizontal(axisX - 4 * scale, axisX + 4 * scale, y);
-                String label = axisLabel(p, u, dpiPageY);
-                RasterText5x7.draw(target, axisX + 6 * scale, y - 3 * scale, label, scale);
+                AxisLabel label = axisLabel(p, u, dpiPageY);
+                drawCenteredClockwise(target, axisX + 6 * scale, y, label.position(), scale);
+                drawCenteredClockwise(target, axisX + 14 * scale, y, label.quantity(), scale);
             }
             String title = "HORIZONTAL LINES PAGE-Y PRINT-100%";
             int titleX = Math.min(target.width - 8 * scale - 1,
@@ -90,14 +91,37 @@ public final class VariableLineGratingRasterizer {
         }
     }
 
-    static String axisLabel(VariableLineGratingParameters p, double u, double selectedDpi) {
+    private static void drawCenteredHorizontal(
+            MutableTarget target,
+            int centerX,
+            int y,
+            String text,
+            int scale) {
+        int width = RasterText5x7.textWidth(text, scale);
+        int x = clamp(centerX - width / 2, 0, Math.max(0, target.width - width));
+        RasterText5x7.draw(target, x, y, text, scale);
+    }
+
+    private static void drawCenteredClockwise(
+            MutableTarget target,
+            int x,
+            int centerY,
+            String text,
+            int scale) {
+        int length = RasterText5x7.textWidth(text, scale);
+        int y = clamp(centerY - length / 2, 0, Math.max(0, target.height - length));
+        RasterText5x7.drawClockwise(target, x, y, text, scale);
+    }
+
+    static AxisLabel axisLabel(VariableLineGratingParameters p, double u, double selectedDpi) {
         double pitchMm = VariableLineGratingModel.pitchMmAtNormalized(p, u);
-        String position = compact(u * p.activeProgressionLengthMm()) + "MM:";
-        return position + switch (p.axisQuantity()) {
+        String position = compact(u * p.activeProgressionLengthMm()) + "MM";
+        String quantity = switch (p.axisQuantity()) {
             case PITCH_UM -> compact(pitchMm * 1000.0) + "UM";
             case LINES_PER_MM -> compact(1.0 / pitchMm) + "L/MM";
             case DEVICE_DOTS_PER_PERIOD -> compact(pitchMm * selectedDpi / Units.INCH_MM) + "DOT";
         };
+        return new AxisLabel(position, quantity);
     }
 
     private static String compact(double value) {
@@ -115,6 +139,12 @@ public final class VariableLineGratingRasterizer {
     private static int dotY(double mm, double dpi) {
         return (int) Math.round(mm * dpi / Units.INCH_MM);
     }
+
+    private static int clamp(int value, int minimum, int maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    record AxisLabel(String position, String quantity) {}
 
     private static final class MutableTarget implements RasterText5x7.Target {
         private final int width;
