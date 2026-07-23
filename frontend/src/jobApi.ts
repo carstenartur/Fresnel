@@ -10,6 +10,7 @@ export const FRESNEL_JOB_MAX_BYTES = 1024 * 1024;
 
 export type FresnelPluginId =
   | 'zone-plate'
+  | 'variable-line-grating'
   | 'hex-macro-cell'
   | 'window-foil'
   | 'multi-focus'
@@ -24,7 +25,7 @@ export interface FresnelJobPluginRef {
 
 export interface FresnelProductionOutput {
   id?: string;
-  format: 'png' | 'svg' | 'pdf' | 'dxf' | 'gerber' | 'gbr' | 'stl';
+  format: 'png' | 'svg' | 'pdf' | 'pcl' | 'dxf' | 'gerber' | 'gbr' | 'stl';
   filename?: string;
   sheet?: 'FIT' | 'A4' | 'A3' | 'A2' | 'A1' | 'A0';
   printScale?: number;
