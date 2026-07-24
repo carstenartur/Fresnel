@@ -15,28 +15,21 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout status branch
-        uses: actions/checkout@v7
-
-      - name: Capture latest release workflow run
+      - name: Capture and publish latest release workflow run
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh run list \
+          STATUS=$(gh run list \
             --repo "${{ github.repository }}" \
             --workflow deploy-release.yml \
             --branch main \
             --event workflow_dispatch \
             --limit 1 \
-            --json databaseId,status,conclusion,createdAt,updatedAt,url,displayTitle,headSha \
-            > release-status.json
-          cat release-status.json
-
-      - name: Publish status snapshot on this branch
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add release-status.json
-          git commit -m 'Record Fresnel 0.1.7 release status'
-          git push
+            --json databaseId,status,conclusion,createdAt,updatedAt,url,displayTitle,headSha)
+          CONTENT=$(printf '%s\n' "$STATUS" | base64 -w0)
+          gh api "repos/${{ github.repository }}/contents/release-status.json" \
+            --method PUT \
+            -f message='Record Fresnel 0.1.7 release status' \
+            -f content="$CONTENT" \
+            -f branch='automation/release-status-0.1.7'
