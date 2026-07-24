@@ -31,6 +31,7 @@ export FRESNEL_SECURITY_USER_USERNAME=alice
 export FRESNEL_SECURITY_ADMIN_USERNAME=fresnel-admin
 : "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
 : "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
+export FRESNEL_SECURITY_USER_PASSWORD FRESNEL_SECURITY_ADMIN_PASSWORD
 
 docker run --rm -p 127.0.0.1:8080:8080 \
   -e FRESNEL_SECURITY_USER_USERNAME \
@@ -64,6 +65,9 @@ Use `container,postgres` and provide every database and application secret:
 
 ```bash
 : "${DB_PASSWORD:?set the database password}"
+: "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
+: "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
+export DB_PASSWORD FRESNEL_SECURITY_USER_PASSWORD FRESNEL_SECURITY_ADMIN_PASSWORD
 
 docker run --rm -p 127.0.0.1:8080:8080 \
   -e SPRING_PROFILES_ACTIVE=container,postgres \
