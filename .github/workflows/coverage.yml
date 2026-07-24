@@ -1,8 +1,8 @@
 name: Coverage
 
-# Generates JaCoCo coverage reports for both Maven modules and uploads them as
-# workflow artifacts. README metric badge JSON is generated and published
-# centrally by the Maven Site workflow.
+# Generates JaCoCo coverage reports for both Maven modules, enforces the
+# project-wide instruction floor and uploads the reports as workflow artifacts.
+# README badge JSON remains published by the Maven Site workflow.
 
 on:
   push:
@@ -33,46 +33,67 @@ jobs:
       - name: Build & test with coverage
         run: mvn -B -ntp verify -Pno-frontend
 
-      - name: Coverage summary
+      - name: Enforce aggregate coverage floor
         run: |
           python3 - <<'PY'
           import csv
           import os
           from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          namespace = {"m": "http://maven.apache.org/POM/4.0.0"}
+          root = ET.parse("pom.xml").getroot()
+          minimum_node = root.find(
+              "m:properties/m:jacoco.instruction.minimum.percent", namespace)
+          if minimum_node is None or not (minimum_node.text or "").strip():
+              raise SystemExit("Missing jacoco.instruction.minimum.percent in pom.xml")
+          minimum = float(minimum_node.text.strip())
 
           covered = missed = 0
           module_rows = []
           for module in ("optics-core", "backend"):
               csv_path = Path(module) / "target" / "site" / "jacoco" / "jacoco.csv"
+              if not csv_path.is_file():
+                  raise SystemExit(f"Missing JaCoCo CSV report: {csv_path}")
               module_covered = module_missed = 0
-              if csv_path.is_file():
-                  with csv_path.open(newline="", encoding="utf-8") as handle:
-                      reader = csv.DictReader(handle)
-                      for row in reader:
-                          module_covered += int(row.get("INSTRUCTION_COVERED", 0) or 0)
-                          module_missed += int(row.get("INSTRUCTION_MISSED", 0) or 0)
+              with csv_path.open(newline="", encoding="utf-8") as handle:
+                  reader = csv.DictReader(handle)
+                  for row in reader:
+                      module_covered += int(row.get("INSTRUCTION_COVERED", 0) or 0)
+                      module_missed += int(row.get("INSTRUCTION_MISSED", 0) or 0)
               covered += module_covered
               missed += module_missed
               module_total = module_covered + module_missed
-              module_pct = (module_covered / module_total * 100.0) if module_total else None
+              if module_total == 0:
+                  raise SystemExit(f"JaCoCo report contains no instructions: {csv_path}")
+              module_pct = module_covered / module_total * 100.0
               module_rows.append((module, module_pct, module_covered, module_total))
 
           total = covered + missed
-          pct = (covered / total * 100.0) if total else None
+          if total == 0:
+              raise SystemExit("No aggregate JaCoCo instruction data was generated")
+          pct = covered / total * 100.0
+
           summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
           if summary_path:
               with open(summary_path, "a", encoding="utf-8") as summary:
-                  summary.write("### 📊 JaCoCo coverage\n")
-                  if pct is None:
-                      summary.write("No JaCoCo coverage data found.\n")
-                  else:
-                      summary.write(f"- **Total**: {pct:.1f}% ({covered}/{total} instructions)\n")
-                      for module, module_pct, module_covered, module_total in module_rows:
-                          pct_text = f"{module_pct:.1f}%" if module_pct is not None else "n/a"
-                          summary.write(f"- **{module}**: {pct_text} ({module_covered}/{module_total} instructions)\n")
+                  summary.write("### JaCoCo instruction coverage\n\n")
+                  summary.write(
+                      f"- **Aggregate**: {pct:.2f}% ({covered}/{total}), "
+                      f"required: **{minimum:.2f}%**\n")
+                  for module, module_pct, module_covered, module_total in module_rows:
+                      summary.write(
+                          f"- **{module}**: {module_pct:.2f}% "
+                          f"({module_covered}/{module_total})\n")
+
+          print(f"Aggregate instruction coverage: {pct:.3f}% (minimum {minimum:.3f}%)")
+          if pct + 1e-12 < minimum:
+              raise SystemExit(
+                  f"Coverage regression: {pct:.3f}% is below required {minimum:.3f}%")
           PY
 
       - name: Stage coverage reports for artifact
+        if: always()
         run: |
           mkdir -p site/coverage/optics-core site/coverage/backend
           for module in optics-core backend; do
@@ -81,13 +102,15 @@ jobs:
             if [ -d "${src}" ]; then
               cp -r "${src}/." "${dst}/"
             else
-              echo "::warning::JaCoCo report directory '${src}' not found – skipping copy for ${module}"
+              echo "::warning::JaCoCo report directory '${src}' not found"
             fi
           done
 
       - name: Upload coverage artifact
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: jacoco-coverage
           path: site/coverage
+          if-no-files-found: warn
           retention-days: 14
