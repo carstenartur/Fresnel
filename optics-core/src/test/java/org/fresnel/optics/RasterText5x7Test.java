@@ -6,9 +6,10 @@ import java.awt.Point;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RasterText5x7Test {
 
@@ -28,17 +29,16 @@ class RasterText5x7Test {
         CollectingTarget target = new CollectingTarget();
         RasterText5x7.draw(target, 10, 20, "A", 1);
 
-        assertThat(target.points).isNotEmpty();
-        assertThat(target.minX()).isEqualTo(10);
-        assertThat(target.maxX()).isEqualTo(14);
-        assertThat(target.minY()).isEqualTo(20);
-        assertThat(target.maxY()).isEqualTo(26);
-        assertThat(target.points).contains(
-                new Point(11, 20),
-                new Point(12, 20),
-                new Point(13, 20),
-                new Point(10, 23),
-                new Point(14, 23));
+        assertFalse(target.points.isEmpty());
+        assertEquals(10, target.minX());
+        assertEquals(14, target.maxX());
+        assertEquals(20, target.minY());
+        assertEquals(26, target.maxY());
+        assertTrue(target.points.contains(new Point(11, 20)));
+        assertTrue(target.points.contains(new Point(12, 20)));
+        assertTrue(target.points.contains(new Point(13, 20)));
+        assertTrue(target.points.contains(new Point(10, 23)));
+        assertTrue(target.points.contains(new Point(14, 23)));
     }
 
     @Test
@@ -46,13 +46,14 @@ class RasterText5x7Test {
         CollectingTarget target = new CollectingTarget();
         RasterText5x7.draw(target, 0, 0, "A", 2);
 
-        assertThat(target.minX()).isZero();
-        assertThat(target.maxX()).isEqualTo(9);
-        assertThat(target.minY()).isZero();
-        assertThat(target.maxY()).isEqualTo(13);
-        assertThat(target.points).contains(
-                new Point(2, 0), new Point(3, 0),
-                new Point(2, 1), new Point(3, 1));
+        assertEquals(0, target.minX());
+        assertEquals(9, target.maxX());
+        assertEquals(0, target.minY());
+        assertEquals(13, target.maxY());
+        assertTrue(target.points.contains(new Point(2, 0)));
+        assertTrue(target.points.contains(new Point(3, 0)));
+        assertTrue(target.points.contains(new Point(2, 1)));
+        assertTrue(target.points.contains(new Point(3, 1)));
     }
 
     @Test
@@ -60,11 +61,11 @@ class RasterText5x7Test {
         CollectingTarget target = new CollectingTarget();
         RasterText5x7.drawClockwise(target, 30, 40, "L", 1);
 
-        assertThat(target.points).isNotEmpty();
-        assertThat(target.minX()).isEqualTo(30);
-        assertThat(target.maxX()).isEqualTo(36);
-        assertThat(target.minY()).isEqualTo(40);
-        assertThat(target.maxY()).isEqualTo(44);
+        assertFalse(target.points.isEmpty());
+        assertEquals(30, target.minX());
+        assertEquals(36, target.maxX());
+        assertEquals(40, target.minY());
+        assertEquals(44, target.maxY());
     }
 
     @Test
@@ -72,14 +73,12 @@ class RasterText5x7Test {
         for (char glyph : SUPPORTED.toCharArray()) {
             CollectingTarget target = new CollectingTarget();
             RasterText5x7.draw(target, 0, 0, String.valueOf(glyph), 1);
-            assertThat(target.points)
-                    .as("glyph %s", glyph)
-                    .isNotEmpty();
+            assertFalse(target.points.isEmpty(), "glyph " + glyph + " must render");
         }
 
         CollectingTarget unknown = new CollectingTarget();
         RasterText5x7.draw(unknown, 0, 0, " ?_", 1);
-        assertThat(unknown.points).isEmpty();
+        assertTrue(unknown.points.isEmpty());
     }
 
     @Test
@@ -89,11 +88,11 @@ class RasterText5x7Test {
         assertDoesNotThrow(() -> RasterText5x7.draw(target, -3, -2, "AB", 1));
         assertDoesNotThrow(() -> RasterText5x7.drawClockwise(target, 5, -5, "A", 1));
 
-        assertThat(target.points).isNotEmpty();
-        assertThat(target.points).allSatisfy(point -> {
-            assertThat(point.x).isBetween(0, 7);
-            assertThat(point.y).isBetween(0, 7);
-        });
+        assertFalse(target.points.isEmpty());
+        for (Point point : target.points) {
+            assertTrue(point.x >= 0 && point.x <= 7, "x outside clipped target: " + point);
+            assertTrue(point.y >= 0 && point.y <= 7, "y outside clipped target: " + point);
+        }
     }
 
     private static class CollectingTarget implements RasterText5x7.Target {
