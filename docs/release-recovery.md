@@ -1,10 +1,10 @@
 # Release operation and recovery
 
 This document describes the supported manual release path and the recovery
-procedure for partial publication. The workflow is deliberately serialized and
-uses an expected-SHA fast-forward gate, but GitHub Releases, Git tags, GHCR and
-`main` are separate systems. A failure can therefore leave staged objects that
-must be inspected before retrying.
+procedure for partial publication. Preparation and publication are deliberately
+serialized and use expected-SHA fast-forward gates, but GitHub Releases, Git
+tags, GHCR and `main` are separate systems. A failure can therefore leave staged
+objects that must be inspected before retrying.
 
 ## One-time repository configuration
 
@@ -13,13 +13,20 @@ and configure it with:
 
 - at least one required reviewer who is not the workflow initiator;
 - prevention of self-review, where available;
-- deployment branches restricted to `main`;
+- selected deployment branches restricted to `release/candidate-*`;
 - no long-lived publication credentials—the workflow uses the scoped
   `GITHUB_TOKEN` and short-lived OIDC identity.
 
-The workflow references this environment, but environment protection rules are
-repository settings and cannot be expressed in workflow YAML. A live release is
-not approved for use until the required-reviewer rule is enabled.
+The **Release** orchestrator may run only from `main`. It creates a version-only
+candidate branch and dispatches **Publish Release** at that exact branch. The
+protected environment is therefore intentionally restricted to candidate
+branches rather than `main`. The publication workflow independently proves that
+the candidate is a direct child of the unchanged `main`, contains only Maven and
+citation version changes, and matches `release.properties`.
+
+Environment protection rules are repository settings and cannot be expressed in
+workflow YAML. A live release is not approved for use until the required-reviewer
+rule and candidate-branch restriction are enabled.
 
 Keep the ordinary `main` branch ruleset enabled with the required CI, Tests,
 Coverage, E2E, Maven Site and packaging checks.
@@ -28,21 +35,31 @@ Coverage, E2E, Maven Site and packaging checks.
 
 1. Merge the next-development version PR so Maven and `CITATION.cff` use an
    `X.Y.Z-SNAPSHOT` version and `release.properties` names `X.Y.Z`.
-2. Run the **Release** workflow with exactly that `X.Y.Z` value.
-3. Review the protected `release` environment deployment.
-4. The workflow executes all tests, creates an isolated candidate commit, builds
-   the JAR and multi-architecture image, publishes provenance attestations,
-   stages a draft GitHub Release, verifies that `main` has not moved, and only
-   then fast-forwards `main`.
-5. After promotion it updates `latest`, publishes the GitHub Release, advances
-   the maintenance branch and opens the next-SNAPSHOT PR.
-6. **Complete Release** dispatches **Release Packages** and waits for the ZIP,
+2. From `main`, run the **Release** workflow with exactly that `X.Y.Z` value.
+3. The orchestrator creates a commit changing only the three Maven POMs and
+   `CITATION.cff`, runs the complete test build, pushes an ephemeral
+   `release/candidate-*` branch and dispatches **Publish Release** at that exact
+   commit.
+4. Review the protected `release` environment deployment. Confirm the expected
+   version, candidate branch and parent `main` SHA before approving it.
+5. **Publish Release** checks out `github.sha`, repeats the full build, produces
+   the JAR and multi-architecture image, publishes provenance attestations and an
+   image SBOM, stages a draft GitHub Release, revalidates both refs and only then
+   fast-forwards `main`.
+6. After promotion it updates `latest`, publishes the GitHub Release, advances
+   the maintenance branch, removes the candidate branch and opens the
+   next-SNAPSHOT PR.
+7. **Complete Release** matches the published tag to the exact publication
+   workflow commit, dispatches **Release Packages** and waits for the ZIP,
    tar.gz, MSI and Debian package jobs to attach their verified outputs.
 
-A dry run executes version validation, tests and local artifact creation but
-must not create refs, releases, attestations or packages.
+A dry run executes version validation and the complete candidate test build but
+must not create a branch, tag, release, attestation, image or package.
 
 ## Verify published provenance
+
+The attested workflow SHA must equal both the release tag commit and the release
+commit on `main`; it is not the preceding SNAPSHOT commit.
 
 After downloading the release JAR:
 
@@ -58,7 +75,7 @@ gh attestation verify \
   --repo carstenartur/Fresnel
 ```
 
-Also verify the checked-in checksum before running the JAR:
+Also verify the published checksum before running the JAR:
 
 ```bash
 sha256sum --check backend-X.Y.Z.jar.sha256
@@ -83,12 +100,13 @@ git ls-remote --heads --tags "https://github.com/${REPO}.git" \
 gh release view "$VERSION" --repo "$REPO" \
   --json isDraft,isPrerelease,publishedAt,targetCommitish,url 2>/dev/null || true
 
-gh api "/orgs/carstenartur/packages/container/fresnel/versions" \
+gh api "/users/carstenartur/packages/container/fresnel/versions" \
   --paginate --jq '.[] | {id, tags: .metadata.container.tags, updated_at}' || true
 ```
 
-Compare the tag, release commit and current `main` before deleting or promoting
-anything. Never force-update `main` or an existing release tag during recovery.
+Compare the candidate, tag, release commit and current `main` before deleting or
+promoting anything. Never force-update `main` or an existing release tag during
+recovery.
 
 ## Recovery by failure point
 
@@ -99,23 +117,28 @@ configuration and rerun the workflow after `main` is green.
 
 ### Candidate branch exists, but no tag or release exists
 
-The candidate commit is retained for diagnosis. After confirming that `main`
-was not advanced, delete the branch before retrying:
+The candidate commit is retained for diagnosis. Check the associated **Publish
+Release** run. If it never started, no release artifacts were published. If it
+failed after the container build, a versioned GHCR image and attestations may
+already exist even though no tag exists.
+
+After confirming that `main` was not advanced, delete the candidate branch before
+retrying:
 
 ```bash
 gh api "repos/${REPO}/git/refs/heads/release/candidate-..." \
   --method DELETE
 ```
 
-A versioned container image may already exist. A successful rerun of the same
-version replaces that tag with the newly verified digest; compare digests before
+A successful rerun of the same version replaces the versioned image tag with the
+newly verified digest; compare digests and attestation workflow SHAs before
 accepting it.
 
 ### Tag or draft release exists, but `main` was not advanced
 
-Do not rerun while the tag exists. Inspect the draft and candidate commit. When
-abandoning the attempt, delete the draft first, then the tag and candidate
-branch:
+Do not rerun while the tag exists. Inspect the draft, candidate commit and
+attestations. When abandoning the attempt, delete the draft first, then the tag
+and candidate branch:
 
 ```bash
 gh release delete "$VERSION" --repo "$REPO" --yes
@@ -128,13 +151,13 @@ gh api "repos/${REPO}/git/refs/heads/release/candidate-..." \
 
 Retain logs and attestation links with the incident record. Delete or overwrite
 the versioned GHCR tag only after confirming that it belongs to the abandoned
-attempt.
+candidate commit.
 
 ### `main` contains the release commit, but the release is still draft
 
 The version commit must not be reverted merely to rerun automation. Confirm that
-the tag points to the current `main`, verify the JAR and image attestations, then
-complete the missing publication steps:
+the candidate, tag and current `main` all name the same commit, then verify the
+JAR and image attestations before completing the missing publication steps:
 
 ```bash
 docker buildx imagetools create \
@@ -144,7 +167,7 @@ docker buildx imagetools create \
 gh release edit "$VERSION" --repo "$REPO" --draft=false
 ```
 
-Then dispatch the package completion manually:
+Then dispatch package completion manually:
 
 ```bash
 gh workflow run release-package.yml --repo "$REPO" --ref main \
@@ -169,9 +192,9 @@ failure does not invalidate an otherwise verified release.
 
 For every partial release, record:
 
-- workflow run URL and initiating actor;
-- expected starting `main` SHA and release commit SHA;
+- orchestration and publication workflow URLs and initiating actor;
+- expected starting `main` SHA and immutable candidate SHA;
+- protected-environment reviewer and approval time;
 - tag, draft/published release and GHCR image digests observed;
 - attestations and checksums verified;
-- cleanup or completion commands executed;
-- reviewer who approved the recovery decision.
+- cleanup or completion commands executed.
