@@ -16,7 +16,7 @@ class NetworkSecurityProfileStartupTest {
     void containerProfileFailsStartupWithBlankCredentials() {
         assertThatThrownBy(() -> startContainer("", ""))
                 .hasRootCauseInstanceOf(IllegalStateException.class)
-                .hasStackTraceContaining("FRESNEL_SECURITY_USER_PASSWORD");
+                .hasStackTraceContaining("fresnel.security.user.password must not be blank");
     }
 
     @Test
