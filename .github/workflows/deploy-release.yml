@@ -45,6 +45,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Require workflow dispatch from main
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$DISPATCH_REF" != "refs/heads/main" ]]; then
+            echo "::error::Release workflow must be dispatched from main, not $DISPATCH_REF"
+            exit 1
+          fi
+
       - name: Set up JDK 21
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
