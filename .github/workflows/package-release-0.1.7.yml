@@ -1,0 +1,110 @@
+name: Package Fresnel 0.1.7
+
+on:
+  push:
+    branches:
+      - automation/package-release-0.1.7
+    paths:
+      - .github/workflows/package-release-0.1.7.yml
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  package:
+    name: Dispatch, wait for and verify 0.1.7 packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout verification branch
+        uses: actions/checkout@v7
+        with:
+          ref: automation/package-release-0.1.7
+          fetch-depth: 0
+
+      - name: Dispatch tagged package workflow
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REQUEST_ID="manual-0.1.7-${GITHUB_RUN_ID}"
+          EXPECTED_TITLE="Release Packages 0.1.7 ${REQUEST_ID}"
+
+          gh workflow run release-package.yml \
+            --repo "${{ github.repository }}" \
+            --ref main \
+            -f release_tag=0.1.7 \
+            -f request_id="$REQUEST_ID"
+
+          RUN_ID=""
+          for _ in $(seq 1 90); do
+            RUN_ID=$(gh run list \
+              --repo "${{ github.repository }}" \
+              --workflow release-package.yml \
+              --event workflow_dispatch \
+              --limit 40 \
+              --json databaseId,displayTitle \
+              --jq ".[] | select(.displayTitle == \"${EXPECTED_TITLE}\") | .databaseId" \
+              | head -1)
+            if [[ -n "$RUN_ID" ]]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [[ -z "$RUN_ID" ]]; then
+            echo "::error::Could not locate dispatched package workflow '$EXPECTED_TITLE'"
+            exit 1
+          fi
+
+          echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "Dispatched package run $RUN_ID"
+
+      - name: Wait for tagged package workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run watch "${{ steps.dispatch.outputs.run_id }}" \
+            --repo "${{ github.repository }}" \
+            --exit-status
+
+      - name: Verify release assets and record evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          RUN_JSON=$(gh run view "${{ steps.dispatch.outputs.run_id }}" \
+            --repo "${{ github.repository }}" \
+            --json databaseId,status,conclusion,createdAt,updatedAt,url,displayTitle,event,headSha)
+          RELEASE_JSON=$(gh release view 0.1.7 \
+            --repo "${{ github.repository }}" \
+            --json tagName,name,publishedAt,isLatest,url,assets)
+
+          jq -e '.conclusion == "success" and .status == "completed"' <<< "$RUN_JSON" >/dev/null
+          jq -e '.tagName == "0.1.7"' <<< "$RELEASE_JSON" >/dev/null
+
+          jq -e '.assets | any(.name == "backend-0.1.7.jar")' <<< "$RELEASE_JSON" >/dev/null
+          jq -e '.assets | any(.name == "backend-0.1.7.jar.sha256")' <<< "$RELEASE_JSON" >/dev/null
+          jq -e '.assets | any(.name | test("fresnel-0[.]1[.]7-windows[.]zip$"; "i"))' <<< "$RELEASE_JSON" >/dev/null
+          jq -e '.assets | any(.name | test("fresnel-0[.]1[.]7-windows[.]zip[.]sha256$"; "i"))' <<< "$RELEASE_JSON" >/dev/null
+          jq -e '.assets | any(.name | test("fresnel-0[.]1[.]7-linux[.]tar[.]gz$"; "i"))' <<< "$RELEASE_JSON" >/dev/null
+          jq -e '.assets | any(.name | test("fresnel-0[.]1[.]7-linux[.]tar[.]gz[.]sha256$"; "i"))' <<< "$RELEASE_JSON" >/dev/null
+          jq -e '.assets | any(.name | test("0[.]1[.]7.*[.]msi$"; "i"))' <<< "$RELEASE_JSON" >/dev/null
+          jq -e '.assets | any(.name | test("0[.]1[.]7.*[.]deb$"; "i"))' <<< "$RELEASE_JSON" >/dev/null
+
+          jq -n \
+            --arg requestId "${{ steps.dispatch.outputs.request_id }}" \
+            --argjson packageRun "$RUN_JSON" \
+            --argjson release "$RELEASE_JSON" \
+            '{verifiedAt: now | todateiso8601, requestId: $requestId, packageRun: $packageRun, release: $release}' \
+            > release-package-verification.json
+
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add release-package-verification.json
+          git commit -m 'Record Fresnel 0.1.7 package verification'
+          git push origin HEAD:automation/package-release-0.1.7
