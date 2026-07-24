@@ -13,20 +13,25 @@ and configure it with:
 
 - at least one required reviewer who is not the workflow initiator;
 - prevention of self-review, where available;
-- selected deployment branches restricted to `release/candidate-*`;
+- selected deployment refs restricted to `release/candidate-*` branches and
+  semantic-version tags used by Fresnel releases;
 - no long-lived publication credentials—the workflow uses the scoped
   `GITHUB_TOKEN` and short-lived OIDC identity.
 
 The **Release** orchestrator may run only from `main`. It creates a version-only
 candidate branch and dispatches **Publish Release** at that exact branch. The
-protected environment is therefore intentionally restricted to candidate
-branches rather than `main`. The publication workflow independently proves that
-the candidate is a direct child of the unchanged `main`, contains only Maven and
-citation version changes, and matches `release.properties`.
+publication workflow independently proves that the candidate is a direct child
+of the unchanged `main`, contains only Maven and citation version changes, and
+matches `release.properties`.
+
+After the release is published, **Release Packages** runs from the immutable
+release tag. Its build and installer jobs remain read-only; a single
+`publish-packages` job uses the same protected environment before ZIP, tar.gz,
+MSI and Debian files can be attached or replaced.
 
 Environment protection rules are repository settings and cannot be expressed in
 workflow YAML. A live release is not approved for use until the required-reviewer
-rule and candidate-branch restriction are enabled.
+rule and both candidate-branch and release-tag restrictions are enabled.
 
 Keep the ordinary `main` branch ruleset enabled with the required CI, Tests,
 Coverage, E2E, Maven Site and packaging checks.
@@ -50,8 +55,9 @@ Coverage, E2E, Maven Site and packaging checks.
    the maintenance branch, removes the candidate branch and opens the
    next-SNAPSHOT PR.
 7. **Complete Release** matches the published tag to the exact publication
-   workflow commit, dispatches **Release Packages** and waits for the ZIP,
-   tar.gz, MSI and Debian package jobs to attach their verified outputs.
+   workflow commit and dispatches **Release Packages** at that tag. After the
+   read-only ZIP, tar.gz, MSI and Debian builds pass, review the protected
+   `publish-packages` deployment so the verified files can be attached.
 
 A dry run executes version validation and the complete candidate test build but
 must not create a branch, tag, release, attestation, image or package.
@@ -167,10 +173,10 @@ docker buildx imagetools create \
 gh release edit "$VERSION" --repo "$REPO" --draft=false
 ```
 
-Then dispatch package completion manually:
+Then dispatch package completion manually from the immutable tag:
 
 ```bash
-gh workflow run release-package.yml --repo "$REPO" --ref main \
+gh workflow run release-package.yml --repo "$REPO" --ref "$VERSION" \
   -f release_tag="$VERSION" \
   -f request_id="manual-recovery-${VERSION}"
 ```
@@ -178,8 +184,9 @@ gh workflow run release-package.yml --repo "$REPO" --ref main \
 ### Release is published, but platform packages are missing
 
 Do not recreate the release. Dispatch `release-package.yml` with the existing
-release tag as shown above. Its build jobs are read-only; separate attachment
-jobs receive write permission only after the tag and project version match.
+release tag as shown above. The build and installer jobs are read-only and run
+from that tag. Approve the single protected `publish-packages` job only after all
+package verification jobs have passed.
 
 ### Next-development PR is missing
 
@@ -194,7 +201,7 @@ For every partial release, record:
 
 - orchestration and publication workflow URLs and initiating actor;
 - expected starting `main` SHA and immutable candidate SHA;
-- protected-environment reviewer and approval time;
+- protected-environment reviewer and approval time for core and package writes;
 - tag, draft/published release and GHCR image digests observed;
 - attestations and checksums verified;
 - cleanup or completion commands executed.
