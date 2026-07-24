@@ -1,0 +1,58 @@
+name: Verify Fresnel 0.1.7 release assets
+
+on:
+  push:
+    branches:
+      - automation/verify-release-0.1.7-assets
+    paths:
+      - .github/workflows/verify-release-0.1.7-assets.yml
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verification branch
+        uses: actions/checkout@v7
+
+      - name: Query published release and release-package run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${{ github.repository }}/releases/tags/0.1.7" > /tmp/release.json
+          gh api --method GET \
+            "repos/${{ github.repository }}/actions/workflows/release-package.yml/runs" \
+            -f event=release \
+            -f per_page=5 > /tmp/package-runs.json
+
+          jq -n \
+            --slurpfile release /tmp/release.json \
+            --slurpfile runs /tmp/package-runs.json \
+            '{
+              release: {
+                id: $release[0].id,
+                tag_name: $release[0].tag_name,
+                name: $release[0].name,
+                draft: $release[0].draft,
+                prerelease: $release[0].prerelease,
+                published_at: $release[0].published_at,
+                target_commitish: $release[0].target_commitish,
+                html_url: $release[0].html_url,
+                assets: [$release[0].assets[] | {name, size, state, download_count, browser_download_url}]
+              },
+              release_package_runs: [$runs[0].workflow_runs[] | {
+                id, status, conclusion, event, head_sha, created_at, updated_at, html_url
+              }]
+            }' > release-verification.json
+
+      - name: Publish verification snapshot
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add release-verification.json
+          git commit -m 'Record Fresnel 0.1.7 release verification'
+          git push
