@@ -1,4 +1,9 @@
-server.port: 8080
+server:
+  port: 8080
+  # The default profile is for local development and plain-JAR use. Any
+  # network-exposed deployment must opt into container/postgres, both of which
+  # require explicit credentials.
+  address: 127.0.0.1
 
 spring:
   application:
@@ -9,8 +14,8 @@ spring:
 
   # Default profile uses an in-memory H2 database. This keeps `mvn spring-boot:run`
   # and `mvn test` working without any external service. For production / staging
-  # activate the `postgres` profile (see application-postgres.yml) by setting
-  # SPRING_PROFILES_ACTIVE=postgres and providing DB_URL/DB_USER/DB_PASSWORD.
+  # activate the `postgres` profile and provide DB_URL/DB_USER/DB_PASSWORD plus
+  # the required FRESNEL_SECURITY_* credentials.
   datasource:
     url: jdbc:h2:mem:fresnel;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
     username: sa
@@ -27,14 +32,17 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
-# Allow the dev frontend (Vite default port) to talk to the backend.
+# Allow the dev frontend (Vite default port) to talk to the loopback backend.
 fresnel:
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+  jobs:
+    # Terminal render results are purged opportunistically after this period.
+    persisted-retention-days: 30
   security:
-    # Default credentials for local development. Override with
-    # FRESNEL_SECURITY_USER_PASSWORD / FRESNEL_SECURITY_ADMIN_PASSWORD env vars
-    # (or any other Spring config source) in any non-throwaway environment.
+    # Development-only accounts. Network profiles override this policy and fail
+    # startup unless explicit non-default passwords are supplied.
+    require-explicit-credentials: false
     user:
       username: user
       password: user

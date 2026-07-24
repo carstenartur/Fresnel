@@ -8,26 +8,32 @@ import org.fresnel.optics.PngExporter;
 import org.fresnel.optics.RenderResult;
 import org.fresnel.optics.WindowFoilRenderer;
 import org.fresnel.optics.ZonePlateRenderer;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
- * Async render-job endpoints. Submit a job → poll status / subscribe SSE → fetch
- * the resulting PNG by job id.
+ * Authenticated asynchronous render-job endpoints.
  *
- * <p>Designed for renders that exceed the synchronous {@link DesignController#MAX_PREVIEW_PX}
- * cap (e.g. window-foil sheets at production DPI, large hex macro cells).
+ * <p>Job identifiers are private identifiers, not public share links. Status,
+ * SSE and result reads return 404 for both unknown and unauthorized identifiers,
+ * preventing object-existence probing across users.</p>
  */
 @RestController
 @RequestMapping("/api/jobs")
@@ -39,17 +45,15 @@ public class RenderJobController {
         this.jobs = jobs;
     }
 
-    // -------- Submit --------
-
     @PostMapping(value = "/single",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, String> submitSingle(@Valid @RequestBody SingleZonePlateRequest req) {
-        RenderJob job = jobs.submit("single", j -> {
-            j.reportProgress(0.05, "rendering");
-            RenderResult r = ZonePlateRenderer.render(req.toParameters());
-            j.reportProgress(1.0, "done");
-            return r;
+    public Map<String, String> submitSingle(@Valid @RequestBody SingleZonePlateRequest request) {
+        RenderJob job = jobs.submit("single", progress -> {
+            progress.reportProgress(0.05, "rendering");
+            RenderResult result = ZonePlateRenderer.render(request.toParameters());
+            progress.reportProgress(1.0, "done");
+            return result;
         });
         return Map.of("jobId", job.id());
     }
@@ -57,12 +61,12 @@ public class RenderJobController {
     @PostMapping(value = "/hex",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, String> submitHex(@Valid @RequestBody HexMacroCellRequest req) {
-        RenderJob job = jobs.submit("hex", j -> {
-            j.reportProgress(0.05, "rendering hex macro cell");
-            RenderResult r = HexMacroCellRenderer.render(req.toParameters());
-            j.reportProgress(1.0, "done");
-            return r;
+    public Map<String, String> submitHex(@Valid @RequestBody HexMacroCellRequest request) {
+        RenderJob job = jobs.submit("hex", progress -> {
+            progress.reportProgress(0.05, "rendering hex macro cell");
+            RenderResult result = HexMacroCellRenderer.render(request.toParameters());
+            progress.reportProgress(1.0, "done");
+            return result;
         });
         return Map.of("jobId", job.id());
     }
@@ -70,52 +74,34 @@ public class RenderJobController {
     @PostMapping(value = "/foil",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, String> submitFoil(@Valid @RequestBody WindowFoilRequest req) {
-        var params = req.toParameters();
-        RenderJob job = jobs.submit("foil", j -> {
-            j.reportProgress(0.05, "rendering window foil");
-            RenderResult r = WindowFoilRenderer.render(params);
-            j.reportProgress(1.0, "done");
-            return r;
+    public Map<String, String> submitFoil(@Valid @RequestBody WindowFoilRequest request) {
+        var parameters = request.toParameters();
+        RenderJob job = jobs.submit("foil", progress -> {
+            progress.reportProgress(0.05, "rendering window foil");
+            RenderResult result = WindowFoilRenderer.render(parameters);
+            progress.reportProgress(1.0, "done");
+            return result;
         });
         return Map.of("jobId", job.id());
     }
 
-    // -------- Poll --------
-
     @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Map<String, Object>> status(@PathVariable("id") String id) {
-        RenderJob job = jobs.get(id);
-        if (job == null) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(toStatus(job));
+    public Map<String, Object> status(
+            @PathVariable("id") String id,
+            Authentication authentication) {
+        return toStatus(requireAuthorized(id, authentication));
     }
-
-    private static Map<String, Object> toStatus(RenderJob j) {
-        return Map.of(
-                "jobId", j.id(),
-                "label", j.label(),
-                "state", j.state().name(),
-                "progress", j.progress(),
-                "message", j.message(),
-                "error", j.error() == null ? "" : String.valueOf(j.error().getMessage()));
-    }
-
-    // -------- SSE progress stream --------
 
     @GetMapping(value = "/{id}/events")
-    public SseEmitter events(@PathVariable("id") String id) {
-        RenderJob job = jobs.get(id);
-        if (job == null) {
-            // Use a proper 404 instead of an SSE stream that completes with an error,
-            // so clients can distinguish a missing job from a transient stream error.
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.NOT_FOUND, "unknown job id: " + id);
-        }
+    public SseEmitter events(
+            @PathVariable("id") String id,
+            Authentication authentication) {
+        RenderJob job = requireAuthorized(id, authentication);
         SseEmitter emitter = new SseEmitter(0L);
-        java.util.function.Consumer<RenderJob> listener = j -> {
+        Consumer<RenderJob> listener = current -> {
             try {
-                emitter.send(SseEmitter.event().name("progress").data(toStatus(j)));
-                if (j.isTerminal()) emitter.complete();
+                emitter.send(SseEmitter.event().name("progress").data(toStatus(current)));
+                if (current.isTerminal()) emitter.complete();
             } catch (IOException e) {
                 emitter.completeWithError(e);
             }
@@ -123,7 +109,6 @@ public class RenderJobController {
         job.addListener(listener);
         emitter.onCompletion(() -> job.removeListener(listener));
         emitter.onTimeout(() -> job.removeListener(listener));
-        // Send the current state immediately so late subscribers get the latest snapshot.
         try {
             emitter.send(SseEmitter.event().name("progress").data(toStatus(job)));
             if (job.isTerminal()) emitter.complete();
@@ -133,32 +118,66 @@ public class RenderJobController {
         return emitter;
     }
 
-    // -------- Result --------
-
     @GetMapping(value = "/{id}/result.png", produces = MediaType.IMAGE_PNG_VALUE)
-    public ResponseEntity<byte[]> result(@PathVariable("id") String id) throws IOException {
-        RenderJob job = jobs.get(id);
-        if (job == null) return ResponseEntity.notFound().build();
+    public ResponseEntity<byte[]> result(
+            @PathVariable("id") String id,
+            Authentication authentication) throws IOException {
+        Access access = access(authentication);
+        RenderJob job = jobs.findAuthorized(id, access.requesterId(), access.administrator())
+                .orElseThrow(RenderJobController::notFound);
         if (job.state() != RenderJob.State.COMPLETED) {
-            return ResponseEntity.status(409)
+            return ResponseEntity.status(HttpStatus.CONFLICT)
                     .contentType(MediaType.TEXT_PLAIN)
-                    .body(("job not yet complete (state=" + job.state() + ")").getBytes());
+                    .body("job result is not available".getBytes(StandardCharsets.UTF_8));
         }
+
         byte[] png;
-        RenderResult r = job.result();
-        if (r != null) {
-            // Live in-memory result.
-            double dpi = 25.4 / r.pixelSizeMm();
-            png = PngExporter.toPngBytes(r, dpi);
+        RenderResult liveResult = job.result();
+        if (liveResult != null) {
+            double dpi = 25.4 / liveResult.pixelSizeMm();
+            png = PngExporter.toPngBytes(liveResult, dpi);
         } else {
-            // Rehydrated from DB (no in-memory image) — serve the persisted PNG.
-            png = jobs.resultPng(id).orElse(null);
-            if (png == null) return ResponseEntity.notFound().build();
+            png = jobs.resultPngAuthorized(id, access.requesterId(), access.administrator())
+                    .orElseThrow(RenderJobController::notFound);
         }
-        HttpHeaders h = new HttpHeaders();
-        h.setContentType(MediaType.IMAGE_PNG);
-        h.setContentDisposition(org.springframework.http.ContentDisposition.attachment()
-                .filename("fresnel-job-" + id + ".png").build());
-        return new ResponseEntity<>(png, h, 200);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.IMAGE_PNG);
+        headers.setContentDisposition(ContentDisposition.attachment()
+                .filename("fresnel-job-" + id + ".png")
+                .build());
+        return new ResponseEntity<>(png, headers, HttpStatus.OK);
     }
+
+    private RenderJob requireAuthorized(String id, Authentication authentication) {
+        Access access = access(authentication);
+        return jobs.findAuthorized(id, access.requesterId(), access.administrator())
+                .orElseThrow(RenderJobController::notFound);
+    }
+
+    private static Map<String, Object> toStatus(RenderJob job) {
+        boolean failed = job.state() == RenderJob.State.FAILED;
+        return Map.of(
+                "jobId", job.id(),
+                "label", job.label(),
+                "state", job.state().name(),
+                "progress", job.progress(),
+                "message", failed ? "render failed" : job.message(),
+                "error", failed ? "render failed" : "");
+    }
+
+    private static Access access(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw notFound();
+        }
+        boolean administrator = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        return new Access(authentication.getName(), administrator);
+    }
+
+    private static ResponseStatusException notFound() {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "render job not found");
+    }
+
+    private record Access(String requesterId, boolean administrator) {}
 }
