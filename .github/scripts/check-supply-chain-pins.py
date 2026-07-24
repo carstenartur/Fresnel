@@ -68,35 +68,78 @@ def check_dockerfile_bases(errors: list[str]) -> None:
             )
 
 
-def check_release_invariants(errors: list[str]) -> None:
-    release_workflow = WORKFLOWS / "deploy-release.yml"
-    if not release_workflow.is_file():
-        errors.append("Release workflow is missing")
-        return
+def require_tokens(
+    workflow: Path, required: dict[str, str], errors: list[str]
+) -> str | None:
+    if not workflow.is_file():
+        errors.append(f"Required workflow is missing: {workflow.relative_to(ROOT)}")
+        return None
 
-    content = release_workflow.read_text(encoding="utf-8")
+    content = workflow.read_text(encoding="utf-8")
+    for token, purpose in required.items():
+        if token not in content:
+            errors.append(
+                f"{workflow.name} is missing {token!r} required for {purpose}"
+            )
+    return content
+
+
+def reject_test_skips(workflow: Path, content: str | None, errors: list[str]) -> None:
+    if content is None:
+        return
     forbidden = {
         "skip_tests": "production releases must never offer a test-skip path",
         "-DskipTests": "the release build must execute tests",
     }
     for token, reason in forbidden.items():
         if token in content:
-            errors.append(f"deploy-release.yml contains {token!r}: {reason}")
+            errors.append(f"{workflow.name} contains {token!r}: {reason}")
 
-    required = {
-        "environment: release": "protected release environment",
-        "group: fresnel-release": "serialized releases",
-        "refs/heads/main": "main-only manual dispatch",
-        "attest-build-provenance": "artifact provenance",
-        "provenance: mode=max": "container provenance",
-        "sbom: true": "container SBOM",
-        "EXPECTED_MAIN_SHA": "stale-main protection",
-    }
-    for token, purpose in required.items():
-        if token not in content:
-            errors.append(
-                f"deploy-release.yml is missing {token!r} required for {purpose}"
-            )
+
+def check_release_invariants(errors: list[str]) -> None:
+    orchestrator = WORKFLOWS / "deploy-release.yml"
+    orchestrator_content = require_tokens(
+        orchestrator,
+        {
+            "group: fresnel-release-orchestration": "serialized release preparation",
+            "refs/heads/main": "main-only manual dispatch",
+            "publish-release.yml": "separate immutable-candidate publication",
+            "Build and verify candidate with tests": "candidate test gate",
+            "gh run watch": "publication result propagation",
+            "release/candidate-": "isolated candidate branch",
+        },
+        errors,
+    )
+    reject_test_skips(orchestrator, orchestrator_content, errors)
+
+    publisher = WORKFLOWS / "publish-release.yml"
+    publisher_content = require_tokens(
+        publisher,
+        {
+            "environment: release": "protected publication approval",
+            "group: fresnel-release-publication": "serialized publication",
+            "ref: ${{ github.sha }}": "exact candidate checkout",
+            "EXPECTED_MAIN_SHA": "stale-main protection",
+            "attest-build-provenance": "artifact provenance",
+            "provenance: mode=max": "container provenance",
+            "sbom: true": "container SBOM",
+            "ACTUAL_FILES": "version-only candidate validation",
+            "Fast-forward main to candidate": "non-force main promotion",
+        },
+        errors,
+    )
+    reject_test_skips(publisher, publisher_content, errors)
+
+    completer = WORKFLOWS / "complete-release.yml"
+    require_tokens(
+        completer,
+        {
+            "workflows: [Publish Release]": "completion tied to publication workflow",
+            "UPSTREAM_HEAD_SHA": "exact release-commit correlation",
+            "release-package.yml": "platform package completion",
+        },
+        errors,
+    )
 
 
 def main() -> int:
@@ -112,7 +155,7 @@ def main() -> int:
         return 1
 
     print("All workflow actions and Docker base images use immutable references.")
-    print("Release workflow safety invariants are present.")
+    print("Two-stage release provenance and safety invariants are present.")
     return 0
 
 
