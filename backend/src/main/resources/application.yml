@@ -36,6 +36,9 @@ spring:
 fresnel:
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+  jobs:
+    # Terminal render results are purged opportunistically after this period.
+    persisted-retention-days: 30
   security:
     # Development-only accounts. Network profiles override this policy and fail
     # startup unless explicit non-default passwords are supplied.
