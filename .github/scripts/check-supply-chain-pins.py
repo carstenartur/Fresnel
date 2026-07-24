@@ -135,8 +135,10 @@ def check_release_invariants(errors: list[str]) -> None:
         packager,
         {
             "Test and build jar + ZIP/tar.gz": "tested release package production",
-            "attach-archives": "least-privilege archive attachment",
-            "attach-installers": "least-privilege installer attachment",
+            "publish-packages": "single package publication job",
+            "environment: release": "protected package attachment approval",
+            "refs/tags/${TAG}": "immutable-tag package execution",
+            "Attach files to GitHub Release": "explicit release attachment step",
         },
         errors,
     )
@@ -149,6 +151,7 @@ def check_release_invariants(errors: list[str]) -> None:
             "workflows: [Publish Release]": "completion tied to publication workflow",
             "UPSTREAM_HEAD_SHA": "exact release-commit correlation",
             "release-package.yml": "platform package completion",
+            '--ref "$RELEASE_TAG"': "package dispatch from the immutable release tag",
         },
         errors,
     )
@@ -167,7 +170,7 @@ def main() -> int:
         return 1
 
     print("All workflow actions and Docker base images use immutable references.")
-    print("Two-stage release provenance and safety invariants are present.")
+    print("Two-stage release provenance and protected package invariants are present.")
     return 0
 
 
