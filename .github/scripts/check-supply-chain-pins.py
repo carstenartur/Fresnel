@@ -86,6 +86,7 @@ def check_release_invariants(errors: list[str]) -> None:
     required = {
         "environment: release": "protected release environment",
         "group: fresnel-release": "serialized releases",
+        "refs/heads/main": "main-only manual dispatch",
         "attest-build-provenance": "artifact provenance",
         "provenance: mode=max": "container provenance",
         "sbom: true": "container SBOM",
