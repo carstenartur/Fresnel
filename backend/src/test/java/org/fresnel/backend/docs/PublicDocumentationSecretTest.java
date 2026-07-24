@@ -49,10 +49,11 @@ class PublicDocumentationSecretTest {
                     .doesNotContain(FORBIDDEN_CREDENTIAL_EXAMPLES.toArray(String[]::new));
 
             Matcher assignment = PASSWORD_ASSIGNMENT.matcher(content);
-            assertThat(assignment.find())
+            boolean found = assignment.find();
+            String matchedText = found ? assignment.group() : "<none>";
+            assertThat(found)
                     .as("literal password assignment in %s: %s",
-                            root.relativize(document),
-                            assignment.find() ? assignment.group() : "<none>")
+                            root.relativize(document), matchedText)
                     .isFalse();
         }
     }
