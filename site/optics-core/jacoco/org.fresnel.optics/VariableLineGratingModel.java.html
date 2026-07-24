@@ -113,9 +113,9 @@ public final class VariableLineGratingModel {
     /** Whether the physical point is opaque. Points outside the active grating are clear. */
     public static boolean isOpaque(VariableLineGratingParameters p, double xMm, double yMm) {
 <span class="fc" id="L115">        Layout layout = layout(p);</span>
-<span class="pc bpc" id="L116" title="2 of 4 branches missed.">        if (xMm &lt; layout.activeXmm() || xMm &gt;= layout.activeXmm() + layout.activeWidthMm()</span>
-<span class="pc bpc" id="L117" title="2 of 4 branches missed.">                || yMm &lt; layout.activeYmm() || yMm &gt;= layout.activeYmm() + layout.activeHeightMm()) {</span>
-<span class="nc" id="L118">            return false;</span>
+<span class="fc bfc" id="L116" title="All 4 branches covered.">        if (xMm &lt; layout.activeXmm() || xMm &gt;= layout.activeXmm() + layout.activeWidthMm()</span>
+<span class="fc bfc" id="L117" title="All 4 branches covered.">                || yMm &lt; layout.activeYmm() || yMm &gt;= layout.activeYmm() + layout.activeHeightMm()) {</span>
+<span class="fc" id="L118">            return false;</span>
         }
 
 <span class="fc bfc" id="L121" title="All 2 branches covered.">        double progressionS = p.lineOrientation() == LineOrientation.VERTICAL</span>

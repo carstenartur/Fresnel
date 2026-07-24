@@ -24,11 +24,11 @@ Fresnel Optics Core,org.fresnel.optics,PropagationParameters,15,66,3,11,0,9,3,5,
 Fresnel Optics Core,org.fresnel.optics,CalibrationSheetGenerator.CalibrationSheetParameters,12,78,8,16,2,10,8,6,0,2
 Fresnel Optics Core,org.fresnel.optics,PropagationSimulator,11,584,3,41,2,93,3,26,0,7
 Fresnel Optics Core,org.fresnel.optics,VariableLineGratingValidation.Bounds,0,15,0,0,0,1,0,1,0,1
-Fresnel Optics Core,org.fresnel.optics,VariableLineGratingRasterizer,449,134,20,13,63,20,20,6,7,2
+Fresnel Optics Core,org.fresnel.optics,VariableLineGratingRasterizer,5,578,4,29,1,82,4,22,0,9
 Fresnel Optics Core,org.fresnel.optics,OpticalQualityReport,0,39,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,MultiFocusRenderer,35,275,9,19,3,53,7,9,0,2
 Fresnel Optics Core,org.fresnel.optics,PdfExporter.SheetSize,0,62,0,0,0,8,0,2,0,2
-Fresnel Optics Core,org.fresnel.optics,VariableLineGratingRasterizer.AxisLabel,9,0,0,0,1,0,1,0,1,0
+Fresnel Optics Core,org.fresnel.optics,VariableLineGratingRasterizer.AxisLabel,0,9,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,PdfExporter,5,361,3,15,1,53,3,9,0,3
 Fresnel Optics Core,org.fresnel.optics,PluginEditorMode,0,21,0,0,0,4,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,PhaseReliefGenerator,10,81,3,9,0,16,3,4,0,1
@@ -75,7 +75,7 @@ Fresnel Optics Core,org.fresnel.optics,DesignValidationReport,10,96,5,7,1,13,5,4
 Fresnel Optics Core,org.fresnel.optics,SingleZonePlateParameters,30,59,6,6,0,9,6,2,0,2
 Fresnel Optics Core,org.fresnel.optics,WindowFoilParameters,55,96,12,12,2,16,12,3,0,3
 Fresnel Optics Core,org.fresnel.optics,CandidateDesign,0,24,0,0,0,1,0,1,0,1
-Fresnel Optics Core,org.fresnel.optics,VariableLineGratingRasterizer.MutableTarget,41,51,8,4,8,10,8,2,2,2
+Fresnel Optics Core,org.fresnel.optics,VariableLineGratingRasterizer.MutableTarget,0,92,2,10,0,18,2,8,0,4
 Fresnel Optics Core,org.fresnel.optics,ValidationResult.Warning.Severity,0,21,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,VariableLineGratingModel.Interval,5,19,3,3,1,3,3,1,0,1
 Fresnel Optics Core,org.fresnel.optics,PclCompression,0,28,0,0,0,7,0,3,0,3
@@ -84,9 +84,9 @@ Fresnel Optics Core,org.fresnel.optics,PclPageOrientation,0,28,0,0,0,7,0,3,0,3
 Fresnel Optics Core,org.fresnel.optics,MultiFocusParameters.FocusPoint,5,16,1,1,0,3,1,1,0,1
 Fresnel Optics Core,org.fresnel.optics,DeviceAxis,0,15,0,0,0,3,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,VariableLineGratingModel.Layout,0,27,0,0,0,1,0,1,0,1
-Fresnel Optics Core,org.fresnel.optics,VariableLineGratingModel,134,642,31,65,16,111,25,39,1,14
+Fresnel Optics Core,org.fresnel.optics,VariableLineGratingModel,132,644,27,69,15,112,21,43,1,14
 Fresnel Optics Core,org.fresnel.optics,LineOrientation,0,15,0,0,0,3,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,Polarity,0,15,0,0,0,3,0,1,0,1
-Fresnel Optics Core,org.fresnel.optics,RasterText5x7,1530,0,61,0,46,0,57,0,6,0
+Fresnel Optics Core,org.fresnel.optics,RasterText5x7,0,1530,0,61,0,46,0,57,0,6
 Fresnel Optics Core,org.fresnel.optics,ValidationFinding,0,15,0,0,0,1,0,1,0,1
 Fresnel Optics Core,org.fresnel.optics,RenderResult,0,31,0,0,0,5,0,5,0,5

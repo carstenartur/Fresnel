@@ -37,7 +37,7 @@ import java.util.Locale;
 
     @GetMapping(value = &quot;/printer-profiles&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
     public List&lt;PrinterRasterProfile&gt; printerProfiles() {
-<span class="nc" id="L40">        return PrinterRasterProfiles.ALL;</span>
+<span class="fc" id="L40">        return PrinterRasterProfiles.ALL;</span>
     }
 
     @PostMapping(
@@ -47,10 +47,10 @@ import java.util.Locale;
     public VariableLineGratingAnalysis.Result info(
             @Valid @RequestBody VariableLineGratingRequest request,
             @RequestParam(value = &quot;printerProfileId&quot;, required = false) String printerProfileId) {
-<span class="nc bnc" id="L50" title="All 2 branches missed.">        PrinterRasterProfile profile = printerProfileId == null</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">        PrinterRasterProfile profile = printerProfileId == null</span>
 <span class="nc" id="L51">                ? null</span>
-<span class="nc" id="L52">                : PrinterRasterProfiles.require(printerProfileId);</span>
-<span class="nc" id="L53">        return VariableLineGratingAnalysis.analyze(request.toParameters(), profile);</span>
+<span class="fc" id="L52">                : PrinterRasterProfiles.require(printerProfileId);</span>
+<span class="fc" id="L53">        return VariableLineGratingAnalysis.analyze(request.toParameters(), profile);</span>
     }
 
     @PostMapping(
@@ -60,10 +60,10 @@ import java.util.Locale;
     public org.fresnel.optics.DesignValidationReport validation(
             @Valid @RequestBody VariableLineGratingRequest request,
             @RequestParam(value = &quot;printerProfileId&quot;, required = false) String printerProfileId) {
-<span class="nc bnc" id="L63" title="All 2 branches missed.">        PrinterRasterProfile profile = printerProfileId == null</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">        PrinterRasterProfile profile = printerProfileId == null</span>
 <span class="nc" id="L64">                ? null</span>
-<span class="nc" id="L65">                : PrinterRasterProfiles.require(printerProfileId);</span>
-<span class="nc" id="L66">        return VariableLineGratingValidation.report(request.toParameters(), profile);</span>
+<span class="fc" id="L65">                : PrinterRasterProfiles.require(printerProfileId);</span>
+<span class="fc" id="L66">        return VariableLineGratingValidation.report(request.toParameters(), profile);</span>
     }
 
     @PostMapping(
@@ -72,10 +72,10 @@ import java.util.Locale;
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; preview(@Valid @RequestBody VariableLineGratingRequest request)
             throws IOException {
-<span class="nc" id="L75">        VariableLineGratingParameters preview = previewParameters(request.toParameters());</span>
-<span class="nc" id="L76">        RenderResult rendered = VariableLineGratingRenderer.render(preview);</span>
-<span class="nc" id="L77">        return response(</span>
-<span class="nc" id="L78">                PngExporter.toPngBytes(rendered, preview.dpi()),</span>
+<span class="fc" id="L75">        VariableLineGratingParameters preview = previewParameters(request.toParameters());</span>
+<span class="fc" id="L76">        RenderResult rendered = VariableLineGratingRenderer.render(preview);</span>
+<span class="fc" id="L77">        return response(</span>
+<span class="fc" id="L78">                PngExporter.toPngBytes(rendered, preview.dpi()),</span>
                 MediaType.IMAGE_PNG,
                 &quot;inline&quot;,
                 &quot;fresnel-variable-line-grating-preview.png&quot;);
@@ -87,10 +87,10 @@ import java.util.Locale;
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; exportPng(@Valid @RequestBody VariableLineGratingRequest request)
             throws IOException {
-<span class="nc" id="L90">        VariableLineGratingParameters parameters = request.toParameters();</span>
-<span class="nc" id="L91">        RenderResult rendered = VariableLineGratingRenderer.render(parameters);</span>
-<span class="nc" id="L92">        return response(</span>
-<span class="nc" id="L93">                PngExporter.toPngBytes(rendered, parameters.dpi()),</span>
+<span class="fc" id="L90">        VariableLineGratingParameters parameters = request.toParameters();</span>
+<span class="fc" id="L91">        RenderResult rendered = VariableLineGratingRenderer.render(parameters);</span>
+<span class="fc" id="L92">        return response(</span>
+<span class="fc" id="L93">                PngExporter.toPngBytes(rendered, parameters.dpi()),</span>
                 MediaType.IMAGE_PNG,
                 &quot;attachment&quot;,
                 &quot;fresnel-variable-line-grating.png&quot;);
@@ -101,9 +101,9 @@ import java.util.Locale;
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = &quot;image/svg+xml&quot;)
     public ResponseEntity&lt;byte[]&gt; exportSvg(@Valid @RequestBody VariableLineGratingRequest request) {
-<span class="nc" id="L104">        return response(</span>
-<span class="nc" id="L105">                VariableLineGratingSvgExporter.toSvgBytes(request.toParameters()),</span>
-<span class="nc" id="L106">                MediaType.parseMediaType(&quot;image/svg+xml&quot;),</span>
+<span class="fc" id="L104">        return response(</span>
+<span class="fc" id="L105">                VariableLineGratingSvgExporter.toSvgBytes(request.toParameters()),</span>
+<span class="fc" id="L106">                MediaType.parseMediaType(&quot;image/svg+xml&quot;),</span>
                 &quot;attachment&quot;,
                 &quot;fresnel-variable-line-grating.svg&quot;);
     }
@@ -116,9 +116,9 @@ import java.util.Locale;
             @Valid @RequestBody VariableLineGratingRequest request,
             @RequestParam(value = &quot;sheet&quot;, defaultValue = &quot;A4&quot;) String sheet)
             throws IOException {
-<span class="nc" id="L119">        RenderResult rendered = VariableLineGratingRenderer.render(request.toParameters());</span>
-<span class="nc" id="L120">        return response(</span>
-<span class="nc" id="L121">                PdfExporter.toPdfBytes(rendered, parseSheetSize(sheet)),</span>
+<span class="fc" id="L119">        RenderResult rendered = VariableLineGratingRenderer.render(request.toParameters());</span>
+<span class="fc" id="L120">        return response(</span>
+<span class="fc" id="L121">                PdfExporter.toPdfBytes(rendered, parseSheetSize(sheet)),</span>
                 MediaType.APPLICATION_PDF,
                 &quot;attachment&quot;,
                 &quot;fresnel-variable-line-grating.pdf&quot;);
@@ -133,20 +133,20 @@ import java.util.Locale;
             @RequestParam(value = &quot;printerProfileId&quot;, defaultValue = PrinterRasterProfiles.DEFAULT_PROFILE_ID)
             String printerProfileId,
             @RequestParam(value = &quot;compression&quot;, defaultValue = &quot;TIFF&quot;) PclCompression compression) {
-<span class="nc" id="L136">        PrinterRasterProfile profile = PrinterRasterProfiles.require(printerProfileId);</span>
-<span class="nc" id="L137">        byte[] pcl = PclExporter.toPclBytes(request.toParameters(), profile, compression);</span>
-<span class="nc" id="L138">        return response(</span>
+<span class="fc" id="L136">        PrinterRasterProfile profile = PrinterRasterProfiles.require(printerProfileId);</span>
+<span class="fc" id="L137">        byte[] pcl = PclExporter.toPclBytes(request.toParameters(), profile, compression);</span>
+<span class="fc" id="L138">        return response(</span>
                 pcl,
-<span class="nc" id="L140">                MediaType.parseMediaType(PclExporter.MEDIA_TYPE),</span>
+<span class="fc" id="L140">                MediaType.parseMediaType(PclExporter.MEDIA_TYPE),</span>
                 &quot;attachment&quot;,
                 &quot;fresnel-variable-line-grating.pcl&quot;);
     }
 
     private static VariableLineGratingParameters previewParameters(VariableLineGratingParameters p) {
-<span class="nc" id="L146">        double maxDimensionMm = Math.max(p.widthMm(), p.heightMm());</span>
-<span class="nc" id="L147">        double maxPreviewDpi = MAX_PREVIEW_SIDE_PX * 25.4 / maxDimensionMm;</span>
-<span class="nc" id="L148">        double dpi = Math.min(p.dpi(), maxPreviewDpi);</span>
-<span class="nc bnc" id="L149" title="All 2 branches missed.">        if (Double.compare(dpi, p.dpi()) == 0) return p;</span>
+<span class="fc" id="L146">        double maxDimensionMm = Math.max(p.widthMm(), p.heightMm());</span>
+<span class="fc" id="L147">        double maxPreviewDpi = MAX_PREVIEW_SIDE_PX * 25.4 / maxDimensionMm;</span>
+<span class="fc" id="L148">        double dpi = Math.min(p.dpi(), maxPreviewDpi);</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">        if (Double.compare(dpi, p.dpi()) == 0) return p;</span>
 <span class="nc" id="L150">        return new VariableLineGratingParameters(</span>
 <span class="nc" id="L151">                p.widthMm(),</span>
 <span class="nc" id="L152">                p.heightMm(),</span>
@@ -170,9 +170,9 @@ import java.util.Locale;
 
     private static PdfExporter.SheetSize parseSheetSize(String value) {
         try {
-<span class="nc" id="L173">            return PdfExporter.SheetSize.valueOf(value.trim().toUpperCase(Locale.ROOT));</span>
-<span class="nc" id="L174">        } catch (RuntimeException exception) {</span>
-<span class="nc" id="L175">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L173">            return PdfExporter.SheetSize.valueOf(value.trim().toUpperCase(Locale.ROOT));</span>
+<span class="fc" id="L174">        } catch (RuntimeException exception) {</span>
+<span class="fc" id="L175">            throw new IllegalArgumentException(</span>
                     &quot;unknown sheet size: &quot; + value + &quot; (allowed: A0,A1,A2,A3,A4,FIT)&quot;,
                     exception);
         }
@@ -183,13 +183,13 @@ import java.util.Locale;
             MediaType mediaType,
             String disposition,
             String filename) {
-<span class="nc" id="L186">        HttpHeaders headers = new HttpHeaders();</span>
-<span class="nc" id="L187">        headers.setContentType(mediaType);</span>
-<span class="nc bnc" id="L188" title="All 2 branches missed.">        headers.setContentDisposition(&quot;inline&quot;.equals(disposition)</span>
-<span class="nc" id="L189">                ? ContentDisposition.inline().filename(filename).build()</span>
-<span class="nc" id="L190">                : ContentDisposition.attachment().filename(filename).build());</span>
-<span class="nc" id="L191">        headers.add(&quot;X-Content-Type-Options&quot;, &quot;nosniff&quot;);</span>
-<span class="nc" id="L192">        return ResponseEntity.ok().headers(headers).body(body);</span>
+<span class="fc" id="L186">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="fc" id="L187">        headers.setContentType(mediaType);</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">        headers.setContentDisposition(&quot;inline&quot;.equals(disposition)</span>
+<span class="fc" id="L189">                ? ContentDisposition.inline().filename(filename).build()</span>
+<span class="fc" id="L190">                : ContentDisposition.attachment().filename(filename).build());</span>
+<span class="fc" id="L191">        headers.add(&quot;X-Content-Type-Options&quot;, &quot;nosniff&quot;);</span>
+<span class="fc" id="L192">        return ResponseEntity.ok().headers(headers).body(body);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
