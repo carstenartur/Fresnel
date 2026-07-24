@@ -42,6 +42,7 @@ The stable plugin ID is now the only navigation and job-file identity:
 
 ```text
 /plugins/zone-plate
+/plugins/variable-line-grating
 /plugins/hex-macro-cell
 /plugins/window-foil
 /plugins/multi-focus
@@ -209,7 +210,7 @@ only; it cannot provide code.
 
 ## Common React editor shell
 
-All six current plugins use `PluginEditorShell`. The shell owns:
+All seven current plugins use `PluginEditorShell`. The shell owns:
 
 1. loading `GET /api/plugins/{pluginId}/schema`,
 2. loading and error presentation,
