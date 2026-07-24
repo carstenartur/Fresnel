@@ -14,9 +14,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class PublicDocumentationSecretTest {
 
+    /**
+     * Public operational documentation never assigns password variables, even
+     * through indirection or command substitution. Operators supply them before
+     * running the documented commands; the examples may only validate and export
+     * the already supplied variables.
+     */
     private static final Pattern PASSWORD_ASSIGNMENT = Pattern.compile(
-            "(?im)(?:^|\\s)(?:export\\s+|-e\\s+)?[A-Z][A-Z0-9_]*PASSWORD"
-                    + "\\s*=\\s*(?!\\$\\{)[^\\s\\\\]+"
+            "(?im)(?:^|\\s)(?:export\\s+|-e\\s+)?[A-Z][A-Z0-9_]*PASSWORD\\s*="
     );
 
     private static final List<String> FORBIDDEN_CREDENTIAL_EXAMPLES = List.of(
@@ -30,7 +35,8 @@ class PublicDocumentationSecretTest {
     );
 
     @Test
-    void publicOperationalDocumentationContainsNoPasswordValues() throws IOException {
+    void publicOperationalDocumentationContainsNoPasswordAssignmentsOrKnownCredentials()
+            throws IOException {
         Path root = repositoryRoot();
         List<Path> documents = List.of(
                 root.resolve("README.md"),
@@ -52,7 +58,7 @@ class PublicDocumentationSecretTest {
             boolean found = assignment.find();
             String matchedText = found ? assignment.group() : "<none>";
             assertThat(found)
-                    .as("literal password assignment in %s: %s",
+                    .as("password assignment in %s: %s",
                             root.relativize(document), matchedText)
                     .isFalse();
         }
