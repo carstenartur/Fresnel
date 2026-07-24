@@ -19,6 +19,9 @@ jobs:
       - name: Verify immutable supply-chain references
         run: python3 .github/scripts/check-supply-chain-pins.py
 
+      - name: Validate GitHub Actions workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca
+
       - name: Set up JDK 21 (Temurin)
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
