@@ -1,12 +1,8 @@
 name: Release Packages
 
-# Builds the cross-platform distribution artifacts (jar, Windows ZIP,
-# Linux tar.gz, plus native jpackage installers where supported) on
-# every push to main, every pull request that touches packaging code,
-# on release publication, and on demand via workflow_dispatch.
-#
-# Artifacts are always uploaded to the workflow run. When triggered by
-# a published release, they are also attached to the release.
+# Builds the cross-platform distribution artifacts on main, relevant pull
+# requests, release publication and manual dispatch. Build jobs are read-only;
+# only the protected release-attachment job can write to a GitHub release.
 
 on:
   push:
@@ -15,7 +11,9 @@ on:
       - 'backend/**'
       - 'optics-core/**'
       - 'pom.xml'
+      - 'frontend/**'
       - 'packaging/**'
+      - 'Dockerfile'
       - '.github/workflows/release-package.yml'
   pull_request:
     branches: [main]
@@ -23,38 +21,37 @@ on:
       - 'backend/**'
       - 'optics-core/**'
       - 'pom.xml'
+      - 'frontend/**'
       - 'packaging/**'
+      - 'Dockerfile'
       - '.github/workflows/release-package.yml'
   release:
     types: [published]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  # ──────────────────────────────────────────────────────────────────
-  # Stage 1: build the Spring Boot fat jar + the ZIP/tar.gz archives.
-  # This runs on Linux because that's where the frontend builds and
-  # because the assembly artifacts are platform-independent.
-  # ──────────────────────────────────────────────────────────────────
   archives:
-    name: Build jar + ZIP/tar.gz
+    name: Build and test jar + ZIP/tar.gz
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 21 (Temurin)
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: temurin
           java-version: 21
           cache: maven
 
       - name: Set up Node.js 20
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20
           cache: npm
@@ -64,21 +61,18 @@ jobs:
         working-directory: frontend
         run: npm ci --legacy-peer-deps
 
-      - name: Build jar + ZIP/tar.gz
-        # Activating any explicit Maven profile suppresses activeByDefault profiles.
-        # Release packaging therefore names both the frontend and archive profiles.
-        run: mvn -B -ntp -Pfrontend,release-package -DskipTests -pl backend -am package
+      - name: Build, test and package archives
+        run: mvn -B -ntp -Pfrontend,release-package -pl backend -am verify
 
       - name: Smoke-test bundled SPA
         env:
           FRESNEL_DATA_DIR: ${{ runner.temp }}/fresnel-release-smoke-data
         run: |
+          set -euo pipefail
           JAR=$(ls backend/target/backend-*.jar | grep -v '\.original$' | head -1)
           java -jar "$JAR" > bundled-spa-smoke.log 2>&1 &
           PID=$!
-          cleanup() {
-            kill "$PID" 2>/dev/null || true
-          }
+          cleanup() { kill "$PID" 2>/dev/null || true; }
           trap cleanup EXIT
 
           for i in $(seq 1 60); do
@@ -92,7 +86,6 @@ jobs:
             fi
             sleep 1
           done
-
           python3 packaging/verify-bundled-spa.py || {
             cat bundled-spa-smoke.log
             exit 1
@@ -107,55 +100,42 @@ jobs:
 
       - name: Stage release artifacts
         run: |
+          set -euo pipefail
           mkdir -p staging
           cp backend/target/backend-*.jar staging/
           cp backend/target/dist/fresnel-*-windows.zip staging/
           cp backend/target/dist/fresnel-*-linux.tar.gz staging/
-          (cd staging && for f in *.jar *.zip *.tar.gz; do sha256sum "$f" > "$f.sha256"; done)
+          (
+            cd staging
+            find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
+              | sort -z | xargs -0 sha256sum > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
           ls -la staging
 
       - name: Upload jar
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: fresnel-jar
           path: |
-            staging/backend-${{ steps.version.outputs.version }}.jar
-            staging/backend-${{ steps.version.outputs.version }}.jar.sha256
+            staging/backend-*.jar
+            staging/SHA256SUMS
           if-no-files-found: error
 
       - name: Upload Windows ZIP
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: fresnel-windows-zip
-          path: |
-            staging/fresnel-*-windows.zip
-            staging/fresnel-*-windows.zip.sha256
+          path: staging/fresnel-*-windows.zip
           if-no-files-found: error
 
       - name: Upload Linux tar.gz
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: fresnel-linux-tgz
-          path: |
-            staging/fresnel-*-linux.tar.gz
-            staging/fresnel-*-linux.tar.gz.sha256
+          path: staging/fresnel-*-linux.tar.gz
           if-no-files-found: error
 
-      - name: Attach archives to GitHub Release
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "${{ github.event.release.tag_name }}" \
-            staging/fresnel-*-windows.zip staging/fresnel-*-windows.zip.sha256 \
-            staging/fresnel-*-linux.tar.gz staging/fresnel-*-linux.tar.gz.sha256 \
-            --clobber
-
-  # ──────────────────────────────────────────────────────────────────
-  # Stage 2: native jpackage installers. These need the matching host
-  # OS (Windows for .msi, Linux for .deb). The job depends on the jar
-  # produced by `archives` so we do not rebuild the frontend.
-  # ──────────────────────────────────────────────────────────────────
   installers:
     name: jpackage (${{ matrix.os }})
     needs: archives
@@ -175,17 +155,19 @@ jobs:
             artifact_glob: 'backend/target/dist/*.msi'
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 21 (Temurin)
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: temurin
           java-version: 21
           cache: maven
 
       - name: Download jar from archives job
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: fresnel-jar
           path: backend/target
@@ -195,10 +177,8 @@ jobs:
           JPACKAGE_TYPE: ${{ matrix.jpackage_type }}
         run: ${{ matrix.script }}
 
-      # Upload before verification so a failing metadata/smoke check still leaves
-      # the exact native package available for diagnosis in the workflow artifacts.
-      - name: Upload installer
-        uses: actions/upload-artifact@v7
+      - name: Upload installer for diagnosis and publication
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: fresnel-installer-${{ matrix.label }}
           path: ${{ matrix.artifact_glob }}
@@ -219,16 +199,51 @@ jobs:
         shell: pwsh
         run: ./packaging/jpackage/verify-windows-package.ps1
 
-      - name: Attach installer to GitHub Release
-        if: github.event_name == 'release'
-        shell: bash
+  publish-release-assets:
+    name: Attach verified packages to published release
+    if: github.event_name == 'release'
+    needs: [archives, installers]
+    runs-on: ubuntu-latest
+    environment: production-release
+    permissions:
+      contents: write
+    steps:
+      - name: Download jar and checksums
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: fresnel-jar
+          path: release-assets
+
+      - name: Download Windows archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: fresnel-windows-zip
+          path: release-assets
+
+      - name: Download Linux archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: fresnel-linux-tgz
+          path: release-assets
+
+      - name: Download Linux installer
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: fresnel-installer-linux
+          path: release-assets
+
+      - name: Download Windows installer
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: fresnel-installer-windows
+          path: release-assets
+
+      - name: Attach artifacts to the published release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
         run: |
-          shopt -s nullglob
-          files=(backend/target/dist/*.${{ matrix.jpackage_type }})
-          if [ ${#files[@]} -gt 0 ]; then
-            gh release upload "${{ github.event.release.tag_name }}" "${files[@]}" --clobber
-          else
-            echo "::warning::no ${{ matrix.jpackage_type }} artifact produced"
-          fi
+          set -euo pipefail
+          mapfile -d '' FILES < <(find release-assets -type f -print0)
+          test ${#FILES[@]} -gt 0
+          gh release upload "$TAG" "${FILES[@]}" --clobber
