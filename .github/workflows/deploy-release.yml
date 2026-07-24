@@ -81,8 +81,8 @@ jobs:
         run: |
           set -euo pipefail
           CURRENT=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)
-          CITATION_VERSION=$(grep -E '^version:' CITATION.cff | head -1 | sed -E 's/^version:[[:space:]]*"?([^"]*)"?/\1/')
-          SUGGESTED=$(grep -E '^next.release.version=' release.properties | head -1 | cut -d'=' -f2 | tr -d '[:space:]')
+          CITATION_VERSION=$(grep -E '^version:' CITATION.cff | head -1 | sed -E 's/^version:[[:space:]]*"?([^"]*)"?/\1/' || true)
+          SUGGESTED=$(grep -E '^next.release.version=' release.properties | head -1 | cut -d'=' -f2 | tr -d '[:space:]' || true)
 
           echo "current_version=${CURRENT}" >> "$GITHUB_OUTPUT"
           echo "citation_version=${CITATION_VERSION}" >> "$GITHUB_OUTPUT"
@@ -97,7 +97,11 @@ jobs:
             echo "::error::Invalid release_version '$VERSION' (expected X.Y.Z without prefix)"
             exit 1
           fi
-          if [[ -z "$SUGGESTED" || "$VERSION" != "$SUGGESTED" ]]; then
+          if [[ -z "$SUGGESTED" ]]; then
+            echo "::error::release.properties is missing a non-empty next.release.version value"
+            exit 1
+          fi
+          if [[ "$VERSION" != "$SUGGESTED" ]]; then
             echo "::error::Release version $VERSION must match release.properties value $SUGGESTED"
             exit 1
           fi
