@@ -1,123 +1,131 @@
-# Fresnel — Installation Guide
+# Fresnel installation guide
 
-Fresnel ships in four supported flavours. Pick the one that matches
-your use-case; they all run the same Spring Boot application and serve
-the bundled React UI at `http://localhost:8080` by default.
+Fresnel is distributed as a Docker image, native Windows/Linux installers,
+portable archives and an executable Spring Boot JAR. All variants contain the
+same React application and REST API.
 
-| Flavour              | Best for                                  | Java required? |
-|----------------------|-------------------------------------------|----------------|
-| Docker image         | Server / container deployments            | No             |
-| Windows installer    | Local desktop use on Windows              | No (bundled)   |
-| Linux installer/tgz  | Local desktop use on Linux                | No (bundled)   |
-| Plain executable jar | Anywhere you already have JDK 21 (CI etc) | Yes            |
+## Choose an installation mode
 
-> ℹ️ The native installers bundle a private Java runtime via `jpackage`,
-> register `.fresnel` production jobs and launch the browser automatically.
-> End users do **not** need to install a JDK manually. The archive, plain-jar
-> and Docker paths retain the conventional server-style startup behavior.
+| Mode | Best for | Java required |
+|---|---|---:|
+| Docker | controlled server/container deployment | no |
+| Windows MSI | local Windows desktop use | no |
+| Debian package | local Linux desktop use | no |
+| portable ZIP/tar.gz | systems with Java 21 | yes |
+| executable JAR | development, CI or managed deployment | yes |
 
----
+Native desktop and default JAR operation are loopback-only. Docker and
+PostgreSQL are network profiles and require explicit credentials.
 
-## 1. Docker (recommended for servers)
+## 1. Docker
+
+The image activates the strict `container` profile. It deliberately refuses to
+start until both application passwords are supplied. Passwords must contain at
+least 12 characters, must differ and may not equal the corresponding username or
+a published default.
 
 ```bash
-docker run --rm -p 8080:8080 ghcr.io/carstenartur/fresnel:latest
-# → http://localhost:8080
+export FRESNEL_SECURITY_USER_USERNAME=alice
+export FRESNEL_SECURITY_USER_PASSWORD='correct-horse-battery-staple'
+export FRESNEL_SECURITY_ADMIN_USERNAME=fresnel-admin
+export FRESNEL_SECURITY_ADMIN_PASSWORD='violet-meteor-archive-2026'
+
+docker run --rm -p 127.0.0.1:8080:8080 \
+  -e FRESNEL_SECURITY_USER_USERNAME \
+  -e FRESNEL_SECURITY_USER_PASSWORD \
+  -e FRESNEL_SECURITY_ADMIN_USERNAME \
+  -e FRESNEL_SECURITY_ADMIN_PASSWORD \
+  ghcr.io/carstenartur/fresnel:latest
 ```
 
-To persist the database between container restarts, mount a volume at
-`/data` and point Fresnel at it:
+Open `http://localhost:8080` and authenticate with the configured account.
+
+### Persistent H2 in Docker
+
+Compose `standalone` with the final strict `container` profile:
 
 ```bash
-docker run --rm -p 8080:8080 \
-  -e SPRING_PROFILES_ACTIVE=standalone \
+docker run --rm -p 127.0.0.1:8080:8080 \
+  -e SPRING_PROFILES_ACTIVE=standalone,container \
   -e FRESNEL_DATA_DIR=/data \
+  -e FRESNEL_SECURITY_USER_USERNAME \
+  -e FRESNEL_SECURITY_USER_PASSWORD \
+  -e FRESNEL_SECURITY_ADMIN_USERNAME \
+  -e FRESNEL_SECURITY_ADMIN_PASSWORD \
   -v fresnel-data:/data \
   ghcr.io/carstenartur/fresnel:latest
 ```
 
-The default container image uses the in-memory H2 profile; use the
-`standalone` profile (above) when you want a persistent local database
-without setting up PostgreSQL.
+### PostgreSQL in Docker
 
-Docker does not register desktop file associations or open a browser.
+Use `container,postgres` and provide every database and application secret:
 
----
+```bash
+docker run --rm -p 127.0.0.1:8080:8080 \
+  -e SPRING_PROFILES_ACTIVE=container,postgres \
+  -e DB_URL='jdbc:postgresql://db:5432/fresnel' \
+  -e DB_USER='fresnel_app' \
+  -e DB_PASSWORD='database-specific-secret' \
+  -e FRESNEL_SECURITY_USER_USERNAME \
+  -e FRESNEL_SECURITY_USER_PASSWORD \
+  -e FRESNEL_SECURITY_ADMIN_USERNAME \
+  -e FRESNEL_SECURITY_ADMIN_PASSWORD \
+  ghcr.io/carstenartur/fresnel:latest
+```
+
+For LAN, Internet or orchestrated deployment, terminate TLS at a trusted reverse
+proxy/ingress, prevent direct access to port 8080 and configure an exact
+`FRESNEL_CORS_ALLOWED_ORIGINS` allowlist. See
+[`docs/security/deployment.md`](../docs/security/deployment.md).
 
 ## 2. Windows installer
 
-Download the latest `Fresnel-<version>.msi` (or the
-`fresnel-<version>-windows.zip` fallback) from the
-[Releases page](https://github.com/carstenartur/Fresnel/releases) and
-run it. The installer:
+Download `Fresnel-<version>.msi` from the
+[Releases page](https://github.com/carstenartur/Fresnel/releases). The installer:
 
-* installs Fresnel under `C:\Program Files\Fresnel\`,
-* registers a Start-menu shortcut **Fresnel**,
-* registers Fresnel as a handler for `.fresnel` production jobs,
-* bundles its own Java runtime — no JDK needed,
-* stores the database, desktop lock and other user data **outside** the
-  install directory, under `%APPDATA%\Fresnel\` (typically
-  `C:\Users\<you>\AppData\Roaming\Fresnel`).
+- installs under `C:\Program Files\Fresnel\`;
+- bundles a private Java 21 runtime;
+- registers a Start-menu shortcut and `.fresnel` file handler;
+- stores user data under `%APPDATA%\Fresnel\`;
+- starts an application server bound to `127.0.0.1`.
 
-Click the Start-menu entry to start Fresnel. The installed application waits
-until its loopback server is ready and opens the correct local URL in the
-default browser.
-
-To open a design directly, double-click a `.fresnel` file or use:
+Open a job directly with:
 
 ```bat
 "C:\Program Files\Fresnel\Fresnel.exe" --open "D:\Optics\example.fresnel"
 ```
 
-If Windows asks which application to use, choose **Fresnel** through
-**Open with…** and optionally select it as the default for `.fresnel` files.
-The installer advertises the handler but does not override an existing
-user-selected default application by editing the registry behind the user's
-back.
+Windows may retain an existing user-selected file association. Use **Open
+with…** to choose Fresnel rather than editing the registry manually.
 
-### ZIP fallback (no admin rights)
+### ZIP fallback
 
-If you cannot run an installer, download the `*-windows.zip` archive
-and unzip it anywhere. Then double-click `bin\start-fresnel.bat`.
-You will need a system-wide Java 21 runtime in that case (`JAVA_HOME`
-or `java` on `PATH`).
+The Windows ZIP requires Java 21 on `PATH` or through `JAVA_HOME`:
 
-The ZIP fallback does not register `.fresnel` files and does not enable the
-single-instance desktop launcher. Open jobs with the **Open job…** control in
-the web interface.
+```bat
+bin\start-fresnel.bat
+```
 
----
+The portable archive does not register file associations or provide the native
+single-instance launcher.
 
 ## 3. Linux installer
 
-Download either the `.deb` (Debian / Ubuntu) or the
-`fresnel-<version>-linux.tar.gz` fallback from the
-[Releases page](https://github.com/carstenartur/Fresnel/releases).
-
-### Debian / Ubuntu
+Download `fresnel_<version>_amd64.deb` and install it with:
 
 ```bash
 sudo apt install ./fresnel_<version>_amd64.deb
-Fresnel    # normally launch from the desktop application menu
 ```
 
-The package installs under `/opt/fresnel/`, includes a private JRE, registers
-the MIME type `application/vnd.carstenartur.fresnel.job+json`, and stores user
-data under `$HOME/.local/share/Fresnel/` unless `XDG_DATA_HOME` or
-`FRESNEL_DATA_DIR` is set.
+The package installs under `/opt/fresnel/`, bundles a private Java runtime,
+registers the Fresnel MIME type and stores data under
+`$HOME/.local/share/Fresnel/` unless `FRESNEL_DATA_DIR` is set.
 
-Double-clicking a `.fresnel` job in a desktop file manager starts Fresnel or
-hands the job to the already-running primary instance. A command-line fallback
-is:
+Open a job explicitly with:
 
 ```bash
 /opt/fresnel/bin/Fresnel --open "$HOME/Optics/example.fresnel"
 ```
-
-Desktop environments may keep an existing per-user default application. Use
-the file manager's **Open With…** action to choose Fresnel, or use the desktop's
-normal default-application settings. Package installation intentionally does
-not overwrite a user preference with ad-hoc MIME database commands.
 
 ### tar.gz fallback
 
@@ -127,15 +135,29 @@ cd fresnel-<version>
 ./bin/start-fresnel.sh
 ```
 
-You will need Java 21 on `PATH` for this path (the installer is the
-one that ships a bundled JRE). The tar.gz fallback does not install a desktop
-file association; use **Open job…** in the browser UI.
+This path requires Java 21 and does not install a desktop file association.
 
----
+## 4. Executable JAR
 
-## Opening jobs and single-instance behavior
+Local in-memory operation:
 
-Native `.msi` and `.deb` installations support these launch forms:
+```bash
+java -jar backend-<version>.jar
+```
+
+Local persistent H2 operation:
+
+```bash
+java -Dspring.profiles.active=standalone -jar backend-<version>.jar
+```
+
+Both modes bind to `127.0.0.1` by default. Do not place them behind a network
+proxy. For a managed PostgreSQL deployment, activate `postgres` and set the
+required DB and application secrets described in the secure deployment guide.
+
+## Desktop single-instance behavior
+
+Native installations support:
 
 ```text
 Fresnel
@@ -143,79 +165,36 @@ Fresnel /path/to/example.fresnel
 Fresnel --open /path/to/example.fresnel
 ```
 
-Only one packaged desktop process owns the local Fresnel server for a given
-user-data directory. When Fresnel is already running, another invocation:
+Only one packaged desktop process owns the local server for a given data
+directory. A subsequent invocation authenticates to the loopback primary,
+submits the job bytes and receives a random one-time import token. Source paths
+are not sent over HTTP or retained in browser history. Tokens expire after five
+minutes and work once.
 
-1. verifies the recorded process through an authenticated loopback ping,
-2. sends the job bytes to the primary instance,
-3. receives a random one-time import token,
-4. opens a `127.0.0.1` browser URL containing only that token.
+## Data locations
 
-The local source path is never sent through HTTP or placed in browser history.
-The React application removes the token from the address bar before consuming
-it. Tokens expire after five minutes and work only once. Invalid jobs are shown
-as in-application errors and do not terminate the healthy primary process or
-replace a valid current design.
+| Item | Windows | Linux | macOS / JAR |
+|---|---|---|---|
+| database | `%APPDATA%\Fresnel\db\` | `$HOME/.local/share/Fresnel/db/` | under `FRESNEL_DATA_DIR` |
+| desktop metadata | `%APPDATA%\Fresnel\desktop-instance*` | `$HOME/.local/share/Fresnel/desktop-instance*` | under `FRESNEL_DATA_DIR` |
+| external config | installation `config` directory | installation `config` or `/etc/fresnel` | configurable |
 
-If a former process crashed, the next launcher safely takes the released file
-lock and removes stale metadata. No manual lock-file cleanup should be needed.
-
----
-
-## 4. Plain JAR (developers / CI)
+Override the data directory before launch:
 
 ```bash
-java -jar backend-<version>.jar
-# → http://localhost:8080  (in-memory H2, data lost on restart)
-```
-
-For a persistent local database (same storage profile the installers use):
-
-```bash
-java -Dspring.profiles.active=standalone \
-     -jar backend-<version>.jar
-```
-
-Plain-jar startup does not enable desktop file association, single-instance
-locking or automatic browser opening. This preserves normal server and CI
-behavior. The standalone profile writes the H2 database to the configured
-Fresnel data directory unless you set `FRESNEL_DATA_DIR`.
-
----
-
-## Where things are stored
-
-| Item             | Windows                              | Linux                                      | macOS                                              |
-|------------------|--------------------------------------|--------------------------------------------|----------------------------------------------------|
-| Database         | `%APPDATA%\Fresnel\db\`             | `$HOME/.local/share/Fresnel/db/`           | `$HOME/Library/Application Support/Fresnel/db/`    |
-| Desktop metadata | `%APPDATA%\Fresnel\desktop-instance*`| `$HOME/.local/share/Fresnel/desktop-instance*` | `$HOME/Library/Application Support/Fresnel/desktop-instance*` |
-| Config           | `<install>\config\`                 | `<install>/config/` or `/etc/fresnel/`     | `<install>/config/`                                |
-| Logs             | stdout/stderr when run from terminal | stdout/stderr                              | stdout/stderr                                      |
-
-Override the data directory at any time:
-
-```bash
-# Linux/macOS
 FRESNEL_DATA_DIR=/srv/fresnel ./bin/start-fresnel.sh
 ```
 
 ```bat
-:: Windows
 set FRESNEL_DATA_DIR=D:\Fresnel
 bin\start-fresnel.bat
 ```
 
-For native desktop installations, changing `FRESNEL_DATA_DIR` changes the
-single-instance scope as well: each distinct data directory can own one primary
-process.
+Each distinct data directory has an independent desktop single-instance scope.
 
----
+## Port configuration
 
-## Changing the port
-
-The launch scripts honour `SERVER_PORT`, or you can uncomment
-`server.port=` in
-`config/application-standalone.properties`:
+Set `SERVER_PORT` before launch:
 
 ```bash
 SERVER_PORT=9090 ./bin/start-fresnel.sh
@@ -226,66 +205,57 @@ set SERVER_PORT=9090
 bin\start-fresnel.bat
 ```
 
-Native desktop mode records and opens the actual configured port after the
-server starts. It always forces `server.address=127.0.0.1`; a desktop import
-endpoint is never exposed to the network.
+Desktop mode always forces `server.address=127.0.0.1`. Server/container profiles
+use `SERVER_ADDRESS`, which defaults to `0.0.0.0`; those profiles require explicit
+credentials.
 
----
+## Render-job privacy and retention
 
-## Repairing a file association
+Render-job submission, status, SSE progress and result downloads require
+authentication. Only the owner or an administrator can retrieve a job. The
+primary job ID contains 192 bits of random entropy and is not a public share
+link. Unknown and unauthorized identifiers both return `404`.
 
-An operating system may retain a previous user-selected default after Fresnel is
-installed or upgraded.
+Terminal job results default to 30 days of persisted retention. Override with:
 
-**Windows:** right-click a `.fresnel` file, choose **Open with → Choose another
-app**, select **Fresnel**, and use the normal “always use” option when desired.
+```properties
+fresnel.jobs.persisted-retention-days=30
+```
 
-**Linux desktop:** use the file manager's **Open With…** or file-properties
-application selector. Package metadata advertises Fresnel and its MIME type, but
-the exact UI differs between GNOME, KDE and other desktops.
+## Reset local data
 
-The command-line `--open` form shown above works independently of the default
-association and is also useful for diagnostics.
-
----
-
-## Resetting / deleting local data
-
-Stop Fresnel, then delete the contents of `FRESNEL_DATA_DIR`:
+Stop Fresnel, then remove the configured data directory:
 
 ```bash
-# Linux
 rm -rf "$HOME/.local/share/Fresnel"
 ```
 
 ```bat
-:: Windows
 rmdir /S /Q "%APPDATA%\Fresnel"
 ```
 
-The application will recreate an empty database and desktop coordination files
-on the next start.
+The application recreates an empty database and desktop coordination files at
+the next start.
 
----
-
-## Building the installers locally
+## Building packages locally
 
 ```bash
-# Activating an explicit Maven profile suppresses activeByDefault profiles, so
-# name both the frontend build and the release archive profile explicitly.
-# The command builds the jar plus the Windows ZIP and Linux tar.gz under
-# backend/target/dist/.
 mvn -B -ntp -Pfrontend,release-package -pl backend -am package
+```
 
-# Native installers (requires jpackage from JDK 21+):
-JPACKAGE_TYPE=deb bash packaging/jpackage/build-linux.sh    # on Linux
+This creates the executable JAR plus Windows ZIP and Linux tar.gz archives under
+`backend/target/dist/`.
+
+Native packages require `jpackage` from JDK 21 or newer:
+
+```bash
+JPACKAGE_TYPE=deb bash packaging/jpackage/build-linux.sh
 ```
 
 ```bat
-:: Native Windows installer (run on Windows in a CMD shell):
 set JPACKAGE_TYPE=msi
 packaging\jpackage\build-windows.cmd
 ```
 
 See [`packaging/jpackage/README.md`](jpackage/README.md) for package metadata,
-security details, CI integration and the release smoke-test checklist.
+CI integration and smoke-test requirements.
