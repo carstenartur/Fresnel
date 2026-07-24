@@ -1,413 +1,301 @@
-name: Release
+name: Publish Release
 
 on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: 'Release version (e.g., 0.1.4) - expected value is tracked in release.properties'
+        description: 'Release version already merged to main (for example 0.1.8)'
         required: true
         type: string
-        default: '0.1.4'
-      skip_tests:
-        description: 'Skip tests during release build'
-        required: false
-        type: boolean
-        default: false
-      dry_run:
-        description: 'Dry run - validate everything but do not publish'
-        required: false
-        type: boolean
-        default: false
+      expected_main_sha:
+        description: 'Exact 40-character merge SHA of the reviewed release PR'
+        required: true
+        type: string
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  packages: write
+  contents: read
+
+concurrency:
+  group: publish-release-${{ inputs.release_version }}
+  cancel-in-progress: false
 
 env:
-  GH_TOKEN: ${{ github.token }}
+  REGISTRY: ghcr.io
 
 jobs:
-  preflight:
-    name: Preflight Checks
+  build:
+    name: Verify and build release assets
     runs-on: ubuntu-latest
-    outputs:
-      release_version: ${{ steps.versions.outputs.release_version }}
-      next_snapshot: ${{ steps.versions.outputs.next_snapshot }}
-      maintenance_branch: ${{ steps.versions.outputs.maintenance_branch }}
-      current_version: ${{ steps.metadata.outputs.current_version }}
-      citation_version: ${{ steps.metadata.outputs.citation_version }}
-      suggested_release: ${{ steps.metadata.outputs.suggested_release }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+      - name: Checkout the exact reviewed release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.expected_main_sha }}
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v5
-        with:
-          java-version: '21'
-          distribution: temurin
-          cache: maven
-
-      - name: Read release metadata
-        id: metadata
+      - name: Verify immutable main starting point
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_main_sha }}
+          VERSION: ${{ inputs.release_version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::expected_main_sha must be a full lowercase commit SHA"
+            exit 1
+          }
+          [[ "$VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]] || {
+            echo "::error::release_version must be X.Y.Z without a prefix"
+            exit 1
+          }
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          REMOTE_MAIN=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          if [ "$REMOTE_MAIN" != "$EXPECTED_SHA" ]; then
+            echo "::error::main moved from $EXPECTED_SHA to $REMOTE_MAIN; review and restart"
+            exit 1
+          fi
+
           CURRENT=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)
-          CITATION_VERSION=$(grep -E '^version:' CITATION.cff | head -1 | sed -E 's/^version:[[:space:]]*"?([^"]*)"?/\1/')
-
-          if [ -f release.properties ]; then
-            SUGGESTED=$(grep -E '^next.release.version=' release.properties | head -1 | cut -d'=' -f2 | tr -d '[:space:]')
-          else
-            SUGGESTED="${CURRENT%-SNAPSHOT}"
-          fi
-
-          echo "current_version=${CURRENT}" >> "$GITHUB_OUTPUT"
-          echo "citation_version=${CITATION_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "suggested_release=${SUGGESTED}" >> "$GITHUB_OUTPUT"
-
-      - name: Validate release version input
-        run: |
-          VERSION="${{ inputs.release_version }}"
-          if ! [[ "$VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
-            echo "::error::Invalid release_version '$VERSION' (expected X.Y.Z without prefix)"
+          test "$CURRENT" = "$VERSION" || {
+            echo "::error::project version '$CURRENT' does not equal '$VERSION'"
             exit 1
-          fi
-
-          SUGGESTED="${{ steps.metadata.outputs.suggested_release }}"
-          if [[ -n "$SUGGESTED" && "$VERSION" != "$SUGGESTED" ]]; then
-            echo "::warning::Input version $VERSION differs from release.properties suggestion $SUGGESTED"
-          fi
-
-      - name: Calculate version outputs
-        id: versions
-        run: |
-          RELEASE="${{ inputs.release_version }}"
-          IFS='.' read -r major minor patch <<< "$RELEASE"
-          NEXT_PATCH=$((patch + 1))
-          NEXT_SNAPSHOT="${major}.${minor}.${NEXT_PATCH}-SNAPSHOT"
-          MAINT_BRANCH="maintenance/${major}.${minor}.x"
-
-          echo "release_version=${RELEASE}" >> "$GITHUB_OUTPUT"
-          echo "next_snapshot=${NEXT_SNAPSHOT}" >> "$GITHUB_OUTPUT"
-          echo "maintenance_branch=${MAINT_BRANCH}" >> "$GITHUB_OUTPUT"
-
-      - name: Check if release tag already exists
-        run: |
-          VERSION="${{ inputs.release_version }}"
-          if git ls-remote --tags origin | grep -q "refs/tags/${VERSION}$"; then
-            echo "::error::Tag ${VERSION} already exists"
+          }
+          CITATION=$(grep -E '^version:' CITATION.cff | head -1 | sed -E 's/^version:[[:space:]]*"?([^" ]*)"?.*/\1/')
+          test "$CITATION" = "$VERSION" || {
+            echo "::error::CITATION.cff version '$CITATION' does not equal '$VERSION'"
             exit 1
-          fi
+          }
 
-      - name: Validate current pom version is SNAPSHOT
-        run: |
-          CURRENT="${{ steps.metadata.outputs.current_version }}"
-          if [[ "$CURRENT" != *-SNAPSHOT ]]; then
-            echo "::error::Current project version '$CURRENT' is not a SNAPSHOT"
-            exit 1
-          fi
-          echo "Current project version: $CURRENT"
-
-      - name: Validate CITATION version matches project version
-        run: |
-          CURRENT="${{ steps.metadata.outputs.current_version }}"
-          CITATION_VERSION="${{ steps.metadata.outputs.citation_version }}"
-
-          if [[ -z "$CITATION_VERSION" ]]; then
-            echo "::error::CITATION.cff does not contain a version field"
-            exit 1
-          fi
-
-          if [[ "$CITATION_VERSION" != "$CURRENT" ]]; then
-            echo "::error::CITATION.cff version '$CITATION_VERSION' does not match project version '$CURRENT'"
-            exit 1
-          fi
-
-          echo "CITATION.cff version: $CITATION_VERSION"
-
-      - name: Preflight summary
-        run: |
-          echo "## Preflight Check Summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Item | Value |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Current project version | ${{ steps.metadata.outputs.current_version }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| CITATION.cff version | ${{ steps.metadata.outputs.citation_version }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Suggested release | ${{ steps.metadata.outputs.suggested_release }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Release version | ${{ steps.versions.outputs.release_version }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Next SNAPSHOT | ${{ steps.versions.outputs.next_snapshot }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Maintenance branch | ${{ steps.versions.outputs.maintenance_branch }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Dry run | ${{ inputs.dry_run }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Skip tests | ${{ inputs.skip_tests }} |" >> "$GITHUB_STEP_SUMMARY"
-
-  release:
-    name: Build and Release
-    needs: preflight
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Ensure on main branch
-        run: git checkout main
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v5
-        with:
-          java-version: '21'
-          distribution: temurin
-          cache: maven
-
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v7
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Configure git author
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-
-      - name: Set release version in all poms
-        run: |
-          mvn versions:set -DnewVersion=${{ needs.preflight.outputs.release_version }} -DgenerateBackupPoms=false
-
-      - name: Set release version in CITATION.cff
-        run: |
-          python3 .github/scripts/update-citation.py --version "${{ needs.preflight.outputs.release_version }}"
-
-      - name: Commit release version changes
-        run: |
-          git add pom.xml backend/pom.xml optics-core/pom.xml CITATION.cff
-          git commit -m "Release version ${{ needs.preflight.outputs.release_version }}"
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci --legacy-peer-deps
-
-      - name: Build and verify
-        run: |
-          if [[ "${{ inputs.skip_tests }}" == "true" ]]; then
-            mvn -B -ntp verify -DskipTests
-          else
-            mvn -B -ntp verify
-          fi
-
-      - name: Prepare release assets
-        run: |
-          VERSION="${{ needs.preflight.outputs.release_version }}"
-          mkdir -p dist
-          JAR="backend/target/backend-${VERSION}.jar"
-          if [ ! -f "$JAR" ]; then
-            echo "::error::Expected boot jar not found at $JAR"
-            ls -la backend/target || true
-            exit 1
-          fi
-          cp "$JAR" "dist/backend-${VERSION}.jar"
-          (cd dist && sha256sum "backend-${VERSION}.jar" > "backend-${VERSION}.jar.sha256")
-
-      - name: Capture release commit SHA
-        id: release_commit
-        run: |
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Push release commit to main (temp branch + API fast-forward)
-        if: ${{ !inputs.dry_run }}
-        run: |
-          set -e
-          COMMIT_SHA="${{ steps.release_commit.outputs.sha }}"
-          TEMP_BRANCH="release-temp-${{ needs.preflight.outputs.release_version }}"
-
-          if git ls-remote --exit-code --heads origin "$TEMP_BRANCH" >/dev/null 2>&1; then
-            git push origin ":refs/heads/${TEMP_BRANCH}"
-          fi
-          git push origin "HEAD:refs/heads/${TEMP_BRANCH}"
-
-          gh api "repos/${{ github.repository }}/git/refs/heads/main" \
-            --method PATCH \
-            -f sha="$COMMIT_SHA" || {
-              echo "::error::Failed to fast-forward main to ${COMMIT_SHA}"
+          EXISTING=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"$VERSION\") | [.id, .draft, .target_commitish] | @tsv")
+          if [ -n "$EXISTING" ]; then
+            IFS=$'\t' read -r RELEASE_ID IS_DRAFT TARGET <<< "$EXISTING"
+            test "$IS_DRAFT" = "true" || {
+              echo "::error::release $VERSION is already published"
               exit 1
             }
-
-      - name: Dry run - Skip pushing release commit
-        if: ${{ inputs.dry_run }}
-        run: |
-          echo "::notice::Dry run mode - would push release commit ${{ steps.release_commit.outputs.sha }} to main via temp branch + API fast-forward"
-
-      - name: Cleanup temporary release branch
-        if: ${{ success() && !inputs.dry_run }}
-        run: |
-          TEMP_BRANCH="release-temp-${{ needs.preflight.outputs.release_version }}"
-          if git ls-remote --exit-code --heads origin "$TEMP_BRANCH" >/dev/null 2>&1; then
-            git push origin ":refs/heads/${TEMP_BRANCH}"
+            test "$TARGET" = "$EXPECTED_SHA" || {
+              echo "::error::draft release targets $TARGET, expected $EXPECTED_SHA"
+              exit 1
+            }
+            echo "Recovering approved draft release id $RELEASE_ID"
+          elif git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "::error::tag $VERSION exists without an approved recoverable draft"
+            exit 1
           fi
 
-      - name: Create and push annotated tag
-        if: ${{ !inputs.dry_run }}
+      - name: Set up JDK 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Run the complete release test suite
+        run: mvn -B -ntp verify
+
+      - name: Build distributable archives
+        run: mvn -B -ntp -Pfrontend,release-package -pl backend -am package
+
+      - name: Stage and checksum release assets
+        env:
+          VERSION: ${{ inputs.release_version }}
         run: |
-          set -e
-          VERSION="${{ needs.preflight.outputs.release_version }}"
-          COMMIT_SHA="${{ steps.release_commit.outputs.sha }}"
+          set -euo pipefail
+          mkdir -p staging
+          cp "backend/target/backend-${VERSION}.jar" staging/
+          cp backend/target/dist/fresnel-*-windows.zip staging/
+          cp backend/target/dist/fresnel-*-linux.tar.gz staging/
+          cp CITATION.cff staging/
+          if find staging -maxdepth 1 -type f -name '*SNAPSHOT*' | grep -q .; then
+            echo "::error::release assets contain SNAPSHOT filenames"
+            exit 1
+          fi
+          (
+            cd staging
+            find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
+              | sort -z | xargs -0 sha256sum > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          ls -la staging
 
-          TAG_SHA=$(gh api "repos/${{ github.repository }}/git/tags" \
-            --method POST \
-            -f tag="$VERSION" \
-            -f message="Release version $VERSION" \
-            -f object="$COMMIT_SHA" \
-            -f type="commit" \
-            --jq '.sha')
+      - name: Upload validated release assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-assets-${{ inputs.release_version }}-${{ inputs.expected_main_sha }}
+          path: staging
+          if-no-files-found: error
+          retention-days: 7
 
-          gh api "repos/${{ github.repository }}/git/refs" \
-            --method POST \
-            -f ref="refs/tags/${VERSION}" \
-            -f sha="$TAG_SHA"
+  publish:
+    name: Publish approved release
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production-release
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout the exact reviewed release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_main_sha }}
+          fetch-depth: 0
+          persist-credentials: true
 
-      - name: Dry run - Skip tag creation
-        if: ${{ inputs.dry_run }}
+      - name: Reverify main immediately before publication
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_main_sha }}
         run: |
-          echo "::notice::Dry run mode - would create annotated tag ${{ needs.preflight.outputs.release_version }}"
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          REMOTE_MAIN=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          test "$REMOTE_MAIN" = "$EXPECTED_SHA" || {
+            echo "::error::main moved to $REMOTE_MAIN; nothing was published"
+            exit 1
+          }
 
-      - name: Create maintenance branch
-        if: ${{ !inputs.dry_run }}
+      - name: Download validated release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets-${{ inputs.release_version }}-${{ inputs.expected_main_sha }}
+          path: staging
+
+      - name: Verify downloaded checksums
+        run: cd staging && sha256sum -c SHA256SUMS
+
+      - name: Create or recover the exact draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.release_version }}
+          EXPECTED_SHA: ${{ inputs.expected_main_sha }}
         run: |
-          set -e
-          BRANCH_NAME="${{ needs.preflight.outputs.maintenance_branch }}"
-          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
-            echo "Branch $BRANCH_NAME already exists, skipping"
+          set -euo pipefail
+          EXISTING=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"$VERSION\") | [.id, .draft, .target_commitish] | @tsv")
+          if [ -z "$EXISTING" ]; then
+            gh release create "$VERSION" \
+              --draft \
+              --target "$EXPECTED_SHA" \
+              --title "Fresnel $VERSION" \
+              --generate-notes
           else
-            gh api "repos/${{ github.repository }}/git/refs" \
-              --method POST \
-              -f ref="refs/heads/${BRANCH_NAME}" \
-              -f sha="${{ steps.release_commit.outputs.sha }}"
+            IFS=$'\t' read -r RELEASE_ID IS_DRAFT TARGET <<< "$EXISTING"
+            test "$IS_DRAFT" = "true"
+            test "$TARGET" = "$EXPECTED_SHA"
+            echo "Reusing draft release id $RELEASE_ID"
           fi
+          gh release upload "$VERSION" staging/* --clobber
 
-      - name: Dry run - Skip maintenance branch creation
-        if: ${{ inputs.dry_run }}
-        run: |
-          echo "::notice::Dry run mode - would create branch ${{ needs.preflight.outputs.maintenance_branch }}"
+      - name: Attest binary release assets
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-path: |
+            staging/*.jar
+            staging/*.zip
+            staging/*.tar.gz
+            staging/SHA256SUMS
 
-      - name: Create GitHub Release and upload jar assets
-        if: ${{ !inputs.dry_run }}
-        run: |
-          VERSION="${{ needs.preflight.outputs.release_version }}"
-          gh release create "$VERSION" \
-            "dist/backend-${VERSION}.jar" \
-            "dist/backend-${VERSION}.jar.sha256" \
-            --title "Fresnel ${VERSION}" \
-            --generate-notes
-
-      - name: Dry run - Skip GitHub Release creation
-        if: ${{ inputs.dry_run }}
-        run: |
-          VERSION="${{ needs.preflight.outputs.release_version }}"
-          echo "::notice::Dry run mode - would create GitHub release $VERSION (title: Fresnel $VERSION)"
-          echo "::notice::Dry run mode - would upload dist/backend-${VERSION}.jar"
-          echo "::notice::Dry run mode - would upload dist/backend-${VERSION}.jar.sha256"
-
-      - name: Set up QEMU (multi-arch)
-        if: ${{ !inputs.dry_run }}
-        uses: docker/setup-qemu-action@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
 
       - name: Set up Docker Buildx
-        if: ${{ !inputs.dry_run }}
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
       - name: Log in to GHCR
-        if: ${{ !inputs.dry_run }}
-        uses: docker/login-action@v4
+        uses: docker/login-action@06fb636fac595d6fb4b28a5dfcb21a6f5091859c # v4
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker metadata
-        if: ${{ !inputs.dry_run }}
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/carstenartur/fresnel
-          tags: |
-            type=raw,value=${{ needs.preflight.outputs.release_version }}
-            type=raw,value=latest
-            type=sha,prefix=sha-,format=short
+      - name: Normalize image name
+        id: image
+        run: |
+          NAME=$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push Docker image
-        if: ${{ !inputs.dry_run }}
-        uses: docker/build-push-action@v6
+      - name: Build and push versioned container image
+        id: container
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ inputs.release_version }}
+            ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:sha-${{ steps.image.outputs.short_sha }}
+          provenance: mode=max
+          sbom: true
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ inputs.expected_main_sha }}
+            org.opencontainers.image.version=${{ inputs.release_version }}
 
-      - name: Dry run - Skip Docker push
-        if: ${{ inputs.dry_run }}
+      - name: Attest container provenance
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
+          subject-digest: ${{ steps.container.outputs.digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Point latest at the attested digest
         run: |
-          VERSION="${{ needs.preflight.outputs.release_version }}"
-          echo "::notice::Dry run mode - would push ghcr.io/carstenartur/fresnel:${VERSION}"
-          echo "::notice::Dry run mode - would push ghcr.io/carstenartur/fresnel:latest"
-          echo "::notice::Dry run mode - would push ghcr.io/carstenartur/fresnel:sha-<short-sha>"
+          docker buildx imagetools create \
+            --tag "${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest" \
+            "${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.container.outputs.digest }}"
 
-      - name: Clean working directory
+      - name: Open the next snapshot pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.release_version }}
+          EXPECTED_SHA: ${{ inputs.expected_main_sha }}
         run: |
-          git checkout main
-          git reset --hard "${{ steps.release_commit.outputs.sha }}"
-          git clean -fd
+          set -euo pipefail
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))-SNAPSHOT"
+          BRANCH="post-release/$VERSION"
 
-      - name: Bump to next SNAPSHOT version
-        run: |
-          mvn versions:set -DnewVersion=${{ needs.preflight.outputs.next_snapshot }} -DgenerateBackupPoms=false
-
-      - name: Update citation and release metadata for next development iteration
-        run: |
-          NEXT_VERSION="${{ needs.preflight.outputs.next_snapshot }}"
-          NEXT_RELEASE="${NEXT_VERSION%-SNAPSHOT}"
-
-          python3 .github/scripts/update-citation.py --version "$NEXT_VERSION" --snapshot
-          sed -i "s/^next.release.version=.*/next.release.version=${NEXT_RELEASE}/" release.properties
-
-      - name: Create PR for next development iteration
-        run: |
-          NEXT_VERSION="${{ needs.preflight.outputs.next_snapshot }}"
-          BRANCH_NAME="release/prepare-next-${NEXT_VERSION}"
-
-          git checkout -B "$BRANCH_NAME"
-          git add pom.xml backend/pom.xml optics-core/pom.xml CITATION.cff release.properties
-          git commit -m "Prepare for next development iteration ${NEXT_VERSION}"
-
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            echo "::notice::Dry run mode - would push branch ${BRANCH_NAME}"
-            echo "::notice::Dry run mode - would create PR 'Prepare for next development iteration ${NEXT_VERSION}' into main"
-            exit 0
+          if ! git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            git checkout -b "$BRANCH" "$EXPECTED_SHA"
+            mvn -B -ntp versions:set -DnewVersion="$NEXT" -DgenerateBackupPoms=false
+            python3 .github/scripts/update-citation.py --version "$NEXT"
+            git diff --check
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add pom.xml backend/pom.xml optics-core/pom.xml CITATION.cff
+            git commit -m "Start $NEXT development"
+            git push origin "HEAD:refs/heads/$BRANCH"
           fi
 
-          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
-            git push origin ":refs/heads/${BRANCH_NAME}"
+          if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "Start $NEXT development" \
+              --body "Post-release metadata update after Fresnel $VERSION. This PR changes version metadata only and runs the normal required checks."
           fi
-          git push origin "$BRANCH_NAME"
 
-          cat > /tmp/pr_body.md << EOF
-          Automated PR to bump Maven and citation metadata to ${NEXT_VERSION} after release ${{ needs.preflight.outputs.release_version }}.
+      - name: Publish the completed draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.release_version }}
+        run: gh release edit "$VERSION" --draft=false --latest
 
-          ## Changes
-          - Bump Maven modules to ${NEXT_VERSION}
-          - Update CITATION.cff version to ${NEXT_VERSION}
-          - Update release.properties for the next release cycle
-          EOF
-
-          gh pr create \
-            --title "Prepare for next development iteration ${NEXT_VERSION}" \
-            --body-file /tmp/pr_body.md \
-            --base main \
-            --head "$BRANCH_NAME"
+      - name: Publication summary
+        run: |
+          {
+            echo '## Published release'
+            echo
+            echo "- version: \`${{ inputs.release_version }}\`"
+            echo "- source commit: \`${{ inputs.expected_main_sha }}\`"
+            echo "- container digest: \`${{ steps.container.outputs.digest }}\`"
+            echo '- binary checksums and GitHub artifact attestations: generated'
+            echo '- container SBOM, provenance and registry attestation: generated'
+          } >> "$GITHUB_STEP_SUMMARY"
