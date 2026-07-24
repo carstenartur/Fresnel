@@ -22,13 +22,15 @@ PostgreSQL are network profiles and require explicit credentials.
 The image activates the strict `container` profile. It deliberately refuses to
 start until both application passwords are supplied. Passwords must contain at
 least 12 characters, must differ and may not equal the corresponding username or
-a published default.
+a published default. This guide intentionally contains no example password
+values; supply secrets through the calling environment or an external secret
+manager.
 
 ```bash
 export FRESNEL_SECURITY_USER_USERNAME=alice
-export FRESNEL_SECURITY_USER_PASSWORD='correct-horse-battery-staple'
 export FRESNEL_SECURITY_ADMIN_USERNAME=fresnel-admin
-export FRESNEL_SECURITY_ADMIN_PASSWORD='violet-meteor-archive-2026'
+: "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
+: "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
 
 docker run --rm -p 127.0.0.1:8080:8080 \
   -e FRESNEL_SECURITY_USER_USERNAME \
@@ -61,11 +63,13 @@ docker run --rm -p 127.0.0.1:8080:8080 \
 Use `container,postgres` and provide every database and application secret:
 
 ```bash
+: "${DB_PASSWORD:?set the database password}"
+
 docker run --rm -p 127.0.0.1:8080:8080 \
   -e SPRING_PROFILES_ACTIVE=container,postgres \
   -e DB_URL='jdbc:postgresql://db:5432/fresnel' \
   -e DB_USER='fresnel_app' \
-  -e DB_PASSWORD='database-specific-secret' \
+  -e DB_PASSWORD \
   -e FRESNEL_SECURITY_USER_USERNAME \
   -e FRESNEL_SECURITY_USER_PASSWORD \
   -e FRESNEL_SECURITY_ADMIN_USERNAME \
