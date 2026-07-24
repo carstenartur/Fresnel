@@ -1,0 +1,196 @@
+name: Prepare Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version without a v prefix (for example 0.1.8)'
+        required: true
+        type: string
+      expected_main_sha:
+        description: 'Exact 40-character main commit reviewed for this release'
+        required: true
+        type: string
+      dry_run:
+        description: 'Validate and test without creating the release pull request'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-release-${{ inputs.release_version }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release candidate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the reviewed main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_main_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify immutable main starting point
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::expected_main_sha must be a full lowercase commit SHA"
+            exit 1
+          }
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          REMOTE_MAIN=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          if [ "$REMOTE_MAIN" != "$EXPECTED_SHA" ]; then
+            echo "::error::main moved from $EXPECTED_SHA to $REMOTE_MAIN; review the new commit and retry"
+            exit 1
+          fi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Validate release metadata and availability
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.release_version }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]] || {
+            echo "::error::release_version must be X.Y.Z without a prefix"
+            exit 1
+          }
+          CURRENT=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)
+          [[ "$CURRENT" == *-SNAPSHOT ]] || {
+            echo "::error::main version '$CURRENT' is not a SNAPSHOT"
+            exit 1
+          }
+          CITATION=$(grep -E '^version:' CITATION.cff | head -1 | sed -E 's/^version:[[:space:]]*"?([^" ]*)"?.*/\1/')
+          test "$CITATION" = "$CURRENT" || {
+            echo "::error::CITATION.cff version '$CITATION' does not match '$CURRENT'"
+            exit 1
+          }
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "::error::tag $VERSION already exists"
+            exit 1
+          fi
+          if gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+              --jq ".[] | select(.tag_name == \"$VERSION\") | .id" | grep -q .; then
+            echo "::error::a GitHub release for $VERSION already exists"
+            exit 1
+          fi
+
+      - name: Apply release version locally
+        env:
+          VERSION: ${{ inputs.release_version }}
+        run: |
+          set -euo pipefail
+          mvn -B -ntp versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
+          python3 .github/scripts/update-citation.py --version "$VERSION"
+          git diff --check
+          mapfile -t CHANGED < <(git diff --name-only)
+          printf 'Changed release metadata: %s\n' "${CHANGED[*]}"
+          for path in "${CHANGED[@]}"; do
+            case "$path" in
+              pom.xml|backend/pom.xml|optics-core/pom.xml|CITATION.cff) ;;
+              *) echo "::error::unexpected release-version change: $path"; exit 1 ;;
+            esac
+          done
+
+      - name: Run the complete release test suite
+        run: mvn -B -ntp verify
+
+      - name: Release preparation summary
+        run: |
+          {
+            echo '## Release preparation'
+            echo
+            echo "- version: \`${{ inputs.release_version }}\`"
+            echo "- reviewed main SHA: \`${{ inputs.expected_main_sha }}\`"
+            echo "- full Maven verify: passed"
+            echo "- dry run: \`${{ inputs.dry_run }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  open-release-pr:
+    name: Open reviewed release pull request
+    if: ${{ !inputs.dry_run }}
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production-release
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout the reviewed main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_main_sha }}
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Reverify main immediately before writing
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_main_sha }}
+        run: |
+          set -euo pipefail
+          REMOTE_MAIN=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          test "$REMOTE_MAIN" = "$EXPECTED_SHA" || {
+            echo "::error::main moved to $REMOTE_MAIN; no release branch was written"
+            exit 1
+          }
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Commit deterministic release metadata
+        env:
+          VERSION: ${{ inputs.release_version }}
+        run: |
+          set -euo pipefail
+          mvn -B -ntp versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
+          python3 .github/scripts/update-citation.py --version "$VERSION"
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "release/$VERSION"
+          git add pom.xml backend/pom.xml optics-core/pom.xml CITATION.cff
+          git commit -m "Release version $VERSION"
+          git push origin "HEAD:refs/heads/release/$VERSION"
+
+      - name: Open release pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.release_version }}
+          EXPECTED_SHA: ${{ inputs.expected_main_sha }}
+        run: |
+          set -euo pipefail
+          BODY=$(cat <<EOF
+          ## Release $VERSION
+
+          Prepared from reviewed main commit \`$EXPECTED_SHA\`.
+
+          - full test suite passed before this branch was created
+          - project and citation versions are synchronized
+          - merging this PR changes metadata only
+          - publication requires a separate approved **Publish Release** workflow run
+          - the publish run must name the exact merge SHA as \`expected_main_sha\`
+          EOF
+          )
+          gh pr create \
+            --base main \
+            --head "release/$VERSION" \
+            --title "Release $VERSION" \
+            --body "$BODY"
