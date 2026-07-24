@@ -54,15 +54,17 @@ profiles fail closed unless explicit non-default credentials are supplied.
 
 ### Docker
 
-The container activates the strict `container` profile. Both passwords are
-mandatory, must contain at least 12 characters, must differ and may not use a
-published default.
+The container activates the strict `container` profile. Both application
+passwords are mandatory, must contain at least 12 characters, must differ and
+may not use a published default. This README intentionally contains no example
+password values: provide all secrets through the calling environment or an
+external secret manager.
 
 ```bash
 export FRESNEL_SECURITY_USER_USERNAME=alice
-export FRESNEL_SECURITY_USER_PASSWORD='correct-horse-battery-staple'
 export FRESNEL_SECURITY_ADMIN_USERNAME=fresnel-admin
-export FRESNEL_SECURITY_ADMIN_PASSWORD='violet-meteor-archive-2026'
+: "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
+: "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
 
 docker run --rm -p 127.0.0.1:8080:8080 \
   -e FRESNEL_SECURITY_USER_USERNAME \
@@ -119,18 +121,19 @@ java -jar backend-<version>.jar
 java -Dspring.profiles.active=standalone -jar backend-<version>.jar
 ```
 
-For PostgreSQL, set all database and application secrets. There are no
-production password fallbacks:
+For PostgreSQL, set all database and application secrets before starting the
+process. There are no production password fallbacks and no password values are
+shown here:
 
 ```bash
 export SPRING_PROFILES_ACTIVE=postgres
 export DB_URL='jdbc:postgresql://db.example.internal:5432/fresnel'
 export DB_USER='fresnel_app'
-export DB_PASSWORD='database-specific-secret'
 export FRESNEL_SECURITY_USER_USERNAME=alice
-export FRESNEL_SECURITY_USER_PASSWORD='correct-horse-battery-staple'
 export FRESNEL_SECURITY_ADMIN_USERNAME=fresnel-admin
-export FRESNEL_SECURITY_ADMIN_PASSWORD='violet-meteor-archive-2026'
+: "${DB_PASSWORD:?set the database password}"
+: "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
+: "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
 java -jar backend-<version>.jar
 ```
 
@@ -142,15 +145,10 @@ Public analytical endpoints include validation, bounded previews and design
 recommendations. Mutating operations, manufacturing exports and all render-job
 lifecycle endpoints require authentication.
 
-Local development seeds these loopback-only accounts:
-
-| Username | Password | Roles |
-|---|---|---|
-| `user` | `user` | `USER` |
-| `admin` | `admin` | `USER`, `ADMIN` |
-
-Do not expose the local profile to a network. The `container` and `postgres`
-profiles reject these defaults.
+The loopback-only local profile seeds development accounts. Their credential
+values are deliberately not repeated in this public README. Never expose the
+local profile to a network; the `container` and `postgres` profiles require
+explicit non-default credentials.
 
 Saved designs and render jobs are owner-scoped. Render-job identifiers contain
 192 bits of random entropy, but remain private identifiers rather than public
@@ -183,13 +181,16 @@ mvn -B verify
 java -jar backend/target/backend-*.jar
 ```
 
-Build a local container:
+Build a local container after supplying the required credentials through the
+shell environment or a secret manager:
 
 ```bash
 docker build -t fresnel:dev .
+: "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
+: "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
 docker run --rm -p 127.0.0.1:8080:8080 \
-  -e FRESNEL_SECURITY_USER_PASSWORD='correct-horse-battery-staple' \
-  -e FRESNEL_SECURITY_ADMIN_PASSWORD='violet-meteor-archive-2026' \
+  -e FRESNEL_SECURITY_USER_PASSWORD \
+  -e FRESNEL_SECURITY_ADMIN_PASSWORD \
   fresnel:dev
 ```
 
