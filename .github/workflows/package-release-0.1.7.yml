@@ -13,71 +13,106 @@ permissions:
 
 jobs:
   package:
-    name: Dispatch, wait for and verify 0.1.7 packages
+    name: Adopt, wait for and verify 0.1.7 packages
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - name: Checkout verification branch
-        uses: actions/checkout@v7
-        with:
-          ref: automation/package-release-0.1.7
-          fetch-depth: 0
-
-      - name: Dispatch tagged package workflow
-        id: dispatch
+      - name: Adopt or dispatch tagged package workflow
+        id: package_run
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          REQUEST_ID="manual-0.1.7-${GITHUB_RUN_ID}"
-          EXPECTED_TITLE="Release Packages 0.1.7 ${REQUEST_ID}"
+          TITLE_PREFIX='Release Packages 0.1.7 manual-0.1.7-'
 
-          gh workflow run release-package.yml \
+          RUNS=$(gh run list \
             --repo "${{ github.repository }}" \
-            --ref main \
-            -f release_tag=0.1.7 \
-            -f request_id="$REQUEST_ID"
+            --workflow release-package.yml \
+            --event workflow_dispatch \
+            --limit 50 \
+            --json databaseId,displayTitle,status,conclusion,createdAt,updatedAt,url,headSha)
+          MATCH=$(jq --arg prefix "$TITLE_PREFIX" \
+            '[.[] | select(.displayTitle | startswith($prefix))] | sort_by(.createdAt) | last' \
+            <<< "$RUNS")
 
-          RUN_ID=""
-          for _ in $(seq 1 90); do
-            RUN_ID=$(gh run list \
+          if [[ "$MATCH" == "null" ]]; then
+            REQUEST_ID="manual-0.1.7-${GITHUB_RUN_ID}"
+            EXPECTED_TITLE="Release Packages 0.1.7 ${REQUEST_ID}"
+            gh workflow run release-package.yml \
               --repo "${{ github.repository }}" \
-              --workflow release-package.yml \
-              --event workflow_dispatch \
-              --limit 40 \
-              --json databaseId,displayTitle \
-              --jq ".[] | select(.displayTitle == \"${EXPECTED_TITLE}\") | .databaseId" \
-              | head -1)
-            if [[ -n "$RUN_ID" ]]; then
-              break
-            fi
-            sleep 2
-          done
+              --ref main \
+              -f release_tag=0.1.7 \
+              -f request_id="$REQUEST_ID"
 
-          if [[ -z "$RUN_ID" ]]; then
-            echo "::error::Could not locate dispatched package workflow '$EXPECTED_TITLE'"
-            exit 1
+            RUN_ID=""
+            for _ in $(seq 1 90); do
+              RUN_ID=$(gh run list \
+                --repo "${{ github.repository }}" \
+                --workflow release-package.yml \
+                --event workflow_dispatch \
+                --limit 50 \
+                --json databaseId,displayTitle \
+                --jq ".[] | select(.displayTitle == \"${EXPECTED_TITLE}\") | .databaseId" \
+                | head -1)
+              [[ -n "$RUN_ID" ]] && break
+              sleep 2
+            done
+            if [[ -z "$RUN_ID" ]]; then
+              echo "::error::Could not locate dispatched package workflow '$EXPECTED_TITLE'"
+              exit 1
+            fi
+          else
+            RUN_ID=$(jq -r '.databaseId' <<< "$MATCH")
+            EXPECTED_TITLE=$(jq -r '.displayTitle' <<< "$MATCH")
+            REQUEST_ID=${EXPECTED_TITLE#Release Packages 0.1.7 }
+            echo "Adopting existing package run $RUN_ID ($EXPECTED_TITLE)"
+          fi
+
+          RUN_JSON=$(gh run view "$RUN_ID" \
+            --repo "${{ github.repository }}" \
+            --json databaseId,status,conclusion,createdAt,updatedAt,url,displayTitle,event,headSha)
+          PROGRESS=$(jq -n \
+            --arg requestId "$REQUEST_ID" \
+            --argjson packageRun "$RUN_JSON" \
+            '{observedAt: now | todateiso8601, requestId: $requestId, packageRun: $packageRun}')
+
+          CONTENT=$(printf '%s\n' "$PROGRESS" | base64 -w0)
+          CURRENT_SHA=$(gh api \
+            "repos/${{ github.repository }}/contents/release-package-progress.json?ref=automation/package-release-0.1.7" \
+            --jq '.sha' 2>/dev/null || true)
+          if [[ -n "$CURRENT_SHA" ]]; then
+            gh api "repos/${{ github.repository }}/contents/release-package-progress.json" \
+              --method PUT \
+              -f message='Refresh Fresnel 0.1.7 package progress' \
+              -f content="$CONTENT" \
+              -f branch='automation/package-release-0.1.7' \
+              -f sha="$CURRENT_SHA"
+          else
+            gh api "repos/${{ github.repository }}/contents/release-package-progress.json" \
+              --method PUT \
+              -f message='Record Fresnel 0.1.7 package progress' \
+              -f content="$CONTENT" \
+              -f branch='automation/package-release-0.1.7'
           fi
 
           echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-          echo "Dispatched package run $RUN_ID"
 
       - name: Wait for tagged package workflow
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run watch "${{ steps.dispatch.outputs.run_id }}" \
+          gh run watch "${{ steps.package_run.outputs.run_id }}" \
             --repo "${{ github.repository }}" \
             --exit-status
 
-      - name: Verify release assets and record evidence
+      - name: Verify release assets and publish evidence
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          RUN_JSON=$(gh run view "${{ steps.dispatch.outputs.run_id }}" \
+          RUN_JSON=$(gh run view "${{ steps.package_run.outputs.run_id }}" \
             --repo "${{ github.repository }}" \
             --json databaseId,status,conclusion,createdAt,updatedAt,url,displayTitle,event,headSha)
           RELEASE_JSON=$(gh release view 0.1.7 \
@@ -86,7 +121,6 @@ jobs:
 
           jq -e '.conclusion == "success" and .status == "completed"' <<< "$RUN_JSON" >/dev/null
           jq -e '.tagName == "0.1.7"' <<< "$RELEASE_JSON" >/dev/null
-
           jq -e '.assets | any(.name == "backend-0.1.7.jar")' <<< "$RELEASE_JSON" >/dev/null
           jq -e '.assets | any(.name == "backend-0.1.7.jar.sha256")' <<< "$RELEASE_JSON" >/dev/null
           jq -e '.assets | any(.name | test("fresnel-0[.]1[.]7-windows[.]zip$"; "i"))' <<< "$RELEASE_JSON" >/dev/null
@@ -96,15 +130,27 @@ jobs:
           jq -e '.assets | any(.name | test("0[.]1[.]7.*[.]msi$"; "i"))' <<< "$RELEASE_JSON" >/dev/null
           jq -e '.assets | any(.name | test("0[.]1[.]7.*[.]deb$"; "i"))' <<< "$RELEASE_JSON" >/dev/null
 
-          jq -n \
-            --arg requestId "${{ steps.dispatch.outputs.request_id }}" \
+          VERIFICATION=$(jq -n \
+            --arg requestId "${{ steps.package_run.outputs.request_id }}" \
             --argjson packageRun "$RUN_JSON" \
             --argjson release "$RELEASE_JSON" \
-            '{verifiedAt: now | todateiso8601, requestId: $requestId, packageRun: $packageRun, release: $release}' \
-            > release-package-verification.json
+            '{verifiedAt: now | todateiso8601, requestId: $requestId, packageRun: $packageRun, release: $release}')
+          CONTENT=$(printf '%s\n' "$VERIFICATION" | base64 -w0)
+          CURRENT_SHA=$(gh api \
+            "repos/${{ github.repository }}/contents/release-package-verification.json?ref=automation/package-release-0.1.7" \
+            --jq '.sha' 2>/dev/null || true)
 
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add release-package-verification.json
-          git commit -m 'Record Fresnel 0.1.7 package verification'
-          git push origin HEAD:automation/package-release-0.1.7
+          if [[ -n "$CURRENT_SHA" ]]; then
+            gh api "repos/${{ github.repository }}/contents/release-package-verification.json" \
+              --method PUT \
+              -f message='Refresh Fresnel 0.1.7 package verification' \
+              -f content="$CONTENT" \
+              -f branch='automation/package-release-0.1.7' \
+              -f sha="$CURRENT_SHA"
+          else
+            gh api "repos/${{ github.repository }}/contents/release-package-verification.json" \
+              --method PUT \
+              -f message='Record Fresnel 0.1.7 package verification' \
+              -f content="$CONTENT" \
+              -f branch='automation/package-release-0.1.7'
+          fi
