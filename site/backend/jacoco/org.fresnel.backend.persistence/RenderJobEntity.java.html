@@ -85,16 +85,16 @@ public class RenderJobEntity {
     @PrePersist
 <span class="pc bpc" id="L86" title="1 of 2 branches missed.">    void onCreate() { if (createdAt == null) createdAt = Instant.now(); }</span>
 
-<span class="nc" id="L88">    public String getId() { return id; }</span>
-<span class="nc" id="L89">    public String getLabel() { return label; }</span>
+<span class="fc" id="L88">    public String getId() { return id; }</span>
+<span class="fc" id="L89">    public String getLabel() { return label; }</span>
 <span class="fc" id="L90">    public State getState() { return state; }</span>
 <span class="fc" id="L91">    public void setState(State state) { this.state = state; }</span>
-<span class="nc" id="L92">    public double getProgress() { return progress; }</span>
+<span class="fc" id="L92">    public double getProgress() { return progress; }</span>
 <span class="fc" id="L93">    public void setProgress(double progress) { this.progress = progress; }</span>
-<span class="nc" id="L94">    public String getMessage() { return message; }</span>
+<span class="fc" id="L94">    public String getMessage() { return message; }</span>
 <span class="fc" id="L95">    public void setMessage(String message) { this.message = message; }</span>
-<span class="nc" id="L96">    public String getErrorMessage() { return errorMessage; }</span>
-<span class="nc" id="L97">    public void setErrorMessage(String e) { this.errorMessage = e; }</span>
+<span class="fc" id="L96">    public String getErrorMessage() { return errorMessage; }</span>
+<span class="fc" id="L97">    public void setErrorMessage(String e) { this.errorMessage = e; }</span>
 <span class="fc" id="L98">    public String getOwnerId() { return ownerId; }</span>
 <span class="fc" id="L99">    public void setOwnerId(String ownerId) { this.ownerId = ownerId; }</span>
 <span class="fc" id="L100">    public byte[] getResultPng() { return resultPng; }</span>

@@ -11,14 +11,14 @@ public class WebConfig implements WebMvcConfigurer {
     private final String[] allowedOrigins;
 
 <span class="fc" id="L13">    public WebConfig(@Value(&quot;${fresnel.cors.allowed-origins:}&quot;) String origins) {</span>
-<span class="pc bpc" id="L14" title="2 of 4 branches missed.">        this.allowedOrigins = origins == null || origins.isBlank()</span>
-<span class="nc" id="L15">                ? new String[0]</span>
+<span class="pc bpc" id="L14" title="1 of 4 branches missed.">        this.allowedOrigins = origins == null || origins.isBlank()</span>
+<span class="fc" id="L15">                ? new String[0]</span>
 <span class="fc" id="L16">                : origins.split(&quot;\\s*,\\s*&quot;);</span>
 <span class="fc" id="L17">    }</span>
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-<span class="pc bpc" id="L21" title="1 of 2 branches missed.">        if (allowedOrigins.length == 0) return;</span>
+<span class="fc bfc" id="L21" title="All 2 branches covered.">        if (allowedOrigins.length == 0) return;</span>
 <span class="fc" id="L22">        registry.addMapping(&quot;/api/**&quot;)</span>
 <span class="fc" id="L23">                .allowedOrigins(allowedOrigins)</span>
 <span class="fc" id="L24">                .allowedMethods(&quot;GET&quot;, &quot;POST&quot;, &quot;PUT&quot;, &quot;DELETE&quot;, &quot;OPTIONS&quot;);</span>

@@ -9,95 +9,101 @@ import java.util.function.Consumer;
 
 /**
  * A long-running render job. Threadsafe; a single producer reports progress and
- * eventually completes or fails, while many consumers (SSE subscribers) read state.
+ * eventually completes or fails, while many authorized consumers may read state.
  *
- * &lt;p&gt;Listeners are notified on every progress update and on terminal state changes.
+ * &lt;p&gt;The immutable owner identifier travels with the live object as well as its
+ * persisted entity. This prevents the in-memory fast path from bypassing the
+ * same owner-or-admin policy applied to rehydrated jobs.&lt;/p&gt;
  */
 public final class RenderJob {
 
     /** Job lifecycle. */
-<span class="fc" id="L19">    public enum State { QUEUED, RUNNING, COMPLETED, FAILED }</span>
+<span class="fc" id="L21">    public enum State { QUEUED, RUNNING, COMPLETED, FAILED }</span>
 
     private final String id;
     private final String label;
+    private final String ownerId;
     private final long createdAtEpochMs;
-<span class="fc" id="L24">    private final AtomicReference&lt;State&gt; state = new AtomicReference&lt;&gt;(State.QUEUED);</span>
-<span class="fc" id="L25">    private volatile double progress = 0.0;</span>
-<span class="fc" id="L26">    private volatile String message = &quot;queued&quot;;</span>
+<span class="fc" id="L27">    private final AtomicReference&lt;State&gt; state = new AtomicReference&lt;&gt;(State.QUEUED);</span>
+<span class="fc" id="L28">    private volatile double progress = 0.0;</span>
+<span class="fc" id="L29">    private volatile String message = &quot;queued&quot;;</span>
     private volatile RenderResult result;
     private volatile Throwable error;
 
-<span class="fc" id="L30">    private final CopyOnWriteArrayList&lt;Consumer&lt;RenderJob&gt;&gt; listeners = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L33">    private final CopyOnWriteArrayList&lt;Consumer&lt;RenderJob&gt;&gt; listeners = new CopyOnWriteArrayList&lt;&gt;();</span>
 
-<span class="fc" id="L32">    public RenderJob(String id, String label) {</span>
-<span class="fc" id="L33">        this.id = id;</span>
-<span class="fc" id="L34">        this.label = label;</span>
-<span class="fc" id="L35">        this.createdAtEpochMs = Instant.now().toEpochMilli();</span>
-<span class="fc" id="L36">    }</span>
+<span class="fc" id="L35">    public RenderJob(String id, String label, String ownerId) {</span>
+<span class="fc" id="L36">        this.id = id;</span>
+<span class="fc" id="L37">        this.label = label;</span>
+<span class="fc" id="L38">        this.ownerId = ownerId;</span>
+<span class="fc" id="L39">        this.createdAtEpochMs = Instant.now().toEpochMilli();</span>
+<span class="fc" id="L40">    }</span>
 
-<span class="fc" id="L38">    public String id() { return id; }</span>
-<span class="fc" id="L39">    public String label() { return label; }</span>
-<span class="fc" id="L40">    public long createdAtEpochMs() { return createdAtEpochMs; }</span>
-<span class="fc" id="L41">    public State state() { return state.get(); }</span>
-<span class="fc" id="L42">    public double progress() { return progress; }</span>
-<span class="fc" id="L43">    public String message() { return message; }</span>
-<span class="fc" id="L44">    public RenderResult result() { return result; }</span>
-<span class="fc" id="L45">    public Throwable error() { return error; }</span>
+<span class="fc" id="L42">    public String id() { return id; }</span>
+<span class="fc" id="L43">    public String label() { return label; }</span>
+<span class="fc" id="L44">    public String ownerId() { return ownerId; }</span>
+<span class="fc" id="L45">    public long createdAtEpochMs() { return createdAtEpochMs; }</span>
+<span class="fc" id="L46">    public State state() { return state.get(); }</span>
+<span class="fc" id="L47">    public double progress() { return progress; }</span>
+<span class="fc" id="L48">    public String message() { return message; }</span>
+<span class="fc" id="L49">    public RenderResult result() { return result; }</span>
+<span class="nc" id="L50">    public Throwable error() { return error; }</span>
 
     /** Called by the worker to update progress. Triggers listeners. */
     public void reportProgress(double frac, String msg) {
-<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (state.get() == State.QUEUED) state.compareAndSet(State.QUEUED, State.RUNNING);</span>
-<span class="fc" id="L50">        this.progress = Math.max(0.0, Math.min(1.0, frac));</span>
-<span class="pc bpc" id="L51" title="1 of 2 branches missed.">        if (msg != null) this.message = msg;</span>
-<span class="fc" id="L52">        notifyListeners();</span>
-<span class="fc" id="L53">    }</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        if (state.get() == State.QUEUED) state.compareAndSet(State.QUEUED, State.RUNNING);</span>
+<span class="fc" id="L55">        this.progress = Math.max(0.0, Math.min(1.0, frac));</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        if (msg != null) this.message = msg;</span>
+<span class="fc" id="L57">        notifyListeners();</span>
+<span class="fc" id="L58">    }</span>
 
     void complete(RenderResult r) {
-<span class="fc" id="L56">        this.result = r;</span>
-<span class="fc" id="L57">        this.progress = 1.0;</span>
-<span class="fc" id="L58">        this.message = &quot;completed&quot;;</span>
-<span class="fc" id="L59">        state.set(State.COMPLETED);</span>
-<span class="fc" id="L60">        notifyListeners();</span>
-<span class="fc" id="L61">    }</span>
+<span class="fc" id="L61">        this.result = r;</span>
+<span class="fc" id="L62">        this.progress = 1.0;</span>
+<span class="fc" id="L63">        this.message = &quot;completed&quot;;</span>
+<span class="fc" id="L64">        state.set(State.COMPLETED);</span>
+<span class="fc" id="L65">        notifyListeners();</span>
+<span class="fc" id="L66">    }</span>
 
     void fail(Throwable t) {
-<span class="nc" id="L64">        this.error = t;</span>
-<span class="nc" id="L65">        this.message = &quot;failed: &quot; + t.getMessage();</span>
-<span class="nc" id="L66">        state.set(State.FAILED);</span>
-<span class="nc" id="L67">        notifyListeners();</span>
-<span class="nc" id="L68">    }</span>
+<span class="nc" id="L69">        this.error = t;</span>
+        // Keep the detailed exception only for server-side persistence/logging.
+        // Client status responses deliberately expose a generic failure message.
+<span class="nc" id="L72">        this.message = &quot;failed&quot;;</span>
+<span class="nc" id="L73">        state.set(State.FAILED);</span>
+<span class="nc" id="L74">        notifyListeners();</span>
+<span class="nc" id="L75">    }</span>
 
-<span class="nc" id="L70">    public void addListener(Consumer&lt;RenderJob&gt; listener) { listeners.add(listener); }</span>
-<span class="nc" id="L71">    public void removeListener(Consumer&lt;RenderJob&gt; listener) { listeners.remove(listener); }</span>
+<span class="nc" id="L77">    public void addListener(Consumer&lt;RenderJob&gt; listener) { listeners.add(listener); }</span>
+<span class="nc" id="L78">    public void removeListener(Consumer&lt;RenderJob&gt; listener) { listeners.remove(listener); }</span>
 
     public boolean isTerminal() {
-<span class="nc" id="L74">        State s = state.get();</span>
-<span class="nc bnc" id="L75" title="All 4 branches missed.">        return s == State.COMPLETED || s == State.FAILED;</span>
+<span class="nc" id="L81">        State s = state.get();</span>
+<span class="nc bnc" id="L82" title="All 4 branches missed.">        return s == State.COMPLETED || s == State.FAILED;</span>
     }
 
-    /**
-     * Used by {@link org.fresnel.backend.jobs.RenderJobService} to rehydrate a
-     * read-only snapshot from a persisted {@code COMPLETED} record. The result
-     * payload itself is not stored on the snapshot — clients fetch the PNG via
-     * {@code RenderJobService.resultPng(id)}.
-     */
+    /** Rehydrates a read-only completed snapshot from persistence. */
     public void markCompletedExternally(double progress, String message) {
-<span class="nc" id="L85">        this.progress = Math.max(0.0, Math.min(1.0, progress));</span>
-<span class="nc bnc" id="L86" title="All 2 branches missed.">        if (message != null) this.message = message;</span>
-<span class="nc" id="L87">        state.set(State.COMPLETED);</span>
-<span class="nc" id="L88">    }</span>
+<span class="fc" id="L87">        this.progress = Math.max(0.0, Math.min(1.0, progress));</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        if (message != null) this.message = message;</span>
+<span class="fc" id="L89">        state.set(State.COMPLETED);</span>
+<span class="fc" id="L90">    }</span>
 
     /** Counterpart of {@link #markCompletedExternally} for failed persisted jobs. */
     public void markFailedExternally(String message, String errorMessage) {
-<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (message != null) this.message = message;</span>
-<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (errorMessage != null) this.error = new RuntimeException(errorMessage);</span>
-<span class="nc" id="L94">        state.set(State.FAILED);</span>
-<span class="nc" id="L95">    }</span>
+<span class="fc" id="L94">        this.message = &quot;failed&quot;;</span>
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">        if (errorMessage != null) this.error = new RuntimeException(errorMessage);</span>
+<span class="fc" id="L96">        state.set(State.FAILED);</span>
+<span class="fc" id="L97">    }</span>
 
     private void notifyListeners() {
-<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        for (Consumer&lt;RenderJob&gt; l : listeners) {</span>
-<span class="nc" id="L99">            try { l.accept(this); } catch (RuntimeException ignored) { /* never let a listener crash the producer */ }</span>
-<span class="nc" id="L100">        }</span>
-<span class="fc" id="L101">    }</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        for (Consumer&lt;RenderJob&gt; listener : listeners) {</span>
+            try {
+<span class="nc" id="L102">                listener.accept(this);</span>
+<span class="nc" id="L103">            } catch (RuntimeException ignored) {</span>
+                // A disconnected listener must never crash the render producer.
+<span class="nc" id="L105">            }</span>
+<span class="nc" id="L106">        }</span>
+<span class="fc" id="L107">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

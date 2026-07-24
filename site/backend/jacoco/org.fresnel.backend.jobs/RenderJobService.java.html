@@ -6,179 +6,227 @@ import org.fresnel.backend.persistence.RenderJobRepository;
 import org.fresnel.optics.PngExporter;
 import org.fresnel.optics.RenderResult;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 /**
- * Render-job registry with progress reporting via {@link RenderJob}.
+ * Render-job registry with progress reporting, persistence and object-level
+ * authorization.
  *
- * &lt;p&gt;In-flight jobs are kept in an in-memory map so SSE listeners can react to
- * progress in microseconds; on terminal state changes ({@code COMPLETED} /
- * {@code FAILED}) the job is persisted via {@link RenderJobRepository} so the
- * result survives JVM restarts and is visible to other instances. Lookups
- * ({@link #get(String)}) consult both the live map and the repository.
- *
- * &lt;p&gt;Old in-memory jobs are reaped automatically after {@link #JOB_TTL_MS};
- * persisted records remain in the database until explicitly purged.
+ * &lt;p&gt;Every job has an authenticated owner. Live and rehydrated lookups apply the
+ * same owner-or-administrator policy, and unauthorized identifiers are exposed
+ * as absent so callers cannot probe whether another user's job exists.&lt;/p&gt;
  */
 @Service
 public class RenderJobService {
 
-    public static final long JOB_TTL_MS = 30 * 60 * 1000L;     // 30 min
-<span class="fc" id="L40">    public static final int  WORKERS    = Math.max(2, Runtime.getRuntime().availableProcessors() / 2);</span>
+    public static final long JOB_TTL_MS = 30 * 60 * 1000L;
+<span class="fc" id="L39">    public static final int WORKERS = Math.max(2, Runtime.getRuntime().availableProcessors() / 2);</span>
+    public static final int JOB_ID_ENTROPY_BYTES = 24; // 192 bits
 
-<span class="fc" id="L42">    private final ExecutorService executor = Executors.newFixedThreadPool(WORKERS, r -&gt; {</span>
-<span class="fc" id="L43">        Thread t = new Thread(r, &quot;render-job&quot;);</span>
-<span class="fc" id="L44">        t.setDaemon(true);</span>
-<span class="fc" id="L45">        return t;</span>
+<span class="fc" id="L42">    private static final SecureRandom RANDOM = new SecureRandom();</span>
+<span class="fc" id="L43">    private static final Base64.Encoder ID_ENCODER = Base64.getUrlEncoder().withoutPadding();</span>
+
+<span class="fc" id="L45">    private final ExecutorService executor = Executors.newFixedThreadPool(WORKERS, runnable -&gt; {</span>
+<span class="fc" id="L46">        Thread thread = new Thread(runnable, &quot;render-job&quot;);</span>
+<span class="fc" id="L47">        thread.setDaemon(true);</span>
+<span class="fc" id="L48">        return thread;</span>
     });
-<span class="fc" id="L47">    private final ConcurrentMap&lt;String, RenderJob&gt; jobs = new ConcurrentHashMap&lt;&gt;();</span>
-<span class="fc" id="L48">    private final AtomicLong seq = new AtomicLong();</span>
+<span class="fc" id="L50">    private final ConcurrentMap&lt;String, RenderJob&gt; jobs = new ConcurrentHashMap&lt;&gt;();</span>
 
     private final RenderJobRepository repository;
+    private final Duration persistedRetention;
 
     @Autowired
-<span class="fc" id="L53">    public RenderJobService(RenderJobRepository repository) {</span>
-<span class="fc" id="L54">        this.repository = repository;</span>
-<span class="fc" id="L55">    }</span>
+    public RenderJobService(
+            RenderJobRepository repository,
+<span class="fc" id="L58">            @Value(&quot;${fresnel.jobs.persisted-retention-days:30}&quot;) long persistedRetentionDays) {</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        if (persistedRetentionDays &lt; 1) {</span>
+<span class="nc" id="L60">            throw new IllegalArgumentException(&quot;fresnel.jobs.persisted-retention-days must be positive&quot;);</span>
+        }
+<span class="fc" id="L62">        this.repository = repository;</span>
+<span class="fc" id="L63">        this.persistedRetention = Duration.ofDays(persistedRetentionDays);</span>
+<span class="fc" id="L64">    }</span>
 
-    /** Submit a new render job. The supplier is given a progress callback (0..1). */
+    /** Submit a new render job for the current authenticated principal. */
     public RenderJob submit(String label, Function&lt;RenderJob, RenderResult&gt; work) {
-<span class="fc" id="L59">        String id = &quot;j-&quot; + System.currentTimeMillis() + &quot;-&quot; + seq.incrementAndGet();</span>
-<span class="fc" id="L60">        RenderJob job = new RenderJob(id, label);</span>
-<span class="fc" id="L61">        jobs.put(id, job);</span>
-<span class="fc" id="L62">        String ownerId = currentOwnerOrNull();</span>
-        // Persist a QUEUED row up-front so the job is visible across instances even
-        // before it starts executing.
+<span class="fc" id="L68">        String ownerId = currentOwnerOrNull();</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        if (ownerId == null) {</span>
+<span class="nc" id="L70">            throw new IllegalStateException(&quot;Render jobs require an authenticated owner&quot;);</span>
+        }
+
+        RenderJob job;
+        do {
+<span class="fc" id="L75">            job = new RenderJob(newJobId(), label, ownerId);</span>
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">        } while (jobs.putIfAbsent(job.id(), job) != null);</span>
+
         try {
-<span class="fc" id="L66">            repository.save(new RenderJobEntity(id, label, ownerId));</span>
-<span class="nc" id="L67">        } catch (RuntimeException ignored) {</span>
-            // Persistence is best-effort; the in-memory entry is the source of truth
-            // until the job reaches a terminal state.
-<span class="fc" id="L70">        }</span>
-<span class="fc" id="L71">        executor.submit(() -&gt; {</span>
+<span class="fc" id="L79">            repository.save(new RenderJobEntity(job.id(), label, ownerId));</span>
+<span class="nc" id="L80">        } catch (RuntimeException ignored) {</span>
+            // Persistence remains best-effort while the live job is available.
+<span class="fc" id="L82">        }</span>
+
+<span class="fc" id="L84">        RenderJob submitted = job;</span>
+<span class="fc" id="L85">        executor.submit(() -&gt; {</span>
             try {
-<span class="fc" id="L73">                RenderResult result = work.apply(job);</span>
-<span class="fc" id="L74">                job.complete(result);</span>
-<span class="fc" id="L75">                persistTerminal(job, ownerId);</span>
-<span class="nc" id="L76">            } catch (Throwable t) {</span>
-<span class="nc" id="L77">                job.fail(t);</span>
-<span class="nc" id="L78">                persistTerminal(job, ownerId);</span>
+<span class="fc" id="L87">                RenderResult result = work.apply(submitted);</span>
+<span class="fc" id="L88">                submitted.complete(result);</span>
+<span class="fc" id="L89">                persistTerminal(submitted);</span>
+<span class="nc" id="L90">            } catch (Throwable failure) {</span>
+<span class="nc" id="L91">                submitted.fail(failure);</span>
+<span class="nc" id="L92">                persistTerminal(submitted);</span>
             } finally {
-<span class="fc" id="L80">                reapOldJobs();</span>
+<span class="fc" id="L94">                reapExpiredJobs();</span>
             }
-<span class="fc" id="L82">        });</span>
-<span class="fc" id="L83">        return job;</span>
+<span class="fc" id="L96">        });</span>
+<span class="fc" id="L97">        return submitted;</span>
     }
 
     /**
-     * Look up a job. First consults the live in-memory map; if absent (e.g. after a
-     * JVM restart or because TTL has elapsed), falls back to the repository and
-     * rehydrates a read-only {@link RenderJob} snapshot.
+     * Returns a live or persisted job only when the requester owns it or is an
+     * administrator. Unknown and unauthorized identifiers both return empty.
      */
-    public RenderJob get(String id) {
-<span class="fc" id="L92">        RenderJob live = jobs.get(id);</span>
-<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (live != null) return live;</span>
-<span class="fc" id="L94">        Optional&lt;RenderJobEntity&gt; persisted = repository.findById(id);</span>
-<span class="fc" id="L95">        return persisted.map(RenderJobService::rehydrate).orElse(null);</span>
+    public Optional&lt;RenderJob&gt; findAuthorized(
+            String id,
+            String requesterId,
+            boolean administrator) {
+<span class="pc bpc" id="L108" title="4 of 8 branches missed.">        if (id == null || id.isBlank() || requesterId == null || requesterId.isBlank()) {</span>
+<span class="nc" id="L109">            return Optional.empty();</span>
+        }
+<span class="fc" id="L111">        RenderJob live = jobs.get(id);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        if (live != null) {</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">            return mayRead(live.ownerId(), requesterId, administrator)</span>
+<span class="fc" id="L114">                    ? Optional.of(live)</span>
+<span class="fc" id="L115">                    : Optional.empty();</span>
+        }
+<span class="fc" id="L117">        return repository.findById(id)</span>
+<span class="fc" id="L118">                .filter(entity -&gt; mayRead(entity.getOwnerId(), requesterId, administrator))</span>
+<span class="fc" id="L119">                .map(RenderJobService::rehydrate);</span>
     }
 
-    /** Returns the persisted PNG for a completed job, if any. */
-    public Optional&lt;byte[]&gt; resultPng(String id) {
-<span class="nc" id="L100">        return repository.findById(id).map(RenderJobEntity::getResultPng);</span>
+    /** Returns an authorized persisted PNG, if present. */
+    public Optional&lt;byte[]&gt; resultPngAuthorized(
+            String id,
+            String requesterId,
+            boolean administrator) {
+<span class="pc bpc" id="L127" title="4 of 8 branches missed.">        if (id == null || id.isBlank() || requesterId == null || requesterId.isBlank()) {</span>
+<span class="nc" id="L128">            return Optional.empty();</span>
+        }
+<span class="fc" id="L130">        return repository.findById(id)</span>
+<span class="fc" id="L131">                .filter(entity -&gt; mayRead(entity.getOwnerId(), requesterId, administrator))</span>
+<span class="fc" id="L132">                .map(RenderJobEntity::getResultPng)</span>
+<span class="pc bpc" id="L133" title="2 of 4 branches missed.">                .filter(bytes -&gt; bytes != null &amp;&amp; bytes.length &gt; 0);</span>
     }
 
+    /** Internal removal hook; no public HTTP delete endpoint is exposed. */
     public void remove(String id) {
-<span class="nc" id="L104">        jobs.remove(id);</span>
-<span class="nc" id="L105">        repository.deleteById(id);</span>
-<span class="nc" id="L106">    }</span>
+<span class="nc" id="L138">        jobs.remove(id);</span>
+<span class="nc" id="L139">        repository.deleteById(id);</span>
+<span class="nc" id="L140">    }</span>
 
-    private void reapOldJobs() {
-<span class="fc" id="L109">        long cutoff = Instant.now().toEpochMilli() - JOB_TTL_MS;</span>
-<span class="pc bpc" id="L110" title="1 of 2 branches missed.">        jobs.entrySet().removeIf(e -&gt; e.getValue().createdAtEpochMs() &lt; cutoff);</span>
-<span class="fc" id="L111">    }</span>
+    private String newJobId() {
+<span class="fc" id="L143">        byte[] entropy = new byte[JOB_ID_ENTROPY_BYTES];</span>
+<span class="fc" id="L144">        RANDOM.nextBytes(entropy);</span>
+<span class="fc" id="L145">        return &quot;j-&quot; + ID_ENCODER.encodeToString(entropy);</span>
+    }
 
-    private void persistTerminal(RenderJob job, String ownerId) {
+    private void reapExpiredJobs() {
+<span class="fc" id="L149">        Instant now = Instant.now();</span>
+<span class="fc" id="L150">        long liveCutoff = now.toEpochMilli() - JOB_TTL_MS;</span>
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">        jobs.entrySet().removeIf(entry -&gt; entry.getValue().createdAtEpochMs() &lt; liveCutoff);</span>
         try {
-<span class="fc" id="L115">            RenderJobEntity entity = repository.findById(job.id())</span>
-<span class="pc" id="L116">                    .orElseGet(() -&gt; new RenderJobEntity(job.id(), job.label(), ownerId));</span>
-<span class="fc" id="L117">            entity.setOwnerId(ownerId);</span>
-<span class="fc" id="L118">            entity.setProgress(job.progress());</span>
-<span class="fc" id="L119">            entity.setMessage(job.message());</span>
-<span class="fc" id="L120">            entity.setFinishedAt(Instant.now());</span>
-<span class="pc bpc" id="L121" title="1 of 2 branches missed.">            if (job.state() == RenderJob.State.COMPLETED) {</span>
-<span class="fc" id="L122">                entity.setState(RenderJobEntity.State.COMPLETED);</span>
-<span class="fc" id="L123">                RenderResult r = job.result();</span>
-<span class="pc bpc" id="L124" title="1 of 2 branches missed.">                if (r != null) {</span>
-<span class="fc" id="L125">                    double dpi = 25.4 / r.pixelSizeMm();</span>
-<span class="fc" id="L126">                    entity.setResultPng(PngExporter.toPngBytes(r, dpi));</span>
-<span class="fc" id="L127">                    entity.setResultPixelSizeMm(r.pixelSizeMm());</span>
-<span class="fc" id="L128">                    entity.setResultWidthPx(r.widthPx());</span>
-<span class="fc" id="L129">                    entity.setResultHeightPx(r.heightPx());</span>
+<span class="fc" id="L153">            repository.deleteByFinishedAtBefore(now.minus(persistedRetention));</span>
+<span class="nc" id="L154">        } catch (RuntimeException ignored) {</span>
+            // Retention cleanup must not change the render result seen by clients.
+<span class="fc" id="L156">        }</span>
+<span class="fc" id="L157">    }</span>
+
+    private void persistTerminal(RenderJob job) {
+        try {
+<span class="fc" id="L161">            RenderJobEntity entity = repository.findById(job.id())</span>
+<span class="pc" id="L162">                    .orElseGet(() -&gt; new RenderJobEntity(job.id(), job.label(), job.ownerId()));</span>
+<span class="fc" id="L163">            entity.setOwnerId(job.ownerId());</span>
+<span class="fc" id="L164">            entity.setProgress(job.progress());</span>
+<span class="fc" id="L165">            entity.setMessage(job.message());</span>
+<span class="fc" id="L166">            entity.setFinishedAt(Instant.now());</span>
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">            if (job.state() == RenderJob.State.COMPLETED) {</span>
+<span class="fc" id="L168">                entity.setState(RenderJobEntity.State.COMPLETED);</span>
+<span class="fc" id="L169">                RenderResult result = job.result();</span>
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">                if (result != null) {</span>
+<span class="fc" id="L171">                    double dpi = 25.4 / result.pixelSizeMm();</span>
+<span class="fc" id="L172">                    entity.setResultPng(PngExporter.toPngBytes(result, dpi));</span>
+<span class="fc" id="L173">                    entity.setResultPixelSizeMm(result.pixelSizeMm());</span>
+<span class="fc" id="L174">                    entity.setResultWidthPx(result.widthPx());</span>
+<span class="fc" id="L175">                    entity.setResultHeightPx(result.heightPx());</span>
                 }
-<span class="fc" id="L131">            } else {</span>
-<span class="nc" id="L132">                entity.setState(RenderJobEntity.State.FAILED);</span>
-<span class="nc" id="L133">                Throwable t = job.error();</span>
-<span class="nc bnc" id="L134" title="All 2 branches missed.">                if (t != null) {</span>
-<span class="nc" id="L135">                    String msg = t.getMessage();</span>
-<span class="nc bnc" id="L136" title="All 2 branches missed.">                    entity.setErrorMessage(msg == null ? t.getClass().getSimpleName()</span>
-<span class="nc" id="L137">                            : msg.substring(0, Math.min(2048, msg.length())));</span>
+<span class="fc" id="L177">            } else {</span>
+<span class="nc" id="L178">                entity.setState(RenderJobEntity.State.FAILED);</span>
+<span class="nc" id="L179">                Throwable failure = job.error();</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                if (failure != null) {</span>
+<span class="nc" id="L181">                    String message = failure.getMessage();</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">                    entity.setErrorMessage(message == null</span>
+<span class="nc" id="L183">                            ? failure.getClass().getSimpleName()</span>
+<span class="nc" id="L184">                            : message.substring(0, Math.min(2048, message.length())));</span>
                 }
             }
-<span class="fc" id="L140">            repository.save(entity);</span>
-<span class="nc" id="L141">        } catch (IOException | RuntimeException e) {</span>
-            // Persistence failure must not crash the worker; the in-memory job
-            // already holds the result for any active SSE subscribers.
-<span class="fc" id="L144">        }</span>
-<span class="fc" id="L145">    }</span>
+<span class="fc" id="L187">            repository.save(entity);</span>
+<span class="nc" id="L188">        } catch (IOException | RuntimeException ignored) {</span>
+            // The in-memory job remains available to authorized active clients.
+<span class="fc" id="L190">        }</span>
+<span class="fc" id="L191">    }</span>
 
-    private static RenderJob rehydrate(RenderJobEntity e) {
-<span class="nc" id="L148">        RenderJob job = new RenderJob(e.getId(), e.getLabel());</span>
-<span class="nc bnc" id="L149" title="All 4 branches missed.">        switch (e.getState()) {</span>
-<span class="nc" id="L150">            case COMPLETED -&gt; job.markCompletedExternally(e.getProgress(), e.getMessage());</span>
-<span class="nc" id="L151">            case FAILED -&gt; job.markFailedExternally(e.getMessage(), e.getErrorMessage());</span>
-<span class="nc" id="L152">            case RUNNING -&gt; job.reportProgress(e.getProgress(), e.getMessage());</span>
-            case QUEUED -&gt; { /* nothing */ }
+    private static RenderJob rehydrate(RenderJobEntity entity) {
+<span class="fc" id="L194">        RenderJob job = new RenderJob(entity.getId(), entity.getLabel(), entity.getOwnerId());</span>
+<span class="pc bpc" id="L195" title="2 of 4 branches missed.">        switch (entity.getState()) {</span>
+<span class="fc" id="L196">            case COMPLETED -&gt; job.markCompletedExternally(entity.getProgress(), entity.getMessage());</span>
+<span class="fc" id="L197">            case FAILED -&gt; job.markFailedExternally(entity.getMessage(), entity.getErrorMessage());</span>
+<span class="nc" id="L198">            case RUNNING -&gt; job.reportProgress(entity.getProgress(), entity.getMessage());</span>
+            case QUEUED -&gt; { /* no transition required */ }
         }
-<span class="nc" id="L155">        return job;</span>
+<span class="fc" id="L201">        return job;</span>
+    }
+
+    private static boolean mayRead(
+            String ownerId,
+            String requesterId,
+            boolean administrator) {
+<span class="pc bpc" id="L208" title="1 of 6 branches missed.">        return administrator || (ownerId != null &amp;&amp; ownerId.equals(requesterId));</span>
     }
 
     private static String currentOwnerOrNull() {
-<span class="fc" id="L159">        Authentication auth = SecurityContextHolder.getContext().getAuthentication();</span>
-<span class="pc bpc" id="L160" title="2 of 4 branches missed.">        if (auth == null || !auth.isAuthenticated()) return null;</span>
-<span class="fc" id="L161">        String name = auth.getName();</span>
-<span class="pc bpc" id="L162" title="2 of 4 branches missed.">        return (name == null || &quot;anonymousUser&quot;.equals(name)) ? null : name;</span>
+<span class="fc" id="L212">        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();</span>
+<span class="pc bpc" id="L213" title="2 of 4 branches missed.">        if (authentication == null || !authentication.isAuthenticated()) return null;</span>
+<span class="fc" id="L214">        String name = authentication.getName();</span>
+<span class="pc bpc" id="L215" title="2 of 4 branches missed.">        return name == null || &quot;anonymousUser&quot;.equals(name) ? null : name;</span>
     }
 
-    /**
-     * Stop accepting new work and tear down the worker pool when the Spring
-     * context closes (graceful shutdown / redeploy / test teardown). Without
-     * this, the executor would keep its threads alive until JVM exit even after
-     * the application context is destroyed.
-     */
+    /** Gracefully stop worker threads when the Spring context closes. */
     @PreDestroy
     public void shutdown() {
-<span class="fc" id="L173">        executor.shutdown();</span>
+<span class="fc" id="L221">        executor.shutdown();</span>
         try {
-<span class="pc bpc" id="L175" title="1 of 2 branches missed.">            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {</span>
-<span class="nc" id="L176">                executor.shutdownNow();</span>
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {</span>
+<span class="nc" id="L224">                executor.shutdownNow();</span>
             }
-<span class="nc" id="L178">        } catch (InterruptedException e) {</span>
-<span class="nc" id="L179">            executor.shutdownNow();</span>
-<span class="nc" id="L180">            Thread.currentThread().interrupt();</span>
-<span class="fc" id="L181">        }</span>
-<span class="fc" id="L182">    }</span>
+<span class="nc" id="L226">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L227">            executor.shutdownNow();</span>
+<span class="nc" id="L228">            Thread.currentThread().interrupt();</span>
+<span class="fc" id="L229">        }</span>
+<span class="fc" id="L230">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
