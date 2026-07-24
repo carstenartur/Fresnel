@@ -1,8 +1,11 @@
 package org.fresnel.backend.e2e;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Locale;
@@ -20,6 +23,7 @@ class PlaywrightE2EIT {
                 .normalize();
         Path frontend = backend.resolveSibling("frontend");
         Path nodeDirectory = backend.resolve("target/node");
+        Path log = backend.resolve("target/failsafe-reports/playwright-e2e.log");
         boolean windows = System.getProperty("os.name", "")
                 .toLowerCase(Locale.ROOT)
                 .contains("win");
@@ -36,10 +40,14 @@ class PlaywrightE2EIT {
                 .as("npm CLI installed by frontend-maven-plugin")
                 .isRegularFile();
 
+        Files.createDirectories(log.getParent());
+        Files.deleteIfExists(log);
+
         ProcessBuilder command = new ProcessBuilder(
                 node.toString(), npmCli.toString(), "run", "e2e");
         command.directory(frontend.toFile());
-        command.inheritIO();
+        command.redirectErrorStream(true);
+        command.redirectOutput(log.toFile());
         command.environment().put("CI", "true");
         command.environment().put("E2E_USER", "user");
         command.environment().put("E2E_PASSWORD", "user");
@@ -49,15 +57,27 @@ class PlaywrightE2EIT {
             if (!process.waitFor(MAXIMUM_RUNTIME.toSeconds(), TimeUnit.SECONDS)) {
                 process.destroyForcibly();
                 process.waitFor(30, TimeUnit.SECONDS);
-                fail("Playwright did not finish within " + MAXIMUM_RUNTIME);
+                fail("Playwright did not finish within " + MAXIMUM_RUNTIME
+                        + System.lineSeparator() + readLog(log));
             }
-            assertThat(process.exitValue())
-                    .as("Playwright exit status")
-                    .isZero();
+            if (process.exitValue() != 0) {
+                fail("Playwright exited with status " + process.exitValue()
+                        + System.lineSeparator() + readLog(log));
+            }
         } finally {
             if (process.isAlive()) {
                 process.destroyForcibly();
             }
+        }
+    }
+
+    private static String readLog(Path log) {
+        try {
+            return Files.isRegularFile(log)
+                    ? Files.readString(log, UTF_8)
+                    : "Playwright log was not created: " + log;
+        } catch (IOException exception) {
+            return "Could not read Playwright log " + log + ": " + exception.getMessage();
         }
     }
 }
