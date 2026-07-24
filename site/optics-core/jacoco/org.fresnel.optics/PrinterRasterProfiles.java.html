@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PrinterRasterProfiles.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">PrinterRasterProfiles.java</span></div><h1>PrinterRasterProfiles.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.util.List;
+import java.util.Map;
+
+/** Code-owned printer profiles; job files can select IDs but cannot inject escape sequences. */
+public final class PrinterRasterProfiles {
+
+    public static final String DEFAULT_PROFILE_ID = &quot;pcl5e-a4-600-portrait-v1&quot;;
+
+<span class="fc" id="L11">    public static final PrinterRasterProfile PCL5E_A4_600_PORTRAIT = new PrinterRasterProfile(</span>
+            DEFAULT_PROFILE_ID,
+            1,
+            PrinterLanguageDialect.PCL_5E,
+            600,
+            600,
+            4961,
+            7016,
+            150,
+            150,
+            4661,
+            6716,
+            &quot;A4&quot;,
+            PclPageOrientation.PORTRAIT,
+            DeviceAxis.X,
+            DeviceAxis.Y,
+<span class="fc" id="L27">            java.util.Set.of(PclCompression.NONE, PclCompression.TIFF));</span>
+
+<span class="fc" id="L29">    public static final List&lt;PrinterRasterProfile&gt; ALL = List.of(PCL5E_A4_600_PORTRAIT);</span>
+<span class="fc" id="L30">    private static final Map&lt;String, PrinterRasterProfile&gt; BY_ID = Map.of(</span>
+<span class="fc" id="L31">            PCL5E_A4_600_PORTRAIT.id(), PCL5E_A4_600_PORTRAIT);</span>
+
+    private PrinterRasterProfiles() {}
+
+    public static PrinterRasterProfile require(String id) {
+<span class="nc bnc" id="L36" title="All 4 branches missed.">        String resolved = id == null || id.isBlank() ? DEFAULT_PROFILE_ID : id.trim();</span>
+<span class="nc" id="L37">        PrinterRasterProfile profile = BY_ID.get(resolved);</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">        if (profile == null) throw new IllegalArgumentException(&quot;unknown printer raster profile: &quot; + resolved);</span>
+<span class="nc" id="L39">        return profile;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

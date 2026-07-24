@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExperimentCopilotService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.copilot</a> &gt; <span class="el_source">ExperimentCopilotService.java</span></div><h1>ExperimentCopilotService.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.copilot;
+
+import org.fresnel.backend.api.ExperimentCopilotProviderStatus;
+import org.fresnel.backend.api.ExperimentCopilotRequest;
+import org.fresnel.backend.api.ExperimentCopilotResponse;
+import org.fresnel.backend.api.FresnelJobDocument;
+import org.fresnel.backend.api.FresnelJobService;
+import org.fresnel.backend.api.PluginSchemaDocument;
+import org.fresnel.backend.api.PluginSchemaService;
+import org.fresnel.backend.api.SingleZonePlateRequest;
+import org.fresnel.optics.DesignAssistant;
+import org.fresnel.optics.DesignGoal;
+import org.fresnel.optics.DesignValidationReport;
+import org.fresnel.optics.DesignValidationReports;
+import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+
+/**
+ * Trust boundary between generated proposals and deterministic Fresnel services.
+ */
+@Service
+public final class ExperimentCopilotService {
+
+    private static final String MVP_PLUGIN_ID = &quot;zone-plate&quot;;
+<span class="fc" id="L35">    private static final Set&lt;String&gt; CORE_INTENT_FIELDS = Set.of(&quot;wavelengthNm&quot;, &quot;focalLengthMm&quot;);</span>
+<span class="fc" id="L36">    private static final Pattern PROVIDER_ID = Pattern.compile(&quot;[a-z0-9][a-z0-9-]{0,39}&quot;);</span>
+
+    private final Map&lt;String, ExperimentCopilotProvider&gt; providers;
+    private final FresnelJobService jobService;
+    private final PluginSchemaService schemaService;
+    private final ObjectMapper mapper;
+
+    public ExperimentCopilotService(
+            List&lt;ExperimentCopilotProvider&gt; providers,
+            FresnelJobService jobService,
+            PluginSchemaService schemaService,
+<span class="fc" id="L47">            ObjectMapper mapper) {</span>
+<span class="fc" id="L48">        LinkedHashMap&lt;String, ExperimentCopilotProvider&gt; indexed = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L49">        providers.stream()</span>
+<span class="fc" id="L50">                .sorted(Comparator.comparing(ExperimentCopilotService::providerId))</span>
+<span class="fc" id="L51">                .forEach(provider -&gt; {</span>
+<span class="fc" id="L52">                    String id = providerId(provider);</span>
+<span class="fc" id="L53">                    ExperimentCopilotProvider previous = indexed.put(id, provider);</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">                    if (previous != null) {</span>
+<span class="nc" id="L55">                        throw new IllegalStateException(&quot;Duplicate experiment copilot provider id: &quot; + id);</span>
+                    }
+<span class="fc" id="L57">                });</span>
+<span class="fc" id="L58">        this.providers = Map.copyOf(indexed);</span>
+<span class="fc" id="L59">        this.jobService = jobService;</span>
+<span class="fc" id="L60">        this.schemaService = schemaService;</span>
+<span class="fc" id="L61">        this.mapper = mapper;</span>
+<span class="fc" id="L62">    }</span>
+
+    public List&lt;ExperimentCopilotProviderStatus&gt; providerStatuses() {
+<span class="fc" id="L65">        return providers.values().stream()</span>
+<span class="fc" id="L66">                .sorted(Comparator.comparing(ExperimentCopilotService::providerId))</span>
+<span class="fc" id="L67">                .map(provider -&gt; new ExperimentCopilotProviderStatus(</span>
+<span class="fc" id="L68">                        provider.id(),</span>
+<span class="fc" id="L69">                        provider.displayName(),</span>
+<span class="fc" id="L70">                        provider.modelId(),</span>
+<span class="fc" id="L71">                        provider.available()))</span>
+<span class="fc" id="L72">                .toList();</span>
+    }
+
+    public ExperimentCopilotResponse propose(ExperimentCopilotRequest request) {
+<span class="fc" id="L76">        ExperimentCopilotProvider provider = providers.get(request.resolvedProvider());</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (provider == null) {</span>
+<span class="fc" id="L78">            throw new IllegalArgumentException(&quot;unknown copilot provider: &quot; + request.resolvedProvider());</span>
+        }
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">        if (!provider.available()) {</span>
+<span class="nc" id="L81">            throw new CopilotProviderException(</span>
+                    &quot;PROVIDER_NOT_CONFIGURED&quot;,
+<span class="nc" id="L83">                    &quot;Copilot provider '&quot; + provider.id() + &quot;' is not configured.&quot;);</span>
+        }
+
+<span class="fc" id="L86">        PluginSchemaDocument schema = schemaService.requireByPluginId(MVP_PLUGIN_ID);</span>
+<span class="fc" id="L87">        ExperimentProposal proposal = provider.propose(new ExperimentCopilotContext(</span>
+<span class="fc" id="L88">                request.request(),</span>
+<span class="fc" id="L89">                schema.parameterSchema(),</span>
+<span class="fc" id="L90">                schema.defaults(),</span>
+<span class="fc" id="L91">                request.currentParameters()));</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        if (!MVP_PLUGIN_ID.equals(proposal.selectedPluginId())) {</span>
+<span class="nc" id="L93">            throw new IllegalArgumentException(</span>
+                    &quot;The first experiment-copilot iteration supports only plugin &quot; + MVP_PLUGIN_ID);
+        }
+
+<span class="fc" id="L97">        LinkedHashSet&lt;String&gt; allowedFields = fieldNames(schema.parameterSchema().path(&quot;properties&quot;));</span>
+<span class="fc" id="L98">        LinkedHashMap&lt;String, JsonNode&gt; values = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L99">        LinkedHashMap&lt;String, ExperimentProposal.ValueSource&gt; sources = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L100">        LinkedHashMap&lt;String, String&gt; rationales = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L101">        LinkedHashMap&lt;String, JsonNode&gt; defaults = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; entry : schema.defaults().properties()) {</span>
+<span class="fc" id="L104">            defaults.put(entry.getKey(), entry.getValue().deepCopy());</span>
+<span class="fc" id="L105">            values.put(entry.getKey(), entry.getValue().deepCopy());</span>
+<span class="fc" id="L106">            sources.put(entry.getKey(), ExperimentProposal.ValueSource.FRESNEL_DEFAULT);</span>
+<span class="fc" id="L107">            rationales.put(entry.getKey(), &quot;Current Fresnel parameter-schema default.&quot;);</span>
+<span class="fc" id="L108">        }</span>
+
+<span class="fc" id="L110">        overlayCurrentParameters(request.currentParameters(), allowedFields, values, sources, rationales);</span>
+
+<span class="fc" id="L112">        Set&lt;String&gt; proposedPaths = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        for (ExperimentProposal.Parameter parameter : proposal.parameters()) {</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">            if (!allowedFields.contains(parameter.path())) {</span>
+<span class="nc" id="L115">                throw new IllegalArgumentException(</span>
+<span class="nc" id="L116">                        &quot;copilot proposed an unknown parameter path: &quot; + parameter.path());</span>
+            }
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">            if (!proposedPaths.add(parameter.path())) {</span>
+<span class="nc" id="L119">                throw new IllegalArgumentException(</span>
+<span class="nc" id="L120">                        &quot;copilot proposed parameter more than once: &quot; + parameter.path());</span>
+            }
+<span class="pc bpc" id="L122" title="2 of 4 branches missed.">            if (parameter.value() == null || parameter.value().isNull()) {</span>
+<span class="nc" id="L123">                continue;</span>
+            }
+<span class="fc" id="L125">            values.put(parameter.path(), parameter.value().deepCopy());</span>
+<span class="fc" id="L126">            sources.put(parameter.path(), parameter.source());</span>
+<span class="fc" id="L127">            rationales.put(parameter.path(), parameter.rationale());</span>
+<span class="fc" id="L128">        }</span>
+
+<span class="fc" id="L130">        LinkedHashSet&lt;String&gt; questions = new LinkedHashSet&lt;&gt;(proposal.unresolvedQuestions());</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        for (String coreField : CORE_INTENT_FIELDS) {</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">            if (sources.get(coreField) == ExperimentProposal.ValueSource.FRESNEL_DEFAULT) {</span>
+<span class="pc bpc" id="L133" title="1 of 3 branches missed.">                questions.add(switch (coreField) {</span>
+<span class="fc" id="L134">                    case &quot;wavelengthNm&quot; -&gt; &quot;Which design wavelength should Fresnel use, in nanometres?&quot;;</span>
+<span class="fc" id="L135">                    case &quot;focalLengthMm&quot; -&gt; &quot;What focal distance should the design target?&quot;;</span>
+<span class="nc" id="L136">                    default -&gt; &quot;Which value should Fresnel use for &quot; + coreField + &quot;?&quot;;</span>
+                });
+            }
+<span class="fc" id="L139">        }</span>
+
+<span class="fc bfc" id="L141" title="All 2 branches covered.">        if (questions.isEmpty()</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">                &amp;&amp; sources.get(&quot;apertureDiameterMm&quot;) == ExperimentProposal.ValueSource.FRESNEL_DEFAULT) {</span>
+<span class="fc" id="L143">            inferPrintableAperture(values, sources, rationales);</span>
+        }
+
+<span class="fc" id="L146">        List&lt;ExperimentProposal.Alternative&gt; alternatives = validateAlternatives(</span>
+<span class="fc" id="L147">                proposal.alternatives(), allowedFields);</span>
+<span class="fc" id="L148">        List&lt;ExperimentCopilotResponse.GroundedParameter&gt; grounded = groundedParameters(</span>
+                allowedFields, values, defaults, sources, rationales);
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        if (!questions.isEmpty()) {</span>
+<span class="fc" id="L152">            return new ExperimentCopilotResponse(</span>
+<span class="fc" id="L153">                    provider.id(),</span>
+<span class="fc" id="L154">                    provider.modelId(),</span>
+                    MVP_PLUGIN_ID,
+<span class="fc" id="L156">                    schema.parameterSchemaVersion(),</span>
+<span class="fc" id="L157">                    proposal.summary(),</span>
+                    false,
+                    grounded,
+<span class="fc" id="L160">                    List.copyOf(questions),</span>
+                    alternatives,
+                    null,
+                    null,
+                    null);
+        }
+
+<span class="fc" id="L167">        JsonNode rawParameters = mapper.valueToTree(values);</span>
+<span class="fc" id="L168">        FresnelJobDocument candidate = new FresnelJobDocument(</span>
+                FresnelJobDocument.SCHEMA_URL,
+                FresnelJobDocument.FORMAT_IDENTIFIER,
+                FresnelJobDocument.CURRENT_FORMAT_VERSION,
+                new FresnelJobDocument.PluginRef(
+                        MVP_PLUGIN_ID,
+<span class="fc" id="L174">                        schema.parameterSchemaVersion(),</span>
+                        MVP_PLUGIN_ID + &quot;/1&quot;),
+                rawParameters,
+                null,
+                new FresnelJobDocument.Provenance(
+<span class="fc" id="L179">                        provenanceLabel(provider),</span>
+                        null,
+                        null));
+
+<span class="fc" id="L183">        FresnelJobDocument normalized = jobService.normalize(candidate);</span>
+<span class="fc" id="L184">        SingleZonePlateRequest zonePlate = mapper.convertValue(</span>
+<span class="fc" id="L185">                normalized.parameters(), SingleZonePlateRequest.class);</span>
+<span class="fc" id="L186">        DesignValidationReport validation = DesignValidationReports.forZonePlate(</span>
+<span class="fc" id="L187">                zonePlate.toParameters());</span>
+
+<span class="fc" id="L189">        return new ExperimentCopilotResponse(</span>
+<span class="fc" id="L190">                provider.id(),</span>
+<span class="fc" id="L191">                provider.modelId(),</span>
+                MVP_PLUGIN_ID,
+<span class="fc" id="L193">                schema.parameterSchemaVersion(),</span>
+<span class="fc" id="L194">                proposal.summary(),</span>
+                true,
+<span class="fc" id="L196">                groundedParameters(</span>
+                        allowedFields,
+<span class="fc" id="L198">                        toNodeMap(normalized.parameters()),</span>
+                        defaults,
+                        sources,
+                        rationales),
+<span class="fc" id="L202">                List.of(),</span>
+                alternatives,
+<span class="fc" id="L204">                normalized.parameters(),</span>
+                validation,
+                normalized);
+    }
+
+    private void overlayCurrentParameters(
+            JsonNode currentParameters,
+            Set&lt;String&gt; allowedFields,
+            Map&lt;String, JsonNode&gt; values,
+            Map&lt;String, ExperimentProposal.ValueSource&gt; sources,
+            Map&lt;String, String&gt; rationales) {
+<span class="pc bpc" id="L215" title="3 of 4 branches missed.">        if (currentParameters == null || currentParameters.isNull()) return;</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        if (!currentParameters.isObject()) {</span>
+<span class="nc" id="L217">            throw new IllegalArgumentException(&quot;currentParameters must be a JSON object&quot;);</span>
+        }
+<span class="nc bnc" id="L219" title="All 2 branches missed.">        for (Map.Entry&lt;String, JsonNode&gt; entry : currentParameters.properties()) {</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">            if (!allowedFields.contains(entry.getKey())) {</span>
+<span class="nc" id="L221">                throw new IllegalArgumentException(</span>
+<span class="nc" id="L222">                        &quot;currentParameters contains unknown field: &quot; + entry.getKey());</span>
+            }
+<span class="nc" id="L224">            values.put(entry.getKey(), entry.getValue().deepCopy());</span>
+<span class="nc" id="L225">            sources.put(entry.getKey(), ExperimentProposal.ValueSource.USER_SUPPLIED);</span>
+<span class="nc" id="L226">            rationales.put(entry.getKey(), &quot;Retained from the current user-edited Fresnel job.&quot;);</span>
+<span class="nc" id="L227">        }</span>
+<span class="nc" id="L228">    }</span>
+
+    private static LinkedHashSet&lt;String&gt; fieldNames(JsonNode properties) {
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">        if (!properties.isObject()) {</span>
+<span class="nc" id="L232">            throw new IllegalStateException(&quot;Zone Plate parameter schema has no properties object&quot;);</span>
+        }
+<span class="fc" id="L234">        LinkedHashSet&lt;String&gt; result = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; entry : properties.properties()) {</span>
+<span class="fc" id="L236">            result.add(entry.getKey());</span>
+<span class="fc" id="L237">        }</span>
+<span class="fc" id="L238">        return result;</span>
+    }
+
+    private void inferPrintableAperture(
+            Map&lt;String, JsonNode&gt; values,
+            Map&lt;String, ExperimentProposal.ValueSource&gt; sources,
+            Map&lt;String, String&gt; rationales) {
+<span class="fc" id="L245">        double dpi = requiredNumber(values, &quot;dpi&quot;);</span>
+<span class="fc" id="L246">        double wavelength = requiredNumber(values, &quot;wavelengthNm&quot;);</span>
+<span class="fc" id="L247">        double focalLength = requiredNumber(values, &quot;focalLengthMm&quot;);</span>
+<span class="fc" id="L248">        double aperture = DesignAssistant.recommend(new DesignGoal(</span>
+                        dpi,
+                        210.0,
+                        297.0,
+                        wavelength,
+                        focalLength,
+                        null))
+<span class="fc" id="L255">                .recommended()</span>
+<span class="fc" id="L256">                .parameters()</span>
+<span class="fc" id="L257">                .apertureDiameterMm();</span>
+<span class="fc" id="L258">        values.put(&quot;apertureDiameterMm&quot;, mapper.valueToTree(aperture));</span>
+<span class="fc" id="L259">        sources.put(&quot;apertureDiameterMm&quot;, ExperimentProposal.ValueSource.COPILOT_INFERRED);</span>
+<span class="fc" id="L260">        rationales.put(</span>
+                &quot;apertureDiameterMm&quot;,
+                &quot;Selected by Fresnel's deterministic DesignAssistant for a printable A4 baseline; &quot;
+                        + &quot;the generated model did not choose this value.&quot;);
+<span class="fc" id="L264">    }</span>
+
+    private static double requiredNumber(Map&lt;String, JsonNode&gt; values, String field) {
+<span class="fc" id="L267">        JsonNode value = values.get(field);</span>
+<span class="pc bpc" id="L268" title="2 of 4 branches missed.">        if (value == null || !value.isNumber()) {</span>
+<span class="nc" id="L269">            throw new IllegalArgumentException(&quot;parameter &quot; + field + &quot; must be numeric&quot;);</span>
+        }
+<span class="fc" id="L271">        return value.doubleValue();</span>
+    }
+
+    private static List&lt;ExperimentProposal.Alternative&gt; validateAlternatives(
+            List&lt;ExperimentProposal.Alternative&gt; alternatives,
+            Set&lt;String&gt; allowedFields) {
+<span class="fc" id="L277">        List&lt;ExperimentProposal.Alternative&gt; safe = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L278" title="All 2 branches covered.">        for (ExperimentProposal.Alternative alternative : alternatives) {</span>
+<span class="fc" id="L279">            JsonNode overrides = alternative.parameterOverrides();</span>
+<span class="pc bpc" id="L280" title="2 of 4 branches missed.">            if (overrides != null &amp;&amp; !overrides.isObject()) {</span>
+<span class="nc" id="L281">                throw new IllegalArgumentException(&quot;copilot alternative overrides must be an object&quot;);</span>
+            }
+<span class="pc bpc" id="L283" title="1 of 2 branches missed.">            if (overrides != null) {</span>
+<span class="fc bfc" id="L284" title="All 2 branches covered.">                for (Map.Entry&lt;String, JsonNode&gt; entry : overrides.properties()) {</span>
+<span class="pc bpc" id="L285" title="1 of 2 branches missed.">                    if (!allowedFields.contains(entry.getKey())) {</span>
+<span class="nc" id="L286">                        throw new IllegalArgumentException(</span>
+<span class="nc" id="L287">                                &quot;copilot alternative proposed an unknown parameter path: &quot; + entry.getKey());</span>
+                    }
+<span class="fc" id="L289">                }</span>
+            }
+<span class="fc" id="L291">            safe.add(alternative);</span>
+<span class="fc" id="L292">        }</span>
+<span class="fc" id="L293">        return List.copyOf(safe);</span>
+    }
+
+    private static List&lt;ExperimentCopilotResponse.GroundedParameter&gt; groundedParameters(
+            Set&lt;String&gt; fieldOrder,
+            Map&lt;String, JsonNode&gt; values,
+            Map&lt;String, JsonNode&gt; defaults,
+            Map&lt;String, ExperimentProposal.ValueSource&gt; sources,
+            Map&lt;String, String&gt; rationales) {
+<span class="fc" id="L302">        List&lt;ExperimentCopilotResponse.GroundedParameter&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">        for (String field : fieldOrder) {</span>
+<span class="fc" id="L304">            result.add(new ExperimentCopilotResponse.GroundedParameter(</span>
+                    field,
+<span class="fc" id="L306">                    values.get(field),</span>
+<span class="fc" id="L307">                    defaults.get(field),</span>
+<span class="fc" id="L308">                    sources.getOrDefault(field, ExperimentProposal.ValueSource.FRESNEL_DEFAULT),</span>
+<span class="fc" id="L309">                    rationales.getOrDefault(field, &quot;Current Fresnel parameter-schema default.&quot;)));</span>
+<span class="fc" id="L310">        }</span>
+<span class="fc" id="L311">        return List.copyOf(result);</span>
+    }
+
+    private static LinkedHashMap&lt;String, JsonNode&gt; toNodeMap(JsonNode object) {
+<span class="fc" id="L315">        LinkedHashMap&lt;String, JsonNode&gt; result = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L316" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; entry : object.properties()) {</span>
+<span class="fc" id="L317">            result.put(entry.getKey(), entry.getValue().deepCopy());</span>
+<span class="fc" id="L318">        }</span>
+<span class="fc" id="L319">        return result;</span>
+    }
+
+    private static String providerId(ExperimentCopilotProvider provider) {
+<span class="pc bpc" id="L323" title="3 of 6 branches missed.">        if (provider == null || provider.id() == null || !PROVIDER_ID.matcher(provider.id()).matches()) {</span>
+<span class="nc" id="L324">            throw new IllegalStateException(&quot;Experiment copilot provider has an invalid id&quot;);</span>
+        }
+<span class="fc" id="L326">        return provider.id();</span>
+    }
+
+    private static String provenanceLabel(ExperimentCopilotProvider provider) {
+<span class="fc" id="L330">        String model = oneLine(provider.modelId(), &quot;unspecified-model&quot;, 120);</span>
+<span class="fc" id="L331">        return &quot;Fresnel experiment copilot [&quot; + provider.id() + &quot;/&quot; + model + &quot;]&quot;;</span>
+    }
+
+    private static String oneLine(String value, String fallback, int maxLength) {
+<span class="pc bpc" id="L335" title="2 of 4 branches missed.">        if (value == null || value.isBlank()) return fallback;</span>
+<span class="fc" id="L336">        String normalized = value.replace('\r', ' ').replace('\n', ' ').trim();</span>
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">        return normalized.length() &lt;= maxLength ? normalized : normalized.substring(0, maxLength);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

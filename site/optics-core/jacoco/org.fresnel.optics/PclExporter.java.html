@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PclExporter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">PclExporter.java</span></div><h1>PclExporter.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
+/**
+ * Deterministic PCL 5e monochrome raster exporter.
+ *
+ * &lt;p&gt;The caller supplies only a trusted profile ID and bounded compression enum;
+ * arbitrary preambles or escape sequences are deliberately impossible.&lt;/p&gt;
+ */
+public final class PclExporter {
+
+    public static final String MEDIA_TYPE = &quot;application/vnd.hp-pcl&quot;;
+    private static final byte ESC = 0x1b;
+
+    private PclExporter() {}
+
+    public static byte[] toPclBytes(
+            VariableLineGratingParameters parameters,
+            PrinterRasterProfile profile,
+            PclCompression compression) {
+<span class="pc bpc" id="L24" title="1 of 2 branches missed.">        if (profile == null) throw new IllegalArgumentException(&quot;printer profile must not be null&quot;);</span>
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        if (compression == null) compression = PclCompression.TIFF;</span>
+<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        if (profile.dialect() != PrinterLanguageDialect.PCL_5E) {</span>
+<span class="nc" id="L27">            throw new IllegalArgumentException(&quot;unsupported printer dialect: &quot; + profile.dialect());</span>
+        }
+<span class="pc bpc" id="L29" title="1 of 2 branches missed.">        if (!profile.compressionModes().contains(compression)) {</span>
+<span class="nc" id="L30">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L31">                    &quot;printer profile &quot; + profile.id() + &quot; does not support &quot; + compression);</span>
+        }
+        // The initial PCL 5e dialect uses one raster-resolution command. Profiles may
+        // describe asymmetric devices for analysis, but export rejects that combination.
+<span class="pc bpc" id="L35" title="1 of 2 branches missed.">        if (profile.dpiForPageX() != profile.dpiForPageY()) {</span>
+<span class="nc" id="L36">            throw new IllegalArgumentException(</span>
+                    &quot;PCL_5E export currently requires equal page-X and page-Y raster DPI; profile &quot;
+<span class="nc" id="L38">                            + profile.id() + &quot; maps to &quot; + profile.dpiForPageX() + &quot;x&quot;</span>
+<span class="nc" id="L39">                            + profile.dpiForPageY() + &quot; DPI&quot;);</span>
+        }
+
+<span class="fc" id="L42">        MonochromeRaster raster = VariableLineGratingRasterizer.rasterize(</span>
+<span class="fc" id="L43">                parameters, profile.dpiForPageX(), profile.dpiForPageY());</span>
+<span class="fc" id="L44">        verifyFits(raster, profile);</span>
+
+<span class="fc" id="L46">        ByteArrayOutputStream out = new ByteArrayOutputStream(</span>
+<span class="fc" id="L47">                Math.max(4096, raster.data().length / 2));</span>
+<span class="fc" id="L48">        command(out, &quot;E&quot;);</span>
+<span class="fc" id="L49">        command(out, &quot;&amp;l&quot; + profile.mediaSizeCommandValue() + &quot;A&quot;);</span>
+<span class="fc" id="L50">        command(out, &quot;&amp;l&quot; + profile.pageOrientation().commandValue() + &quot;O&quot;);</span>
+<span class="fc" id="L51">        command(out, &quot;&amp;u&quot; + profile.dpiForPageX() + &quot;D&quot;);</span>
+<span class="fc" id="L52">        command(out, &quot;*t&quot; + profile.dpiForPageX() + &quot;R&quot;);</span>
+<span class="fc" id="L53">        command(out, &quot;*p&quot; + profile.printableOriginXDots() + &quot;X&quot;);</span>
+<span class="fc" id="L54">        command(out, &quot;*p&quot; + profile.printableOriginYDots() + &quot;Y&quot;);</span>
+<span class="fc" id="L55">        command(out, &quot;*r&quot; + raster.widthDots() + &quot;S&quot;);</span>
+<span class="fc" id="L56">        command(out, &quot;*r&quot; + raster.heightDots() + &quot;T&quot;);</span>
+<span class="fc" id="L57">        command(out, &quot;*b&quot; + compression.commandValue() + &quot;M&quot;);</span>
+<span class="fc" id="L58">        command(out, &quot;*r1A&quot;);</span>
+
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        for (int y = 0; y &lt; raster.heightDots(); y++) {</span>
+<span class="fc" id="L61">            byte[] row = raster.row(y);</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">            byte[] encoded = compression == PclCompression.NONE ? row : tiffCompress(row);</span>
+<span class="fc" id="L63">            command(out, &quot;*b&quot; + encoded.length + &quot;W&quot;);</span>
+<span class="fc" id="L64">            out.writeBytes(encoded);</span>
+        }
+<span class="fc" id="L66">        command(out, &quot;*rB&quot;);</span>
+<span class="fc" id="L67">        out.write(0x0c);</span>
+<span class="fc" id="L68">        command(out, &quot;E&quot;);</span>
+<span class="fc" id="L69">        return out.toByteArray();</span>
+    }
+
+    static byte[] tiffCompress(byte[] source) {
+<span class="fc" id="L73">        ByteArrayOutputStream out = new ByteArrayOutputStream(source.length);</span>
+<span class="fc" id="L74">        int i = 0;</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        while (i &lt; source.length) {</span>
+<span class="fc" id="L76">            int run = repeatedRun(source, i);</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">            if (run &gt;= 3) {</span>
+<span class="fc" id="L78">                int count = Math.min(run, 128);</span>
+<span class="fc" id="L79">                out.write(257 - count);</span>
+<span class="fc" id="L80">                out.write(source[i] &amp; 0xff);</span>
+<span class="fc" id="L81">                i += count;</span>
+<span class="fc" id="L82">                continue;</span>
+            }
+
+<span class="fc" id="L85">            int literalStart = i;</span>
+<span class="fc" id="L86">            i += run;</span>
+<span class="pc bpc" id="L87" title="1 of 4 branches missed.">            while (i &lt; source.length &amp;&amp; i - literalStart &lt; 128) {</span>
+<span class="fc" id="L88">                int nextRun = repeatedRun(source, i);</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">                if (nextRun &gt;= 3) break;</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">                if (i - literalStart + nextRun &gt; 128) break;</span>
+<span class="fc" id="L91">                i += nextRun;</span>
+<span class="fc" id="L92">            }</span>
+<span class="fc" id="L93">            int count = i - literalStart;</span>
+<span class="fc" id="L94">            out.write(count - 1);</span>
+<span class="fc" id="L95">            out.writeBytes(Arrays.copyOfRange(source, literalStart, i));</span>
+<span class="fc" id="L96">        }</span>
+<span class="fc" id="L97">        return out.toByteArray();</span>
+    }
+
+    static byte[] tiffDecompress(byte[] encoded, int expectedLength) {
+<span class="fc" id="L101">        ByteArrayOutputStream out = new ByteArrayOutputStream(expectedLength);</span>
+<span class="fc" id="L102">        int i = 0;</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        while (i &lt; encoded.length) {</span>
+<span class="fc" id="L104">            int control = encoded[i++] &amp; 0xff;</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            if (control &lt;= 127) {</span>
+<span class="fc" id="L106">                int count = control + 1;</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">                if (i + count &gt; encoded.length) throw new IllegalArgumentException(&quot;truncated TIFF literal&quot;);</span>
+<span class="fc" id="L108">                out.write(encoded, i, count);</span>
+<span class="fc" id="L109">                i += count;</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">            } else if (control &gt;= 129) {</span>
+<span class="fc" id="L111">                int count = 257 - control;</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">                if (i &gt;= encoded.length) throw new IllegalArgumentException(&quot;truncated TIFF run&quot;);</span>
+<span class="fc" id="L113">                byte value = encoded[i++];</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">                for (int j = 0; j &lt; count; j++) out.write(value);</span>
+            }
+<span class="fc" id="L116">        }</span>
+<span class="fc" id="L117">        byte[] result = out.toByteArray();</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        if (result.length != expectedLength) {</span>
+<span class="nc" id="L119">            throw new IllegalArgumentException(</span>
+                    &quot;decoded TIFF row has &quot; + result.length + &quot; bytes, expected &quot; + expectedLength);
+        }
+<span class="fc" id="L122">        return result;</span>
+    }
+
+    private static int repeatedRun(byte[] source, int offset) {
+<span class="fc" id="L126">        int count = 1;</span>
+<span class="pc bpc" id="L127" title="1 of 6 branches missed.">        while (offset + count &lt; source.length &amp;&amp; count &lt; 128</span>
+                &amp;&amp; source[offset + count] == source[offset]) {
+<span class="fc" id="L129">            count++;</span>
+        }
+<span class="fc" id="L131">        return count;</span>
+    }
+
+    private static void verifyFits(MonochromeRaster raster, PrinterRasterProfile profile) {
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        if (raster.widthDots() &gt; profile.printableWidthDots()</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">                || raster.heightDots() &gt; profile.printableHeightDots()) {</span>
+<span class="nc" id="L137">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L138">                    &quot;grating raster &quot; + raster.widthDots() + &quot;x&quot; + raster.heightDots()</span>
+<span class="nc" id="L139">                            + &quot; dots does not fit printable area &quot; + profile.printableWidthDots()</span>
+<span class="nc" id="L140">                            + &quot;x&quot; + profile.printableHeightDots() + &quot; of profile &quot; + profile.id());</span>
+        }
+<span class="fc" id="L142">    }</span>
+
+    private static void command(ByteArrayOutputStream out, String command) {
+<span class="fc" id="L145">        out.write(ESC);</span>
+<span class="fc" id="L146">        out.writeBytes(command.getBytes(StandardCharsets.US_ASCII));</span>
+<span class="fc" id="L147">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

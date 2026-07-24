@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpenAiExperimentCopilotProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.copilot</a> &gt; <span class="el_source">OpenAiExperimentCopilotProvider.java</span></div><h1>OpenAiExperimentCopilotProvider.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.copilot;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/** OpenAI Responses API implementation using strict structured output. */
+@Component
+public final class OpenAiExperimentCopilotProvider implements ExperimentCopilotProvider {
+
+<span class="fc" id="L23">    private static final List&lt;String&gt; PARAMETER_PATHS = List.of(</span>
+            &quot;apertureDiameterMm&quot;, &quot;focalLengthMm&quot;, &quot;wavelengthNm&quot;, &quot;dpi&quot;,
+            &quot;targetOffsetXmm&quot;, &quot;targetOffsetYmm&quot;, &quot;maskType&quot;, &quot;polarity&quot;);
+
+    private final ObjectMapper mapper;
+    private final HttpClient httpClient;
+    private final boolean enabled;
+    private final String apiKey;
+    private final URI endpoint;
+    private final String model;
+    private final Duration timeout;
+
+    @Autowired
+    public OpenAiExperimentCopilotProvider(
+            ObjectMapper mapper,
+            @Value(&quot;${fresnel.copilot.openai.enabled:${FRESNEL_COPILOT_OPENAI_ENABLED:true}}&quot;) boolean enabled,
+            @Value(&quot;${fresnel.copilot.openai.api-key:${OPENAI_API_KEY:}}&quot;) String apiKey,
+            @Value(&quot;${fresnel.copilot.openai.endpoint:${OPENAI_COPILOT_ENDPOINT:https://api.openai.com/v1/responses}}&quot;) String endpoint,
+            @Value(&quot;${fresnel.copilot.openai.model:${OPENAI_COPILOT_MODEL:gpt-5.6}}&quot;) String model,
+            @Value(&quot;${fresnel.copilot.openai.timeout-seconds:${OPENAI_COPILOT_TIMEOUT_SECONDS:60}}&quot;) long timeoutSeconds) {
+<span class="fc" id="L43">        this(mapper, HttpClient.newBuilder()</span>
+<span class="fc" id="L44">                        .connectTimeout(Duration.ofSeconds(Math.max(1, timeoutSeconds)))</span>
+<span class="fc" id="L45">                        .build(),</span>
+                enabled, apiKey, endpoint, model, timeoutSeconds);
+<span class="fc" id="L47">    }</span>
+
+    private OpenAiExperimentCopilotProvider(
+            ObjectMapper mapper,
+            HttpClient httpClient,
+            boolean enabled,
+            String apiKey,
+            String endpoint,
+            String model,
+<span class="fc" id="L56">            long timeoutSeconds) {</span>
+<span class="fc" id="L57">        this.mapper = mapper;</span>
+<span class="fc" id="L58">        this.httpClient = httpClient;</span>
+<span class="fc" id="L59">        this.enabled = enabled;</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        this.apiKey = apiKey == null ? &quot;&quot; : apiKey.trim();</span>
+<span class="pc bpc" id="L61" title="2 of 4 branches missed.">        this.endpoint = URI.create(endpoint == null || endpoint.isBlank()</span>
+<span class="pc" id="L62">                ? &quot;https://api.openai.com/v1/responses&quot; : endpoint.trim());</span>
+<span class="pc bpc" id="L63" title="2 of 4 branches missed.">        this.model = model == null || model.isBlank() ? &quot;gpt-5.6&quot; : model.trim();</span>
+<span class="fc" id="L64">        this.timeout = Duration.ofSeconds(Math.max(1, timeoutSeconds));</span>
+<span class="fc" id="L65">    }</span>
+
+    static OpenAiExperimentCopilotProvider forTesting(
+            ObjectMapper mapper,
+            HttpClient client,
+            String apiKey,
+            URI endpoint,
+            String model) {
+<span class="fc" id="L73">        return new OpenAiExperimentCopilotProvider(</span>
+<span class="fc" id="L74">                mapper, client, true, apiKey, endpoint.toString(), model, 10);</span>
+    }
+
+    @Override
+    public String id() {
+<span class="fc" id="L79">        return &quot;openai&quot;;</span>
+    }
+
+    @Override
+    public String displayName() {
+<span class="fc" id="L84">        return &quot;OpenAI structured proposal&quot;;</span>
+    }
+
+    @Override
+    public String modelId() {
+<span class="fc" id="L89">        return model;</span>
+    }
+
+    @Override
+    public boolean available() {
+<span class="pc bpc" id="L94" title="1 of 4 branches missed.">        return enabled &amp;&amp; !apiKey.isBlank();</span>
+    }
+
+    @Override
+    public ExperimentProposal propose(ExperimentCopilotContext context) {
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">        if (!available()) {</span>
+<span class="nc" id="L100">            throw new CopilotProviderException(</span>
+                    &quot;PROVIDER_NOT_CONFIGURED&quot;,
+                    &quot;The OpenAI copilot provider is disabled or OPENAI_API_KEY is not configured.&quot;);
+        }
+
+<span class="fc" id="L105">        Map&lt;String, Object&gt; requestBody = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L106">        requestBody.put(&quot;model&quot;, model);</span>
+<span class="fc" id="L107">        requestBody.put(&quot;store&quot;, false);</span>
+<span class="fc" id="L108">        requestBody.put(&quot;reasoning&quot;, Map.of(&quot;effort&quot;, &quot;low&quot;));</span>
+<span class="fc" id="L109">        requestBody.put(&quot;max_output_tokens&quot;, 4000);</span>
+<span class="fc" id="L110">        requestBody.put(&quot;instructions&quot;, &quot;&quot;&quot;</span>
+                Translate the user's optical intent into a restricted Fresnel Zone Plate proposal.
+                Use only the parameter paths permitted by the supplied schema. Do not invent plugins,
+                code, commands, files or URLs. Mark values explicitly stated by the user as
+                USER_SUPPLIED and values you infer as COPILOT_INFERRED. Ask a clarification question
+                when wavelength or focal distance cannot be determined. Generated prose is advisory;
+                Fresnel's deterministic validation remains authoritative.
+                &quot;&quot;&quot;);
+<span class="fc" id="L118">        requestBody.put(&quot;input&quot;, providerInput(context));</span>
+<span class="fc" id="L119">        requestBody.put(&quot;text&quot;, Map.of(&quot;format&quot;, Map.of(</span>
+                &quot;type&quot;, &quot;json_schema&quot;,
+                &quot;name&quot;, &quot;fresnel_experiment_proposal&quot;,
+<span class="fc" id="L122">                &quot;strict&quot;, true,</span>
+<span class="fc" id="L123">                &quot;schema&quot;, structuredOutputSchema())));</span>
+
+        final String requestJson;
+        try {
+<span class="fc" id="L127">            requestJson = mapper.writeValueAsString(requestBody);</span>
+<span class="nc" id="L128">        } catch (Exception e) {</span>
+<span class="nc" id="L129">            throw new CopilotProviderException(</span>
+                    &quot;REQUEST_SERIALIZATION_FAILED&quot;,
+                    &quot;Could not prepare the OpenAI structured-output request.&quot;, e);
+<span class="fc" id="L132">        }</span>
+
+<span class="fc" id="L134">        HttpRequest request = HttpRequest.newBuilder(endpoint)</span>
+<span class="fc" id="L135">                .timeout(timeout)</span>
+<span class="fc" id="L136">                .header(&quot;Authorization&quot;, &quot;Bearer &quot; + apiKey)</span>
+<span class="fc" id="L137">                .header(&quot;Content-Type&quot;, &quot;application/json&quot;)</span>
+<span class="fc" id="L138">                .POST(HttpRequest.BodyPublishers.ofString(requestJson))</span>
+<span class="fc" id="L139">                .build();</span>
+
+        final HttpResponse&lt;String&gt; response;
+        try {
+<span class="fc" id="L143">            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());</span>
+<span class="nc" id="L144">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L145">            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L146">            throw new CopilotProviderException(</span>
+                    &quot;PROVIDER_INTERRUPTED&quot;,
+                    &quot;The OpenAI proposal request was interrupted.&quot;, e);
+<span class="nc" id="L149">        } catch (IOException | RuntimeException e) {</span>
+<span class="nc" id="L150">            throw new CopilotProviderException(</span>
+                    &quot;PROVIDER_UNREACHABLE&quot;,
+                    &quot;The OpenAI proposal service could not be reached.&quot;, e);
+<span class="fc" id="L153">        }</span>
+
+<span class="pc bpc" id="L155" title="1 of 4 branches missed.">        if (response.statusCode() &lt; 200 || response.statusCode() &gt;= 300) {</span>
+<span class="fc" id="L156">            throw classifyHttpFailure(response.statusCode());</span>
+        }
+
+        try {
+<span class="fc" id="L160">            JsonNode responseJson = mapper.readTree(response.body());</span>
+<span class="fc" id="L161">            String outputText = extractOutputText(responseJson);</span>
+<span class="fc" id="L162">            StructuredProposal structured = mapper.convertValue(</span>
+<span class="fc" id="L163">                    mapper.readTree(outputText), StructuredProposal.class);</span>
+<span class="fc" id="L164">            return structured.toProposal(mapper);</span>
+<span class="nc" id="L165">        } catch (CopilotProviderException e) {</span>
+<span class="nc" id="L166">            throw e;</span>
+<span class="nc" id="L167">        } catch (Exception e) {</span>
+<span class="nc" id="L168">            throw new CopilotProviderException(</span>
+                    &quot;MALFORMED_PROVIDER_RESPONSE&quot;,
+                    &quot;OpenAI returned a response that did not match the experiment proposal contract.&quot;, e);
+        }
+    }
+
+    private static String providerInput(ExperimentCopilotContext context) {
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">        String current = context.currentParameters() == null</span>
+<span class="fc" id="L176">                ? &quot;{}&quot;</span>
+<span class="pc" id="L177">                : context.currentParameters().toString();</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">        String defaults = context.defaults() == null ? &quot;{}&quot; : context.defaults().toString();</span>
+<span class="fc" id="L179">        return &quot;User request:\n&quot; + context.request()</span>
+                + &quot;\n\nCurrent user-edited parameters (retain unless the request changes them):\n&quot; + current
+                + &quot;\n\nCurrent Fresnel defaults:\n&quot; + defaults
+<span class="fc" id="L182">                + &quot;\n\nCurrent Zone Plate parameter schema:\n&quot; + context.parameterSchema();</span>
+    }
+
+    private static CopilotProviderException classifyHttpFailure(int status) {
+<span class="pc bpc" id="L186" title="2 of 3 branches missed.">        String code = switch (status) {</span>
+<span class="nc" id="L187">            case 401, 403 -&gt; &quot;AUTHENTICATION_FAILED&quot;;</span>
+<span class="fc" id="L188">            case 429 -&gt; &quot;QUOTA_OR_RATE_LIMIT&quot;;</span>
+<span class="pc bnc" id="L189" title="All 2 branches missed.">            default -&gt; status &gt;= 500 ? &quot;PROVIDER_UNAVAILABLE&quot; : &quot;PROVIDER_REJECTED_REQUEST&quot;;</span>
+        };
+<span class="pc bpc" id="L191" title="2 of 3 branches missed.">        String message = switch (status) {</span>
+<span class="nc" id="L192">            case 401, 403 -&gt; &quot;OpenAI rejected the configured API credentials.&quot;;</span>
+<span class="fc" id="L193">            case 429 -&gt; &quot;OpenAI quota or rate limits currently prevent a proposal.&quot;;</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">            default -&gt; status &gt;= 500</span>
+<span class="nc" id="L195">                    ? &quot;OpenAI is temporarily unavailable.&quot;</span>
+<span class="pc" id="L196">                    : &quot;OpenAI rejected the structured proposal request.&quot;;</span>
+        };
+        // Never include the upstream body: it can contain request details and is not
+        // needed by clients. The classified status is sufficient and secret-safe.
+<span class="fc" id="L200">        return new CopilotProviderException(code, message + &quot; (HTTP &quot; + status + &quot;)&quot;);</span>
+    }
+
+    private static String extractOutputText(JsonNode response) {
+<span class="fc" id="L204">        JsonNode output = response.path(&quot;output&quot;);</span>
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">        if (!output.isArray()) {</span>
+<span class="nc" id="L206">            throw new CopilotProviderException(</span>
+                    &quot;MALFORMED_PROVIDER_RESPONSE&quot;,
+                    &quot;OpenAI response did not contain an output array.&quot;);
+        }
+<span class="pc bpc" id="L210" title="1 of 2 branches missed.">        for (JsonNode item : output) {</span>
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">            if (!&quot;message&quot;.equals(item.path(&quot;type&quot;).asText())) continue;</span>
+<span class="fc" id="L212">            JsonNode content = item.path(&quot;content&quot;);</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">            if (!content.isArray()) continue;</span>
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">            for (JsonNode part : content) {</span>
+<span class="pc bpc" id="L215" title="1 of 2 branches missed.">                if (&quot;output_text&quot;.equals(part.path(&quot;type&quot;).asText())</span>
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">                        &amp;&amp; part.path(&quot;text&quot;).isTextual()) {</span>
+<span class="fc" id="L217">                    return part.path(&quot;text&quot;).asText();</span>
+                }
+<span class="nc bnc" id="L219" title="All 2 branches missed.">                if (&quot;refusal&quot;.equals(part.path(&quot;type&quot;).asText())) {</span>
+<span class="nc" id="L220">                    throw new CopilotProviderException(</span>
+                            &quot;PROVIDER_REFUSAL&quot;,
+                            &quot;OpenAI declined to create an experiment proposal.&quot;);
+                }
+<span class="nc" id="L224">            }</span>
+<span class="nc" id="L225">        }</span>
+<span class="nc" id="L226">        throw new CopilotProviderException(</span>
+                &quot;MALFORMED_PROVIDER_RESPONSE&quot;,
+                &quot;OpenAI response did not contain structured output text.&quot;);
+    }
+
+    private static Map&lt;String, Object&gt; structuredOutputSchema() {
+<span class="fc" id="L232">        Map&lt;String, Object&gt; valueSchema = Map.of(</span>
+<span class="fc" id="L233">                &quot;anyOf&quot;, List.of(</span>
+<span class="fc" id="L234">                        Map.of(&quot;type&quot;, &quot;number&quot;),</span>
+<span class="fc" id="L235">                        Map.of(&quot;type&quot;, &quot;string&quot;),</span>
+<span class="fc" id="L236">                        Map.of(&quot;type&quot;, &quot;null&quot;)));</span>
+<span class="fc" id="L237">        Map&lt;String, Object&gt; pathSchema = Map.of(</span>
+                &quot;type&quot;, &quot;string&quot;,
+                &quot;enum&quot;, PARAMETER_PATHS);
+<span class="fc" id="L240">        Map&lt;String, Object&gt; parameterSchema = Map.of(</span>
+                &quot;type&quot;, &quot;object&quot;,
+<span class="fc" id="L242">                &quot;additionalProperties&quot;, false,</span>
+<span class="fc" id="L243">                &quot;required&quot;, List.of(&quot;path&quot;, &quot;value&quot;, &quot;source&quot;, &quot;rationale&quot;),</span>
+<span class="fc" id="L244">                &quot;properties&quot;, Map.of(</span>
+                        &quot;path&quot;, pathSchema,
+                        &quot;value&quot;, valueSchema,
+<span class="fc" id="L247">                        &quot;source&quot;, Map.of(&quot;type&quot;, &quot;string&quot;, &quot;enum&quot;, List.of(</span>
+                                &quot;USER_SUPPLIED&quot;, &quot;COPILOT_INFERRED&quot;)),
+<span class="fc" id="L249">                        &quot;rationale&quot;, Map.of(&quot;type&quot;, &quot;string&quot;)));</span>
+<span class="fc" id="L250">        Map&lt;String, Object&gt; overrideSchema = Map.of(</span>
+                &quot;type&quot;, &quot;object&quot;,
+<span class="fc" id="L252">                &quot;additionalProperties&quot;, false,</span>
+<span class="fc" id="L253">                &quot;required&quot;, List.of(&quot;path&quot;, &quot;value&quot;),</span>
+<span class="fc" id="L254">                &quot;properties&quot;, Map.of(</span>
+                        &quot;path&quot;, pathSchema,
+                        &quot;value&quot;, valueSchema));
+<span class="fc" id="L257">        Map&lt;String, Object&gt; alternativeSchema = Map.of(</span>
+                &quot;type&quot;, &quot;object&quot;,
+<span class="fc" id="L259">                &quot;additionalProperties&quot;, false,</span>
+<span class="fc" id="L260">                &quot;required&quot;, List.of(&quot;label&quot;, &quot;description&quot;, &quot;parameterOverrides&quot;),</span>
+<span class="fc" id="L261">                &quot;properties&quot;, Map.of(</span>
+<span class="fc" id="L262">                        &quot;label&quot;, Map.of(&quot;type&quot;, &quot;string&quot;),</span>
+<span class="fc" id="L263">                        &quot;description&quot;, Map.of(&quot;type&quot;, &quot;string&quot;),</span>
+<span class="fc" id="L264">                        &quot;parameterOverrides&quot;, Map.of(</span>
+                                &quot;type&quot;, &quot;array&quot;,
+                                &quot;items&quot;, overrideSchema)));
+<span class="fc" id="L267">        return Map.of(</span>
+                &quot;type&quot;, &quot;object&quot;,
+<span class="fc" id="L269">                &quot;additionalProperties&quot;, false,</span>
+<span class="fc" id="L270">                &quot;required&quot;, List.of(</span>
+                        &quot;selectedPluginId&quot;, &quot;parameters&quot;, &quot;unresolvedQuestions&quot;, &quot;alternatives&quot;, &quot;summary&quot;),
+<span class="fc" id="L272">                &quot;properties&quot;, Map.of(</span>
+<span class="fc" id="L273">                        &quot;selectedPluginId&quot;, Map.of(&quot;type&quot;, &quot;string&quot;, &quot;enum&quot;, List.of(&quot;zone-plate&quot;)),</span>
+<span class="fc" id="L274">                        &quot;parameters&quot;, Map.of(&quot;type&quot;, &quot;array&quot;, &quot;items&quot;, parameterSchema),</span>
+<span class="fc" id="L275">                        &quot;unresolvedQuestions&quot;, Map.of(&quot;type&quot;, &quot;array&quot;, &quot;items&quot;, Map.of(&quot;type&quot;, &quot;string&quot;)),</span>
+<span class="fc" id="L276">                        &quot;alternatives&quot;, Map.of(&quot;type&quot;, &quot;array&quot;, &quot;items&quot;, alternativeSchema),</span>
+<span class="fc" id="L277">                        &quot;summary&quot;, Map.of(&quot;type&quot;, &quot;string&quot;)));</span>
+    }
+
+<span class="fc" id="L280">    private record StructuredProposal(</span>
+            String selectedPluginId,
+            List&lt;StructuredParameter&gt; parameters,
+            List&lt;String&gt; unresolvedQuestions,
+            List&lt;StructuredAlternative&gt; alternatives,
+            String summary) {
+
+        ExperimentProposal toProposal(ObjectMapper mapper) {
+<span class="pc bpc" id="L288" title="1 of 2 branches missed.">            List&lt;ExperimentProposal.Parameter&gt; mappedParameters = parameters == null</span>
+<span class="nc" id="L289">                    ? List.of()</span>
+<span class="fc" id="L290">                    : parameters.stream().map(StructuredParameter::toParameter).toList();</span>
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">            List&lt;ExperimentProposal.Alternative&gt; mappedAlternatives = alternatives == null</span>
+<span class="nc" id="L292">                    ? List.of()</span>
+<span class="fc" id="L293">                    : alternatives.stream().map(item -&gt; item.toAlternative(mapper)).toList();</span>
+<span class="fc" id="L294">            return new ExperimentProposal(</span>
+                    selectedPluginId,
+                    mappedParameters,
+                    unresolvedQuestions,
+                    mappedAlternatives,
+                    summary);
+        }
+    }
+
+<span class="fc" id="L303">    private record StructuredParameter(</span>
+            String path,
+            JsonNode value,
+            ExperimentProposal.ValueSource source,
+            String rationale) {
+        ExperimentProposal.Parameter toParameter() {
+<span class="fc" id="L309">            return new ExperimentProposal.Parameter(path, value, source, rationale);</span>
+        }
+    }
+
+<span class="fc" id="L313">    private record StructuredOverride(String path, JsonNode value) {}</span>
+
+<span class="fc" id="L315">    private record StructuredAlternative(</span>
+            String label,
+            String description,
+            List&lt;StructuredOverride&gt; parameterOverrides) {
+        ExperimentProposal.Alternative toAlternative(ObjectMapper mapper) {
+<span class="fc" id="L320">            LinkedHashMap&lt;String, JsonNode&gt; overrides = new LinkedHashMap&lt;&gt;();</span>
+<span class="pc bpc" id="L321" title="1 of 2 branches missed.">            if (parameterOverrides != null) {</span>
+<span class="fc bfc" id="L322" title="All 2 branches covered.">                for (StructuredOverride override : parameterOverrides) {</span>
+<span class="pc bpc" id="L323" title="2 of 4 branches missed.">                    if (override == null || override.path() == null</span>
+<span class="pc bpc" id="L324" title="1 of 4 branches missed.">                            || override.value() == null || override.value().isNull()) {</span>
+<span class="fc" id="L325">                        continue;</span>
+                    }
+<span class="pc bpc" id="L327" title="1 of 2 branches missed.">                    if (overrides.putIfAbsent(override.path(), override.value().deepCopy()) != null) {</span>
+<span class="nc" id="L328">                        throw new CopilotProviderException(</span>
+                                &quot;MALFORMED_PROVIDER_RESPONSE&quot;,
+                                &quot;OpenAI returned the same alternative parameter more than once.&quot;);
+                    }
+<span class="fc" id="L332">                }</span>
+            }
+<span class="fc" id="L334">            return new ExperimentProposal.Alternative(</span>
+                    label,
+                    description,
+<span class="fc" id="L337">                    mapper.valueToTree(overrides));</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariableLineGratingRasterizer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">VariableLineGratingRasterizer.java</span></div><h1>VariableLineGratingRasterizer.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.util.Locale;
+
+/** Dot-addressed binary rasterizer used by PNG preview and native PCL output. */
+public final class VariableLineGratingRasterizer {
+
+    private VariableLineGratingRasterizer() {}
+
+    public static MonochromeRaster rasterize(
+            VariableLineGratingParameters p,
+            double dpiPageX,
+            double dpiPageY) {
+<span class="pc bpc" id="L14" title="2 of 4 branches missed.">        if (!Double.isFinite(dpiPageX) || dpiPageX &lt;= 0.0</span>
+<span class="pc bpc" id="L15" title="2 of 4 branches missed.">                || !Double.isFinite(dpiPageY) || dpiPageY &lt;= 0.0) {</span>
+<span class="nc" id="L16">            throw new IllegalArgumentException(&quot;page-axis DPI must be finite and positive&quot;);</span>
+        }
+<span class="fc" id="L18">        int width = Math.max(1, (int) Math.round(p.widthMm() * dpiPageX / Units.INCH_MM));</span>
+<span class="fc" id="L19">        int height = Math.max(1, (int) Math.round(p.heightMm() * dpiPageY / Units.INCH_MM));</span>
+<span class="fc" id="L20">        long pixels = (long) width * height;</span>
+<span class="fc bfc" id="L21" title="All 2 branches covered.">        if (pixels &gt; VariableLineGratingParameters.MAX_RASTER_PIXELS) {</span>
+<span class="fc" id="L22">            throw new IllegalArgumentException(</span>
+                    &quot;requested printer raster exceeds the safe &quot;
+                            + VariableLineGratingParameters.MAX_RASTER_PIXELS + &quot; pixel limit&quot;);
+        }
+<span class="fc" id="L26">        int rowBytes = (width + 7) / 8;</span>
+<span class="fc" id="L27">        byte[] data = new byte[rowBytes * height];</span>
+<span class="fc" id="L28">        MutableTarget target = new MutableTarget(width, height, rowBytes, data);</span>
+
+<span class="fc" id="L30">        double mmPerDotX = Units.INCH_MM / dpiPageX;</span>
+<span class="fc" id="L31">        double mmPerDotY = Units.INCH_MM / dpiPageY;</span>
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        for (int y = 0; y &lt; height; y++) {</span>
+<span class="fc" id="L33">            double yMm = (y + 0.5) * mmPerDotY;</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">            for (int x = 0; x &lt; width; x++) {</span>
+<span class="fc" id="L35">                double xMm = (x + 0.5) * mmPerDotX;</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">                if (VariableLineGratingModel.isOpaque(p, xMm, yMm)) target.setBlack(x, y);</span>
+            }
+        }
+<span class="fc" id="L39">        drawAnnotations(target, p, dpiPageX, dpiPageY);</span>
+<span class="fc" id="L40">        return new MonochromeRaster(width, height, rowBytes, data, dpiPageX, dpiPageY);</span>
+    }
+
+    private static void drawAnnotations(
+            MutableTarget target,
+            VariableLineGratingParameters p,
+            double dpiPageX,
+            double dpiPageY) {
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">        if (!p.showAxis()) return;</span>
+<span class="nc" id="L49">        VariableLineGratingModel.Layout layout = VariableLineGratingModel.layout(p);</span>
+<span class="nc" id="L50">        int scale = Math.max(1, Math.min(4,</span>
+<span class="nc" id="L51">                (int) Math.round(p.annotationSizeMm()</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">                        * (p.lineOrientation() == LineOrientation.VERTICAL ? dpiPageY : dpiPageX)</span>
+                        / Units.INCH_MM / 22.0)));
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if (p.lineOrientation() == LineOrientation.VERTICAL) {</span>
+<span class="nc" id="L55">            int axisY = dotY(layout.axisCoordinateMm(), dpiPageY);</span>
+<span class="nc" id="L56">            int x0 = dotX(layout.activeXmm(), dpiPageX);</span>
+<span class="nc" id="L57">            int x1 = dotX(layout.activeXmm() + layout.activeWidthMm(), dpiPageX);</span>
+<span class="nc" id="L58">            target.horizontal(x0, x1, axisY);</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">            for (int i = 0; i &lt; p.tickCount(); i++) {</span>
+<span class="nc" id="L60">                double u = i / (double) (p.tickCount() - 1);</span>
+<span class="nc" id="L61">                int x = dotX(layout.activeXmm() + u * layout.activeWidthMm(), dpiPageX);</span>
+<span class="nc" id="L62">                target.vertical(x, axisY - 4 * scale, axisY + 4 * scale);</span>
+<span class="nc" id="L63">                AxisLabel label = axisLabel(p, u, dpiPageX);</span>
+<span class="nc" id="L64">                drawCenteredHorizontal(target, x, axisY + 6 * scale, label.position(), scale);</span>
+<span class="nc" id="L65">                drawCenteredHorizontal(target, x, axisY + 14 * scale, label.quantity(), scale);</span>
+            }
+<span class="nc" id="L67">            String title = &quot;VERTICAL LINES PAGE-X PRINT-100%&quot;;</span>
+<span class="nc" id="L68">            int titleX = Math.max(0, (target.width - RasterText5x7.textWidth(title, scale)) / 2);</span>
+<span class="nc" id="L69">            int titleY = Math.min(target.height - 7 * scale - 1,</span>
+<span class="nc" id="L70">                    dotY(p.heightMm() - p.marginMm() * 0.55, dpiPageY));</span>
+<span class="nc" id="L71">            RasterText5x7.draw(target, titleX, Math.max(axisY + 23 * scale, titleY), title, scale);</span>
+<span class="nc" id="L72">        } else {</span>
+<span class="nc" id="L73">            int axisX = dotX(layout.axisCoordinateMm(), dpiPageX);</span>
+<span class="nc" id="L74">            int y0 = dotY(layout.activeYmm(), dpiPageY);</span>
+<span class="nc" id="L75">            int y1 = dotY(layout.activeYmm() + layout.activeHeightMm(), dpiPageY);</span>
+<span class="nc" id="L76">            target.vertical(axisX, y0, y1);</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            for (int i = 0; i &lt; p.tickCount(); i++) {</span>
+<span class="nc" id="L78">                double u = i / (double) (p.tickCount() - 1);</span>
+<span class="nc" id="L79">                int y = dotY(layout.activeYmm() + u * layout.activeHeightMm(), dpiPageY);</span>
+<span class="nc" id="L80">                target.horizontal(axisX - 4 * scale, axisX + 4 * scale, y);</span>
+<span class="nc" id="L81">                AxisLabel label = axisLabel(p, u, dpiPageY);</span>
+<span class="nc" id="L82">                drawCenteredClockwise(target, axisX + 6 * scale, y, label.position(), scale);</span>
+<span class="nc" id="L83">                drawCenteredClockwise(target, axisX + 14 * scale, y, label.quantity(), scale);</span>
+            }
+<span class="nc" id="L85">            String title = &quot;HORIZONTAL LINES PAGE-Y PRINT-100%&quot;;</span>
+<span class="nc" id="L86">            int titleX = Math.min(target.width - 8 * scale - 1,</span>
+<span class="nc" id="L87">                    dotX(p.widthMm() - p.marginMm() * 0.6, dpiPageX));</span>
+<span class="nc" id="L88">            int titleY = Math.max(0,</span>
+<span class="nc" id="L89">                    (target.height - RasterText5x7.textWidth(title, scale)) / 2);</span>
+<span class="nc" id="L90">            RasterText5x7.drawClockwise(target, titleX, titleY, title, scale);</span>
+        }
+<span class="nc" id="L92">    }</span>
+
+    private static void drawCenteredHorizontal(
+            MutableTarget target,
+            int centerX,
+            int y,
+            String text,
+            int scale) {
+<span class="nc" id="L100">        int width = RasterText5x7.textWidth(text, scale);</span>
+<span class="nc" id="L101">        int x = clamp(centerX - width / 2, 0, Math.max(0, target.width - width));</span>
+<span class="nc" id="L102">        RasterText5x7.draw(target, x, y, text, scale);</span>
+<span class="nc" id="L103">    }</span>
+
+    private static void drawCenteredClockwise(
+            MutableTarget target,
+            int x,
+            int centerY,
+            String text,
+            int scale) {
+<span class="nc" id="L111">        int length = RasterText5x7.textWidth(text, scale);</span>
+<span class="nc" id="L112">        int y = clamp(centerY - length / 2, 0, Math.max(0, target.height - length));</span>
+<span class="nc" id="L113">        RasterText5x7.drawClockwise(target, x, y, text, scale);</span>
+<span class="nc" id="L114">    }</span>
+
+    static AxisLabel axisLabel(VariableLineGratingParameters p, double u, double selectedDpi) {
+<span class="nc" id="L117">        double pitchMm = VariableLineGratingModel.pitchMmAtNormalized(p, u);</span>
+<span class="nc" id="L118">        String position = compact(u * p.activeProgressionLengthMm()) + &quot;MM&quot;;</span>
+<span class="nc bnc" id="L119" title="All 3 branches missed.">        String quantity = switch (p.axisQuantity()) {</span>
+<span class="nc" id="L120">            case PITCH_UM -&gt; compact(pitchMm * 1000.0) + &quot;UM&quot;;</span>
+<span class="nc" id="L121">            case LINES_PER_MM -&gt; compact(1.0 / pitchMm) + &quot;L/MM&quot;;</span>
+<span class="nc" id="L122">            case DEVICE_DOTS_PER_PERIOD -&gt; compact(pitchMm * selectedDpi / Units.INCH_MM) + &quot;DOT&quot;;</span>
+        };
+<span class="nc" id="L124">        return new AxisLabel(position, quantity);</span>
+    }
+
+    private static String compact(double value) {
+<span class="nc" id="L128">        double abs = Math.abs(value);</span>
+<span class="nc bnc" id="L129" title="All 4 branches missed.">        if (abs &gt;= 100.0 || Math.abs(value - Math.rint(value)) &lt; 0.05) {</span>
+<span class="nc" id="L130">            return String.format(Locale.ROOT, &quot;%.0f&quot;, value);</span>
+        }
+<span class="nc" id="L132">        return String.format(Locale.ROOT, &quot;%.1f&quot;, value);</span>
+    }
+
+    private static int dotX(double mm, double dpi) {
+<span class="nc" id="L136">        return (int) Math.round(mm * dpi / Units.INCH_MM);</span>
+    }
+
+    private static int dotY(double mm, double dpi) {
+<span class="nc" id="L140">        return (int) Math.round(mm * dpi / Units.INCH_MM);</span>
+    }
+
+    private static int clamp(int value, int minimum, int maximum) {
+<span class="nc" id="L144">        return Math.max(minimum, Math.min(maximum, value));</span>
+    }
+
+<span class="nc" id="L147">    record AxisLabel(String position, String quantity) {}</span>
+
+    private static final class MutableTarget implements RasterText5x7.Target {
+        private final int width;
+        private final int height;
+        private final int rowBytes;
+        private final byte[] data;
+
+<span class="fc" id="L155">        private MutableTarget(int width, int height, int rowBytes, byte[] data) {</span>
+<span class="fc" id="L156">            this.width = width;</span>
+<span class="fc" id="L157">            this.height = height;</span>
+<span class="fc" id="L158">            this.rowBytes = rowBytes;</span>
+<span class="fc" id="L159">            this.data = data;</span>
+<span class="fc" id="L160">        }</span>
+
+        @Override
+        public void setBlack(int x, int y) {
+<span class="pc bpc" id="L164" title="4 of 8 branches missed.">            if (x &lt; 0 || x &gt;= width || y &lt; 0 || y &gt;= height) return;</span>
+<span class="fc" id="L165">            int offset = y * rowBytes + (x &gt;&gt;&gt; 3);</span>
+<span class="fc" id="L166">            data[offset] |= (byte) (0x80 &gt;&gt;&gt; (x &amp; 7));</span>
+<span class="fc" id="L167">        }</span>
+
+        private void horizontal(int x0, int x1, int y) {
+<span class="nc" id="L170">            int from = Math.min(x0, x1);</span>
+<span class="nc" id="L171">            int to = Math.max(x0, x1);</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">            for (int x = from; x &lt;= to; x++) setBlack(x, y);</span>
+<span class="nc" id="L173">        }</span>
+
+        private void vertical(int x, int y0, int y1) {
+<span class="nc" id="L176">            int from = Math.min(y0, y1);</span>
+<span class="nc" id="L177">            int to = Math.max(y0, y1);</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">            for (int y = from; y &lt;= to; y++) setBlack(x, y);</span>
+<span class="nc" id="L179">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

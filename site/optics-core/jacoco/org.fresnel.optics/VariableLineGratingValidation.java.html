@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariableLineGratingValidation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">VariableLineGratingValidation.java</span></div><h1>VariableLineGratingValidation.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+/** Deterministic validation report for the variable-line grating plugin. */
+public final class VariableLineGratingValidation {
+
+    private VariableLineGratingValidation() {}
+
+    public static DesignValidationReport report(VariableLineGratingParameters p) {
+<span class="fc" id="L18">        return report(p, null);</span>
+    }
+
+    public static DesignValidationReport report(
+            VariableLineGratingParameters p,
+            PrinterRasterProfile profile) {
+<span class="fc" id="L24">        VariableLineGratingAnalysis.Result analysis = VariableLineGratingAnalysis.analyze(p, profile);</span>
+<span class="fc" id="L25">        VariableLineGratingModel.Layout layout = VariableLineGratingModel.layout(p);</span>
+<span class="fc" id="L26">        Bounds annotation = annotationBounds(p, layout);</span>
+<span class="fc" id="L27">        Map&lt;String, String&gt; snapshot = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L28">        snapshot.put(&quot;widthMm&quot;, fmt(p.widthMm()));</span>
+<span class="fc" id="L29">        snapshot.put(&quot;heightMm&quot;, fmt(p.heightMm()));</span>
+<span class="fc" id="L30">        snapshot.put(&quot;lineOrientation&quot;, p.lineOrientation().name());</span>
+<span class="pc bpc" id="L31" title="1 of 2 branches missed.">        snapshot.put(&quot;testedPageAxis&quot;, p.lineOrientation() == LineOrientation.VERTICAL ? &quot;PAGE_X&quot; : &quot;PAGE_Y&quot;);</span>
+<span class="fc" id="L32">        snapshot.put(&quot;testedDeviceAxis&quot;, analysis.testedDeviceAxis().name());</span>
+<span class="fc" id="L33">        snapshot.put(&quot;selectedAxisDpi&quot;, fmt(analysis.selectedAxisDpi()));</span>
+<span class="fc" id="L34">        snapshot.put(&quot;startPitchUm&quot;, fmt(p.startPitchUm()));</span>
+<span class="fc" id="L35">        snapshot.put(&quot;endPitchUm&quot;, fmt(p.endPitchUm()));</span>
+<span class="fc" id="L36">        snapshot.put(&quot;progression&quot;, p.progression().name());</span>
+<span class="fc" id="L37">        snapshot.put(&quot;progressionDirection&quot;, p.progressionDirection().name());</span>
+<span class="fc" id="L38">        snapshot.put(&quot;dutyCycle&quot;, fmt(p.dutyCycle()));</span>
+<span class="fc" id="L39">        snapshot.put(&quot;phaseOffsetCycles&quot;, fmt(p.phaseOffsetCycles()));</span>
+<span class="fc" id="L40">        snapshot.put(&quot;polarity&quot;, p.polarity().name());</span>
+<span class="fc" id="L41">        snapshot.put(&quot;marginMm&quot;, fmt(p.marginMm()));</span>
+<span class="fc" id="L42">        snapshot.put(&quot;annotationSizeMm&quot;, fmt(p.annotationSizeMm()));</span>
+<span class="fc" id="L43">        snapshot.put(&quot;showAxis&quot;, Boolean.toString(p.showAxis()));</span>
+<span class="fc" id="L44">        snapshot.put(&quot;axisQuantity&quot;, p.axisQuantity().name());</span>
+<span class="fc" id="L45">        snapshot.put(&quot;tickCount&quot;, Integer.toString(p.tickCount()));</span>
+<span class="fc" id="L46">        snapshot.put(&quot;showReferenceBands&quot;, Boolean.toString(p.showReferenceBands()));</span>
+<span class="fc" id="L47">        snapshot.put(&quot;referenceBandSizeMm&quot;, fmt(p.referenceBandSizeMm()));</span>
+<span class="fc" id="L48">        snapshot.put(&quot;dpi&quot;, fmt(p.dpi()));</span>
+<span class="fc" id="L49">        snapshot.put(&quot;activeXmm&quot;, fmt(layout.activeXmm()));</span>
+<span class="fc" id="L50">        snapshot.put(&quot;activeYmm&quot;, fmt(layout.activeYmm()));</span>
+<span class="fc" id="L51">        snapshot.put(&quot;activeWidthMm&quot;, fmt(layout.activeWidthMm()));</span>
+<span class="fc" id="L52">        snapshot.put(&quot;activeHeightMm&quot;, fmt(layout.activeHeightMm()));</span>
+<span class="fc" id="L53">        snapshot.put(&quot;annotationXmm&quot;, fmt(annotation.xMm()));</span>
+<span class="fc" id="L54">        snapshot.put(&quot;annotationYmm&quot;, fmt(annotation.yMm()));</span>
+<span class="fc" id="L55">        snapshot.put(&quot;annotationWidthMm&quot;, fmt(annotation.widthMm()));</span>
+<span class="fc" id="L56">        snapshot.put(&quot;annotationHeightMm&quot;, fmt(annotation.heightMm()));</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        if (profile != null) {</span>
+<span class="nc" id="L58">            snapshot.put(&quot;printerProfileId&quot;, profile.id());</span>
+<span class="nc" id="L59">            snapshot.put(&quot;printerProfileVersion&quot;, Integer.toString(profile.version()));</span>
+<span class="nc" id="L60">            snapshot.put(&quot;profileDpiX&quot;, Integer.toString(profile.dpiX()));</span>
+<span class="nc" id="L61">            snapshot.put(&quot;profileDpiY&quot;, Integer.toString(profile.dpiY()));</span>
+<span class="nc" id="L62">            snapshot.put(&quot;pageOrientation&quot;, profile.pageOrientation().name());</span>
+<span class="nc" id="L63">            snapshot.put(&quot;pageXAxisMapsTo&quot;, profile.pageXAxisMapsTo().name());</span>
+<span class="nc" id="L64">            snapshot.put(&quot;pageYAxisMapsTo&quot;, profile.pageYAxisMapsTo().name());</span>
+        }
+
+<span class="fc" id="L67">        List&lt;ValidationMetric&gt; metrics = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L68">        metrics.add(metric(&quot;ACTIVE_X_MM&quot;, &quot;Active-area X origin&quot;, layout.activeXmm(), &quot;mm&quot;));</span>
+<span class="fc" id="L69">        metrics.add(metric(&quot;ACTIVE_Y_MM&quot;, &quot;Active-area Y origin&quot;, layout.activeYmm(), &quot;mm&quot;));</span>
+<span class="fc" id="L70">        metrics.add(metric(&quot;ACTIVE_WIDTH_MM&quot;, &quot;Active-area width&quot;, layout.activeWidthMm(), &quot;mm&quot;));</span>
+<span class="fc" id="L71">        metrics.add(metric(&quot;ACTIVE_HEIGHT_MM&quot;, &quot;Active-area height&quot;, layout.activeHeightMm(), &quot;mm&quot;));</span>
+<span class="fc" id="L72">        metrics.add(metric(&quot;ANNOTATION_X_MM&quot;, &quot;Annotation-area X origin&quot;, annotation.xMm(), &quot;mm&quot;));</span>
+<span class="fc" id="L73">        metrics.add(metric(&quot;ANNOTATION_Y_MM&quot;, &quot;Annotation-area Y origin&quot;, annotation.yMm(), &quot;mm&quot;));</span>
+<span class="fc" id="L74">        metrics.add(metric(&quot;ANNOTATION_WIDTH_MM&quot;, &quot;Annotation-area width&quot;, annotation.widthMm(), &quot;mm&quot;));</span>
+<span class="fc" id="L75">        metrics.add(metric(&quot;ANNOTATION_HEIGHT_MM&quot;, &quot;Annotation-area height&quot;, annotation.heightMm(), &quot;mm&quot;));</span>
+<span class="fc" id="L76">        metrics.add(metric(&quot;MIN_PITCH_UM&quot;, &quot;Minimum pitch&quot;, analysis.minPitchUm(), &quot;µm&quot;));</span>
+<span class="fc" id="L77">        metrics.add(metric(&quot;MAX_PITCH_UM&quot;, &quot;Maximum pitch&quot;, analysis.maxPitchUm(), &quot;µm&quot;));</span>
+<span class="fc" id="L78">        metrics.add(metric(&quot;MIN_OPAQUE_FEATURE_UM&quot;, &quot;Minimum opaque feature&quot;,</span>
+<span class="fc" id="L79">                analysis.minimumOpaqueFeatureUm(), &quot;µm&quot;));</span>
+<span class="fc" id="L80">        metrics.add(metric(&quot;MIN_CLEAR_FEATURE_UM&quot;, &quot;Minimum clear feature&quot;,</span>
+<span class="fc" id="L81">                analysis.minimumClearFeatureUm(), &quot;µm&quot;));</span>
+<span class="fc" id="L82">        metrics.add(metric(&quot;MIN_DOTS_PER_PERIOD&quot;, &quot;Minimum selected-axis dots per period&quot;,</span>
+<span class="fc" id="L83">                analysis.minDotsPerPeriod(), &quot;dots&quot;));</span>
+<span class="fc" id="L84">        metrics.add(metric(&quot;MAX_DOTS_PER_PERIOD&quot;, &quot;Maximum selected-axis dots per period&quot;,</span>
+<span class="fc" id="L85">                analysis.maxDotsPerPeriod(), &quot;dots&quot;));</span>
+<span class="fc" id="L86">        metrics.add(metric(&quot;MIN_DOTS_PER_OPAQUE_FEATURE&quot;, &quot;Minimum dots per opaque feature&quot;,</span>
+<span class="fc" id="L87">                analysis.minDotsPerOpaqueFeature(), &quot;dots&quot;));</span>
+<span class="fc" id="L88">        metrics.add(metric(&quot;MIN_DOTS_PER_CLEAR_FEATURE&quot;, &quot;Minimum dots per clear feature&quot;,</span>
+<span class="fc" id="L89">                analysis.minDotsPerClearFeature(), &quot;dots&quot;));</span>
+<span class="fc" id="L90">        metrics.add(metric(&quot;NOMINAL_CYCLE_COUNT&quot;, &quot;Integrated nominal cycle count&quot;,</span>
+<span class="fc" id="L91">                analysis.nominalCycleCount(), &quot;cycles&quot;));</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        for (VariableLineGratingAnalysis.ThresholdCrossing crossing : analysis.thresholdCrossings()) {</span>
+<span class="pc bpc" id="L93" title="1 of 4 branches missed.">            if (!crossing.crossed() || crossing.positionMm() == null) continue;</span>
+<span class="fc" id="L94">            String threshold = compactThreshold(crossing.dotsPerPeriod());</span>
+<span class="fc" id="L95">            metrics.add(metric(</span>
+                    &quot;POSITION_AT_&quot; + threshold + &quot;_DOTS_PER_PERIOD_MM&quot;,
+                    &quot;Position at &quot; + threshold + &quot; dots per period&quot;,
+<span class="fc" id="L98">                    crossing.positionMm(),</span>
+                    &quot;mm&quot;));
+<span class="fc" id="L100">        }</span>
+
+<span class="fc" id="L102">        List&lt;ValidationFinding&gt; findings = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L103">        double minimumFeatureDots = Math.min(</span>
+<span class="fc" id="L104">                analysis.minDotsPerOpaqueFeature(), analysis.minDotsPerClearFeature());</span>
+<span class="pc bpc" id="L105" title="3 of 4 branches missed.">        if (minimumFeatureDots &lt; 1.0 || analysis.minDotsPerPeriod() &lt; 2.0) {</span>
+<span class="fc" id="L106">            findings.add(new ValidationFinding(</span>
+                    ValidationLayer.MANUFACTURING_PRINTABILITY,
+                    &quot;SEVERE_UNDERSAMPLING&quot;,
+                    &quot;The finest region is below two selected-axis device dots per period or one dot per feature. It is intentionally allowed for calibration, but reproduction is not expected to be faithful.&quot;,
+                    ValidationSeverity.WARNING));
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        } else if (analysis.minDotsPerPeriod() &lt; 4.0) {</span>
+<span class="nc" id="L112">            findings.add(new ValidationFinding(</span>
+                    ValidationLayer.MANUFACTURING_PRINTABILITY,
+                    &quot;UNDERSAMPLED_REGION&quot;,
+                    &quot;Part of the progression is below four selected-axis device dots per period.&quot;,
+                    ValidationSeverity.WARNING));
+        }
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        if (profile == null) {</span>
+<span class="fc" id="L119">            findings.add(new ValidationFinding(</span>
+                    ValidationLayer.MANUFACTURING_PRINTABILITY,
+                    &quot;NOMINAL_AXIS_MAPPING&quot;,
+                    &quot;Validation uses the design DPI and nominal page-axis mapping. Select a printer profile for device-axis-specific PCL validation.&quot;,
+                    ValidationSeverity.INFO));
+        }
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (p.showReferenceBands()) {</span>
+<span class="fc" id="L126">            findings.add(new ValidationFinding(</span>
+                    ValidationLayer.MANUFACTURING_PRINTABILITY,
+                    &quot;REFERENCE_BANDS_ENABLED&quot;,
+                    &quot;Constant-pitch reference bands use the configured start and end pitches outside the variable central band.&quot;,
+                    ValidationSeverity.INFO));
+        }
+<span class="fc" id="L132">        findings.add(new ValidationFinding(</span>
+                ValidationLayer.EXPERIMENTAL_HOOKS,
+                &quot;PRINTER_CALIBRATION_PENDING&quot;,
+                &quot;No measured printer calibration result is attached to this deterministic report.&quot;,
+                ValidationSeverity.INFO));
+
+<span class="fc" id="L138">        List&lt;ValidationAssumption&gt; assumptions = List.of(</span>
+                new ValidationAssumption(
+                        ValidationLayer.ANALYTICAL_OPTICS,
+                        &quot;Line placement is derived from the integral of local spatial frequency; no naive coordinate modulo is used.&quot;,
+                        false),
+                new ValidationAssumption(
+                        ValidationLayer.NUMERICAL_PROPAGATION,
+                        &quot;This calibration target is geometric and does not model optical propagation.&quot;,
+                        true),
+                new ValidationAssumption(
+                        ValidationLayer.MANUFACTURING_PRINTABILITY,
+                        &quot;Dots-per-period is evaluated only along the page axis perpendicular to the selected line orientation.&quot;,
+                        false),
+                new ValidationAssumption(
+                        ValidationLayer.EXPERIMENTAL_HOOKS,
+                        &quot;Driver resampling, toner spread, media transport and transparency dimensional change require physical measurement.&quot;,
+                        true)
+        );
+
+<span class="fc" id="L157">        return new DesignValidationReport(</span>
+                &quot;variable-line-grating&quot;,
+<span class="fc" id="L159">                stableHash(snapshot),</span>
+                snapshot,
+                null,
+                null,
+<span class="fc" id="L163">                Math.max(p.widthMm(), p.heightMm()),</span>
+<span class="fc" id="L164">                List.of(),</span>
+<span class="fc" id="L165">                Units.pixelSizeMicrons(p.dpi()),</span>
+                assumptions,
+                metrics,
+                findings);
+    }
+
+    private static Bounds annotationBounds(
+            VariableLineGratingParameters p,
+            VariableLineGratingModel.Layout layout) {
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (!p.showAxis()) {</span>
+<span class="nc" id="L175">            return new Bounds(</span>
+<span class="nc" id="L176">                    layout.activeXmm() + layout.activeWidthMm(),</span>
+<span class="nc" id="L177">                    layout.activeYmm() + layout.activeHeightMm(),</span>
+                    0.0,
+                    0.0);
+        }
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">        return p.lineOrientation() == LineOrientation.VERTICAL</span>
+<span class="fc" id="L182">                ? new Bounds(</span>
+<span class="fc" id="L183">                        layout.activeXmm(),</span>
+<span class="fc" id="L184">                        layout.activeYmm() + layout.activeHeightMm(),</span>
+<span class="fc" id="L185">                        layout.activeWidthMm(),</span>
+<span class="fc" id="L186">                        p.annotationSizeMm())</span>
+<span class="nc" id="L187">                : new Bounds(</span>
+<span class="nc" id="L188">                        layout.activeXmm() + layout.activeWidthMm(),</span>
+<span class="nc" id="L189">                        layout.activeYmm(),</span>
+<span class="nc" id="L190">                        p.annotationSizeMm(),</span>
+<span class="nc" id="L191">                        layout.activeHeightMm());</span>
+    }
+
+    private static ValidationMetric metric(String key, String label, double value, String unit) {
+<span class="fc" id="L195">        return new ValidationMetric(</span>
+                ValidationLayer.MANUFACTURING_PRINTABILITY, key, label, value, unit);
+    }
+
+    private static String compactThreshold(double value) {
+<span class="fc" id="L200">        return Long.toString(Math.round(value));</span>
+    }
+
+    private static String stableHash(Map&lt;String, String&gt; snapshot) {
+        try {
+<span class="fc" id="L205">            MessageDigest digest = MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
+<span class="fc" id="L206">            snapshot.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -&gt; {</span>
+<span class="fc" id="L207">                digest.update(entry.getKey().getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L208">                digest.update((byte) 0);</span>
+<span class="fc" id="L209">                digest.update(entry.getValue().getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L210">                digest.update((byte) '\n');</span>
+<span class="fc" id="L211">            });</span>
+<span class="fc" id="L212">            return HexFormat.of().formatHex(digest.digest());</span>
+<span class="nc" id="L213">        } catch (Exception e) {</span>
+<span class="nc" id="L214">            throw new IllegalStateException(&quot;SHA-256 is not available&quot;, e);</span>
+        }
+    }
+
+    private static String fmt(double value) {
+<span class="fc" id="L219">        return String.format(Locale.ROOT, &quot;%.12g&quot;, value);</span>
+    }
+
+<span class="fc" id="L222">    private record Bounds(double xMm, double yMm, double widthMm, double heightMm) {}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

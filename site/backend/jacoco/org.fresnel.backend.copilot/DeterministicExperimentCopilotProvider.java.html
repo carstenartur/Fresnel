@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeterministicExperimentCopilotProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.copilot</a> &gt; <span class="el_source">DeterministicExperimentCopilotProvider.java</span></div><h1>DeterministicExperimentCopilotProvider.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.copilot;
+
+import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.OptionalDouble;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Deterministic provider used by tests, offline demos and quota-constrained builds.
+ *
+ * &lt;p&gt;It deliberately recognises only the first Zone Plate vertical slice. Unknown
+ * language is not interpreted creatively; genuinely missing wavelength/focal intent
+ * is returned as a clarification question.&lt;/p&gt;
+ */
+@Component
+public final class DeterministicExperimentCopilotProvider implements ExperimentCopilotProvider {
+
+<span class="fc" id="L24">    private static final Pattern WAVELENGTH = Pattern.compile(&quot;(?i)(\\d+(?:\\.\\d+)?)\\s*nm\\b&quot;);</span>
+<span class="fc" id="L25">    private static final Pattern DPI = Pattern.compile(&quot;(?i)(\\d+(?:\\.\\d+)?)\\s*(?:dpi|dots?\\s+per\\s+inch)\\b&quot;);</span>
+<span class="fc" id="L26">    private static final Pattern APERTURE_AFTER_VALUE = Pattern.compile(</span>
+            &quot;(?i)(\\d+(?:\\.\\d+)?)\\s*mm\\s*(?:aperture|diameter|zone\\s+plate)\\b&quot;);
+<span class="fc" id="L28">    private static final Pattern APERTURE_BEFORE_VALUE = Pattern.compile(</span>
+            &quot;(?i)(?:aperture|diameter)(?:\\s+of|\\s*=)?\\s*(\\d+(?:\\.\\d+)?)\\s*mm\\b&quot;);
+<span class="fc" id="L30">    private static final Pattern FOCUS_AFTER_VALUE = Pattern.compile(</span>
+            &quot;(?i)(\\d+(?:\\.\\d+)?)\\s*(mm|millimet(?:er|re)s?|m|met(?:er|re)s?)\\s*&quot;
+                    + &quot;(?:focal(?:\\s+(?:distance|length))?|focus)\\b&quot;);
+<span class="fc" id="L33">    private static final Pattern FOCUS_BEFORE_VALUE = Pattern.compile(</span>
+            &quot;(?i)(?:focal(?:\\s+(?:distance|length))?|focus)(?:\\s+of|\\s*=)?\\s*&quot;
+                    + &quot;(\\d+(?:\\.\\d+)?)\\s*(mm|millimet(?:er|re)s?|m|met(?:er|re)s?)\\b&quot;);
+
+    private final ObjectMapper mapper;
+
+<span class="fc" id="L39">    public DeterministicExperimentCopilotProvider(ObjectMapper mapper) {</span>
+<span class="fc" id="L40">        this.mapper = mapper;</span>
+<span class="fc" id="L41">    }</span>
+
+    @Override
+    public String id() {
+<span class="fc" id="L45">        return &quot;mock&quot;;</span>
+    }
+
+    @Override
+    public String displayName() {
+<span class="fc" id="L50">        return &quot;Deterministic Fresnel demo&quot;;</span>
+    }
+
+    @Override
+    public String modelId() {
+<span class="fc" id="L55">        return &quot;deterministic-zone-plate-parser/1&quot;;</span>
+    }
+
+    @Override
+    public boolean available() {
+<span class="fc" id="L60">        return true;</span>
+    }
+
+    @Override
+    public ExperimentProposal propose(ExperimentCopilotContext context) {
+<span class="fc" id="L65">        String normalized = normalizeNumberWords(context.request());</span>
+<span class="fc" id="L66">        String lower = normalized.toLowerCase(Locale.ROOT);</span>
+<span class="fc" id="L67">        List&lt;ExperimentProposal.Parameter&gt; parameters = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L68">        List&lt;String&gt; questions = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L70">        OptionalDouble wavelength = firstNumber(WAVELENGTH, normalized);</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (wavelength.isPresent()) {</span>
+<span class="fc" id="L72">            addNumber(parameters, &quot;wavelengthNm&quot;, wavelength.getAsDouble(),</span>
+                    &quot;Explicit wavelength read from the request.&quot;);
+        } else {
+<span class="fc" id="L75">            questions.add(&quot;Which design wavelength should Fresnel use, in nanometres?&quot;);</span>
+        }
+
+<span class="fc" id="L78">        OptionalDouble focus = focusMillimetres(normalized);</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (focus.isPresent()) {</span>
+<span class="fc" id="L80">            addNumber(parameters, &quot;focalLengthMm&quot;, focus.getAsDouble(),</span>
+                    &quot;Explicit focal distance converted to millimetres.&quot;);
+        } else {
+<span class="fc" id="L83">            questions.add(&quot;What focal distance should the design target?&quot;);</span>
+        }
+
+<span class="fc" id="L86">        OptionalDouble dpi = firstNumber(DPI, normalized);</span>
+<span class="fc" id="L87">        dpi.ifPresent(value -&gt; addNumber(parameters, &quot;dpi&quot;, value,</span>
+                &quot;Explicit fabrication resolution read from the request.&quot;));
+
+<span class="fc" id="L90">        OptionalDouble aperture = firstNumber(APERTURE_AFTER_VALUE, normalized);</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">        if (aperture.isEmpty()) aperture = firstNumber(APERTURE_BEFORE_VALUE, normalized);</span>
+<span class="fc" id="L92">        aperture.ifPresent(value -&gt; addNumber(parameters, &quot;apertureDiameterMm&quot;, value,</span>
+                &quot;Explicit aperture diameter read from the request.&quot;));
+
+<span class="pc bpc" id="L95" title="2 of 4 branches missed.">        if (lower.contains(&quot;greyscale phase&quot;) || lower.contains(&quot;grayscale phase&quot;)</span>
+<span class="pc bpc" id="L96" title="2 of 4 branches missed.">                || lower.contains(&quot;phase mask&quot;) || lower.contains(&quot;phase zone plate&quot;)) {</span>
+<span class="nc" id="L97">            addText(parameters, &quot;maskType&quot;, &quot;GREYSCALE_PHASE&quot;,</span>
+                    &quot;The request explicitly asks for a phase design.&quot;);
+<span class="pc bpc" id="L99" title="2 of 4 branches missed.">        } else if (lower.contains(&quot;binary&quot;) || lower.contains(&quot;amplitude&quot;)) {</span>
+<span class="nc" id="L100">            addText(parameters, &quot;maskType&quot;, &quot;BINARY_AMPLITUDE&quot;,</span>
+                    &quot;The request explicitly asks for a binary/amplitude design.&quot;);
+        }
+
+<span class="pc bpc" id="L104" title="2 of 4 branches missed.">        if (lower.contains(&quot;negative polarity&quot;) || lower.contains(&quot;inverted&quot;)) {</span>
+<span class="nc" id="L105">            addText(parameters, &quot;polarity&quot;, &quot;NEGATIVE&quot;,</span>
+                    &quot;The request explicitly asks for an inverted/negative mask.&quot;);
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        } else if (lower.contains(&quot;positive polarity&quot;)) {</span>
+<span class="nc" id="L108">            addText(parameters, &quot;polarity&quot;, &quot;POSITIVE&quot;,</span>
+                    &quot;The request explicitly asks for positive polarity.&quot;);
+        }
+
+<span class="fc" id="L112">        List&lt;ExperimentProposal.Alternative&gt; alternatives = List.of(</span>
+                new ExperimentProposal.Alternative(
+                        &quot;Greyscale phase mask&quot;,
+                        &quot;Consider a phase mask when the fabrication process can reproduce calibrated phase relief.&quot;,
+<span class="fc" id="L116">                        mapper.valueToTree(Map.of(&quot;maskType&quot;, &quot;GREYSCALE_PHASE&quot;))),</span>
+                new ExperimentProposal.Alternative(
+                        &quot;Binary amplitude mask&quot;,
+                        &quot;Use the simpler binary mask when robust printing and inspection are more important than efficiency.&quot;,
+<span class="fc" id="L120">                        mapper.valueToTree(Map.of(&quot;maskType&quot;, &quot;BINARY_AMPLITUDE&quot;)))</span>
+        );
+
+<span class="pc bpc" id="L123" title="3 of 4 branches missed.">        String summary = lower.contains(&quot;robust&quot;) || lower.contains(&quot;easy to fabricate&quot;)</span>
+<span class="pc bnc" id="L124" title="All 2 branches missed.">                || lower.contains(&quot;printable&quot;)</span>
+<span class="fc" id="L125">                ? &quot;Prepare a fabrication-oriented Zone Plate proposal and let deterministic Fresnel validation choose a printable aperture.&quot;</span>
+<span class="pc" id="L126">                : &quot;Prepare a grounded Zone Plate proposal from the explicitly stated optical intent.&quot;;</span>
+
+<span class="fc" id="L128">        return new ExperimentProposal(&quot;zone-plate&quot;, parameters, questions, alternatives, summary);</span>
+    }
+
+    private void addNumber(
+            List&lt;ExperimentProposal.Parameter&gt; parameters,
+            String path,
+            double value,
+            String rationale) {
+<span class="fc" id="L136">        parameters.add(new ExperimentProposal.Parameter(</span>
+                path,
+<span class="fc" id="L138">                mapper.valueToTree(value),</span>
+                ExperimentProposal.ValueSource.USER_SUPPLIED,
+                rationale));
+<span class="fc" id="L141">    }</span>
+
+    private void addText(
+            List&lt;ExperimentProposal.Parameter&gt; parameters,
+            String path,
+            String value,
+            String rationale) {
+<span class="nc" id="L148">        parameters.add(new ExperimentProposal.Parameter(</span>
+                path,
+<span class="nc" id="L150">                mapper.valueToTree(value),</span>
+                ExperimentProposal.ValueSource.USER_SUPPLIED,
+                rationale));
+<span class="nc" id="L153">    }</span>
+
+    private static OptionalDouble firstNumber(Pattern pattern, String text) {
+<span class="fc" id="L156">        Matcher matcher = pattern.matcher(text);</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">        if (!matcher.find()) return OptionalDouble.empty();</span>
+<span class="fc" id="L158">        return OptionalDouble.of(Double.parseDouble(matcher.group(1)));</span>
+    }
+
+    private static OptionalDouble focusMillimetres(String text) {
+<span class="fc" id="L162">        OptionalDouble after = focusMillimetres(FOCUS_AFTER_VALUE, text);</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">        return after.isPresent() ? after : focusMillimetres(FOCUS_BEFORE_VALUE, text);</span>
+    }
+
+    private static OptionalDouble focusMillimetres(Pattern pattern, String text) {
+<span class="fc" id="L167">        Matcher matcher = pattern.matcher(text);</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        if (!matcher.find()) return OptionalDouble.empty();</span>
+<span class="fc" id="L169">        double value = Double.parseDouble(matcher.group(1));</span>
+<span class="fc" id="L170">        String unit = matcher.group(2).toLowerCase(Locale.ROOT);</span>
+<span class="pc bpc" id="L171" title="3 of 6 branches missed.">        boolean metres = unit.equals(&quot;m&quot;) || unit.startsWith(&quot;meter&quot;) || unit.startsWith(&quot;metre&quot;);</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">        return OptionalDouble.of(metres ? value * 1000.0 : value);</span>
+    }
+
+    private static String normalizeNumberWords(String input) {
+<span class="fc" id="L176">        return input</span>
+<span class="fc" id="L177">                .replaceAll(&quot;(?i)\\bone\\b&quot;, &quot;1&quot;)</span>
+<span class="fc" id="L178">                .replaceAll(&quot;(?i)\\btwo\\b&quot;, &quot;2&quot;)</span>
+<span class="fc" id="L179">                .replaceAll(&quot;(?i)\\bthree\\b&quot;, &quot;3&quot;)</span>
+<span class="fc" id="L180">                .replaceAll(&quot;(?i)\\bfour\\b&quot;, &quot;4&quot;)</span>
+<span class="fc" id="L181">                .replaceAll(&quot;(?i)\\bfive\\b&quot;, &quot;5&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

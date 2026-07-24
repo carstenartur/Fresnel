@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariableLineGratingRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">VariableLineGratingRequest.java</span></div><h1>VariableLineGratingRequest.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
+import org.fresnel.optics.AxisQuantity;
+import org.fresnel.optics.GratingProgression;
+import org.fresnel.optics.LineOrientation;
+import org.fresnel.optics.Polarity;
+import org.fresnel.optics.ProgressionDirection;
+import org.fresnel.optics.VariableLineGratingParameters;
+
+/** REST and job-file request body for a variable-line calibration grating. */
+<span class="fc" id="L18">public record VariableLineGratingRequest(</span>
+        @NotNull @DecimalMin(&quot;10&quot;) @DecimalMax(&quot;210&quot;) Double widthMm,
+        @NotNull @DecimalMin(&quot;10&quot;) @DecimalMax(&quot;297&quot;) Double heightMm,
+        @NotNull LineOrientation lineOrientation,
+        @NotNull @DecimalMin(&quot;5&quot;) @DecimalMax(&quot;10000&quot;) Double startPitchUm,
+        @NotNull @DecimalMin(&quot;5&quot;) @DecimalMax(&quot;10000&quot;) Double endPitchUm,
+        @NotNull GratingProgression progression,
+        @NotNull ProgressionDirection progressionDirection,
+        @NotNull @DecimalMin(value = &quot;0&quot;, inclusive = false)
+        @DecimalMax(value = &quot;1&quot;, inclusive = false) Double dutyCycle,
+        @NotNull @DecimalMin(&quot;-1000&quot;) @DecimalMax(&quot;1000&quot;) Double phaseOffsetCycles,
+        @NotNull Polarity polarity,
+        @NotNull @PositiveOrZero @DecimalMax(&quot;50&quot;) Double marginMm,
+        @NotNull @Positive @DecimalMax(&quot;40&quot;) Double annotationSizeMm,
+        @NotNull Boolean showAxis,
+        @NotNull AxisQuantity axisQuantity,
+        @NotNull @Min(2) @Max(21) Integer tickCount,
+        @NotNull Boolean showReferenceBands,
+        @NotNull @PositiveOrZero @DecimalMax(&quot;50&quot;) Double referenceBandSizeMm,
+        @NotNull @DecimalMin(&quot;50&quot;) @DecimalMax(&quot;2400&quot;) Double dpi
+) {
+    public VariableLineGratingParameters toParameters() {
+<span class="fc" id="L40">        return new VariableLineGratingParameters(</span>
+<span class="fc" id="L41">                widthMm,</span>
+<span class="fc" id="L42">                heightMm,</span>
+                lineOrientation,
+<span class="fc" id="L44">                startPitchUm,</span>
+<span class="fc" id="L45">                endPitchUm,</span>
+                progression,
+                progressionDirection,
+<span class="fc" id="L48">                dutyCycle,</span>
+<span class="fc" id="L49">                phaseOffsetCycles,</span>
+                polarity,
+<span class="fc" id="L51">                marginMm,</span>
+<span class="fc" id="L52">                annotationSizeMm,</span>
+<span class="fc" id="L53">                showAxis,</span>
+                axisQuantity,
+<span class="fc" id="L55">                tickCount,</span>
+<span class="fc" id="L56">                showReferenceBands,</span>
+<span class="fc" id="L57">                referenceBandSizeMm,</span>
+<span class="fc" id="L58">                dpi);</span>
+    }
+
+    public VariableLineGratingRequest normalized() {
+<span class="fc" id="L62">        VariableLineGratingParameters defaults = VariableLineGratingParameters.defaults();</span>
+<span class="fc" id="L63">        return new VariableLineGratingRequest(</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">                widthMm == null ? defaults.widthMm() : widthMm,</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">                heightMm == null ? defaults.heightMm() : heightMm,</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">                lineOrientation == null ? defaults.lineOrientation() : lineOrientation,</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">                startPitchUm == null ? defaults.startPitchUm() : startPitchUm,</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">                endPitchUm == null ? defaults.endPitchUm() : endPitchUm,</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">                progression == null ? defaults.progression() : progression,</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">                progressionDirection == null ? defaults.progressionDirection() : progressionDirection,</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">                dutyCycle == null ? defaults.dutyCycle() : dutyCycle,</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">                phaseOffsetCycles == null ? defaults.phaseOffsetCycles() : phaseOffsetCycles,</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">                polarity == null ? defaults.polarity() : polarity,</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">                marginMm == null ? defaults.marginMm() : marginMm,</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">                annotationSizeMm == null ? defaults.annotationSizeMm() : annotationSizeMm,</span>
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">                showAxis == null ? defaults.showAxis() : showAxis,</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">                axisQuantity == null ? defaults.axisQuantity() : axisQuantity,</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">                tickCount == null ? defaults.tickCount() : tickCount,</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">                showReferenceBands == null ? defaults.showReferenceBands() : showReferenceBands,</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">                referenceBandSizeMm == null ? defaults.referenceBandSizeMm() : referenceBandSizeMm,</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">                dpi == null ? defaults.dpi() : dpi);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

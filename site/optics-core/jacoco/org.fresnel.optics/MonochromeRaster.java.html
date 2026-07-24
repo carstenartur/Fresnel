@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MonochromeRaster.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">MonochromeRaster.java</span></div><h1>MonochromeRaster.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
+import java.util.Arrays;
+
+/** Packed one-bit raster with one sample per addressed device dot. */
+public record MonochromeRaster(
+        int widthDots,
+        int heightDots,
+        int rowBytes,
+        byte[] data,
+        double dpiPageX,
+        double dpiPageY
+) {
+<span class="fc" id="L16">    public MonochromeRaster {</span>
+<span class="pc bpc" id="L17" title="3 of 6 branches missed.">        if (widthDots &lt;= 0 || heightDots &lt;= 0 || rowBytes != (widthDots + 7) / 8) {</span>
+<span class="nc" id="L18">            throw new IllegalArgumentException(&quot;invalid monochrome raster dimensions&quot;);</span>
+        }
+<span class="pc bpc" id="L20" title="2 of 4 branches missed.">        if (data == null || data.length != rowBytes * heightDots) {</span>
+<span class="nc" id="L21">            throw new IllegalArgumentException(&quot;invalid monochrome raster byte count&quot;);</span>
+        }
+<span class="pc bpc" id="L23" title="2 of 4 branches missed.">        if (!Double.isFinite(dpiPageX) || dpiPageX &lt;= 0.0</span>
+<span class="pc bpc" id="L24" title="2 of 4 branches missed.">                || !Double.isFinite(dpiPageY) || dpiPageY &lt;= 0.0) {</span>
+<span class="nc" id="L25">            throw new IllegalArgumentException(&quot;page-axis DPI must be finite and positive&quot;);</span>
+        }
+<span class="fc" id="L27">        data = data.clone();</span>
+<span class="fc" id="L28">    }</span>
+
+    @Override
+    public byte[] data() {
+<span class="fc" id="L32">        return data.clone();</span>
+    }
+
+    byte[] unsafeData() {
+<span class="nc" id="L36">        return data;</span>
+    }
+
+    public boolean isBlack(int x, int y) {
+<span class="pc bpc" id="L40" title="4 of 8 branches missed.">        if (x &lt; 0 || x &gt;= widthDots || y &lt; 0 || y &gt;= heightDots) {</span>
+<span class="nc" id="L41">            throw new IndexOutOfBoundsException(&quot;dot outside raster&quot;);</span>
+        }
+<span class="fc" id="L43">        int value = data[y * rowBytes + (x &gt;&gt;&gt; 3)] &amp; 0xff;</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">        return (value &amp; (0x80 &gt;&gt;&gt; (x &amp; 7))) != 0;</span>
+    }
+
+    public byte[] row(int y) {
+<span class="pc bpc" id="L48" title="2 of 4 branches missed.">        if (y &lt; 0 || y &gt;= heightDots) throw new IndexOutOfBoundsException(&quot;row outside raster&quot;);</span>
+<span class="fc" id="L49">        return Arrays.copyOfRange(data, y * rowBytes, (y + 1) * rowBytes);</span>
+    }
+
+    public BufferedImage toBufferedImage() {
+<span class="fc" id="L53">        BufferedImage image = new BufferedImage(widthDots, heightDots, BufferedImage.TYPE_BYTE_GRAY);</span>
+<span class="fc" id="L54">        WritableRaster target = image.getRaster();</span>
+<span class="fc" id="L55">        int[] row = new int[widthDots];</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        for (int y = 0; y &lt; heightDots; y++) {</span>
+<span class="fc bfc" id="L57" title="All 4 branches covered.">            for (int x = 0; x &lt; widthDots; x++) row[x] = isBlack(x, y) ? 0 : 255;</span>
+<span class="fc" id="L58">            target.setSamples(0, y, widthDots, 1, 0, row);</span>
+        }
+<span class="fc" id="L60">        return image;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

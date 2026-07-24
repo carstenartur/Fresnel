@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariableLineGratingAnalysis.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">VariableLineGratingAnalysis.java</span></div><h1>VariableLineGratingAnalysis.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/** Orientation-aware sampling and fabrication metrics for a variable-line grating. */
+public final class VariableLineGratingAnalysis {
+
+<span class="fc" id="L9">    public static final List&lt;Double&gt; DOT_THRESHOLDS = List.of(8.0, 4.0, 3.0, 2.0);</span>
+
+    private VariableLineGratingAnalysis() {}
+
+<span class="fc" id="L13">    public record ThresholdCrossing(</span>
+            double dotsPerPeriod,
+            boolean crossed,
+            Double positionMm,
+            Double normalizedPosition,
+            Double pitchUm
+    ) {}
+
+    public record Result(
+            LineOrientation lineOrientation,
+            DeviceAxis testedDeviceAxis,
+            double selectedAxisDpi,
+            double minPitchUm,
+            double maxPitchUm,
+            double minimumOpaqueFeatureUm,
+            double minimumClearFeatureUm,
+            double minDotsPerPeriod,
+            double maxDotsPerPeriod,
+            double minDotsPerOpaqueFeature,
+            double minDotsPerClearFeature,
+            double nominalCycleCount,
+            List&lt;ThresholdCrossing&gt; thresholdCrossings
+    ) {
+<span class="fc" id="L36">        public Result {</span>
+<span class="fc" id="L37">            thresholdCrossings = List.copyOf(thresholdCrossings);</span>
+<span class="fc" id="L38">        }</span>
+    }
+
+    public static Result analyze(VariableLineGratingParameters p) {
+<span class="nc" id="L42">        return analyze(p, null);</span>
+    }
+
+    public static Result analyze(
+            VariableLineGratingParameters p,
+            PrinterRasterProfile profile) {
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        DeviceAxis testedAxis = profile == null</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">                ? (p.lineOrientation() == LineOrientation.VERTICAL ? DeviceAxis.X : DeviceAxis.Y)</span>
+<span class="fc" id="L50">                : profile.testedDeviceAxis(p.lineOrientation());</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        double dpi = profile == null ? p.dpi() : profile.dpiForTestedAxis(p.lineOrientation());</span>
+<span class="fc" id="L52">        double startPitchUm = VariableLineGratingModel.pitchMmAtNormalized(p, 0.0) * 1000.0;</span>
+<span class="fc" id="L53">        double endPitchUm = VariableLineGratingModel.pitchMmAtNormalized(p, 1.0) * 1000.0;</span>
+<span class="fc" id="L54">        double minPitchUm = Math.min(startPitchUm, endPitchUm);</span>
+<span class="fc" id="L55">        double maxPitchUm = Math.max(startPitchUm, endPitchUm);</span>
+<span class="fc" id="L56">        double dotsPerUm = dpi / (Units.INCH_MM * 1000.0);</span>
+
+<span class="fc" id="L58">        List&lt;ThresholdCrossing&gt; crossings = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        for (double threshold : DOT_THRESHOLDS) {</span>
+<span class="fc" id="L60">            double thresholdPitchUm = threshold / dotsPerUm;</span>
+<span class="fc" id="L61">            double u = findPitchCrossing(p, thresholdPitchUm);</span>
+<span class="fc" id="L62">            crossings.add(new ThresholdCrossing(</span>
+                    threshold,
+<span class="fc" id="L64">                    Double.isFinite(u),</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">                    Double.isFinite(u) ? u * p.activeProgressionLengthMm() : null,</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">                    Double.isFinite(u) ? u : null,</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">                    Double.isFinite(u) ? thresholdPitchUm : null));</span>
+<span class="fc" id="L68">        }</span>
+
+<span class="fc" id="L70">        return new Result(</span>
+<span class="fc" id="L71">                p.lineOrientation(),</span>
+                testedAxis,
+                dpi,
+                minPitchUm,
+                maxPitchUm,
+<span class="fc" id="L76">                minPitchUm * p.dutyCycle(),</span>
+<span class="fc" id="L77">                minPitchUm * (1.0 - p.dutyCycle()),</span>
+                minPitchUm * dotsPerUm,
+                maxPitchUm * dotsPerUm,
+<span class="fc" id="L80">                minPitchUm * p.dutyCycle() * dotsPerUm,</span>
+<span class="fc" id="L81">                minPitchUm * (1.0 - p.dutyCycle()) * dotsPerUm,</span>
+<span class="fc" id="L82">                VariableLineGratingModel.nominalCycleCount(p),</span>
+                crossings);
+    }
+
+    private static double findPitchCrossing(VariableLineGratingParameters p, double targetPitchUm) {
+<span class="fc" id="L87">        double a = VariableLineGratingModel.pitchMmAtNormalized(p, 0.0) * 1000.0;</span>
+<span class="fc" id="L88">        double b = VariableLineGratingModel.pitchMmAtNormalized(p, 1.0) * 1000.0;</span>
+<span class="fc" id="L89">        double min = Math.min(a, b);</span>
+<span class="fc" id="L90">        double max = Math.max(a, b);</span>
+<span class="pc bpc" id="L91" title="1 of 4 branches missed.">        if (targetPitchUm &lt; min || targetPitchUm &gt; max) return Double.NaN;</span>
+<span class="pc bpc" id="L92" title="3 of 4 branches missed.">        if (Math.abs(a - b) &lt; 1e-12) return Math.abs(targetPitchUm - a) &lt; 1e-9 ? 0.0 : Double.NaN;</span>
+
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">        boolean increasing = b &gt; a;</span>
+<span class="fc" id="L95">        double lo = 0.0;</span>
+<span class="fc" id="L96">        double hi = 1.0;</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        for (int i = 0; i &lt; 64; i++) {</span>
+<span class="fc" id="L98">            double mid = (lo + hi) * 0.5;</span>
+<span class="fc" id="L99">            double value = VariableLineGratingModel.pitchMmAtNormalized(p, mid) * 1000.0;</span>
+<span class="fc bfc" id="L100" title="All 4 branches covered.">            if ((value &lt; targetPitchUm) == increasing) lo = mid;</span>
+<span class="fc" id="L101">            else hi = mid;</span>
+        }
+<span class="fc" id="L103">        return (lo + hi) * 0.5;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

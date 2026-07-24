@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VariableLineGratingModel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Optics Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.optics</a> &gt; <span class="el_source">VariableLineGratingModel.java</span></div><h1>VariableLineGratingModel.java</h1><pre class="source lang-java linenums">package org.fresnel.optics;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/** Deterministic physical-coordinate model shared by every grating output path. */
+public final class VariableLineGratingModel {
+
+    private static final double EPS = 1e-12;
+
+    private VariableLineGratingModel() {}
+
+    /** Physical sheet and active-area bounds, all in millimetres. */
+<span class="fc" id="L14">    public record Layout(</span>
+            double sheetWidthMm,
+            double sheetHeightMm,
+            double activeXmm,
+            double activeYmm,
+            double activeWidthMm,
+            double activeHeightMm,
+            double axisCoordinateMm,
+            boolean verticalAxisLayout
+    ) {}
+
+    /** One opaque interval along the coordinate perpendicular to the line family. */
+    public record Interval(double startMm, double endMm) {
+<span class="fc" id="L27">        public Interval {</span>
+<span class="pc bpc" id="L28" title="3 of 6 branches missed.">            if (!Double.isFinite(startMm) || !Double.isFinite(endMm) || endMm &lt; startMm) {</span>
+<span class="nc" id="L29">                throw new IllegalArgumentException(&quot;invalid grating interval&quot;);</span>
+            }
+<span class="fc" id="L31">        }</span>
+    }
+
+    public static Layout layout(VariableLineGratingParameters p) {
+<span class="fc" id="L35">        return layoutOf(</span>
+<span class="fc" id="L36">                p.widthMm(), p.heightMm(), p.lineOrientation(), p.marginMm(),</span>
+<span class="fc" id="L37">                p.showAxis(), p.annotationSizeMm());</span>
+    }
+
+    static Layout layoutOf(
+            double widthMm,
+            double heightMm,
+            LineOrientation orientation,
+            double marginMm,
+            boolean showAxis,
+            double annotationSizeMm) {
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        double axisSpace = showAxis ? annotationSizeMm : 0.0;</span>
+<span class="fc" id="L48">        double activeWidth = widthMm - 2.0 * marginMm</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">                - (orientation == LineOrientation.HORIZONTAL ? axisSpace : 0.0);</span>
+<span class="fc" id="L50">        double activeHeight = heightMm - 2.0 * marginMm</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">                - (orientation == LineOrientation.VERTICAL ? axisSpace : 0.0);</span>
+<span class="pc bpc" id="L52" title="2 of 4 branches missed.">        if (activeWidth &lt;= 0.0 || activeHeight &lt;= 0.0) {</span>
+<span class="nc" id="L53">            throw new IllegalArgumentException(</span>
+                    &quot;margins and annotation area leave no active grating region&quot;);
+        }
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        double axisCoordinate = orientation == LineOrientation.VERTICAL</span>
+<span class="fc" id="L57">                ? marginMm + activeHeight + axisSpace * 0.25</span>
+<span class="fc" id="L58">                : marginMm + activeWidth + axisSpace * 0.25;</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        return new Layout(</span>
+                widthMm,
+                heightMm,
+                marginMm,
+                marginMm,
+                activeWidth,
+                activeHeight,
+                axisCoordinate,
+                orientation == LineOrientation.HORIZONTAL);
+    }
+
+    /** Local pitch at normalized configured progression coordinate {@code u}. */
+    public static double pitchMmAtNormalized(VariableLineGratingParameters p, double u) {
+<span class="fc" id="L72">        double clamped = clamp01(u);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        double directed = p.progressionDirection() == ProgressionDirection.NORMAL</span>
+<span class="fc" id="L74">                ? clamped</span>
+<span class="fc" id="L75">                : 1.0 - clamped;</span>
+<span class="fc" id="L76">        double p0 = p.startPitchUm() / 1000.0;</span>
+<span class="fc" id="L77">        double p1 = p.endPitchUm() / 1000.0;</span>
+<span class="fc bfc" id="L78" title="All 3 branches covered.">        return switch (p.progression()) {</span>
+<span class="fc" id="L79">            case LINEAR_PITCH -&gt; p0 + (p1 - p0) * directed;</span>
+            case LINEAR_SPATIAL_FREQUENCY -&gt; {
+<span class="fc" id="L81">                double f0 = 1.0 / p0;</span>
+<span class="fc" id="L82">                double f1 = 1.0 / p1;</span>
+<span class="fc" id="L83">                yield 1.0 / (f0 + (f1 - f0) * directed);</span>
+            }
+<span class="fc" id="L85">            case LOGARITHMIC_PITCH -&gt; p0 * Math.pow(p1 / p0, directed);</span>
+        };
+    }
+
+    /** Local pitch at physical progression coordinate {@code sMm}. */
+    public static double pitchMmAt(VariableLineGratingParameters p, double sMm) {
+<span class="nc" id="L91">        double length = p.activeProgressionLengthMm();</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        return pitchMmAtNormalized(p, length == 0.0 ? 0.0 : sMm / length);</span>
+    }
+
+    /**
+     * Accumulated spatial cycles from the start of the active progression extent.
+     * This is the integral of {@code 1 / pitch(s)}, plus the configured phase offset.
+     */
+    public static double cyclesAt(VariableLineGratingParameters p, double sMm) {
+<span class="fc" id="L100">        double length = p.activeProgressionLengthMm();</span>
+<span class="fc" id="L101">        double u = clamp01(sMm / length);</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        double integral = p.progressionDirection() == ProgressionDirection.NORMAL</span>
+<span class="fc" id="L103">                ? primitiveCycles(p, u)</span>
+<span class="fc" id="L104">                : primitiveCycles(p, 1.0) - primitiveCycles(p, 1.0 - u);</span>
+<span class="fc" id="L105">        return p.phaseOffsetCycles() + length * integral;</span>
+    }
+
+    /** Number of complete/fractional periods over the active extent, excluding phase offset. */
+    public static double nominalCycleCount(VariableLineGratingParameters p) {
+<span class="fc" id="L110">        return cyclesAt(p, p.activeProgressionLengthMm()) - p.phaseOffsetCycles();</span>
+    }
+
+    /** Whether the physical point is opaque. Points outside the active grating are clear. */
+    public static boolean isOpaque(VariableLineGratingParameters p, double xMm, double yMm) {
+<span class="fc" id="L115">        Layout layout = layout(p);</span>
+<span class="pc bpc" id="L116" title="2 of 4 branches missed.">        if (xMm &lt; layout.activeXmm() || xMm &gt;= layout.activeXmm() + layout.activeWidthMm()</span>
+<span class="pc bpc" id="L117" title="2 of 4 branches missed.">                || yMm &lt; layout.activeYmm() || yMm &gt;= layout.activeYmm() + layout.activeHeightMm()) {</span>
+<span class="nc" id="L118">            return false;</span>
+        }
+
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        double progressionS = p.lineOrientation() == LineOrientation.VERTICAL</span>
+<span class="fc" id="L122">                ? xMm - layout.activeXmm()</span>
+<span class="fc" id="L123">                : yMm - layout.activeYmm();</span>
+        double cycles;
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (inStartReferenceBand(p, layout, xMm, yMm)) {</span>
+<span class="nc" id="L126">            cycles = p.phaseOffsetCycles()</span>
+<span class="nc" id="L127">                    + progressionS / pitchMmAtNormalized(p, 0.0);</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">        } else if (inEndReferenceBand(p, layout, xMm, yMm)) {</span>
+<span class="nc" id="L129">            cycles = p.phaseOffsetCycles()</span>
+<span class="nc" id="L130">                    + progressionS / pitchMmAtNormalized(p, 1.0);</span>
+        } else {
+<span class="fc" id="L132">            cycles = cyclesAt(p, progressionS);</span>
+        }
+<span class="fc" id="L134">        double fractional = cycles - Math.floor(cycles);</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        boolean positiveOpaque = fractional &lt; p.dutyCycle();</span>
+<span class="fc bfc" id="L136" title="All 4 branches covered.">        return p.polarity() == Polarity.POSITIVE ? positiveOpaque : !positiveOpaque;</span>
+    }
+
+    /** Opaque intervals of the variable progression for vector export. */
+    public static List&lt;Interval&gt; opaqueIntervals(VariableLineGratingParameters p) {
+<span class="fc" id="L141">        double length = p.activeProgressionLengthMm();</span>
+<span class="fc" id="L142">        double startCycles = cyclesAt(p, 0.0);</span>
+<span class="fc" id="L143">        double endCycles = cyclesAt(p, length);</span>
+<span class="fc" id="L144">        List&lt;Interval&gt; result = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L146">        long firstCycle = (long) Math.floor(startCycles) - 1L;</span>
+<span class="fc" id="L147">        long lastCycle = (long) Math.ceil(endCycles) + 1L;</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        for (long cycle = firstCycle; cycle &lt;= lastCycle; cycle++) {</span>
+<span class="fc" id="L149">            double positiveStart = cycle;</span>
+<span class="fc" id="L150">            double positiveEnd = cycle + p.dutyCycle();</span>
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">            if (p.polarity() == Polarity.POSITIVE) {</span>
+<span class="fc" id="L152">                appendClipped(result, p, positiveStart, positiveEnd, startCycles, endCycles, length);</span>
+            } else {
+<span class="nc" id="L154">                appendClipped(result, p, cycle + p.dutyCycle(), cycle + 1.0,</span>
+                        startCycles, endCycles, length);
+            }
+        }
+<span class="fc" id="L158">        return List.copyOf(result);</span>
+    }
+
+    /** Constant-pitch opaque intervals for one optional reference band. */
+    public static List&lt;Interval&gt; constantPitchOpaqueIntervals(
+            VariableLineGratingParameters p,
+            double pitchMm) {
+<span class="fc" id="L165">        double length = p.activeProgressionLengthMm();</span>
+<span class="fc" id="L166">        double startCycles = p.phaseOffsetCycles();</span>
+<span class="fc" id="L167">        double endCycles = startCycles + length / pitchMm;</span>
+<span class="fc" id="L168">        List&lt;Interval&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L169">        long firstCycle = (long) Math.floor(startCycles) - 1L;</span>
+<span class="fc" id="L170">        long lastCycle = (long) Math.ceil(endCycles) + 1L;</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">        for (long cycle = firstCycle; cycle &lt;= lastCycle; cycle++) {</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">            double a = p.polarity() == Polarity.POSITIVE</span>
+<span class="fc" id="L173">                    ? cycle</span>
+<span class="pc" id="L174">                    : cycle + p.dutyCycle();</span>
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">            double b = p.polarity() == Polarity.POSITIVE</span>
+<span class="fc" id="L176">                    ? cycle + p.dutyCycle()</span>
+<span class="pc" id="L177">                    : cycle + 1.0;</span>
+<span class="fc" id="L178">            double start = Math.max(0.0, (a - startCycles) * pitchMm);</span>
+<span class="fc" id="L179">            double end = Math.min(length, (b - startCycles) * pitchMm);</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">            if (end &gt; start + EPS) result.add(new Interval(start, end));</span>
+        }
+<span class="fc" id="L182">        return List.copyOf(result);</span>
+    }
+
+    /** Position at which an accumulated-cycle target is reached. */
+    public static double positionForCycles(VariableLineGratingParameters p, double targetCycles) {
+<span class="fc" id="L187">        double length = p.activeProgressionLengthMm();</span>
+<span class="fc" id="L188">        double min = cyclesAt(p, 0.0);</span>
+<span class="fc" id="L189">        double max = cyclesAt(p, length);</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">        if (targetCycles &lt;= min) return 0.0;</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">        if (targetCycles &gt;= max) return length;</span>
+<span class="fc" id="L192">        double lo = 0.0;</span>
+<span class="fc" id="L193">        double hi = length;</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">        for (int i = 0; i &lt; 64; i++) {</span>
+<span class="fc" id="L195">            double mid = (lo + hi) * 0.5;</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">            if (cyclesAt(p, mid) &lt; targetCycles) lo = mid;</span>
+<span class="fc" id="L197">            else hi = mid;</span>
+        }
+<span class="fc" id="L199">        return (lo + hi) * 0.5;</span>
+    }
+
+    public static boolean inStartReferenceBand(
+            VariableLineGratingParameters p, Layout layout, double xMm, double yMm) {
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">        if (!p.showReferenceBands()) return false;</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">        return p.lineOrientation() == LineOrientation.VERTICAL</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">                ? yMm &lt; layout.activeYmm() + p.referenceBandSizeMm()</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">                : xMm &lt; layout.activeXmm() + p.referenceBandSizeMm();</span>
+    }
+
+    public static boolean inEndReferenceBand(
+            VariableLineGratingParameters p, Layout layout, double xMm, double yMm) {
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">        if (!p.showReferenceBands()) return false;</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">        return p.lineOrientation() == LineOrientation.VERTICAL</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">                ? yMm &gt;= layout.activeYmm() + layout.activeHeightMm() - p.referenceBandSizeMm()</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                : xMm &gt;= layout.activeXmm() + layout.activeWidthMm() - p.referenceBandSizeMm();</span>
+    }
+
+    private static void appendClipped(
+            List&lt;Interval&gt; target,
+            VariableLineGratingParameters p,
+            double cycleStart,
+            double cycleEnd,
+            double minCycles,
+            double maxCycles,
+            double length) {
+<span class="fc" id="L226">        double clippedStart = Math.max(minCycles, cycleStart);</span>
+<span class="fc" id="L227">        double clippedEnd = Math.min(maxCycles, cycleEnd);</span>
+<span class="fc bfc" id="L228" title="All 2 branches covered.">        if (clippedEnd &lt;= clippedStart + EPS) return;</span>
+<span class="fc" id="L229">        double start = positionForCycles(p, clippedStart);</span>
+<span class="fc" id="L230">        double end = positionForCycles(p, clippedEnd);</span>
+<span class="pc bpc" id="L231" title="2 of 4 branches missed.">        if (end &gt; start + EPS &amp;&amp; start &lt; length) {</span>
+<span class="fc" id="L232">            target.add(new Interval(Math.max(0.0, start), Math.min(length, end)));</span>
+        }
+<span class="fc" id="L234">    }</span>
+
+    /** Integral from 0 to u of the reciprocal pitch, expressed in cycles/mm. */
+    private static double primitiveCycles(VariableLineGratingParameters p, double u) {
+<span class="fc" id="L238">        double p0 = p.startPitchUm() / 1000.0;</span>
+<span class="fc" id="L239">        double p1 = p.endPitchUm() / 1000.0;</span>
+<span class="fc bfc" id="L240" title="All 3 branches covered.">        return switch (p.progression()) {</span>
+            case LINEAR_PITCH -&gt; {
+<span class="fc" id="L242">                double d = p1 - p0;</span>
+<span class="fc bfc" id="L243" title="All 2 branches covered.">                yield Math.abs(d) &lt; EPS</span>
+<span class="fc" id="L244">                        ? u / p0</span>
+<span class="fc" id="L245">                        : Math.log((p0 + d * u) / p0) / d;</span>
+            }
+            case LINEAR_SPATIAL_FREQUENCY -&gt; {
+<span class="fc" id="L248">                double f0 = 1.0 / p0;</span>
+<span class="fc" id="L249">                double f1 = 1.0 / p1;</span>
+<span class="fc" id="L250">                yield f0 * u + 0.5 * (f1 - f0) * u * u;</span>
+            }
+            case LOGARITHMIC_PITCH -&gt; {
+<span class="fc" id="L253">                double a = Math.log(p1 / p0);</span>
+<span class="pc bpc" id="L254" title="1 of 2 branches missed.">                yield Math.abs(a) &lt; EPS</span>
+<span class="nc" id="L255">                        ? u / p0</span>
+<span class="fc" id="L256">                        : -Math.expm1(-a * u) / (p0 * a);</span>
+            }
+        };
+    }
+
+    private static double clamp01(double value) {
+<span class="fc bfc" id="L262" title="All 2 branches covered.">        if (value &lt;= 0.0) return 0.0;</span>
+<span class="fc bfc" id="L263" title="All 2 branches covered.">        if (value &gt;= 1.0) return 1.0;</span>
+<span class="fc" id="L264">        return value;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

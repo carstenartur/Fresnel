@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExperimentProposal.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.copilot</a> &gt; <span class="el_source">ExperimentProposal.java</span></div><h1>ExperimentProposal.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.copilot;
+
+import tools.jackson.databind.JsonNode;
+
+import java.util.List;
+
+/**
+ * Restricted, data-only proposal returned by an experiment-copilot provider.
+ *
+ * &lt;p&gt;A provider may suggest parameters and explanations, but this object is not a
+ * Fresnel job and cannot invoke renderers, files or commands. The backend grounding
+ * service must validate every path and value through the canonical Fresnel contracts
+ * before a job can be produced.&lt;/p&gt;
+ */
+public record ExperimentProposal(
+        String selectedPluginId,
+        List&lt;Parameter&gt; parameters,
+        List&lt;String&gt; unresolvedQuestions,
+        List&lt;Alternative&gt; alternatives,
+        String summary
+) {
+
+<span class="fc" id="L23">    public ExperimentProposal {</span>
+<span class="pc bpc" id="L24" title="1 of 2 branches missed.">        parameters = parameters == null ? List.of() : List.copyOf(parameters);</span>
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        unresolvedQuestions = unresolvedQuestions == null ? List.of() : List.copyOf(unresolvedQuestions);</span>
+<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        alternatives = alternatives == null ? List.of() : List.copyOf(alternatives);</span>
+<span class="pc bpc" id="L27" title="1 of 2 branches missed.">        summary = summary == null ? &quot;&quot; : summary.trim();</span>
+<span class="fc" id="L28">    }</span>
+
+    /** How a value entered the proposal. */
+<span class="fc" id="L31">    public enum ValueSource {</span>
+<span class="fc" id="L32">        USER_SUPPLIED,</span>
+<span class="fc" id="L33">        COPILOT_INFERRED,</span>
+<span class="fc" id="L34">        FRESNEL_DEFAULT</span>
+    }
+
+    /** One proposed top-level plugin parameter with field-level rationale. */
+    public record Parameter(
+            String path,
+            JsonNode value,
+            ValueSource source,
+            String rationale
+    ) {
+<span class="fc" id="L44">        public Parameter {</span>
+<span class="pc bpc" id="L45" title="2 of 4 branches missed.">            if (path == null || path.isBlank()) {</span>
+<span class="nc" id="L46">                throw new IllegalArgumentException(&quot;proposal parameter path must not be blank&quot;);</span>
+            }
+<span class="fc" id="L48">            path = path.trim();</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">            value = value == null ? null : value.deepCopy();</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">            source = source == null ? ValueSource.COPILOT_INFERRED : source;</span>
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">            rationale = rationale == null ? &quot;&quot; : rationale.trim();</span>
+<span class="fc" id="L52">        }</span>
+    }
+
+    /** A reviewable alternative, expressed only as bounded parameter overrides. */
+    public record Alternative(
+            String label,
+            String description,
+            JsonNode parameterOverrides
+    ) {
+<span class="fc" id="L61">        public Alternative {</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">            label = label == null ? &quot;Alternative&quot; : label.trim();</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">            description = description == null ? &quot;&quot; : description.trim();</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">            parameterOverrides = parameterOverrides == null ? null : parameterOverrides.deepCopy();</span>
+<span class="fc" id="L65">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

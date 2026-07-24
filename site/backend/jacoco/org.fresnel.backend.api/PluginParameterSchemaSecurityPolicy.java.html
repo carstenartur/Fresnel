@@ -123,7 +123,7 @@ final class PluginParameterSchemaSecurityPolicy {
             String key,
             JsonNode value,
             String path) {
-<span class="pc bpc" id="L126" title="2 of 8 branches missed.">        switch (key) {</span>
+<span class="pc bpc" id="L126" title="1 of 8 branches missed.">        switch (key) {</span>
 <span class="fc" id="L127">            case &quot;x-fresnel-unit&quot; -&gt; requireNonBlankString(value, path);</span>
             case &quot;x-fresnel-step&quot; -&gt; {
 <span class="pc bpc" id="L129" title="2 of 4 branches missed.">                if (!value.isNumber() || !Double.isFinite(value.doubleValue())</span>
@@ -136,7 +136,7 @@ final class PluginParameterSchemaSecurityPolicy {
                 }
 <span class="fc" id="L137">            }</span>
             case &quot;x-fresnel-precision&quot; -&gt; {
-<span class="nc bnc" id="L139" title="All 6 branches missed.">                if (!value.isIntegralNumber() || value.intValue() &lt; 0 || value.intValue() &gt; 15) {</span>
+<span class="pc bpc" id="L139" title="3 of 6 branches missed.">                if (!value.isIntegralNumber() || value.intValue() &lt; 0 || value.intValue() &gt; 15) {</span>
 <span class="nc" id="L140">                    throw new IllegalStateException(path + &quot; must be an integer from 0 through 15&quot;);</span>
                 }
             }
