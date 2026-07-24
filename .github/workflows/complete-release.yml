@@ -4,6 +4,9 @@ run-name: Complete Release for run ${{ github.event.workflow_run.id }}
 # GitHub suppresses most workflow triggers caused by GITHUB_TOKEN. The Release
 # workflow creates the GitHub release with that token, so this workflow_run hook
 # explicitly dispatches the cross-platform package workflow and waits for it.
+# It also runs after a failed upstream workflow: when publication succeeded but a
+# later housekeeping step failed, the already-published release must still receive
+# its platform packages. Runs with no published release are safely skipped.
 
 on:
   workflow_run:
@@ -21,7 +24,6 @@ concurrency:
 jobs:
   packages:
     name: Build and attach cross-platform packages
-    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Resolve release created by the completed run
@@ -44,7 +46,7 @@ jobs:
           ' <<< "$RELEASES")
 
           if [[ -z "$TAG" ]]; then
-            echo "::notice::No published release was created after $UPSTREAM_CREATED_AT; treating this as a dry run"
+            echo "::notice::No published release was created after $UPSTREAM_CREATED_AT; nothing to complete"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
