@@ -109,7 +109,13 @@ test('preserves production and compatibility metadata while editing a loaded job
     mimeType: MEDIA_TYPE,
     buffer: Buffer.from(JSON.stringify(sourceJob)),
   });
-  await zonePlateNumber(page, /^Focal length \(mm\)/).fill('1250');
+
+  const focalLength = zonePlateNumber(page, /^Focal length \(mm\)/);
+  await expect(page.getByRole('status'))
+    .toContainText('Opened "production-job.fresnel"');
+  await expect(focalLength).toHaveValue('1000');
+  await focalLength.fill('1250');
+  await expect(focalLength).toHaveValue('1250');
 
   const save = page.getByRole('button', { name: 'Save job (.fresnel)' });
   await expect(save).toBeEnabled({ timeout: 30_000 });

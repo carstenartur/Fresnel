@@ -76,6 +76,8 @@
     <properties>
         <!-- Set to true to skip all frontend-maven-plugin executions (e.g. -Dfrontend.skip=true or via the no-frontend profile). -->
         <frontend.skip>false</frontend.skip>
+        <!-- E2E remains opt-in for ordinary builds; CI invokes the same Maven switch developers use locally. -->
+        <fresnel.e2e.skip>true</fresnel.e2e.skip>
     </properties>
 
     <build>
@@ -89,6 +91,48 @@
                         <goals>
                             <goal>repackage</goal>
                         </goals>
+                    </execution>
+                    <execution>
+                        <id>start-backend-for-playwright</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>start</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${fresnel.e2e.skip}</skip>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>stop-backend-after-playwright</id>
+                        <phase>post-integration-test</phase>
+                        <goals>
+                            <goal>stop</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${fresnel.e2e.skip}</skip>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Failsafe defers a Playwright failure until verify so the Spring Boot
+                 stop goal still runs during post-integration-test. -->
+            <plugin>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.5.6</version>
+                <executions>
+                    <execution>
+                        <id>playwright-e2e</id>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>**/PlaywrightE2EIT.java</include>
+                            </includes>
+                            <skipITs>${fresnel.e2e.skip}</skipITs>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -145,6 +189,17 @@
                                 </goals>
                                 <configuration>
                                     <arguments>run build</arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>install-playwright-chromium</id>
+                                <phase>process-test-resources</phase>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <configuration>
+                                    <arguments>run e2e:install</arguments>
+                                    <skip>${fresnel.e2e.skip}</skip>
                                 </configuration>
                             </execution>
                         </executions>
