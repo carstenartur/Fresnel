@@ -1,6 +1,5 @@
 package org.fresnel.backend.security;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -16,22 +15,19 @@ import org.springframework.security.web.SecurityFilterChain;
 /**
  * Stateless HTTP-Basic security configuration for the Fresnel backend.
  *
- * <p>Public, read-only endpoints (validate, preview, info, GET design persistence
- * by id) remain accessible to unauthenticated callers so the SPA stays usable
- * without login. All mutating endpoints (POST design save/persist, POST job
- * submissions, hologram submit, DELETE) require an authenticated principal.
- * Copilot proposals also require authentication because a configured provider may
- * consume paid external quota even though the returned proposal is only advisory.
+ * <p>Public analytical endpoints remain accessible without login. Mutating,
+ * export and render-job lifecycle endpoints require an authenticated principal.
+ * Render-job reads are private because they can expose user-generated images,
+ * progress details and persisted job metadata.</p>
  *
- * <p>Two users are seeded from configuration ({@code fresnel.security.user.*} and
- * {@code fresnel.security.admin.*}) — these are placeholder credentials suitable
- * for local development; for any non-throwaway environment override the
- * passwords via environment variables (see README).
+ * <p>Accounts are supplied by {@link SecurityCredentials}. Local profiles may
+ * use the documented development credentials, while container/PostgreSQL
+ * profiles enable fail-closed explicit-credential validation.</p>
  *
  * <p>Sessions are stateless (no {@code JSESSIONID}). CSRF is disabled for the
- * {@code /api/**} surface because authentication is conveyed by the {@code
- * Authorization} header on every request, not by a cookie that an attacker could
- * piggy-back via a forged form.
+ * {@code /api/**} surface because authentication is conveyed by the
+ * {@code Authorization} header on every request, not by a browser session
+ * cookie.</p>
  */
 @Configuration
 public class SecurityConfig {
@@ -40,24 +36,18 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // CSRF protection is disabled only for the stateless REST surface.
-                // Authentication is conveyed by the Authorization header on every
-                // request (HTTP Basic), not by a session cookie that an attacker
-                // could ride via a forged form, so the standard CSRF threat model
-                // does not apply. Any non-/api/** routes (e.g. the static SPA shell
-                // served from /, /index.html, /assets/**) keep the default CSRF
-                // protection enabled.
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
                 .cors(cors -> {})
                 .authorizeHttpRequests(auth -> auth
+                        // A render-job identifier is not a public share token. Every
+                        // submit/status/SSE/result request requires authentication;
+                        // owner-or-admin authorization is enforced by the job service.
+                        .requestMatchers("/api/jobs/**").authenticated()
                         // Public read-only endpoints.
                         .requestMatchers(HttpMethod.GET,
                                 "/api/designs/persist/**",
                                 "/api/designs/preview*",
                                 "/api/designs/*/info",
-                                "/api/jobs/*",
-                                "/api/jobs/*/events",
-                                "/api/jobs/*/result.png",
                                 "/api/assistant/providers",
                                 "/error", "/", "/index.html",
                                 "/assets/**", "/static/**", "/favicon.ico").permitAll()
@@ -75,7 +65,6 @@ public class SecurityConfig {
                                 "/api/designs/persist",
                                 "/api/designs/export*",
                                 "/api/designs/*/export*",
-                                "/api/jobs/**",
                                 "/api/holograms/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/**").authenticated()
                         .anyRequest().permitAll())
@@ -91,16 +80,13 @@ public class SecurityConfig {
     @Bean
     public InMemoryUserDetailsManager userDetailsService(
             PasswordEncoder encoder,
-            @Value("${fresnel.security.user.username:user}") String userName,
-            @Value("${fresnel.security.user.password:user}") String userPassword,
-            @Value("${fresnel.security.admin.username:admin}") String adminName,
-            @Value("${fresnel.security.admin.password:admin}") String adminPassword) {
-        UserDetails user = User.withUsername(userName)
-                .password(encoder.encode(userPassword))
+            SecurityCredentials credentials) {
+        UserDetails user = User.withUsername(credentials.userName())
+                .password(encoder.encode(credentials.userPassword()))
                 .roles("USER")
                 .build();
-        UserDetails admin = User.withUsername(adminName)
-                .password(encoder.encode(adminPassword))
+        UserDetails admin = User.withUsername(credentials.adminName())
+                .password(encoder.encode(credentials.adminPassword()))
                 .roles("USER", "ADMIN")
                 .build();
         return new InMemoryUserDetailsManager(user, admin);
