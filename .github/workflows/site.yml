@@ -1,28 +1,29 @@
 name: Maven Site
 
-# Generates the Maven site (project reports, Surefire HTML, JaCoCo) for every
-# Maven module and publishes the aggregated result to GitHub Pages under the
-# /site sub-path. This workflow also owns the public metric badge JSON files
-# used by the README, so badge publication is centralized in one Pages deploy.
-
+# Build and validate the Maven reports on every pull request. Publication remains
+# a separate main-only job with narrowly scoped write permission.
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: gh-pages-${{ github.ref }}
-  cancel-in-progress: false
+  group: maven-site-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  site:
-    name: Maven Site
+  build:
+    name: Build Maven Site
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -34,185 +35,44 @@ jobs:
       - name: Build, test and generate Maven Site
         run: mvn -B -ntp -Pno-frontend verify site
 
-      - name: Stage site for upload
-        run: |
-          mkdir -p site/optics-core site/backend
-          cp -r optics-core/target/site/. site/optics-core/
-          cp -r backend/target/site/.     site/backend/
-          cat > site/index.html <<'HTML'
-          <!doctype html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <title>Fresnel — Maven Site</title>
-            <style>
-              body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2em auto; padding: 0 1em; }
-              h1 { color: #0066cc; }
-              li { margin: .5em 0; }
-              a { color: #0066cc; }
-            </style>
-          </head>
-          <body>
-            <h1>Fresnel — Maven Site</h1>
-            <p>Per-module Maven site reports (Surefire, JaCoCo, project info), regenerated from the
-              <a href="https://github.com/carstenartur/Fresnel/actions/workflows/site.yml">Site workflow</a>.</p>
-            <ul>
-              <li><a href="optics-core/index.html">optics-core</a></li>
-              <li><a href="backend/index.html">backend</a></li>
-              <li><a href="coverage/index.html">Coverage summary</a></li>
-              <li><a href="tests/index.html">Test summary</a></li>
-            </ul>
-          </body>
-          </html>
-          HTML
-
-      - name: Generate metric badges and summary pages
-        run: |
-          python3 - <<'PY'
-          import csv
-          import html
-          import json
-          from pathlib import Path
-          import xml.etree.ElementTree as ET
-
-          def write_json(path: Path, payload: dict) -> None:
-              path.parent.mkdir(parents=True, exist_ok=True)
-              path.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
-
-          def esc(value) -> str:
-              return html.escape(str(value), quote=True)
-
-          def coverage_color(pct: float | None) -> str:
-              if pct is None:
-                  return "lightgrey"
-              if pct >= 80.0:
-                  return "brightgreen"
-              if pct >= 60.0:
-                  return "yellow"
-              return "red"
-
-          # Coverage badge and summary page.
-          covered = missed = 0
-          coverage_rows = []
-          for module in ("optics-core", "backend"):
-              csv_path = Path(module) / "target" / "site" / "jacoco" / "jacoco.csv"
-              module_covered = module_missed = 0
-              if csv_path.is_file():
-                  with csv_path.open(newline="", encoding="utf-8") as handle:
-                      reader = csv.DictReader(handle)
-                      for row in reader:
-                          module_covered += int(row.get("INSTRUCTION_COVERED", 0) or 0)
-                          module_missed += int(row.get("INSTRUCTION_MISSED", 0) or 0)
-              covered += module_covered
-              missed += module_missed
-              module_total = module_covered + module_missed
-              module_pct = (module_covered / module_total * 100.0) if module_total else None
-              coverage_rows.append((module, module_pct, module_covered, module_total))
-
-          total = covered + missed
-          pct = (covered / total * 100.0) if total else None
-          coverage_message = f"{pct:.1f}%" if pct is not None else "no data"
-          write_json(Path("site/badges/coverage.json"), {
-              "schemaVersion": 1,
-              "label": "coverage",
-              "message": coverage_message,
-              "color": coverage_color(pct),
-          })
-
-          coverage_table_rows = []
-          for module, module_pct, module_covered, module_total in coverage_rows:
-              pct_text = f"{module_pct:.1f}%" if module_pct is not None else "n/a"
-              report_link = f"../{esc(module)}/jacoco/index.html"
-              coverage_table_rows.append(
-                  "<tr>"
-                  f"<td><a href='{report_link}'>{esc(module)}</a></td>"
-                  f"<td>{pct_text}</td>"
-                  f"<td>{module_covered}/{module_total}</td>"
-                  "</tr>"
-              )
-          coverage_rows_html = "\n".join(coverage_table_rows) or '<tr><td colspan="3">No JaCoCo data was generated.</td></tr>'
-          Path("site/coverage").mkdir(parents=True, exist_ok=True)
-          Path("site/coverage/index.html").write_text(f'''<!doctype html>
-          <html lang="en"><head><meta charset="utf-8"><title>Fresnel Coverage</title>
-          <style>body{{font-family:system-ui,sans-serif;margin:2rem;max-width:960px}}table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #ddd;padding:.5rem;text-align:left}}th{{background:#f6f8fa}}</style>
-          </head><body><h1>Fresnel Coverage</h1>
-          <p>Total instruction coverage: <strong>{coverage_message}</strong></p>
-          <table><thead><tr><th>Module</th><th>Instruction coverage</th><th>Covered/total instructions</th></tr></thead><tbody>{coverage_rows_html}</tbody></table>
-          </body></html>\n''', encoding="utf-8")
-
-          # Tests badge and summary page.
-          tests = failures = errors = skipped = 0
-          suites = []
-          for path in sorted(Path(".").glob("**/target/surefire-reports/TEST-*.xml")):
-              try:
-                  root = ET.parse(path).getroot()
-              except ET.ParseError as exc:
-                  print(f"Skipping malformed JUnit XML {path}: {exc}")
-                  continue
-              suite_tests = int(root.get("tests", 0))
-              suite_failures = int(root.get("failures", 0))
-              suite_errors = int(root.get("errors", 0))
-              suite_skipped = int(root.get("skipped", 0))
-              tests += suite_tests
-              failures += suite_failures
-              errors += suite_errors
-              skipped += suite_skipped
-              module = path.parts[0] if path.parts and path.parts[0] != "target" else "root"
-              suites.append((module, root.get("name", path.stem), suite_tests, suite_failures + suite_errors, suite_skipped))
-
-          failed = failures + errors
-          passed = max(tests - failed - skipped, 0)
-          if tests == 0:
-              tests_message = "no reports"
-              tests_color = "lightgrey"
-          elif failed:
-              tests_message = f"{failed}/{tests} failed"
-              tests_color = "red"
-          elif skipped:
-              tests_message = f"{passed} passed, {skipped} skipped"
-              tests_color = "yellowgreen"
-          else:
-              tests_message = f"{passed} passed"
-              tests_color = "brightgreen"
-
-          write_json(Path("site/badges/tests.json"), {
-              "schemaVersion": 1,
-              "label": "tests",
-              "message": tests_message,
-              "color": tests_color,
-          })
-
-          suite_rows = "\n".join(
-              "<tr>"
-              f"<td>{esc(module)}</td>"
-              f"<td>{esc(name)}</td>"
-              f"<td>{suite_tests}</td>"
-              f"<td>{suite_failed}</td>"
-              f"<td>{suite_skipped}</td>"
-              "</tr>"
-              for module, name, suite_tests, suite_failed, suite_skipped in suites
-          ) or '<tr><td colspan="5">No JUnit XML reports were generated.</td></tr>'
-          Path("site/tests").mkdir(parents=True, exist_ok=True)
-          Path("site/tests/index.html").write_text(f'''<!doctype html>
-          <html lang="en"><head><meta charset="utf-8"><title>Fresnel Tests</title>
-          <style>body{{font-family:system-ui,sans-serif;margin:2rem;max-width:1200px}}table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #ddd;padding:.5rem;text-align:left}}th{{background:#f6f8fa}}</style>
-          </head><body><h1>Fresnel Tests</h1>
-          <p><strong>{passed}</strong> passed, <strong>{failed}</strong> failed, <strong>{skipped}</strong> skipped, <strong>{tests}</strong> total.</p>
-          <table><thead><tr><th>Module</th><th>Suite</th><th>Tests</th><th>Failed</th><th>Skipped</th></tr></thead><tbody>{suite_rows}</tbody></table>
-          </body></html>\n''', encoding="utf-8")
-
-          print(f"Coverage badge: {coverage_message}; Tests badge: {tests_message}")
-          PY
+      - name: Stage and validate reports
+        run: python3 packaging/stage-maven-site.py --minimum-coverage 75
 
       - name: Upload Maven Site artifact
         uses: actions/upload-artifact@v7
         with:
           name: maven-site
           path: site
+          if-no-files-found: error
           retention-days: 14
 
-      - name: Deploy Maven Site to GitHub Pages
-        if: github.ref == 'refs/heads/main'
+  deploy:
+    name: Publish Maven Site
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    steps:
+      - name: Download validated Maven Site artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: maven-site
+          path: site
+
+      - name: Verify publication artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f site/index.html
+          test -f site/qa-summary.json
+          test -f site/badges/coverage.json
+          test -f site/badges/tests.json
+
+      - name: Deploy Maven Site to GitHub Pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
