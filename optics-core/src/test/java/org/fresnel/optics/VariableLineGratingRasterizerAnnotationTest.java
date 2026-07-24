@@ -2,9 +2,9 @@ package org.fresnel.optics;
 
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VariableLineGratingRasterizerAnnotationTest {
 
@@ -18,9 +18,8 @@ class VariableLineGratingRasterizerAnnotationTest {
 
                 assertEquals(118, raster.widthDots());
                 assertEquals(118, raster.heightDots());
-                assertThat(countBlackOutsideActiveArea(raster, parameters))
-                        .as("%s / %s annotation pixels", orientation, quantity)
-                        .isGreaterThan(20);
+                assertTrue(countBlackOutsideActiveArea(raster, parameters) > 20,
+                        orientation + " / " + quantity + " must render annotation pixels");
             }
         }
     }
@@ -34,13 +33,13 @@ class VariableLineGratingRasterizerAnnotationTest {
                     21);
             MonochromeRaster raster = VariableLineGratingRasterizer.rasterize(parameters, 100, 100);
 
-            assertThat(countBlackInEdgeStrip(raster, 12)).isGreaterThan(0);
-            assertThat(unusedPaddingBitsAreClear(raster)).isTrue();
+            assertTrue(countBlackInEdgeStrip(raster, 12) > 0);
+            assertTrue(unusedPaddingBitsAreClear(raster));
         }
     }
 
     @Test
-    void axisLabelsExposePositionAndSelectedQuantityDeterministically() {
+    void axisLabelsExposeSelectedQuantityDeterministically() {
         VariableLineGratingParameters pitch = parameters(
                 LineOrientation.VERTICAL, AxisQuantity.PITCH_UM, 3);
         assertEquals("2540UM", VariableLineGratingRasterizer.axisLabel(pitch, 0.0, 100));
@@ -58,8 +57,8 @@ class VariableLineGratingRasterizerAnnotationTest {
             MonochromeRaster raster,
             VariableLineGratingParameters parameters) {
         VariableLineGratingModel.Layout layout = VariableLineGratingModel.layout(parameters);
-        double mmPerDotX = Units.INCH_MM / raster.dpiX();
-        double mmPerDotY = Units.INCH_MM / raster.dpiY();
+        double mmPerDotX = Units.INCH_MM / raster.dpiPageX();
+        double mmPerDotY = Units.INCH_MM / raster.dpiPageY();
         long count = 0;
         for (int y = 0; y < raster.heightDots(); y++) {
             double yMm = (y + 0.5) * mmPerDotY;
