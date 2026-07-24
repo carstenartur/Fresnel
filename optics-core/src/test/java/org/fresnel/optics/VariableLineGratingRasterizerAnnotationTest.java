@@ -81,7 +81,7 @@ class VariableLineGratingRasterizerAnnotationTest {
         return count;
     }
 
-    private static long countBlackInEdgeStrip(MonromeRaster raster, int stripWidth) {
+    private static long countBlackInEdgeStrip(MonochromeRaster raster, int stripWidth) {
         long count = 0;
         for (int y = 0; y < raster.heightDots(); y++) {
             for (int x = 0; x < raster.widthDots(); x++) {
