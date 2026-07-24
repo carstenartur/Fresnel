@@ -1,0 +1,21 @@
+# Network-facing container profile.
+#
+# The Docker image activates this profile by default. Passwords intentionally
+# default to blank so SecurityCredentials aborts startup unless operators supply
+# explicit, non-default values. HTTP Basic must be terminated behind TLS for any
+# traffic that leaves the local machine.
+server:
+  address: ${SERVER_ADDRESS:0.0.0.0}
+  port: ${SERVER_PORT:8080}
+
+fresnel:
+  cors:
+    allowed-origins: ${FRESNEL_CORS_ALLOWED_ORIGINS:}
+  security:
+    require-explicit-credentials: true
+    user:
+      username: ${FRESNEL_SECURITY_USER_USERNAME:user}
+      password: ${FRESNEL_SECURITY_USER_PASSWORD:}
+    admin:
+      username: ${FRESNEL_SECURITY_ADMIN_USERNAME:admin}
+      password: ${FRESNEL_SECURITY_ADMIN_PASSWORD:}
