@@ -9,10 +9,10 @@
     <version>0.1.7-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>Fresnel Zone Plate Designer (parent)</name>
+    <name>Fresnel diffractive optics platform (parent)</name>
     <description>
-        Multi-module project for designing printable diffractive optical elements
-        (Fresnel zone plates, hexagonal macro cells, window foils, simple holograms).
+        Multi-module project for designing, validating and manufacturing printable
+        diffractive optical elements, holograms and printer-calibration gratings.
     </description>
 
     <modules>
@@ -27,6 +27,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>6.1.2</junit.version>
         <spring.boot.version>4.1.0</spring.boot.version>
+        <!-- Initial professional QA floor. Raise deliberately as critical paths gain tests. -->
+        <jacoco.instruction.minimum>0.75</jacoco.instruction.minimum>
     </properties>
 
     <dependencyManagement>
@@ -94,6 +96,27 @@
                                 <goal>report</goal>
                             </goals>
                         </execution>
+                        <execution>
+                            <id>jacoco-check</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>check</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <rule>
+                                        <element>BUNDLE</element>
+                                        <limits>
+                                            <limit>
+                                                <counter>INSTRUCTION</counter>
+                                                <value>COVEREDRATIO</value>
+                                                <minimum>${jacoco.instruction.minimum}</minimum>
+                                            </limit>
+                                        </limits>
+                                    </rule>
+                                </rules>
+                            </configuration>
+                        </execution>
                     </executions>
                 </plugin>
                 <plugin>
@@ -104,8 +127,8 @@
             </plugins>
         </pluginManagement>
         <plugins>
-            <!-- Always attach JaCoCo so `mvn -B verify` produces target/site/jacoco
-                 in every Java module without further configuration. -->
+            <!-- Attach JaCoCo to every Java module. `mvn verify` now generates the
+                 report and fails when a module drops below the configured floor. -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
