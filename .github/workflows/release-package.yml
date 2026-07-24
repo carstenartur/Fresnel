@@ -1,12 +1,13 @@
 name: Release Packages
+run-name: Release Packages ${{ inputs.release_tag || github.event.release.tag_name || github.ref_name }} ${{ inputs.request_id }}
 
 # Builds the cross-platform distribution artifacts (jar, Windows ZIP,
 # Linux tar.gz, plus native jpackage installers where supported) on
 # every push to main, every pull request that touches packaging code,
 # on release publication, and on demand via workflow_dispatch.
 #
-# Artifacts are always uploaded to the workflow run. When triggered by
-# a published release, they are also attached to the release.
+# Artifacts are always uploaded to the workflow run. Release-triggered runs and
+# manual runs with release_tag attach the packages to the matching release.
 
 on:
   push:
@@ -28,6 +29,17 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing release tag to build and attach packages for (optional)'
+        required: false
+        type: string
+        default: ''
+      request_id:
+        description: 'Optional correlation identifier supplied by release orchestration'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -43,8 +55,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      release_tag: ${{ steps.release_target.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Set up JDK 21 (Temurin)
         uses: actions/setup-java@v5
@@ -105,6 +120,35 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Project version: $VERSION"
 
+      - name: Resolve release attachment target
+        id: release_target
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+          PROJECT_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAG=""
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            TAG="$EVENT_TAG"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && -n "$INPUT_TAG" ]]; then
+            TAG="$INPUT_TAG"
+          fi
+
+          if [[ -n "$TAG" && "$TAG" != "$PROJECT_VERSION" ]]; then
+            echo "::error::Release tag '$TAG' does not match project version '$PROJECT_VERSION'"
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [[ -n "$TAG" ]]; then
+            echo "Packages will be attached to release $TAG"
+          else
+            echo "Package validation run; no release attachment requested"
+          fi
+
       - name: Stage release artifacts
         run: |
           mkdir -p staging
@@ -142,11 +186,11 @@ jobs:
           if-no-files-found: error
 
       - name: Attach archives to GitHub Release
-        if: github.event_name == 'release'
+        if: steps.release_target.outputs.tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ github.event.release.tag_name }}" \
+          gh release upload "${{ steps.release_target.outputs.tag }}" \
             staging/fresnel-*-windows.zip staging/fresnel-*-windows.zip.sha256 \
             staging/fresnel-*-linux.tar.gz staging/fresnel-*-linux.tar.gz.sha256 \
             --clobber
@@ -176,6 +220,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Set up JDK 21 (Temurin)
         uses: actions/setup-java@v5
@@ -220,7 +266,7 @@ jobs:
         run: ./packaging/jpackage/verify-windows-package.ps1
 
       - name: Attach installer to GitHub Release
-        if: github.event_name == 'release'
+        if: needs.archives.outputs.release_tag != ''
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -228,7 +274,7 @@ jobs:
           shopt -s nullglob
           files=(backend/target/dist/*.${{ matrix.jpackage_type }})
           if [ ${#files[@]} -gt 0 ]; then
-            gh release upload "${{ github.event.release.tag_name }}" "${files[@]}" --clobber
+            gh release upload "${{ needs.archives.outputs.release_tag }}" "${files[@]}" --clobber
           else
             echo "::warning::no ${{ matrix.jpackage_type }} artifact produced"
           fi
