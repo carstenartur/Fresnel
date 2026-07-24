@@ -1,17 +1,17 @@
 name: E2E
 
-# Maven owns the complete E2E lifecycle: frontend dependencies and build,
-# Chromium installation, backend start/stop and the Playwright test process.
-# The identical command can be run from a developer checkout.
+# Manual diagnostic entry point only. Pull requests run the identical Maven E2E
+# lifecycle as part of the single CI gate in ci.yml.
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: e2e-manual-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   e2e:

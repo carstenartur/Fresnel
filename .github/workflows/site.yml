@@ -1,11 +1,9 @@
 name: Maven Site
 
-# Build and validate the Maven reports on every pull request. Publication remains
-# a separate main-only job with narrowly scoped write permission.
+# Report generation and publication run from main or on explicit request. Pull
+# requests are already validated by the single Maven CI gate.
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -13,8 +11,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: maven-site-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: maven-site-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -48,7 +46,7 @@ jobs:
 
   deploy:
     name: Publish Maven Site
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:

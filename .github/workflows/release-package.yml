@@ -2,9 +2,10 @@ name: Release Packages
 run-name: Release Packages ${{ inputs.release_tag || github.event.release.tag_name || github.ref_name }} ${{ inputs.request_id }}
 
 # Builds the cross-platform distribution artifacts (jar, Windows ZIP,
-# Linux tar.gz, plus native jpackage installers where supported) on
-# every push to main, every pull request that touches packaging code,
-# on release publication, and on demand via workflow_dispatch.
+# Linux tar.gz, plus native jpackage installers where supported) after changes
+# reach main, on release publication, and on demand via workflow_dispatch.
+# Pull requests use the single Maven CI gate instead of rebuilding packages on
+# every commit.
 #
 # Build jobs are read-only. A single protected publication job receives narrowly
 # scoped write permission only when an existing release tag was explicitly
@@ -12,14 +13,6 @@ run-name: Release Packages ${{ inputs.release_tag || github.event.release.tag_na
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'backend/**'
-      - 'optics-core/**'
-      - 'pom.xml'
-      - 'packaging/**'
-      - '.github/workflows/release-package.yml'
-  pull_request:
     branches: [main]
     paths:
       - 'backend/**'

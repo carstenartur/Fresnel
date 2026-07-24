@@ -1,5 +1,8 @@
 name: CI
 
+# Pull requests have one authoritative build gate. The command below is the same
+# command developers run locally; GitHub only supplies a clean runner and caches.
+
 on:
   push:
     branches: [main]
@@ -9,10 +12,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    name: Maven verify (JDK 21)
+  verify:
+    name: Maven verify (unit, integration and E2E)
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -23,11 +31,25 @@ jobs:
           java-version: 21
           cache: maven
 
-      - name: Reproduce the complete project build
-        run: mvn -B -ntp verify
+      - name: Reproduce the complete project gate
+        run: mvn -B -ntp -Dfresnel.e2e.skip=false verify
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: maven-failure-reports
+          path: |
+            **/target/surefire-reports
+            **/target/failsafe-reports
+            frontend/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
 
   docker:
-    name: Docker build
+    name: Docker build (main only)
+    if: github.event_name == 'push'
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

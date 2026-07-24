@@ -1,13 +1,11 @@
 name: Coverage
 
-# Generates JaCoCo coverage reports for both Maven modules, enforces the
-# project-wide instruction floor and uploads the reports as workflow artifacts.
-# README badge JSON remains published by the Maven Site workflow.
+# Publishes JaCoCo reports from main and scheduled/manual runs. The coverage
+# threshold itself is part of the ordinary Maven verify lifecycle, so pull
+# requests do not need a second build workflow.
 
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   schedule:
     - cron: '0 3 * * *'
@@ -16,9 +14,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   coverage:
-    name: JaCoCo coverage
+    name: Publish JaCoCo coverage reports
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -30,67 +32,8 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build & test with coverage
-        run: mvn -B -ntp verify -Pno-frontend
-
-      - name: Enforce aggregate coverage floor
-        run: |
-          python3 - <<'PY'
-          import csv
-          import os
-          from pathlib import Path
-          import xml.etree.ElementTree as ET
-
-          namespace = {"m": "http://maven.apache.org/POM/4.0.0"}
-          root = ET.parse("pom.xml").getroot()
-          minimum_node = root.find(
-              "m:properties/m:jacoco.instruction.minimum.percent", namespace)
-          if minimum_node is None or not (minimum_node.text or "").strip():
-              raise SystemExit("Missing jacoco.instruction.minimum.percent in pom.xml")
-          minimum = float(minimum_node.text.strip())
-
-          covered = missed = 0
-          module_rows = []
-          for module in ("optics-core", "backend"):
-              csv_path = Path(module) / "target" / "site" / "jacoco" / "jacoco.csv"
-              if not csv_path.is_file():
-                  raise SystemExit(f"Missing JaCoCo CSV report: {csv_path}")
-              module_covered = module_missed = 0
-              with csv_path.open(newline="", encoding="utf-8") as handle:
-                  reader = csv.DictReader(handle)
-                  for row in reader:
-                      module_covered += int(row.get("INSTRUCTION_COVERED", 0) or 0)
-                      module_missed += int(row.get("INSTRUCTION_MISSED", 0) or 0)
-              covered += module_covered
-              missed += module_missed
-              module_total = module_covered + module_missed
-              if module_total == 0:
-                  raise SystemExit(f"JaCoCo report contains no instructions: {csv_path}")
-              module_pct = module_covered / module_total * 100.0
-              module_rows.append((module, module_pct, module_covered, module_total))
-
-          total = covered + missed
-          if total == 0:
-              raise SystemExit("No aggregate JaCoCo instruction data was generated")
-          pct = covered / total * 100.0
-
-          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-          if summary_path:
-              with open(summary_path, "a", encoding="utf-8") as summary:
-                  summary.write("### JaCoCo instruction coverage\n\n")
-                  summary.write(
-                      f"- **Aggregate**: {pct:.2f}% ({covered}/{total}), "
-                      f"required: **{minimum:.2f}%**\n")
-                  for module, module_pct, module_covered, module_total in module_rows:
-                      summary.write(
-                          f"- **{module}**: {module_pct:.2f}% "
-                          f"({module_covered}/{module_total})\n")
-
-          print(f"Aggregate instruction coverage: {pct:.3f}% (minimum {minimum:.3f}%)")
-          if pct + 1e-12 < minimum:
-              raise SystemExit(
-                  f"Coverage regression: {pct:.3f}% is below required {minimum:.3f}%")
-          PY
+      - name: Build and verify coverage thresholds
+        run: mvn -B -ntp -Pno-frontend verify
 
       - name: Stage coverage reports for artifact
         if: always()
