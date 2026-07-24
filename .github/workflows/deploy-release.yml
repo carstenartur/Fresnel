@@ -1,4 +1,9 @@
 name: Release
+run-name: Release ${{ inputs.release_version }} ${{ github.run_id }}-${{ github.run_attempt }}
+
+# This workflow validates release metadata, creates the version-only candidate
+# commit and dispatches publish-release.yml at that exact commit. Publication and
+# attestations therefore run with github.sha equal to the source being released.
 
 on:
   workflow_dispatch:
@@ -8,7 +13,7 @@ on:
         required: true
         type: string
       dry_run:
-        description: 'Validate and build without publishing'
+        description: 'Validate and build without pushing a candidate or publishing'
         required: false
         type: boolean
         default: false
@@ -17,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: fresnel-release
+  group: fresnel-release-orchestration
   cancel-in-progress: false
 
 env:
@@ -35,19 +40,20 @@ jobs:
       maintenance_branch: ${{ steps.versions.outputs.maintenance_branch }}
       current_version: ${{ steps.metadata.outputs.current_version }}
       citation_version: ${{ steps.metadata.outputs.citation_version }}
-      suggested_release: ${{ steps.metadata.outputs.suggested_release }}
       starting_sha: ${{ steps.baseline.outputs.starting_sha }}
     steps:
-      - name: Checkout main
+      - name: Checkout exact dispatch commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: main
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Require workflow dispatch from main
+      - name: Require current main dispatch
+        id: baseline
         env:
           DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           if [[ "$DISPATCH_REF" != "refs/heads/main" ]]; then
@@ -55,24 +61,20 @@ jobs:
             exit 1
           fi
 
+          LOCAL_SHA=$(git rev-parse HEAD)
+          REMOTE_SHA=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          if [[ "$LOCAL_SHA" != "$DISPATCH_SHA" || "$REMOTE_SHA" != "$DISPATCH_SHA" ]]; then
+            echo "::error::main changed after dispatch (event $DISPATCH_SHA, local $LOCAL_SHA, remote $REMOTE_SHA)"
+            exit 1
+          fi
+          echo "starting_sha=$DISPATCH_SHA" >> "$GITHUB_OUTPUT"
+
       - name: Set up JDK 21
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           java-version: '21'
           distribution: temurin
           cache: maven
-
-      - name: Capture starting main SHA
-        id: baseline
-        run: |
-          set -euo pipefail
-          STARTING_SHA=$(git rev-parse HEAD)
-          REMOTE_SHA=$(git ls-remote origin refs/heads/main | awk '{print $1}')
-          if [[ "$STARTING_SHA" != "$REMOTE_SHA" ]]; then
-            echo "::error::Checked-out main $STARTING_SHA differs from origin/main $REMOTE_SHA"
-            exit 1
-          fi
-          echo "starting_sha=$STARTING_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Read release metadata
         id: metadata
@@ -114,14 +116,6 @@ jobs:
           echo "next_snapshot=${NEXT_SNAPSHOT}" >> "$GITHUB_OUTPUT"
           echo "maintenance_branch=${MAINT_BRANCH}" >> "$GITHUB_OUTPUT"
 
-      - name: Check if release tag already exists
-        run: |
-          VERSION="${{ inputs.release_version }}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
-            echo "::error::Tag ${VERSION} already exists"
-            exit 1
-          fi
-
       - name: Validate project and citation versions
         run: |
           set -euo pipefail
@@ -133,6 +127,14 @@ jobs:
           fi
           if [[ -z "$CITATION_VERSION" || "$CITATION_VERSION" != "$CURRENT" ]]; then
             echo "::error::CITATION.cff version '$CITATION_VERSION' does not match project version '$CURRENT'"
+            exit 1
+          fi
+
+      - name: Check if release tag already exists
+        run: |
+          VERSION="${{ inputs.release_version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "::error::Tag ${VERSION} already exists"
             exit 1
           fi
 
@@ -152,36 +154,20 @@ jobs:
             echo "| Dry run | ${{ inputs.dry_run }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  release:
-    name: Build, attest and publish
+  candidate:
+    name: Prepare and validate candidate
     needs: preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-    environment: release
+    timeout-minutes: 150
     permissions:
       contents: write
-      packages: write
-      pull-requests: write
-      id-token: write
-      attestations: write
+      actions: write
     steps:
-      - name: Checkout expected main baseline
+      - name: Checkout validated main baseline
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: main
+          ref: ${{ needs.preflight.outputs.starting_sha }}
           fetch-depth: 0
-
-      - name: Verify expected starting SHA
-        env:
-          EXPECTED_MAIN_SHA: ${{ needs.preflight.outputs.starting_sha }}
-        run: |
-          set -euo pipefail
-          LOCAL_SHA=$(git rev-parse HEAD)
-          REMOTE_SHA=$(git ls-remote origin refs/heads/main | awk '{print $1}')
-          if [[ "$LOCAL_SHA" != "$EXPECTED_MAIN_SHA" || "$REMOTE_SHA" != "$EXPECTED_MAIN_SHA" ]]; then
-            echo "::error::main changed after preflight (expected $EXPECTED_MAIN_SHA, local $LOCAL_SHA, remote $REMOTE_SHA)"
-            exit 1
-          fi
 
       - name: Set up JDK 21
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
@@ -202,275 +188,146 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
 
-      - name: Set release version in Maven metadata
-        run: mvn versions:set -DnewVersion=${{ needs.preflight.outputs.release_version }} -DgenerateBackupPoms=false
-
-      - name: Set release version in CITATION.cff
-        run: python3 .github/scripts/update-citation.py --version "${{ needs.preflight.outputs.release_version }}"
-
-      - name: Commit release version changes
+      - name: Create release metadata commit
         run: |
+          set -euo pipefail
+          mvn versions:set \
+            -DnewVersion=${{ needs.preflight.outputs.release_version }} \
+            -DgenerateBackupPoms=false
+          python3 .github/scripts/update-citation.py \
+            --version "${{ needs.preflight.outputs.release_version }}"
           git add pom.xml backend/pom.xml optics-core/pom.xml CITATION.cff
           git commit -m "Release version ${{ needs.preflight.outputs.release_version }}"
 
-      - name: Capture release commit
-        id: release_commit
+      - name: Validate candidate diff
+        id: candidate
+        env:
+          STARTING_SHA: ${{ needs.preflight.outputs.starting_sha }}
         run: |
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "short_sha=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          CANDIDATE_SHA=$(git rev-parse HEAD)
+          PARENT_SHA=$(git rev-parse HEAD^)
+          if [[ "$PARENT_SHA" != "$STARTING_SHA" ]]; then
+            echo "::error::Candidate parent $PARENT_SHA differs from $STARTING_SHA"
+            exit 1
+          fi
+
+          ACTUAL_FILES=$(git diff --name-only "${STARTING_SHA}..${CANDIDATE_SHA}" | sort)
+          EXPECTED_FILES=$(printf '%s\n' \
+            CITATION.cff \
+            backend/pom.xml \
+            optics-core/pom.xml \
+            pom.xml | sort)
+          if [[ "$ACTUAL_FILES" != "$EXPECTED_FILES" ]]; then
+            echo "::error::Release candidate contains changes beyond version metadata"
+            diff -u <(printf '%s\n' "$EXPECTED_FILES") <(printf '%s\n' "$ACTUAL_FILES") || true
+            exit 1
+          fi
+
+          echo "sha=$CANDIDATE_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci --legacy-peer-deps
 
-      - name: Build and verify with tests
+      - name: Build and verify candidate with tests
         run: mvn -B -ntp verify
 
-      - name: Prepare release assets
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.preflight.outputs.release_version }}"
-          mkdir -p dist
-          JAR="backend/target/backend-${VERSION}.jar"
-          if [[ ! -f "$JAR" ]]; then
-            echo "::error::Expected boot jar not found at $JAR"
-            ls -la backend/target || true
-            exit 1
-          fi
-          cp "$JAR" "dist/backend-${VERSION}.jar"
-          (cd dist && sha256sum "backend-${VERSION}.jar" > "backend-${VERSION}.jar.sha256")
-
-      - name: Push isolated release candidate
-        if: ${{ !inputs.dry_run }}
-        id: candidate
-        run: |
-          set -euo pipefail
-          TEMP_BRANCH="release/candidate-${{ needs.preflight.outputs.release_version }}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          git push origin "HEAD:refs/heads/${TEMP_BRANCH}"
-          echo "branch=$TEMP_BRANCH" >> "$GITHUB_OUTPUT"
-
-      - name: Attest release JAR
-        if: ${{ !inputs.dry_run }}
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
-        with:
-          subject-path: dist/backend-${{ needs.preflight.outputs.release_version }}.jar
-
-      - name: Set up QEMU
-        if: ${{ !inputs.dry_run }}
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
-
-      - name: Set up Docker Buildx
-        if: ${{ !inputs.dry_run }}
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
-
-      - name: Log in to GHCR
-        if: ${{ !inputs.dry_run }}
-        uses: docker/login-action@06fb636fac595d6fb4b28a5dfcb21a6f5091859c # v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Docker metadata
-        if: ${{ !inputs.dry_run }}
-        id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
-        with:
-          images: ghcr.io/carstenartur/fresnel
-          tags: |
-            type=raw,value=${{ needs.preflight.outputs.release_version }}
-            type=raw,value=sha-${{ steps.release_commit.outputs.short_sha }}
-          labels: |
-            org.opencontainers.image.revision=${{ steps.release_commit.outputs.sha }}
-            org.opencontainers.image.version=${{ needs.preflight.outputs.release_version }}
-
-      - name: Build and push versioned Docker image
-        if: ${{ !inputs.dry_run }}
-        id: container_build
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          provenance: mode=max
-          sbom: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Attest container image
-        if: ${{ !inputs.dry_run }}
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
-        with:
-          subject-name: ghcr.io/carstenartur/fresnel
-          subject-digest: ${{ steps.container_build.outputs.digest }}
-          push-to-registry: true
-
-      - name: Create annotated tag and draft release
-        if: ${{ !inputs.dry_run }}
-        id: draft_release
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.preflight.outputs.release_version }}"
-          COMMIT_SHA="${{ steps.release_commit.outputs.sha }}"
-
-          TAG_SHA=$(gh api "repos/${{ github.repository }}/git/tags" \
-            --method POST \
-            -f tag="$VERSION" \
-            -f message="Release version $VERSION" \
-            -f object="$COMMIT_SHA" \
-            -f type="commit" \
-            --jq '.sha')
-
-          gh api "repos/${{ github.repository }}/git/refs" \
-            --method POST \
-            -f ref="refs/tags/${VERSION}" \
-            -f sha="$TAG_SHA"
-
-          gh release create "$VERSION" \
-            "dist/backend-${VERSION}.jar" \
-            "dist/backend-${VERSION}.jar.sha256" \
-            --title "Fresnel ${VERSION}" \
-            --generate-notes \
-            --verify-tag \
-            --draft
-
-          RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases/tags/${VERSION}" --jq '.id')
-          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
-
-      - name: Revalidate and fast-forward main
-        if: ${{ !inputs.dry_run }}
+      - name: Revalidate main before dispatch
         env:
           EXPECTED_MAIN_SHA: ${{ needs.preflight.outputs.starting_sha }}
         run: |
           set -euo pipefail
-          COMMIT_SHA="${{ steps.release_commit.outputs.sha }}"
           REMOTE_SHA=$(git ls-remote origin refs/heads/main | awk '{print $1}')
           if [[ "$REMOTE_SHA" != "$EXPECTED_MAIN_SHA" ]]; then
-            echo "::error::main changed during release (expected $EXPECTED_MAIN_SHA, found $REMOTE_SHA)"
+            echo "::error::main moved while candidate was tested (expected $EXPECTED_MAIN_SHA, found $REMOTE_SHA)"
             exit 1
           fi
 
-          gh api "repos/${{ github.repository }}/git/refs/heads/main" \
-            --method PATCH \
-            -f sha="$COMMIT_SHA" \
-            -F force=false
-
-      - name: Promote container image to latest
-        if: ${{ !inputs.dry_run }}
-        run: |
-          VERSION="${{ needs.preflight.outputs.release_version }}"
-          docker buildx imagetools create \
-            --tag ghcr.io/carstenartur/fresnel:latest \
-            "ghcr.io/carstenartur/fresnel:${VERSION}"
-
-      - name: Publish GitHub Release
-        if: ${{ !inputs.dry_run }}
-        run: |
-          gh api "repos/${{ github.repository }}/releases/${{ steps.draft_release.outputs.release_id }}" \
-            --method PATCH \
-            -F draft=false
-
-      - name: Update maintenance branch
-        if: ${{ !inputs.dry_run }}
-        run: |
-          set -euo pipefail
-          BRANCH_NAME="${{ needs.preflight.outputs.maintenance_branch }}"
-          COMMIT_SHA="${{ steps.release_commit.outputs.sha }}"
-          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
-            git fetch origin "$BRANCH_NAME:refs/remotes/origin/$BRANCH_NAME"
-            if ! git merge-base --is-ancestor "refs/remotes/origin/$BRANCH_NAME" "$COMMIT_SHA"; then
-              echo "::error::$BRANCH_NAME cannot be fast-forwarded to $COMMIT_SHA"
-              exit 1
-            fi
-            gh api "repos/${{ github.repository }}/git/refs/heads/${BRANCH_NAME}" \
-              --method PATCH \
-              -f sha="$COMMIT_SHA" \
-              -F force=false
-          else
-            gh api "repos/${{ github.repository }}/git/refs" \
-              --method POST \
-              -f ref="refs/heads/${BRANCH_NAME}" \
-              -f sha="$COMMIT_SHA"
-          fi
-
-      - name: Clean up release candidate branch
-        if: ${{ success() && !inputs.dry_run }}
-        run: git push origin ":refs/heads/${{ steps.candidate.outputs.branch }}"
-
-      - name: Prepare next development iteration
-        id: next_iteration
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          RELEASE_COMMIT="${{ steps.release_commit.outputs.sha }}"
-          NEXT_VERSION="${{ needs.preflight.outputs.next_snapshot }}"
-          NEXT_RELEASE="${NEXT_VERSION%-SNAPSHOT}"
-          BRANCH_NAME="release/prepare-next-${NEXT_VERSION}"
-
-          git checkout --detach "$RELEASE_COMMIT"
-          git reset --hard "$RELEASE_COMMIT"
-          git clean -fd
-          mvn versions:set -DnewVersion="$NEXT_VERSION" -DgenerateBackupPoms=false
-          python3 .github/scripts/update-citation.py --version "$NEXT_VERSION" --snapshot
-          sed -i "s/^next.release.version=.*/next.release.version=${NEXT_RELEASE}/" release.properties
-
-          git checkout -B "$BRANCH_NAME"
-          git add pom.xml backend/pom.xml optics-core/pom.xml CITATION.cff release.properties
-          git commit -m "Prepare for next development iteration ${NEXT_VERSION}"
-
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            echo "::notice::Dry run: would push $BRANCH_NAME and open the next-iteration PR"
-            exit 0
-          fi
-
-          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
-            git push origin ":refs/heads/${BRANCH_NAME}"
-          fi
-          git push origin "$BRANCH_NAME"
-
-          cat > /tmp/pr_body.md << EOF
-          Automated PR to bump Maven and citation metadata to ${NEXT_VERSION} after release ${{ needs.preflight.outputs.release_version }}.
-
-          ## Changes
-          - Bump Maven modules to ${NEXT_VERSION}
-          - Update CITATION.cff version to ${NEXT_VERSION}
-          - Update release.properties for the next release cycle
-          EOF
-
-          gh pr create \
-            --title "Prepare for next development iteration ${NEXT_VERSION}" \
-            --body-file /tmp/pr_body.md \
-            --base main \
-            --head "$BRANCH_NAME"
-
-      - name: Report next-iteration PR failure
-        if: steps.next_iteration.outcome == 'failure'
-        run: |
-          echo "::warning::The release was published, but the next-development PR could not be created."
-          echo "Create the version-bump PR manually using docs/release-recovery.md." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Dry-run publication summary
+      - name: Dry-run summary
         if: ${{ inputs.dry_run }}
         run: |
-          VERSION="${{ needs.preflight.outputs.release_version }}"
           {
             echo "## Dry run completed"
             echo
-            echo "Validated release $VERSION without changing refs, releases or packages."
-            echo "Tests were executed and release assets were built locally."
+            echo "Candidate ${{ steps.candidate.outputs.sha }} was built and tested locally."
+            echo "No branch, tag, release, attestation or package was published."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Failure recovery summary
+      - name: Push immutable candidate branch
+        if: ${{ !inputs.dry_run }}
+        id: branch
+        run: |
+          set -euo pipefail
+          BRANCH_NAME="release/candidate-${{ needs.preflight.outputs.release_version }}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git push origin "HEAD:refs/heads/${BRANCH_NAME}"
+          echo "name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch protected publication workflow
+        if: ${{ !inputs.dry_run }}
+        id: dispatch
+        env:
+          VERSION: ${{ needs.preflight.outputs.release_version }}
+          STARTING_SHA: ${{ needs.preflight.outputs.starting_sha }}
+          NEXT_SNAPSHOT: ${{ needs.preflight.outputs.next_snapshot }}
+          MAINTENANCE_BRANCH: ${{ needs.preflight.outputs.maintenance_branch }}
+          CANDIDATE_BRANCH: ${{ steps.branch.outputs.name }}
+          REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          gh workflow run publish-release.yml \
+            --repo "${{ github.repository }}" \
+            --ref "$CANDIDATE_BRANCH" \
+            -f release_version="$VERSION" \
+            -f expected_main_sha="$STARTING_SHA" \
+            -f candidate_branch="$CANDIDATE_BRANCH" \
+            -f next_snapshot="$NEXT_SNAPSHOT" \
+            -f maintenance_branch="$MAINTENANCE_BRANCH" \
+            -f request_id="$REQUEST_ID"
+
+          EXPECTED_TITLE="Publish Release ${VERSION} ${REQUEST_ID}"
+          RUN_ID=""
+          for _ in $(seq 1 60); do
+            RUN_ID=$(gh run list \
+              --repo "${{ github.repository }}" \
+              --workflow publish-release.yml \
+              --event workflow_dispatch \
+              --limit 30 \
+              --json databaseId,displayTitle \
+              --jq ".[] | select(.displayTitle == \"${EXPECTED_TITLE}\") | .databaseId" \
+              | head -1)
+            if [[ -n "$RUN_ID" ]]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [[ -z "$RUN_ID" ]]; then
+            echo "::error::Could not locate dispatched publication workflow '$EXPECTED_TITLE'"
+            exit 1
+          fi
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for protected publication
+        if: ${{ !inputs.dry_run }}
+        run: gh run watch "${{ steps.dispatch.outputs.run_id }}" --repo "${{ github.repository }}" --exit-status
+
+      - name: Publication summary
+        if: ${{ !inputs.dry_run }}
+        run: |
+          {
+            echo "## Publication completed"
+            echo
+            echo "Candidate: ${{ steps.candidate.outputs.sha }}"
+            echo "Protected workflow run: ${{ steps.dispatch.outputs.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Candidate recovery summary
         if: ${{ failure() && !inputs.dry_run }}
         run: |
-          VERSION="${{ needs.preflight.outputs.release_version }}"
           {
-            echo "## Release recovery required"
+            echo "## Candidate recovery required"
             echo
-            echo "Release $VERSION did not complete."
-            echo "Main was protected by the expected-SHA fast-forward gate."
-            echo "Inspect any candidate branch, tag, draft release and versioned container image."
+            echo "The candidate branch may remain for diagnosis."
             echo "Follow docs/release-recovery.md before retrying."
           } >> "$GITHUB_STEP_SUMMARY"
