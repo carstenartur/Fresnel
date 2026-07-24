@@ -3,8 +3,9 @@
 Fresnel has two distinct trust models:
 
 1. **Local/desktop** — the default and `standalone` profiles bind to
-   `127.0.0.1`. The documented `user/user` and `admin/admin` accounts exist only
-   to keep local development and packaged single-user desktop operation simple.
+   `127.0.0.1`. Built-in development accounts exist only to keep local
+   development and packaged single-user desktop operation simple; their
+   credential values are not repeated in public documentation.
 2. **Network-exposed** — the `container` and `postgres` profiles bind to a
    configurable network address and fail startup until explicit credentials are
    supplied.
@@ -16,13 +17,15 @@ an ingress controller.
 
 Container and PostgreSQL profiles require two distinct passwords of at least 12
 characters. Published defaults, usernames used as passwords and blank values are
-rejected during application startup.
+rejected during application startup. Supply the values through the calling
+environment or a secrets manager; this documentation intentionally contains no
+example passwords.
 
 ```bash
 export FRESNEL_SECURITY_USER_USERNAME=alice
-export FRESNEL_SECURITY_USER_PASSWORD='correct-horse-battery-staple'
 export FRESNEL_SECURITY_ADMIN_USERNAME=fresnel-admin
-export FRESNEL_SECURITY_ADMIN_PASSWORD='violet-meteor-archive-2026'
+: "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
+: "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
 ```
 
 The administrator and ordinary-user passwords must differ.
@@ -68,11 +71,11 @@ no built-in database or HTTP-Basic password fallback.
 export SPRING_PROFILES_ACTIVE=postgres
 export DB_URL='jdbc:postgresql://db.example.internal:5432/fresnel'
 export DB_USER='fresnel_app'
-export DB_PASSWORD='database-specific-secret'
 export FRESNEL_SECURITY_USER_USERNAME=alice
-export FRESNEL_SECURITY_USER_PASSWORD='correct-horse-battery-staple'
 export FRESNEL_SECURITY_ADMIN_USERNAME=fresnel-admin
-export FRESNEL_SECURITY_ADMIN_PASSWORD='violet-meteor-archive-2026'
+: "${DB_PASSWORD:?set the database password}"
+: "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
+: "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
 java -jar backend-*.jar
 ```
 
