@@ -1,4 +1,4 @@
-name: Check Fresnel 0.1.7 release status
+name: Probe Fresnel 0.1.7 package status
 
 on:
   push:
@@ -12,57 +12,48 @@ permissions:
   contents: write
 
 jobs:
-  check:
+  probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Capture release and package status
+      - name: Capture manual package runs and release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          RELEASE_RUN=$(gh run list \
-            --repo "${{ github.repository }}" \
-            --workflow deploy-release.yml \
-            --branch main \
-            --event workflow_dispatch \
-            --limit 1 \
-            --json databaseId,status,conclusion,createdAt,updatedAt,url,displayTitle,headSha)
-
-          PACKAGE_RUN=$(gh run list \
+          PACKAGE_RUNS=$(gh run list \
             --repo "${{ github.repository }}" \
             --workflow release-package.yml \
-            --event release \
-            --limit 1 \
+            --event workflow_dispatch \
+            --limit 20 \
             --json databaseId,status,conclusion,createdAt,updatedAt,url,displayTitle,headSha)
 
           RELEASE_VIEW=$(gh release view 0.1.7 \
             --repo "${{ github.repository }}" \
             --json url,name,tagName,isLatest,publishedAt,assets)
 
-          publish_file() {
-            local path="$1"
-            local message="$2"
-            local value="$3"
-            local content current_sha
-            content=$(printf '%s\n' "$value" | base64 -w0)
-            current_sha=$(gh api "repos/${{ github.repository }}/contents/${path}?ref=automation/release-status-0.1.7" --jq '.sha' 2>/dev/null || true)
-            if [[ -n "$current_sha" ]]; then
-              gh api "repos/${{ github.repository }}/contents/${path}" \
-                --method PUT \
-                -f message="$message" \
-                -f content="$content" \
-                -f branch='automation/release-status-0.1.7' \
-                -f sha="$current_sha"
-            else
-              gh api "repos/${{ github.repository }}/contents/${path}" \
-                --method PUT \
-                -f message="$message" \
-                -f content="$content" \
-                -f branch='automation/release-status-0.1.7'
-            fi
-          }
+          jq -n \
+            --argjson packageRuns "$PACKAGE_RUNS" \
+            --argjson release "$RELEASE_VIEW" \
+            '{observedAt: now | todateiso8601, packageRuns: $packageRuns, release: $release}' \
+            > /tmp/manual-package-status.json
 
-          publish_file release-status.json 'Refresh Fresnel 0.1.7 release status' "$RELEASE_RUN"
-          publish_file package-status.json 'Record Fresnel 0.1.7 package workflow status' "$PACKAGE_RUN"
-          publish_file release-view.json 'Record Fresnel 0.1.7 release assets' "$RELEASE_VIEW"
+          CONTENT=$(base64 -w0 /tmp/manual-package-status.json)
+          CURRENT_SHA=$(gh api \
+            "repos/${{ github.repository }}/contents/manual-package-status.json?ref=automation/release-status-0.1.7" \
+            --jq '.sha' 2>/dev/null || true)
+
+          if [[ -n "$CURRENT_SHA" ]]; then
+            gh api "repos/${{ github.repository }}/contents/manual-package-status.json" \
+              --method PUT \
+              -f message='Refresh Fresnel 0.1.7 manual package status' \
+              -f content="$CONTENT" \
+              -f branch='automation/release-status-0.1.7' \
+              -f sha="$CURRENT_SHA"
+          else
+            gh api "repos/${{ github.repository }}/contents/manual-package-status.json" \
+              --method PUT \
+              -f message='Record Fresnel 0.1.7 manual package status' \
+              -f content="$CONTENT" \
+              -f branch='automation/release-status-0.1.7'
+          fi
