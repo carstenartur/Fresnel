@@ -10,8 +10,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
-FROM_WITH_DIGEST = re.compile(r"^FROM\s+\S+@sha256:[0-9a-f]{64}(?:\s+AS\s+\S+)?$", re.IGNORECASE)
+FROM_WITH_DIGEST = re.compile(
+    r"^FROM\s+\S+@sha256:[0-9a-f]{64}(?:\s+AS\s+\S+)?$", re.IGNORECASE
+)
 USES = re.compile(r"^\s*-?\s*uses:\s*([^\s#]+)", re.MULTILINE)
+DIRECT_MAIN_WRITE = re.compile(
+    r"(?:git/refs/heads/main|"
+    r"git\s+push[^\n]*(?:refs/heads/)?main(?:\s|$)|"
+    r"git\s+(?:checkout|switch)\s+main(?:\s|$)|"
+    r"git\s+update-ref\s+refs/heads/main)",
+    re.IGNORECASE,
+)
 
 
 def fail(message: str) -> None:
@@ -29,6 +38,10 @@ def verify_action_pins() -> None:
     violations: list[str] = []
     for path in sorted(WORKFLOWS.glob("*.y*ml")):
         text = read(path)
+        if re.search(r"(?m)^permissions:\n  contents:\s+write\s*$", text):
+            violations.append(
+                f"{path.name}: workflow-level contents permission is writable"
+            )
         for value in USES.findall(text):
             if value.startswith("./") or value.startswith("docker://"):
                 continue
@@ -39,25 +52,45 @@ def verify_action_pins() -> None:
             if not FULL_SHA.fullmatch(ref):
                 violations.append(f"{path.name}: {action} uses mutable ref {ref}")
     if violations:
-        fail("external GitHub Actions must use full immutable SHAs:\n  " + "\n  ".join(violations))
+        fail(
+            "GitHub Actions policy violations:\n  " + "\n  ".join(violations)
+        )
 
 
 def verify_docker_pins() -> None:
     dockerfile = ROOT / "Dockerfile"
     lines = read(dockerfile).splitlines()
-    from_lines = [line.strip() for line in lines if line.lstrip().upper().startswith("FROM ")]
+    from_lines = [
+        line.strip() for line in lines if line.lstrip().upper().startswith("FROM ")
+    ]
     if not from_lines:
         fail("Dockerfile contains no FROM instructions")
     bad = [line for line in from_lines if not FROM_WITH_DIGEST.fullmatch(line)]
     if bad:
-        fail("every Docker base image must use a reviewed sha256 digest:\n  " + "\n  ".join(bad))
+        fail(
+            "every Docker base image must use a reviewed sha256 digest:\n  "
+            + "\n  ".join(bad)
+        )
+
+
+def reject_release_bypasses(path: Path, text: str) -> None:
+    for token in ("skip_tests", "--skip-tests"):
+        if token in text:
+            fail(f"{path.name} contains forbidden release bypass: {token}")
+    match = DIRECT_MAIN_WRITE.search(text)
+    if match:
+        fail(
+            f"{path.name} directly mutates or checks out main: {match.group(0)!r}"
+        )
 
 
 def verify_prepare_workflow() -> None:
-    text = read(WORKFLOWS / "prepare-release.yml")
+    path = WORKFLOWS / "prepare-release.yml"
+    text = read(path)
     required = [
         "expected_main_sha",
         "mvn -B -ntp verify",
+        "environment: production-release",
         "pull-requests: write",
         "contents: write",
         "release/",
@@ -65,14 +98,12 @@ def verify_prepare_workflow() -> None:
     for token in required:
         if token not in text:
             fail(f"prepare-release.yml is missing required control: {token}")
-    forbidden = ["skip_tests", "refs/heads/main", "git push origin main"]
-    for token in forbidden:
-        if token in text:
-            fail(f"prepare-release.yml contains forbidden release bypass: {token}")
+    reject_release_bypasses(path, text)
 
 
 def verify_publish_workflow() -> None:
-    text = read(WORKFLOWS / "deploy-release.yml")
+    path = WORKFLOWS / "deploy-release.yml"
+    text = read(path)
     required = [
         "expected_main_sha",
         "environment: production-release",
@@ -88,18 +119,18 @@ def verify_publish_workflow() -> None:
     for token in required:
         if token not in text:
             fail(f"deploy-release.yml is missing required control: {token}")
-    forbidden = [
-        "skip_tests",
-        "refs/heads/main",
-        "git push origin main",
-        "git checkout main",
-        "--skip-tests",
-    ]
-    for token in forbidden:
-        if token in text:
-            fail(f"deploy-release.yml contains forbidden release bypass: {token}")
-    if not re.search(r"(?m)^permissions:\n\s+contents:\s+read\s*$", text):
+    reject_release_bypasses(path, text)
+    if not re.search(r"(?m)^permissions:\n  contents:\s+read\s*$", text):
         fail("deploy-release.yml must default to read-only repository contents")
+
+
+def verify_release_packages() -> None:
+    path = WORKFLOWS / "release-package.yml"
+    text = read(path)
+    if "environment: production-release" not in text:
+        fail("release-package.yml release writes are not environment-gated")
+    if "-Pfrontend,release-package -pl backend -am verify" not in text:
+        fail("release-package.yml does not run tests before packaging")
 
 
 def verify_dependabot() -> None:
@@ -116,6 +147,7 @@ def main() -> None:
     verify_docker_pins()
     verify_prepare_workflow()
     verify_publish_workflow()
+    verify_release_packages()
     verify_dependabot()
     print("Release and supply-chain policy checks passed")
 
