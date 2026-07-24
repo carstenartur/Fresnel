@@ -39,18 +39,24 @@ class VariableLineGratingRasterizerAnnotationTest {
     }
 
     @Test
-    void axisLabelsExposeSelectedQuantityDeterministically() {
+    void axisLabelsExposePhysicalPositionAndSelectedQuantityDeterministically() {
         VariableLineGratingParameters pitch = parameters(
                 LineOrientation.VERTICAL, AxisQuantity.PITCH_UM, 3);
-        assertEquals("2540UM", VariableLineGratingRasterizer.axisLabel(pitch, 0.0, 100));
+        assertEquals(
+                new VariableLineGratingRasterizer.AxisLabel("0MM", "2540UM"),
+                VariableLineGratingRasterizer.axisLabel(pitch, 0.0, 100));
 
         VariableLineGratingParameters frequency = parameters(
                 LineOrientation.VERTICAL, AxisQuantity.LINES_PER_MM, 3);
-        assertEquals("0.4L/MM", VariableLineGratingRasterizer.axisLabel(frequency, 0.5, 100));
+        assertEquals(
+                new VariableLineGratingRasterizer.AxisLabel("14MM", "0.4L/MM"),
+                VariableLineGratingRasterizer.axisLabel(frequency, 0.5, 100));
 
         VariableLineGratingParameters dots = parameters(
                 LineOrientation.HORIZONTAL, AxisQuantity.DEVICE_DOTS_PER_PERIOD, 3);
-        assertEquals("10DOT", VariableLineGratingRasterizer.axisLabel(dots, 1.0, 100));
+        assertEquals(
+                new VariableLineGratingRasterizer.AxisLabel("28MM", "10DOT"),
+                VariableLineGratingRasterizer.axisLabel(dots, 1.0, 100));
     }
 
     private static long countBlackOutsideActiveArea(
@@ -75,7 +81,7 @@ class VariableLineGratingRasterizerAnnotationTest {
         return count;
     }
 
-    private static long countBlackInEdgeStrip(MonochromeRaster raster, int stripWidth) {
+    private static long countBlackInEdgeStrip(MonromeRaster raster, int stripWidth) {
         long count = 0;
         for (int y = 0; y < raster.heightDots(); y++) {
             for (int x = 0; x < raster.widthDots(); x++) {
