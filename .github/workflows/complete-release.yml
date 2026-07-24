@@ -81,7 +81,7 @@ jobs:
           set -euo pipefail
           gh workflow run release-package.yml \
             --repo "${{ github.repository }}" \
-            --ref main \
+            --ref "$RELEASE_TAG" \
             -f release_tag="$RELEASE_TAG" \
             -f request_id="$REQUEST_ID"
 
