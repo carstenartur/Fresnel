@@ -55,6 +55,12 @@ RUN chown fresnel:fresnel /app/app.jar
 
 USER fresnel
 
+# The network-facing container profile fails startup until operators provide
+# FRESNEL_SECURITY_USER_PASSWORD and FRESNEL_SECURITY_ADMIN_PASSWORD. Override
+# with "container,postgres" for PostgreSQL deployments or
+# "standalone,container" for persistent H2 in a trusted container.
+ENV SPRING_PROFILES_ACTIVE=container
+
 EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
