@@ -130,6 +130,18 @@ def check_release_invariants(errors: list[str]) -> None:
     )
     reject_test_skips(publisher, publisher_content, errors)
 
+    packager = WORKFLOWS / "release-package.yml"
+    packager_content = require_tokens(
+        packager,
+        {
+            "Test and build jar + ZIP/tar.gz": "tested release package production",
+            "attach-archives": "least-privilege archive attachment",
+            "attach-installers": "least-privilege installer attachment",
+        },
+        errors,
+    )
+    reject_test_skips(packager, packager_content, errors)
+
     completer = WORKFLOWS / "complete-release.yml"
     require_tokens(
         completer,
