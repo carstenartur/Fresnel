@@ -6,11 +6,12 @@ import { defineConfig, devices } from '@playwright/test';
  * Conventions:
  *  - Tests live in `frontend/e2e/`.
  *  - The Vite dev server is launched automatically (`webServer`) on port 5173.
- *    The Vite proxy forwards `/api` to a backend on :8080, which CI starts as a
- *    separate workflow step (see `.github/workflows/e2e.yml`). For local runs,
- *    start the backend manually with `mvn -pl backend spring-boot:run` first.
- *  - In CI we run only chromium to keep wall-time reasonable; you can opt in to
- *    other browsers by overriding the `projects` field locally.
+ *    The Vite proxy forwards `/api` to a backend on :8080.
+ *  - `mvn -Dfresnel.e2e.skip=false verify` owns the reproducible E2E lifecycle:
+ *    it installs Chromium, starts/stops the backend and invokes this suite through
+ *    Maven Failsafe. A direct `npm run e2e` remains useful while a backend is
+ *    already running locally.
+ *  - CI and local Maven runs use only chromium to keep wall-time reasonable.
  */
 export default defineConfig({
   testDir: './e2e',

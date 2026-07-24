@@ -1,13 +1,15 @@
 name: Complete Release
-run-name: Complete Release for run ${{ github.event.workflow_run.id }}
+run-name: Complete Release for publication run ${{ github.event.workflow_run.id }}
 
-# GitHub suppresses most workflow triggers caused by GITHUB_TOKEN. The Release
-# workflow creates the GitHub release with that token, so this workflow_run hook
+# GitHub suppresses most workflow triggers caused by GITHUB_TOKEN. Publish
+# Release creates the GitHub release with that token, so this workflow_run hook
 # explicitly dispatches the cross-platform package workflow and waits for it.
+# It also runs after a failed publication workflow: when the release was already
+# published but later housekeeping failed, platform packages must still complete.
 
 on:
   workflow_run:
-    workflows: [Release]
+    workflows: [Publish Release]
     types: [completed]
 
 permissions:
@@ -21,14 +23,14 @@ concurrency:
 jobs:
   packages:
     name: Build and attach cross-platform packages
-    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve release created by the completed run
+      - name: Resolve release for the exact publication commit
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          UPSTREAM_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           RELEASES=$(gh release list \
@@ -36,22 +38,32 @@ jobs:
             --limit 20 \
             --json tagName,publishedAt,isDraft)
 
-          TAG=$(jq -r --arg created "$UPSTREAM_CREATED_AT" '
+          mapfile -t CANDIDATES < <(jq -r --arg created "$UPSTREAM_CREATED_AT" '
             [.[] | select(.isDraft == false and .publishedAt >= $created)]
             | sort_by(.publishedAt)
-            | last
-            | .tagName // empty
+            | reverse
+            | .[].tagName
           ' <<< "$RELEASES")
 
+          TAG=""
+          for CANDIDATE in "${CANDIDATES[@]}"; do
+            if ! [[ "$CANDIDATE" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
+              continue
+            fi
+
+            COMMIT_SHA=$(gh api \
+              "repos/${{ github.repository }}/commits/${CANDIDATE}" \
+              --jq '.sha')
+            if [[ "$COMMIT_SHA" == "$UPSTREAM_HEAD_SHA" ]]; then
+              TAG="$CANDIDATE"
+              break
+            fi
+          done
+
           if [[ -z "$TAG" ]]; then
-            echo "::notice::No published release was created after $UPSTREAM_CREATED_AT; treating this as a dry run"
+            echo "::notice::No published release points to publication commit $UPSTREAM_HEAD_SHA; nothing to complete"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
-          fi
-
-          if ! [[ "$TAG" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
-            echo "::error::Resolved release tag '$TAG' is not an X.Y.Z release"
-            exit 1
           fi
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
@@ -69,7 +81,7 @@ jobs:
           set -euo pipefail
           gh workflow run release-package.yml \
             --repo "${{ github.repository }}" \
-            --ref main \
+            --ref "$RELEASE_TAG" \
             -f release_tag="$RELEASE_TAG" \
             -f request_id="$REQUEST_ID"
 

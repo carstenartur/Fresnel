@@ -1,5 +1,8 @@
 name: CI
 
+# Pull requests have one authoritative build gate. The command below is the same
+# command developers run locally; GitHub only supplies a clean runner and caches.
+
 on:
   push:
     branches: [main]
@@ -9,41 +12,47 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    name: Build & test (JDK 21 + Node 20)
+  verify:
+    name: Maven verify (unit, integration and E2E)
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up JDK 21 (Temurin)
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: temurin
           java-version: 21
           cache: maven
 
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v7
+      - name: Reproduce the complete project gate
+        run: mvn -B -ntp -Dfresnel.e2e.skip=false verify
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Maven build & test
-        run: mvn -B -ntp test
-
-      - name: Frontend install & build
-        working-directory: frontend
-        run: |
-          npm ci --legacy-peer-deps
-          npm run build
+          name: maven-failure-reports
+          path: |
+            **/target/surefire-reports
+            **/target/failsafe-reports
+            frontend/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
 
   docker:
-    name: Docker build
+    name: Docker build (main only)
+    if: github.event_name == 'push'
+    needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Build Docker image
         run: docker build --tag fresnel:ci .

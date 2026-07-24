@@ -1,0 +1,440 @@
+name: Publish Release
+run-name: Publish Release ${{ inputs.release_version }} ${{ inputs.request_id }}
+
+# This workflow is dispatched by deploy-release.yml at the exact candidate
+# branch. Running the build in a separate workflow makes github.sha equal the
+# immutable release commit, so artifact and container provenance describe the
+# source that was actually built.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version (X.Y.Z)'
+        required: true
+        type: string
+      expected_main_sha:
+        description: 'main SHA captured before the candidate was created'
+        required: true
+        type: string
+      candidate_branch:
+        description: 'Ephemeral release/candidate-* branch'
+        required: true
+        type: string
+      next_snapshot:
+        description: 'Next development version (X.Y.Z-SNAPSHOT)'
+        required: true
+        type: string
+      maintenance_branch:
+        description: 'Maintenance branch (maintenance/X.Y.x)'
+        required: true
+        type: string
+      request_id:
+        description: 'Correlation identifier from the release orchestrator'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fresnel-release-publication
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  publish:
+    name: Build, attest and publish candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: release
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout immutable candidate commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Validate candidate provenance and metadata
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          EXPECTED_MAIN_SHA: ${{ inputs.expected_main_sha }}
+          CANDIDATE_BRANCH: ${{ inputs.candidate_branch }}
+          NEXT_SNAPSHOT: ${{ inputs.next_snapshot }}
+          MAINTENANCE_BRANCH: ${{ inputs.maintenance_branch }}
+          REQUEST_ID: ${{ inputs.request_id }}
+          EVENT_SHA: ${{ github.sha }}
+          EVENT_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$RELEASE_VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
+            echo "::error::Release version '$RELEASE_VERSION' must use X.Y.Z"
+            exit 1
+          fi
+          if ! [[ "$REQUEST_ID" =~ ^[0-9]+-[0-9]+$ ]]; then
+            echo "::error::Unexpected release request identifier '$REQUEST_ID'"
+            exit 1
+          fi
+
+          EXPECTED_CANDIDATE_BRANCH="release/candidate-${RELEASE_VERSION}-${REQUEST_ID}"
+          if [[ "$CANDIDATE_BRANCH" != "$EXPECTED_CANDIDATE_BRANCH" ]]; then
+            echo "::error::Candidate branch '$CANDIDATE_BRANCH' must be '$EXPECTED_CANDIDATE_BRANCH'"
+            exit 1
+          fi
+
+          EXPECTED_REF="refs/heads/${CANDIDATE_BRANCH}"
+          if [[ "$EVENT_REF" != "$EXPECTED_REF" ]]; then
+            echo "::error::Publish workflow must run from $EXPECTED_REF, not $EVENT_REF"
+            exit 1
+          fi
+          if ! [[ "$EVENT_SHA" =~ ^[0-9a-f]{40}$ && "$EXPECTED_MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Candidate and expected main SHA must be full commit hashes"
+            exit 1
+          fi
+
+          LOCAL_SHA=$(git rev-parse HEAD)
+          PARENT_SHA=$(git rev-parse HEAD^)
+          REMOTE_MAIN_SHA=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          REMOTE_CANDIDATE_SHA=$(git ls-remote origin "$EXPECTED_REF" | awk '{print $1}')
+
+          if [[ "$LOCAL_SHA" != "$EVENT_SHA" || "$REMOTE_CANDIDATE_SHA" != "$EVENT_SHA" ]]; then
+            echo "::error::Candidate moved (event $EVENT_SHA, local $LOCAL_SHA, remote $REMOTE_CANDIDATE_SHA)"
+            exit 1
+          fi
+          if [[ "$PARENT_SHA" != "$EXPECTED_MAIN_SHA" ]]; then
+            echo "::error::Candidate parent $PARENT_SHA differs from expected main $EXPECTED_MAIN_SHA"
+            exit 1
+          fi
+          if [[ "$REMOTE_MAIN_SHA" != "$EXPECTED_MAIN_SHA" ]]; then
+            echo "::error::main moved before publication (expected $EXPECTED_MAIN_SHA, found $REMOTE_MAIN_SHA)"
+            exit 1
+          fi
+
+          ACTUAL_FILES=$(git diff --name-only "${EXPECTED_MAIN_SHA}..${EVENT_SHA}" | sort)
+          EXPECTED_FILES=$(printf '%s\n' \
+            CITATION.cff \
+            backend/pom.xml \
+            optics-core/pom.xml \
+            pom.xml | sort)
+          if [[ "$ACTUAL_FILES" != "$EXPECTED_FILES" ]]; then
+            echo "::error::Candidate contains changes beyond release metadata"
+            diff -u <(printf '%s\n' "$EXPECTED_FILES") <(printf '%s\n' "$ACTUAL_FILES") || true
+            exit 1
+          fi
+
+          CURRENT=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)
+          CITATION_VERSION=$(grep -E '^version:' CITATION.cff | head -1 | sed -E 's/^version:[[:space:]]*"?([^"]*)"?/\1/' || true)
+          SUGGESTED=$(grep -E '^next.release.version=' release.properties | head -1 | cut -d'=' -f2 | tr -d '[:space:]' || true)
+          if [[ "$CURRENT" != "$RELEASE_VERSION" || "$CITATION_VERSION" != "$RELEASE_VERSION" ]]; then
+            echo "::error::Candidate metadata does not match release $RELEASE_VERSION"
+            exit 1
+          fi
+          if [[ -z "$SUGGESTED" ]]; then
+            echo "::error::release.properties is missing a non-empty next.release.version value"
+            exit 1
+          fi
+          if [[ "$SUGGESTED" != "$RELEASE_VERSION" ]]; then
+            echo "::error::release.properties suggests $SUGGESTED instead of $RELEASE_VERSION"
+            exit 1
+          fi
+
+          IFS='.' read -r major minor patch <<< "$RELEASE_VERSION"
+          EXPECTED_NEXT="${major}.${minor}.$((patch + 1))-SNAPSHOT"
+          EXPECTED_MAINTENANCE="maintenance/${major}.${minor}.x"
+          if [[ "$NEXT_SNAPSHOT" != "$EXPECTED_NEXT" ]]; then
+            echo "::error::Next snapshot $NEXT_SNAPSHOT must be $EXPECTED_NEXT"
+            exit 1
+          fi
+          if [[ "$MAINTENANCE_BRANCH" != "$EXPECTED_MAINTENANCE" ]]; then
+            echo "::error::Maintenance branch $MAINTENANCE_BRANCH must be $EXPECTED_MAINTENANCE"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_VERSION}" >/dev/null 2>&1; then
+            echo "::error::Tag ${RELEASE_VERSION} already exists"
+            exit 1
+          fi
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Configure git author
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --legacy-peer-deps
+
+      - name: Build and verify immutable candidate
+        run: mvn -B -ntp verify
+
+      - name: Prepare release assets
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.release_version }}"
+          mkdir -p dist
+          JAR="backend/target/backend-${VERSION}.jar"
+          if [[ ! -f "$JAR" ]]; then
+            echo "::error::Expected boot jar not found at $JAR"
+            ls -la backend/target || true
+            exit 1
+          fi
+          cp "$JAR" "dist/backend-${VERSION}.jar"
+          (cd dist && sha256sum "backend-${VERSION}.jar" > "backend-${VERSION}.jar.sha256")
+
+      - name: Attest release JAR
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: dist/backend-${{ inputs.release_version }}.jar
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@06fb636fac595d6fb4b28a5dfcb21a6f5091859c # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Capture candidate identifiers
+        id: candidate
+        run: |
+          echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$(git rev-parse --short=12 '${{ github.sha }}')" >> "$GITHUB_OUTPUT"
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/carstenartur/fresnel
+          tags: |
+            type=raw,value=${{ inputs.release_version }}
+            type=raw,value=sha-${{ steps.candidate.outputs.short_sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ inputs.release_version }}
+
+      - name: Build and push versioned Docker image
+        id: container_build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Attest container image
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-name: ghcr.io/carstenartur/fresnel
+          subject-digest: ${{ steps.container_build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Revalidate publication refs
+        env:
+          EXPECTED_MAIN_SHA: ${{ inputs.expected_main_sha }}
+          CANDIDATE_BRANCH: ${{ inputs.candidate_branch }}
+          CANDIDATE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          REMOTE_MAIN_SHA=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          REMOTE_CANDIDATE_SHA=$(git ls-remote origin "refs/heads/${CANDIDATE_BRANCH}" | awk '{print $1}')
+          if [[ "$REMOTE_MAIN_SHA" != "$EXPECTED_MAIN_SHA" ]]; then
+            echo "::error::main moved during publication (expected $EXPECTED_MAIN_SHA, found $REMOTE_MAIN_SHA)"
+            exit 1
+          fi
+          if [[ "$REMOTE_CANDIDATE_SHA" != "$CANDIDATE_SHA" ]]; then
+            echo "::error::Candidate branch moved during publication"
+            exit 1
+          fi
+
+      - name: Create annotated tag and draft release
+        id: draft_release
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.release_version }}"
+          COMMIT_SHA="${{ github.sha }}"
+
+          TAG_SHA=$(gh api "repos/${{ github.repository }}/git/tags" \
+            --method POST \
+            -f tag="$VERSION" \
+            -f message="Release version $VERSION" \
+            -f object="$COMMIT_SHA" \
+            -f type="commit" \
+            --jq '.sha')
+
+          gh api "repos/${{ github.repository }}/git/refs" \
+            --method POST \
+            -f ref="refs/tags/${VERSION}" \
+            -f sha="$TAG_SHA"
+
+          gh release create "$VERSION" \
+            "dist/backend-${VERSION}.jar" \
+            "dist/backend-${VERSION}.jar.sha256" \
+            --title "Fresnel ${VERSION}" \
+            --generate-notes \
+            --verify-tag \
+            --draft
+
+          RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases/tags/${VERSION}" --jq '.id')
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Fast-forward main to candidate
+        env:
+          EXPECTED_MAIN_SHA: ${{ inputs.expected_main_sha }}
+          CANDIDATE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          REMOTE_SHA=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          if [[ "$REMOTE_SHA" != "$EXPECTED_MAIN_SHA" ]]; then
+            echo "::error::main changed before promotion (expected $EXPECTED_MAIN_SHA, found $REMOTE_SHA)"
+            exit 1
+          fi
+          gh api "repos/${{ github.repository }}/git/refs/heads/main" \
+            --method PATCH \
+            -f sha="$CANDIDATE_SHA" \
+            -F force=false
+
+      - name: Promote container image to latest
+        run: |
+          VERSION="${{ inputs.release_version }}"
+          docker buildx imagetools create \
+            --tag ghcr.io/carstenartur/fresnel:latest \
+            "ghcr.io/carstenartur/fresnel:${VERSION}"
+
+      - name: Publish GitHub Release
+        run: |
+          gh api "repos/${{ github.repository }}/releases/${{ steps.draft_release.outputs.release_id }}" \
+            --method PATCH \
+            -F draft=false
+
+      - name: Update maintenance branch
+        id: maintenance
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          BRANCH_NAME="${{ inputs.maintenance_branch }}"
+          COMMIT_SHA="${{ github.sha }}"
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
+            git fetch origin "$BRANCH_NAME:refs/remotes/origin/$BRANCH_NAME"
+            if ! git merge-base --is-ancestor "refs/remotes/origin/$BRANCH_NAME" "$COMMIT_SHA"; then
+              echo "::error::$BRANCH_NAME cannot be fast-forwarded to $COMMIT_SHA"
+              exit 1
+            fi
+            gh api "repos/${{ github.repository }}/git/refs/heads/${BRANCH_NAME}" \
+              --method PATCH \
+              -f sha="$COMMIT_SHA" \
+              -F force=false
+          else
+            gh api "repos/${{ github.repository }}/git/refs" \
+              --method POST \
+              -f ref="refs/heads/${BRANCH_NAME}" \
+              -f sha="$COMMIT_SHA"
+          fi
+
+      - name: Clean up release candidate branch
+        id: cleanup
+        continue-on-error: true
+        run: git push origin ":refs/heads/${{ inputs.candidate_branch }}"
+
+      - name: Prepare next development iteration
+        id: next_iteration
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          RELEASE_COMMIT="${{ github.sha }}"
+          NEXT_VERSION="${{ inputs.next_snapshot }}"
+          NEXT_RELEASE="${NEXT_VERSION%-SNAPSHOT}"
+          BRANCH_NAME="release/prepare-next-${NEXT_VERSION}"
+
+          git checkout --detach "$RELEASE_COMMIT"
+          git reset --hard "$RELEASE_COMMIT"
+          git clean -fd
+          mvn versions:set -DnewVersion="$NEXT_VERSION" -DgenerateBackupPoms=false
+          python3 .github/scripts/update-citation.py --version "$NEXT_VERSION" --snapshot
+          if ! grep -q '^next.release.version=' release.properties; then
+            echo "::error::release.properties is missing next.release.version"
+            exit 1
+          fi
+          sed -i "s/^next.release.version=.*/next.release.version=${NEXT_RELEASE}/" release.properties
+
+          git checkout -B "$BRANCH_NAME"
+          git add pom.xml backend/pom.xml optics-core/pom.xml CITATION.cff release.properties
+          git commit -m "Prepare for next development iteration ${NEXT_VERSION}"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
+            echo "::error::Next-development branch $BRANCH_NAME already exists; inspect it before retrying"
+            exit 1
+          fi
+          git push origin "$BRANCH_NAME"
+
+          cat > /tmp/pr_body.md << EOF
+          Automated PR to bump Maven and citation metadata to ${NEXT_VERSION} after release ${{ inputs.release_version }}.
+
+          ## Changes
+          - Bump Maven modules to ${NEXT_VERSION}
+          - Update CITATION.cff version to ${NEXT_VERSION}
+          - Update release.properties for the next release cycle
+          EOF
+
+          gh pr create \
+            --title "Prepare for next development iteration ${NEXT_VERSION}" \
+            --body-file /tmp/pr_body.md \
+            --base main \
+            --head "$BRANCH_NAME"
+
+      - name: Report housekeeping failures
+        if: steps.maintenance.outcome == 'failure' || steps.cleanup.outcome == 'failure' || steps.next_iteration.outcome == 'failure'
+        run: |
+          {
+            echo "## Release published with housekeeping warnings"
+            echo
+            echo "- Maintenance branch: ${{ steps.maintenance.outcome }}"
+            echo "- Candidate cleanup: ${{ steps.cleanup.outcome }}"
+            echo "- Next-development PR: ${{ steps.next_iteration.outcome }}"
+            echo
+            echo "The release itself is published and attested. Follow docs/release-recovery.md for failed housekeeping."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Failure recovery summary
+        if: failure()
+        run: |
+          VERSION="${{ inputs.release_version }}"
+          {
+            echo "## Release recovery required"
+            echo
+            echo "Release $VERSION did not complete its core publication path."
+            echo "Inspect the candidate branch, tag, draft release and versioned image."
+            echo "Follow docs/release-recovery.md before retrying."
+          } >> "$GITHUB_STEP_SUMMARY"

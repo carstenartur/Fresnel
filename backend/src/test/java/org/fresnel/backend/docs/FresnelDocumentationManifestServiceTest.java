@@ -137,6 +137,10 @@ class FresnelDocumentationManifestServiceTest {
         byte[] first = service.write(manifest);
         byte[] second = service.write(manifest);
         assertArrayEquals(first, second);
+        assertArrayEquals(
+                Files.readAllBytes(repositoryFile("docs/generated/example-manifest.json")),
+                first,
+                "checked-in documentation manifest must match the deterministic Maven result");
         assertEquals((byte) '\n', first[first.length - 1]);
         if (first.length > 1) {
             assertNotEquals((byte) '\n', first[first.length - 2],

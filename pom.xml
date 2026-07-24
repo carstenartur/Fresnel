@@ -27,7 +27,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>6.1.2</junit.version>
         <spring.boot.version>4.1.0</spring.boot.version>
-        <!-- Aggregate floor enforced by Coverage and Maven Site workflows. -->
+        <!-- `mvn verify` enforces the ratio for every Java module. The percent
+             value is retained for report and badge generation. -->
+        <jacoco.instruction.minimum.ratio>0.75</jacoco.instruction.minimum.ratio>
         <jacoco.instruction.minimum.percent>75.0</jacoco.instruction.minimum.percent>
     </properties>
 
@@ -96,6 +98,27 @@
                                 <goal>report</goal>
                             </goals>
                         </execution>
+                        <execution>
+                            <id>jacoco-check</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>check</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <rule>
+                                        <element>BUNDLE</element>
+                                        <limits>
+                                            <limit>
+                                                <counter>INSTRUCTION</counter>
+                                                <value>COVEREDRATIO</value>
+                                                <minimum>${jacoco.instruction.minimum.ratio}</minimum>
+                                            </limit>
+                                        </limits>
+                                    </rule>
+                                </rules>
+                            </configuration>
+                        </execution>
                     </executions>
                 </plugin>
                 <plugin>
@@ -106,9 +129,8 @@
             </plugins>
         </pluginManagement>
         <plugins>
-            <!-- Always attach JaCoCo so `mvn verify` produces target/site/jacoco
-                 for every Java module. The workflow combines both reports before
-                 applying the project-wide threshold. -->
+            <!-- Always attach JaCoCo so `mvn verify` produces reports and checks
+                 the instruction floor for every Java module. -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
