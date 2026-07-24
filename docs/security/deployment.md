@@ -26,6 +26,7 @@ export FRESNEL_SECURITY_USER_USERNAME=alice
 export FRESNEL_SECURITY_ADMIN_USERNAME=fresnel-admin
 : "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
 : "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
+export FRESNEL_SECURITY_USER_PASSWORD FRESNEL_SECURITY_ADMIN_PASSWORD
 ```
 
 The administrator and ordinary-user passwords must differ.
@@ -76,6 +77,7 @@ export FRESNEL_SECURITY_ADMIN_USERNAME=fresnel-admin
 : "${DB_PASSWORD:?set the database password}"
 : "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
 : "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
+export DB_PASSWORD FRESNEL_SECURITY_USER_PASSWORD FRESNEL_SECURITY_ADMIN_PASSWORD
 java -jar backend-*.jar
 ```
 
