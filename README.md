@@ -65,6 +65,7 @@ export FRESNEL_SECURITY_USER_USERNAME=alice
 export FRESNEL_SECURITY_ADMIN_USERNAME=fresnel-admin
 : "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
 : "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
+export FRESNEL_SECURITY_USER_PASSWORD FRESNEL_SECURITY_ADMIN_PASSWORD
 
 docker run --rm -p 127.0.0.1:8080:8080 \
   -e FRESNEL_SECURITY_USER_USERNAME \
@@ -134,6 +135,7 @@ export FRESNEL_SECURITY_ADMIN_USERNAME=fresnel-admin
 : "${DB_PASSWORD:?set the database password}"
 : "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
 : "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
+export DB_PASSWORD FRESNEL_SECURITY_USER_PASSWORD FRESNEL_SECURITY_ADMIN_PASSWORD
 java -jar backend-<version>.jar
 ```
 
@@ -188,6 +190,7 @@ shell environment or a secret manager:
 docker build -t fresnel:dev .
 : "${FRESNEL_SECURITY_USER_PASSWORD:?set the application-user password}"
 : "${FRESNEL_SECURITY_ADMIN_PASSWORD:?set the administrator password}"
+export FRESNEL_SECURITY_USER_PASSWORD FRESNEL_SECURITY_ADMIN_PASSWORD
 docker run --rm -p 127.0.0.1:8080:8080 \
   -e FRESNEL_SECURITY_USER_PASSWORD \
   -e FRESNEL_SECURITY_ADMIN_PASSWORD \
