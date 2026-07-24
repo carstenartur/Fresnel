@@ -6,7 +6,7 @@ run-name: Complete Release for run ${{ github.event.workflow_run.id }}
 # explicitly dispatches the cross-platform package workflow and waits for it.
 # It also runs after a failed upstream workflow: when publication succeeded but a
 # later housekeeping step failed, the already-published release must still receive
-# its platform packages. Runs with no published release are safely skipped.
+# its platform packages. Runs with no matching published release are safely skipped.
 
 on:
   workflow_run:
@@ -31,6 +31,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          UPSTREAM_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           RELEASES=$(gh release list \
@@ -38,22 +39,36 @@ jobs:
             --limit 20 \
             --json tagName,publishedAt,isDraft)
 
-          TAG=$(jq -r --arg created "$UPSTREAM_CREATED_AT" '
+          mapfile -t CANDIDATES < <(jq -r --arg created "$UPSTREAM_CREATED_AT" '
             [.[] | select(.isDraft == false and .publishedAt >= $created)]
             | sort_by(.publishedAt)
-            | last
-            | .tagName // empty
+            | reverse
+            | .[].tagName
           ' <<< "$RELEASES")
 
+          TAG=""
+          for CANDIDATE in "${CANDIDATES[@]}"; do
+            if ! [[ "$CANDIDATE" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
+              continue
+            fi
+
+            COMMIT_SHA=$(gh api \
+              "repos/${{ github.repository }}/commits/${CANDIDATE}" \
+              --jq '.sha')
+            PARENT_SHA=$(gh api \
+              "repos/${{ github.repository }}/commits/${COMMIT_SHA}" \
+              --jq '.parents[0].sha // empty')
+
+            if [[ "$PARENT_SHA" == "$UPSTREAM_HEAD_SHA" ]]; then
+              TAG="$CANDIDATE"
+              break
+            fi
+          done
+
           if [[ -z "$TAG" ]]; then
-            echo "::notice::No published release was created after $UPSTREAM_CREATED_AT; nothing to complete"
+            echo "::notice::No published release derived from $UPSTREAM_HEAD_SHA was created by this run; nothing to complete"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
-          fi
-
-          if ! [[ "$TAG" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
-            echo "::error::Resolved release tag '$TAG' is not an X.Y.Z release"
-            exit 1
           fi
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
