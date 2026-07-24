@@ -1,0 +1,43 @@
+name: Maven Site Check
+
+# The production Maven Site workflow only runs after changes reach main. This
+# read-only gate exercises the same build/report command on every pull request,
+# so report-generation regressions cannot first appear after merge.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maven-site-check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  site-check:
+    name: Build Maven Site (read-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build, test and generate Maven Site
+        run: mvn -B -ntp -Pno-frontend verify site
+
+      - name: Verify expected report outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f optics-core/target/site/index.html
+          test -f backend/target/site/index.html
+          test -f optics-core/target/site/jacoco/jacoco.csv
+          test -f backend/target/site/jacoco/jacoco.csv
+          compgen -G 'optics-core/target/surefire-reports/TEST-*.xml' >/dev/null
+          compgen -G 'backend/target/surefire-reports/TEST-*.xml' >/dev/null
