@@ -24,10 +24,11 @@ The table below lists all currently available plugins.
 | Plugin | Java renderer | Frontend integration | Description |
 |--------|---------------|----------------------|-------------|
 | [Zone Plate](plugins/zone-plate.md) | `ZonePlateRenderer` | Schema form + analysis extensions | Single Fresnel zone plate — binary amplitude or greyscale phase |
-| [RGB Zone Plate](plugins/rgb-zone-plate.md) | `RgbZonePlateRenderer` | Schema editor | Zone plate rendered at three wavelengths and composited into one RGB image |
-| [Multi-Focus](plugins/multi-focus.md) | `MultiFocusRenderer` | Schema form + focus-point widget | Aperture divided among multiple focal targets |
+| [Variable-Line Grating](plugins/variable-line-grating.md) | `VariableLineGratingRenderer` | Schema form + calibration extensions | Orientation-selectable printer calibration grating with native one-bit PCL export |
 | [Hex Macro Cell](plugins/hex-macro-cell.md) | `HexMacroCellRenderer` | Schema editor | Hexagonal array of sub-zone-plates focusing to a common image point |
 | [Window Foil](plugins/window-foil.md) | `WindowFoilRenderer` | Schema form + cell-layout widget | Rectangular sheet tiled with hex macro cells |
+| [Multi-Focus](plugins/multi-focus.md) | `MultiFocusRenderer` | Schema form + focus-point widget | Aperture divided among multiple focal targets |
+| [RGB Zone Plate](plugins/rgb-zone-plate.md) | `RgbZonePlateRenderer` | Schema editor | Zone plate rendered at three wavelengths and composited into one RGB image |
 | [Hologram](plugins/hologram.md) | `HologramSynthesizer` | Schema form + image/reconstruction extensions | Computer-generated hologram via the Gerchberg–Saxton algorithm |
 
 ## Plugin structure
@@ -44,7 +45,7 @@ Each plugin consists of:
 4. **UI schema** — ordered groups, standard widgets and trusted extension IDs,
    kept separate from data validation.
 5. **Common React editor** (`frontend/src/schema/`) — `PluginEditorShell` and
-   `SchemaForm` provide one accessible lifecycle for all six plugins. Complex
+   `SchemaForm` provide one accessible lifecycle for all seven plugins. Complex
    interactions are resolved only through a compile-time registry of trusted
    widgets and extensions.
 6. **Capability-driven actions** — `PluginActionBar` combines backend-advertised
@@ -52,8 +53,8 @@ Each plugin consists of:
    endpoint URLs dynamically.
 7. **Unit and integration tests** — schema/DTO/default drift, stable routes,
    `.fresnel` round trips, rendering and numerical behavior.
-8. **Documentation examples** — moving toward checked-in `.fresnel` jobs as the
-   source for generated assets.
+8. **Documentation examples** — checked-in `.fresnel` jobs are the source for
+   generated assets.
 
 ## Shared validation model
 
@@ -95,7 +96,6 @@ the layer consistently.
 mvn -pl optics-core test -Dtest=PluginDocImagesTest -Dfresnel.docs=generate
 ```
 
-The command above remains the current contributor harness. Issue #81 migrates
-these examples so checked-in `.fresnel` jobs become the source and tests merely
-consume them. Generated images in `docs/assets/plugins/` remain committed to the
-repository.
+Checked-in `.fresnel` jobs are the source of truth for current plugin examples;
+the test harness consumes them and verifies deterministic output. Generated
+images in `docs/assets/plugins/` remain committed to the repository.
