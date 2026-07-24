@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 1 – Build the React/TypeScript frontend
 # ──────────────────────────────────────────────────────────────────────────────
-FROM node:20.20.2-alpine3.23@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS frontend-build
+FROM node:26.5.0-alpine3.23@sha256:0473b6671ff22c8eeb570c0e1e51408595d3171e73f8002c269b763f0a943149 AS frontend-build
 
 WORKDIR /app/frontend
 
@@ -16,7 +16,7 @@ RUN npm run build
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 2 – Build the Spring Boot backend (frontend already built)
 # ──────────────────────────────────────────────────────────────────────────────
-FROM maven:3.9.16-eclipse-temurin-21@sha256:1bb51c5ed28b95aef2bc7b46bff6940da43747cdaf838ce4afc2081ce9403750 AS backend-build
+FROM maven:3-eclipse-temurin-26@sha256:d5617b9a6307e1b51dc7c55edf09bacb66f1c91fb861949c34a3a0d4e16bd241 AS backend-build
 
 WORKDIR /app
 
@@ -41,7 +41,7 @@ RUN mvn -B -ntp -Pno-frontend -DskipTests package
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 3 – Runtime image (minimal JRE, non-root)
 # ──────────────────────────────────────────────────────────────────────────────
-FROM eclipse-temurin:21.0.11_10-jre-noble@sha256:373787d1d45a87f084fda43e7de0e9acf5eedee049446efac738f13587ec4c64 AS runtime
+FROM eclipse-temurin:24.0.2_12-jre-noble@sha256:b416d02335e702b0403ff280de9475a3348e29382285969c9d4e17862ce632e7 AS runtime
 
 # Create a non-root user
 RUN groupadd --system fresnel && useradd --system --gid fresnel fresnel
