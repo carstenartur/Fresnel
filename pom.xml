@@ -27,8 +27,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>6.1.2</junit.version>
         <spring.boot.version>4.1.0</spring.boot.version>
-        <!-- Initial professional QA floor. Raise deliberately as critical paths gain tests. -->
-        <jacoco.instruction.minimum>0.75</jacoco.instruction.minimum>
+        <!-- Aggregate floor enforced by Coverage and Maven Site workflows. -->
+        <jacoco.instruction.minimum.percent>75.0</jacoco.instruction.minimum.percent>
     </properties>
 
     <dependencyManagement>
@@ -96,27 +96,6 @@
                                 <goal>report</goal>
                             </goals>
                         </execution>
-                        <execution>
-                            <id>jacoco-check</id>
-                            <phase>verify</phase>
-                            <goals>
-                                <goal>check</goal>
-                            </goals>
-                            <configuration>
-                                <rules>
-                                    <rule>
-                                        <element>BUNDLE</element>
-                                        <limits>
-                                            <limit>
-                                                <counter>INSTRUCTION</counter>
-                                                <value>COVEREDRATIO</value>
-                                                <minimum>${jacoco.instruction.minimum}</minimum>
-                                            </limit>
-                                        </limits>
-                                    </rule>
-                                </rules>
-                            </configuration>
-                        </execution>
                     </executions>
                 </plugin>
                 <plugin>
@@ -127,8 +106,9 @@
             </plugins>
         </pluginManagement>
         <plugins>
-            <!-- Attach JaCoCo to every Java module. `mvn verify` now generates the
-                 report and fails when a module drops below the configured floor. -->
+            <!-- Always attach JaCoCo so `mvn verify` produces target/site/jacoco
+                 for every Java module. The workflow combines both reports before
+                 applying the project-wide threshold. -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
