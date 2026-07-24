@@ -46,10 +46,10 @@ permissions:
 
 jobs:
   # ──────────────────────────────────────────────────────────────────
-  # Stage 1: build the Spring Boot fat jar + the ZIP/tar.gz archives.
+  # Stage 1: test and build the Spring Boot fat jar + ZIP/tar.gz archives.
   # ──────────────────────────────────────────────────────────────────
   archives:
-    name: Build jar + ZIP/tar.gz
+    name: Test and build jar + ZIP/tar.gz
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -78,10 +78,10 @@ jobs:
         working-directory: frontend
         run: npm ci --legacy-peer-deps
 
-      - name: Build jar + ZIP/tar.gz
+      - name: Test and build jar + ZIP/tar.gz
         # Activating any explicit Maven profile suppresses activeByDefault profiles.
         # Release packaging therefore names both the frontend and archive profiles.
-        run: mvn -B -ntp -Pfrontend,release-package -DskipTests -pl backend -am package
+        run: mvn -B -ntp -Pfrontend,release-package -pl backend -am verify
 
       - name: Smoke-test bundled SPA
         env:
