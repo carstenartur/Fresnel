@@ -1,0 +1,15 @@
+{
+  "observedAt": "2026-07-24T09:47:42Z",
+  "requestId": "manual-0.1.7-30082429853",
+  "packageRun": {
+    "conclusion": "",
+    "createdAt": "2026-07-24T09:30:33Z",
+    "databaseId": 30082830620,
+    "displayTitle": "Release Packages 0.1.7 manual-0.1.7-30082429853",
+    "event": "workflow_dispatch",
+    "headSha": "138e62ed42362c3c20ff818457c4b3570ffe38a7",
+    "status": "queued",
+    "updatedAt": "2026-07-24T09:39:09Z",
+    "url": "https://github.com/carstenartur/Fresnel/actions/runs/30082830620"
+  }
+}
