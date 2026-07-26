@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "verify:dependency-contracts": "node scripts/verify-dependency-contracts.mjs",
+    "test:contracts": "node --test scripts/verify-dependency-contracts.test.mjs",
     "e2e": "playwright test",
     "e2e:install": "playwright install --with-deps chromium"
   },
