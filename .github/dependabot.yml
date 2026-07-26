@@ -15,7 +15,20 @@ updates:
     schedule:
       interval: weekly
     groups:
+      # React, React DOM and their type packages form one compatibility unit.
+      # Major updates must never be proposed as individually installable PRs.
+      frontend-react-family:
+        patterns:
+          - react
+          - react-dom
+          - '@types/react'
+          - '@types/react-dom'
       frontend-minor-and-patch:
+        exclude-patterns:
+          - react
+          - react-dom
+          - '@types/react'
+          - '@types/react-dom'
         update-types:
           - minor
           - patch
