@@ -6,6 +6,13 @@ function fileInput(page: import('@playwright/test').Page) {
   return page.locator('input[type="file"][accept*=".fresnel"]');
 }
 
+function statusMessage(
+  page: import('@playwright/test').Page,
+  text: string | RegExp,
+) {
+  return page.getByRole('status').filter({ hasText: text });
+}
+
 function zonePlateForm(page: import('@playwright/test').Page) {
   return page.locator('[data-plugin-schema="zone-plate"]');
 }
@@ -111,8 +118,7 @@ test('preserves production and compatibility metadata while editing a loaded job
   });
 
   const focalLength = zonePlateNumber(page, /^Focal length \(mm\)/);
-  await expect(page.getByRole('status'))
-    .toContainText('Opened "production-job.fresnel"');
+  await expect(statusMessage(page, 'Opened "production-job.fresnel"')).toBeVisible();
   await expect(focalLength).toHaveValue('1000');
   await focalLength.fill('1250');
   await expect(focalLength).toHaveValue('1250');
@@ -176,7 +182,7 @@ test('opens a job in the editor selected by its stable plugin id', async ({ page
     .toHaveValue('42');
   await expect(hexForm.getByRole('spinbutton', { name: /^Focal length \(mm\)/ }))
     .toHaveValue('850');
-  await expect(page.getByRole('status')).toContainText('Opened "hex-example.fresnel"');
+  await expect(statusMessage(page, 'Opened "hex-example.fresnel"')).toBeVisible();
 });
 
 test('migrates a legacy design JSON before populating the editor', async ({ page }) => {
@@ -203,7 +209,7 @@ test('migrates a legacy design JSON before populating the editor', async ({ page
     .toHaveAttribute('aria-selected', 'true');
   await expect(zonePlateNumber(page, /^Aperture diameter \(mm\)/)).toHaveValue('12');
   await expect(zonePlateNumber(page, /^Focal length \(mm\)/)).toHaveValue('750');
-  await expect(page.getByRole('status')).toContainText('Migrated legacy design');
+  await expect(statusMessage(page, 'Migrated legacy design')).toBeVisible();
 });
 
 test('rejects a future job version without replacing the current editor state', async ({ page }) => {
