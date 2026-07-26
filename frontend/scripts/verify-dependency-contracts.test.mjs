@@ -15,6 +15,20 @@ function fixture() {
   return structuredClone(current);
 }
 
+function nextMajor(version) {
+  const match = String(version).match(/\d+/);
+  assert.ok(match, `Expected a semantic version, got ${version}`);
+  return Number(match[0]) + 1;
+}
+
+function incompatibleVersions(currentVersion) {
+  const major = nextMajor(currentVersion);
+  return {
+    range: `^${major}.0.0`,
+    exact: `${major}.0.0`,
+  };
+}
+
 test('accepts the checked-in dependency graph', () => {
   assert.deepEqual(
     verifyDependencyContracts(current.packageJson, current.packageLock),
@@ -22,12 +36,13 @@ test('accepts the checked-in dependency graph', () => {
   );
 });
 
-test('rejects a split React and React DOM major upgrade', () => {
+test('rejects split React and React DOM major versions', () => {
   const candidate = fixture();
-  candidate.packageJson.dependencies['react-dom'] = '^19.2.8';
-  candidate.packageLock.packages[''].dependencies['react-dom'] = '^19.2.8';
-  candidate.packageLock.packages['node_modules/react-dom'].version = '19.2.8';
-  candidate.packageLock.packages['node_modules/react-dom'].peerDependencies.react = '^19.2.8';
+  const incompatible = incompatibleVersions(candidate.packageJson.dependencies.react);
+  candidate.packageJson.dependencies['react-dom'] = incompatible.range;
+  candidate.packageLock.packages[''].dependencies['react-dom'] = incompatible.range;
+  candidate.packageLock.packages['node_modules/react-dom'].version = incompatible.exact;
+  candidate.packageLock.packages['node_modules/react-dom'].peerDependencies.react = incompatible.range;
 
   const errors = verifyDependencyContracts(candidate.packageJson, candidate.packageLock);
 
@@ -37,10 +52,11 @@ test('rejects a split React and React DOM major upgrade', () => {
 
 test('rejects mismatched React type package majors', () => {
   const candidate = fixture();
-  candidate.packageJson.devDependencies['@types/react-dom'] = '^19.2.3';
-  candidate.packageLock.packages[''].devDependencies['@types/react-dom'] = '^19.2.3';
-  candidate.packageLock.packages['node_modules/@types/react-dom'].version = '19.2.3';
-  candidate.packageLock.packages['node_modules/@types/react-dom'].peerDependencies['@types/react'] = '^19.2.0';
+  const incompatible = incompatibleVersions(candidate.packageJson.devDependencies['@types/react']);
+  candidate.packageJson.devDependencies['@types/react-dom'] = incompatible.range;
+  candidate.packageLock.packages[''].devDependencies['@types/react-dom'] = incompatible.range;
+  candidate.packageLock.packages['node_modules/@types/react-dom'].version = incompatible.exact;
+  candidate.packageLock.packages['node_modules/@types/react-dom'].peerDependencies['@types/react'] = incompatible.range;
 
   const errors = verifyDependencyContracts(candidate.packageJson, candidate.packageLock);
 
@@ -50,7 +66,9 @@ test('rejects mismatched React type package majors', () => {
 
 test('rejects a stale lockfile root declaration', () => {
   const candidate = fixture();
-  candidate.packageJson.dependencies.react = '^19.2.8';
+  candidate.packageJson.dependencies.react = incompatibleVersions(
+    candidate.packageJson.dependencies.react,
+  ).range;
 
   const errors = verifyDependencyContracts(candidate.packageJson, candidate.packageLock);
 
