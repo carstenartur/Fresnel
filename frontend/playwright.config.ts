@@ -5,23 +5,29 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Conventions:
  *  - Tests live in `frontend/e2e/`.
- *  - The Vite dev server is launched automatically (`webServer`) on port 5173.
- *    The Vite proxy forwards `/api` to a backend on :8080.
- *  - `mvn -Dfresnel.e2e.skip=false verify` owns the reproducible E2E lifecycle:
- *    it installs Chromium, starts/stops the backend and invokes this suite through
- *    Maven Failsafe. A direct `npm run e2e` remains useful while a backend is
- *    already running locally.
- *  - CI and local Maven runs use only chromium to keep wall-time reasonable.
+ *  - A direct local `npm run e2e` starts Vite on port 5173 and proxies `/api`
+ *    to an already-running backend on :8080.
+ *  - `mvn -Dfresnel.e2e.skip=false verify` sets E2E_NO_WEBSERVER and targets
+ *    the Maven-started Spring Boot application on :8080. This verifies the
+ *    packaged production frontend copied into the backend, not Vite dev mode.
+ *  - CI failures are never hidden by retries. The HTML report, trace, media and
+ *    per-test JUnit XML remain available as diagnostics.
  */
 export default defineConfig({
   testDir: './e2e',
+  outputDir: 'test-results/artifacts',
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  fullyParallel: false,        // backend keeps in-memory job state
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: 0,
   reporter: process.env.CI
-    ? [['html', { open: 'never' }], ['github']]
+    ? [
+        ['html', { open: 'never' }],
+        ['github'],
+        ['junit', { outputFile: 'test-results/playwright-junit.xml' }],
+      ]
     : [['list']],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
