@@ -8,11 +8,6 @@ run-name: Release ${{ github.run_id }}-${{ github.run_attempt }}
 on:
   workflow_dispatch:
     inputs:
-      next_version_increment:
-        description: 'Select how the development version advances after this release'
-        required: true
-<<<<<<< HEAD
-        type: string
       next_development_version:
         description: 'Exact next development version (X.Y.Z-SNAPSHOT); leave empty to use the increment choice'
         required: false
@@ -21,8 +16,6 @@ on:
       next_version_increment:
         description: 'Fallback when the exact next development version is empty'
         required: false
-=======
->>>>>>> origin/main
         type: choice
         default: patch
         options:
@@ -108,38 +101,11 @@ jobs:
           echo "citation_version=${CITATION_VERSION}" >> "$GITHUB_OUTPUT"
           echo "suggested_release=${SUGGESTED}" >> "$GITHUB_OUTPUT"
 
-<<<<<<< HEAD
-      - name: Calculate version outputs
-        id: versions
-        env:
-          RELEASE_VERSION_INPUT: ${{ inputs.release_version }}
-          NEXT_DEVELOPMENT_VERSION_INPUT: ${{ inputs.next_development_version }}
-          NEXT_VERSION_INCREMENT_INPUT: ${{ inputs.next_version_increment }}
-        run: |
-          set -euo pipefail
-          plan_file="$RUNNER_TEMP/fresnel-release-version-plan"
-          : > "$plan_file"
-          python3 .github/scripts/release-version-plan.py \
-            --release "$RELEASE_VERSION_INPUT" \
-            --next-development-version "$NEXT_DEVELOPMENT_VERSION_INPUT" \
-            --increment "${NEXT_VERSION_INCREMENT_INPUT:-patch}" \
-            --github-output "$plan_file"
-          # Planner outputs are strict semantic versions and a derived branch name.
-          source "$plan_file"
-          echo "release_version=${release}" >> "$GITHUB_OUTPUT"
-          echo "next_snapshot=${next}" >> "$GITHUB_OUTPUT"
-          echo "maintenance_branch=${maintenance_branch}" >> "$GITHUB_OUTPUT"
-
-      - name: Validate release version input
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.versions.outputs.release_version }}"
-          SUGGESTED="${{ steps.metadata.outputs.suggested_release }}"
-=======
       - name: Derive repository-owned version outputs
         id: versions
         env:
-          NEXT_VERSION_INCREMENT: ${{ inputs.next_version_increment }}
+          NEXT_DEVELOPMENT_VERSION_INPUT: ${{ inputs.next_development_version }}
+          NEXT_VERSION_INCREMENT_INPUT: ${{ inputs.next_version_increment }}
         run: |
           set -euo pipefail
           CURRENT="${{ steps.metadata.outputs.current_version }}"
@@ -151,7 +117,6 @@ jobs:
           fi
           RELEASE="${CURRENT%-SNAPSHOT}"
 
->>>>>>> origin/main
           if [[ -z "$SUGGESTED" ]]; then
             echo "::error::release.properties is missing a non-empty next.release.version value"
             exit 1
@@ -161,25 +126,19 @@ jobs:
             exit 1
           fi
 
-<<<<<<< HEAD
-=======
-          IFS='.' read -r major minor patch <<< "$RELEASE"
-          case "$NEXT_VERSION_INCREMENT" in
-            patch) NEXT_SNAPSHOT="${major}.${minor}.$((patch + 1))-SNAPSHOT" ;;
-            minor) NEXT_SNAPSHOT="${major}.$((minor + 1)).0-SNAPSHOT" ;;
-            major) NEXT_SNAPSHOT="$((major + 1)).0.0-SNAPSHOT" ;;
-            *)
-              echo "::error::Unsupported next_version_increment '$NEXT_VERSION_INCREMENT'"
-              exit 1
-              ;;
-          esac
-          MAINT_BRANCH="maintenance/${major}.${minor}.x"
+          plan_file="$RUNNER_TEMP/fresnel-release-version-plan"
+          : > "$plan_file"
+          python3 .github/scripts/release-version-plan.py \
+            --release "$RELEASE" \
+            --next-development-version "$NEXT_DEVELOPMENT_VERSION_INPUT" \
+            --increment "${NEXT_VERSION_INCREMENT_INPUT:-patch}" \
+            --github-output "$plan_file"
+          # Planner outputs are strict semantic versions and a derived branch name.
+          source "$plan_file"
+          echo "release_version=${release}" >> "$GITHUB_OUTPUT"
+          echo "next_snapshot=${next}" >> "$GITHUB_OUTPUT"
+          echo "maintenance_branch=${maintenance_branch}" >> "$GITHUB_OUTPUT"
 
-          echo "release_version=${RELEASE}" >> "$GITHUB_OUTPUT"
-          echo "next_snapshot=${NEXT_SNAPSHOT}" >> "$GITHUB_OUTPUT"
-          echo "maintenance_branch=${MAINT_BRANCH}" >> "$GITHUB_OUTPUT"
-
->>>>>>> origin/main
       - name: Validate project and citation versions
         run: |
           set -euo pipefail
