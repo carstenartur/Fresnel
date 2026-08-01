@@ -131,14 +131,21 @@ class SupplyChainConfigurationTest {
         String orchestratorContent = requireTokens(orchestrator, orderedMap(
                 "group: fresnel-release-orchestration", "serialized release preparation",
                 "refs/heads/main", "main-only manual dispatch",
-                "next_version_increment:", "typed release advancement input",
-                "type: choice", "non-free-form release choice",
+                "next_development_version:", "optional exact next-version input",
+                "Optional exact next version (X.Y.Z-SNAPSHOT)", "documented exact override",
+                "next_version_increment:", "typed release advancement fallback",
+                "type: choice", "non-free-form normal release choice",
                 "RELEASE=\"${CURRENT%-SNAPSHOT}\"", "repository-derived release version",
+                "EXACT_NEXT_VERSION: ${{ inputs.next_development_version }}",
+                        "normalized exact override",
+                "next_development_version must use X.Y.Z-SNAPSHOT",
+                        "exact override format validation",
+                "must be newer than release", "monotonic version validation",
                 "publish-release.yml", "separate immutable-candidate publication",
                 "Build and verify candidate with tests", "candidate test gate",
                 "gh run watch", "publication result propagation",
                 "release/candidate-", "isolated candidate branch"), errors);
-        rejectHumanVersionInputs(orchestrator, orchestratorContent, errors);
+        rejectHumanReleaseVersionInputs(orchestrator, orchestratorContent, errors);
         rejectTestSkips(orchestrator, orchestratorContent, errors);
 
         Path publisher = WORKFLOWS.resolve("publish-release.yml");
@@ -188,16 +195,14 @@ class SupplyChainConfigurationTest {
         return content;
     }
 
-    private static void rejectHumanVersionInputs(
+    private static void rejectHumanReleaseVersionInputs(
             Path workflow, String content, List<String> errors) {
         if (content == null) {
             return;
         }
         Map<String, String> forbidden = orderedMap(
                 "\n      release_version:\n", "human-entered release version",
-                "\n      next_development_version:\n", "human-entered next development version",
-                "${{ inputs.release_version }}", "release version read from public dispatch input",
-                "${{ inputs.next_development_version }}", "next version read from public dispatch input");
+                "${{ inputs.release_version }}", "release version read from public dispatch input");
         forbidden.forEach((token, purpose) -> {
             if (content.contains(token)) {
                 errors.add(workflow.getFileName() + " still contains " + purpose
