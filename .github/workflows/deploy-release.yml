@@ -8,8 +8,13 @@ run-name: Release ${{ github.run_id }}-${{ github.run_attempt }}
 on:
   workflow_dispatch:
     inputs:
+      next_development_version:
+        description: 'Optional exact next version (X.Y.Z-SNAPSHOT); leave empty to use the increment choice'
+        required: false
+        type: string
+        default: ''
       next_version_increment:
-        description: 'Select how the development version advances after this release'
+        description: 'Select the conventional next version when no exact version is supplied'
         required: true
         type: choice
         default: patch
@@ -96,6 +101,7 @@ jobs:
       - name: Derive repository-owned version outputs
         id: versions
         env:
+          EXACT_NEXT_VERSION: ${{ inputs.next_development_version }}
           NEXT_VERSION_INCREMENT: ${{ inputs.next_version_increment }}
         run: |
           set -euo pipefail
@@ -117,16 +123,44 @@ jobs:
             exit 1
           fi
 
-          IFS='.' read -r major minor patch <<< "$RELEASE"
-          case "$NEXT_VERSION_INCREMENT" in
-            patch) NEXT_SNAPSHOT="${major}.${minor}.$((patch + 1))-SNAPSHOT" ;;
-            minor) NEXT_SNAPSHOT="${major}.$((minor + 1)).0-SNAPSHOT" ;;
-            major) NEXT_SNAPSHOT="$((major + 1)).0.0-SNAPSHOT" ;;
-            *)
-              echo "::error::Unsupported next_version_increment '$NEXT_VERSION_INCREMENT'"
+          EXACT_NEXT_VERSION=$(python3 - <<'PY'
+          import os
+          print(os.environ.get('EXACT_NEXT_VERSION', '').strip())
+          PY
+          )
+          if [[ -n "$EXACT_NEXT_VERSION" ]]; then
+            if ! [[ "$EXACT_NEXT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]]; then
+              echo "::error::next_development_version must use X.Y.Z-SNAPSHOT"
               exit 1
-              ;;
-          esac
+            fi
+            NEXT_SNAPSHOT="$EXACT_NEXT_VERSION"
+          else
+            IFS='.' read -r major minor patch <<< "$RELEASE"
+            case "$NEXT_VERSION_INCREMENT" in
+              patch) NEXT_SNAPSHOT="${major}.${minor}.$((patch + 1))-SNAPSHOT" ;;
+              minor) NEXT_SNAPSHOT="${major}.$((minor + 1)).0-SNAPSHOT" ;;
+              major) NEXT_SNAPSHOT="$((major + 1)).0.0-SNAPSHOT" ;;
+              *)
+                echo "::error::Unsupported next_version_increment '$NEXT_VERSION_INCREMENT'"
+                exit 1
+                ;;
+            esac
+          fi
+
+          RELEASE="$RELEASE" NEXT_SNAPSHOT="$NEXT_SNAPSHOT" python3 - <<'PY'
+          import os
+          release = tuple(map(int, os.environ['RELEASE'].split('.')))
+          next_version = tuple(
+              map(int, os.environ['NEXT_SNAPSHOT'].removesuffix('-SNAPSHOT').split('.'))
+          )
+          if next_version <= release:
+              raise SystemExit(
+                  f"::error::Next development version {os.environ['NEXT_SNAPSHOT']} "
+                  f"must be newer than release {os.environ['RELEASE']}"
+              )
+          PY
+
+          IFS='.' read -r major minor _ <<< "$RELEASE"
           MAINT_BRANCH="maintenance/${major}.${minor}.x"
 
           echo "release_version=${RELEASE}" >> "$GITHUB_OUTPUT"
@@ -163,7 +197,8 @@ jobs:
             echo "| CITATION.cff version | ${{ steps.metadata.outputs.citation_version }} |"
             echo "| Release version | ${{ steps.versions.outputs.release_version }} |"
             echo "| Next SNAPSHOT | ${{ steps.versions.outputs.next_snapshot }} |"
-            echo "| Next increment | ${{ inputs.next_version_increment }} |"
+            echo "| Exact next override | ${{ inputs.next_development_version || '(empty)' }} |"
+            echo "| Increment fallback | ${{ inputs.next_version_increment }} |"
             echo "| Maintenance branch | ${{ steps.versions.outputs.maintenance_branch }} |"
             echo "| Dry run | ${{ inputs.dry_run }} |"
           } >> "$GITHUB_STEP_SUMMARY"
