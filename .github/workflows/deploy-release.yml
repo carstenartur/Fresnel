@@ -1,5 +1,5 @@
 name: Release
-run-name: Release ${{ inputs.release_version }} ${{ github.run_id }}-${{ github.run_attempt }}
+run-name: Release ${{ github.run_id }}-${{ github.run_attempt }}
 
 # This workflow validates release metadata, creates the version-only candidate
 # commit and dispatches publish-release.yml at that exact commit. Publication and
@@ -8,10 +8,15 @@ run-name: Release ${{ inputs.release_version }} ${{ github.run_id }}-${{ github.
 on:
   workflow_dispatch:
     inputs:
-      release_version:
-        description: 'Release version (X.Y.Z; must match release.properties)'
+      next_version_increment:
+        description: 'Select how the development version advances after this release'
         required: true
-        type: string
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
       dry_run:
         description: 'Validate and build without pushing a candidate or publishing'
         required: false
@@ -88,32 +93,40 @@ jobs:
           echo "citation_version=${CITATION_VERSION}" >> "$GITHUB_OUTPUT"
           echo "suggested_release=${SUGGESTED}" >> "$GITHUB_OUTPUT"
 
-      - name: Validate release version input
+      - name: Derive repository-owned version outputs
+        id: versions
+        env:
+          NEXT_VERSION_INCREMENT: ${{ inputs.next_version_increment }}
         run: |
           set -euo pipefail
-          VERSION="${{ inputs.release_version }}"
+          CURRENT="${{ steps.metadata.outputs.current_version }}"
           SUGGESTED="${{ steps.metadata.outputs.suggested_release }}"
-          if ! [[ "$VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
-            echo "::error::Invalid release_version '$VERSION' (expected X.Y.Z without prefix)"
+
+          if ! [[ "$CURRENT" =~ ^[0-9]+[.][0-9]+[.][0-9]+-SNAPSHOT$ ]]; then
+            echo "::error::Current project version '$CURRENT' must use X.Y.Z-SNAPSHOT"
             exit 1
           fi
+          RELEASE="${CURRENT%-SNAPSHOT}"
+
           if [[ -z "$SUGGESTED" ]]; then
             echo "::error::release.properties is missing a non-empty next.release.version value"
             exit 1
           fi
-          if [[ "$VERSION" != "$SUGGESTED" ]]; then
-            echo "::error::Release version $VERSION must match release.properties value $SUGGESTED"
+          if [[ "$RELEASE" != "$SUGGESTED" ]]; then
+            echo "::error::Repository project version derives release $RELEASE, but release.properties contains $SUGGESTED"
             exit 1
           fi
 
-      - name: Calculate version outputs
-        id: versions
-        run: |
-          set -euo pipefail
-          RELEASE="${{ inputs.release_version }}"
           IFS='.' read -r major minor patch <<< "$RELEASE"
-          NEXT_PATCH=$((patch + 1))
-          NEXT_SNAPSHOT="${major}.${minor}.${NEXT_PATCH}-SNAPSHOT"
+          case "$NEXT_VERSION_INCREMENT" in
+            patch) NEXT_SNAPSHOT="${major}.${minor}.$((patch + 1))-SNAPSHOT" ;;
+            minor) NEXT_SNAPSHOT="${major}.$((minor + 1)).0-SNAPSHOT" ;;
+            major) NEXT_SNAPSHOT="$((major + 1)).0.0-SNAPSHOT" ;;
+            *)
+              echo "::error::Unsupported next_version_increment '$NEXT_VERSION_INCREMENT'"
+              exit 1
+              ;;
+          esac
           MAINT_BRANCH="maintenance/${major}.${minor}.x"
 
           echo "release_version=${RELEASE}" >> "$GITHUB_OUTPUT"
@@ -125,10 +138,6 @@ jobs:
           set -euo pipefail
           CURRENT="${{ steps.metadata.outputs.current_version }}"
           CITATION_VERSION="${{ steps.metadata.outputs.citation_version }}"
-          if [[ "$CURRENT" != *-SNAPSHOT ]]; then
-            echo "::error::Current project version '$CURRENT' is not a SNAPSHOT"
-            exit 1
-          fi
           if [[ -z "$CITATION_VERSION" || "$CITATION_VERSION" != "$CURRENT" ]]; then
             echo "::error::CITATION.cff version '$CITATION_VERSION' does not match project version '$CURRENT'"
             exit 1
@@ -136,7 +145,7 @@ jobs:
 
       - name: Check if release tag already exists
         run: |
-          VERSION="${{ inputs.release_version }}"
+          VERSION="${{ steps.versions.outputs.release_version }}"
           if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
             echo "::error::Tag ${VERSION} already exists"
             exit 1
@@ -154,6 +163,7 @@ jobs:
             echo "| CITATION.cff version | ${{ steps.metadata.outputs.citation_version }} |"
             echo "| Release version | ${{ steps.versions.outputs.release_version }} |"
             echo "| Next SNAPSHOT | ${{ steps.versions.outputs.next_snapshot }} |"
+            echo "| Next increment | ${{ inputs.next_version_increment }} |"
             echo "| Maintenance branch | ${{ steps.versions.outputs.maintenance_branch }} |"
             echo "| Dry run | ${{ inputs.dry_run }} |"
           } >> "$GITHUB_STEP_SUMMARY"
