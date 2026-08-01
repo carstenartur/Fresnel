@@ -154,15 +154,20 @@ jobs:
             exit 1
           fi
 
-          IFS='.' read -r major minor patch <<< "$RELEASE_VERSION"
-          EXPECTED_NEXT="${major}.${minor}.$((patch + 1))-SNAPSHOT"
-          EXPECTED_MAINTENANCE="maintenance/${major}.${minor}.x"
-          if [[ "$NEXT_SNAPSHOT" != "$EXPECTED_NEXT" ]]; then
-            echo "::error::Next snapshot $NEXT_SNAPSHOT must be $EXPECTED_NEXT"
+          plan_file="$RUNNER_TEMP/fresnel-publication-version-plan"
+          : > "$plan_file"
+          python3 .github/scripts/release-version-plan.py \
+            --release "$RELEASE_VERSION" \
+            --next-development-version "$NEXT_SNAPSHOT" \
+            --github-output "$plan_file"
+          # The planner validates semantic format and that the next version is newer.
+          source "$plan_file"
+          if [[ "$release" != "$RELEASE_VERSION" || "$next" != "$NEXT_SNAPSHOT" ]]; then
+            echo "::error::Protected publication received a non-canonical version plan"
             exit 1
           fi
-          if [[ "$MAINTENANCE_BRANCH" != "$EXPECTED_MAINTENANCE" ]]; then
-            echo "::error::Maintenance branch $MAINTENANCE_BRANCH must be $EXPECTED_MAINTENANCE"
+          if [[ "$MAINTENANCE_BRANCH" != "$maintenance_branch" ]]; then
+            echo "::error::Maintenance branch $MAINTENANCE_BRANCH must be $maintenance_branch"
             exit 1
           fi
 
