@@ -4,3 +4,7 @@ target/
 .DS_Store
 .vscode/
 .tmp-*
+
+# Python helper scripts used by release automation
+__pycache__/
+*.py[cod]
