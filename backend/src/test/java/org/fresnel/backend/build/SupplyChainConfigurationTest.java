@@ -131,10 +131,14 @@ class SupplyChainConfigurationTest {
         String orchestratorContent = requireTokens(orchestrator, orderedMap(
                 "group: fresnel-release-orchestration", "serialized release preparation",
                 "refs/heads/main", "main-only manual dispatch",
+                "next_version_increment:", "typed release advancement input",
+                "type: choice", "non-free-form release choice",
+                "RELEASE=\"${CURRENT%-SNAPSHOT}\"", "repository-derived release version",
                 "publish-release.yml", "separate immutable-candidate publication",
                 "Build and verify candidate with tests", "candidate test gate",
                 "gh run watch", "publication result propagation",
                 "release/candidate-", "isolated candidate branch"), errors);
+        rejectHumanVersionInputs(orchestrator, orchestratorContent, errors);
         rejectTestSkips(orchestrator, orchestratorContent, errors);
 
         Path publisher = WORKFLOWS.resolve("publish-release.yml");
@@ -182,6 +186,24 @@ class SupplyChainConfigurationTest {
             }
         });
         return content;
+    }
+
+    private static void rejectHumanVersionInputs(
+            Path workflow, String content, List<String> errors) {
+        if (content == null) {
+            return;
+        }
+        Map<String, String> forbidden = orderedMap(
+                "\n      release_version:\n", "human-entered release version",
+                "\n      next_development_version:\n", "human-entered next development version",
+                "${{ inputs.release_version }}", "release version read from public dispatch input",
+                "${{ inputs.next_development_version }}", "next version read from public dispatch input");
+        forbidden.forEach((token, purpose) -> {
+            if (content.contains(token)) {
+                errors.add(workflow.getFileName() + " still contains " + purpose
+                        + ": '" + token + "'");
+            }
+        });
     }
 
     private static void rejectTestSkips(
