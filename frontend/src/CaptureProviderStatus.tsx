@@ -63,7 +63,7 @@ export function CaptureProviderStatus() {
 
   return (
     <section
-      className={`capture-provider-status state-${state.toLowerCase().replaceAll('_', '-')}`}
+      className={`capture-provider-status state-${state.toLowerCase().replace(/_/g, '-')}`}
       data-testid="capture-provider-status"
       data-state={state}
       aria-live="polite"
@@ -104,7 +104,7 @@ export function CaptureProviderStatus() {
                   <ul>
                     {provider.devices.map((device) => (
                       <li key={device.id}>
-                        {device.displayName}: {device.state.toLowerCase().replaceAll('_', ' ')}
+                        {device.displayName}: {device.state.toLowerCase().replace(/_/g, ' ')}
                       </li>
                     ))}
                   </ul>
