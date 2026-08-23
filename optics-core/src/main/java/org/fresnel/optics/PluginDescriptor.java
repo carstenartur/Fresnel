@@ -14,9 +14,10 @@ import java.util.Set;
  *
  * @param id               stable, lowercase, hyphen-separated identifier suitable
  *                         for use in API URLs (e.g. {@code "zone-plate"})
+ * @param kind             design renderer or durable measurement workflow
  * @param displayName      human-readable name shown in the UI
- * @param description      one-line description of the optical element
- * @param rendererClass    simple class name of the Java renderer or synthesiser
+ * @param description      one-line description of the optical element or workflow
+ * @param rendererClass    simple class name of the trusted renderer/workflow implementation
  * @param parameterType    simple class name of the parameter record
  * @param documentationUrl relative path to the plugin's Markdown documentation
  * @param stability        maturity classification of this plugin
@@ -26,6 +27,7 @@ import java.util.Set;
  */
 public record PluginDescriptor(
         String id,
+        PluginKind kind,
         String displayName,
         String description,
         String rendererClass,
@@ -40,6 +42,7 @@ public record PluginDescriptor(
     /** Defensive validation and copies keep registry data immutable and complete. */
     public PluginDescriptor {
         if (id == null || id.isBlank()) throw new IllegalArgumentException("id must not be blank");
+        if (kind == null) throw new IllegalArgumentException("kind must not be null");
         if (displayName == null || displayName.isBlank())
             throw new IllegalArgumentException("displayName must not be blank");
         if (description == null || description.isBlank())
@@ -64,6 +67,11 @@ public record PluginDescriptor(
     /** Returns {@code true} if this plugin can export in the requested format. */
     public boolean supportsExport(PluginCapability exportCapability) {
         return capabilities.contains(exportCapability);
+    }
+
+    /** Returns {@code true} for multi-step capture-and-analysis workflows. */
+    public boolean isMeasurementPlugin() {
+        return kind == PluginKind.MEASUREMENT;
     }
 
     /** Returns {@code true} if this plugin provides printability analysis. */
