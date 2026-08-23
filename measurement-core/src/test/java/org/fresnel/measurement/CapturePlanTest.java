@@ -85,7 +85,8 @@ class CapturePlanTest {
         assertThrows(IllegalArgumentException.class, () -> bosPlan(List.of()));
 
         List<CapturePlan.Step> tooMany = IntStream.range(0, CapturePlan.MAX_STEPS + 1)
-                .mapToObj(index -> step("s" + index, index,
+                .mapToObj(index -> step("s" + index,
+                        Math.min(index, CapturePlan.MAX_STEPS - 1),
                         index == 0 ? CapturePlan.Role.REFERENCE : CapturePlan.Role.DISTURBED,
                         Duration.ZERO, null))
                 .toList();
