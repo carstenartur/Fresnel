@@ -52,9 +52,13 @@ export function CaptureProviderStatus() {
     };
   }, []);
 
-  const state: CaptureProviderHealthState = error
-    ? 'DISCONNECTED'
-    : overview?.state ?? 'NOT_CONFIGURED';
+  // A failed refresh does not prove that a previously connected provider became
+  // disconnected. Preserve the last confirmed state and mark it as stale. Only
+  // an initial request failure, where no confirmed state exists, is displayed as
+  // unavailable/disconnected.
+  const stale = error !== null && overview !== null;
+  const state: CaptureProviderHealthState = overview?.state
+    ?? (error ? 'DISCONNECTED' : 'NOT_CONFIGURED');
   const label = error && !overview ? 'Status unavailable' : STATE_LABELS[state];
   const providerNames = overview?.providers.map((provider) => provider.displayName) ?? [];
   const connectedDevices = overview?.providers
@@ -63,21 +67,24 @@ export function CaptureProviderStatus() {
 
   return (
     <section
-      className={`capture-provider-status state-${state.toLowerCase().replace(/_/g, '-')}`}
+      className={`capture-provider-status state-${state.toLowerCase().replace(/_/g, '-')}${stale ? ' is-stale' : ''}`}
       data-testid="capture-provider-status"
       data-state={state}
+      data-stale={stale ? 'true' : 'false'}
       aria-live="polite"
-      aria-label={`Camera service: ${label}`}
+      aria-label={`Camera service: ${label}${stale ? ', last confirmed status; refresh unavailable' : ''}`}
     >
       <div className="capture-provider-status-heading">
         <span className="capture-provider-status-dot" aria-hidden="true" />
         <strong>Camera service</strong>
-        <span>{label}</span>
+        <span>{label}{stale ? ' · stale' : ''}</span>
       </div>
 
       {error ? (
         <p className="capture-provider-status-message">
-          Fresnel could not refresh the camera-service status. Existing measurement data is unaffected.
+          {overview
+            ? 'The latest refresh failed. Fresnel is showing the last confirmed camera-service state.'
+            : 'Fresnel could not read the camera-service status. Existing measurement data is unaffected.'}
         </p>
       ) : state === 'NOT_CONFIGURED' ? (
         <p className="capture-provider-status-message">
@@ -117,7 +124,7 @@ export function CaptureProviderStatus() {
 
       {overview && (
         <time dateTime={overview.checkedAt} className="capture-provider-status-time">
-          Checked {formatCheckedAt(overview.checkedAt)}
+          Last confirmed {formatCheckedAt(overview.checkedAt)}
         </time>
       )}
     </section>
