@@ -165,9 +165,28 @@ public final class PluginRegistry {
             schema("hologram", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
     );
 
+    /** Deterministic dot target for qualitative Background-Oriented Schlieren experiments. */
+    public static final PluginDescriptor BACKGROUND_ORIENTED_SCHLIEREN = new PluginDescriptor(
+            "background-oriented-schlieren",
+            PluginKind.MEASUREMENT,
+            "Background Schlieren",
+            "Make apparent air-flow distortions visible with a printed or displayed dot target",
+            "BosTargetGenerator",
+            "BosTargetParameters",
+            "docs/plugins/background-oriented-schlieren.md",
+            PluginStabilityLevel.EXPERIMENTAL,
+            Set.of(
+                    PluginCapability.GENERATE_CAPTURE_TARGET,
+                    PluginCapability.EXPORT_PNG,
+                    PluginCapability.PREVIEW_PNG
+            ),
+            Set.of(),
+            schema("background-oriented-schlieren", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
+    );
+
     /**
      * Immutable public plugin order. The frontend consumes this order directly
-     * from {@code GET /api/plugins}; no second tab/mode ordering is maintained.
+     * from {@code GET /api/plugins`; no second tab/mode ordering is maintained.
      */
     public static final List<PluginDescriptor> ALL = List.of(
             ZONE_PLATE,
@@ -176,7 +195,8 @@ public final class PluginRegistry {
             WINDOW_FOIL,
             MULTI_FOCUS,
             RGB_ZONE_PLATE,
-            HOLOGRAM
+            HOLOGRAM,
+            BACKGROUND_ORIENTED_SCHLIEREN
     );
 
     private static final Map<String, PluginDescriptor> BY_ID =
