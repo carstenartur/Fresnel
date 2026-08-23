@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { CaptureProviderStatus } from './CaptureProviderStatus';
 import { consumeDesktopOpen } from './desktopOpenApi';
 import { type FresnelJobDocument, type FresnelPluginId, type LoadedFresnelJob } from './jobApi';
 import { JobSourceProvider, OpenJobControl, type JobPanelProps } from './jobs/JobFileControls';
@@ -199,6 +200,7 @@ export function App() {
     <div className="app">
       <aside className="panel">
         <h1>Fresnel Designer</h1>
+        <CaptureProviderStatus />
         <OpenJobControl onOpenJob={openJob} />
         {pluginRegistryError && (
           <div className="warning error" style={{ marginBottom: 12 }} role="alert">
