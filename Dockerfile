@@ -23,6 +23,7 @@ WORKDIR /app
 # Copy Maven POMs first for dependency caching
 COPY pom.xml ./
 COPY optics-core/pom.xml optics-core/pom.xml
+COPY measurement-core/pom.xml measurement-core/pom.xml
 COPY backend/pom.xml backend/pom.xml
 
 # Pre-fetch dependencies (layer cached unless POMs change)
@@ -30,6 +31,7 @@ RUN mvn -B -ntp dependency:go-offline -Pno-frontend 2>/dev/null || true
 
 # Copy sources
 COPY optics-core/src optics-core/src
+COPY measurement-core/src measurement-core/src
 COPY backend/src backend/src
 
 # Copy the pre-built frontend assets into the Spring Boot static resource dir
