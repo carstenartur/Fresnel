@@ -20,7 +20,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
-MODULES = ("optics-core", "backend")
+MODULES = ("optics-core", "measurement-core", "backend")
 
 
 @dataclass(frozen=True)
@@ -122,6 +122,7 @@ def write_root_index() -> None:
   <p>Per-module Maven reports, generated from the same validated source revision.</p>
   <ul>
     <li><a href="optics-core/index.html">optics-core</a></li>
+    <li><a href="measurement-core/index.html">measurement-core</a></li>
     <li><a href="backend/index.html">backend</a></li>
     <li><a href="coverage/index.html">Coverage summary</a></li>
     <li><a href="tests/index.html">Test summary</a></li>
