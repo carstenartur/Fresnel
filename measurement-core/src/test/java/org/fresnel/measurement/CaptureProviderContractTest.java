@@ -157,12 +157,12 @@ class CaptureProviderContractTest {
     void providerExceptionKeepsOnlyTypedSanitizedFailure() {
         IllegalStateException cause = new IllegalStateException("private provider detail");
         CaptureProviderException exception = new CaptureProviderException(
-                CaptureProvider.FailureCode.UNAVAILABLE, true, " provider_offline ", cause);
+                CaptureProvider.FailureCode.UNAVAILABLE, true, " provider:offline ", cause);
 
         assertEquals(CaptureProvider.FailureCode.UNAVAILABLE, exception.code());
         assertTrue(exception.retryable());
-        assertEquals("PROVIDER_OFFLINE", exception.messageCode());
-        assertEquals("PROVIDER_OFFLINE", exception.getMessage());
+        assertEquals("PROVIDER:OFFLINE", exception.messageCode());
+        assertEquals("PROVIDER:OFFLINE", exception.getMessage());
         assertSame(cause, exception.getCause());
         assertEquals(exception.code(), exception.toFailure().code());
         assertThrows(IllegalArgumentException.class, () -> new CaptureProviderException(
