@@ -15,7 +15,8 @@ export type FresnelPluginId =
   | 'window-foil'
   | 'multi-focus'
   | 'rgb-zone-plate'
-  | 'hologram';
+  | 'hologram'
+  | 'background-oriented-schlieren';
 
 export interface FresnelJobPluginRef {
   id: FresnelPluginId;
