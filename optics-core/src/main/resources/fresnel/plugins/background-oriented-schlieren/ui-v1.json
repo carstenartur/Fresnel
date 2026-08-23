@@ -54,6 +54,5 @@
       "type": "number-with-presets",
       "presets": [48, 64, 96, 128]
     }
-  },
-  "extensions": ["measurement-workflow"]
+  }
 }
