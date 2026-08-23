@@ -47,6 +47,7 @@ class PluginRegistryTest {
         for (PluginDescriptor descriptor : PluginRegistry.ALL) {
             assertNotNull(descriptor.id(), descriptor.id() + ": id is null");
             assertFalse(descriptor.id().isBlank(), descriptor.id() + ": id is blank");
+            assertNotNull(descriptor.kind(), descriptor.id() + ": kind is null");
             assertNotNull(descriptor.displayName(), descriptor.id() + ": displayName is null");
             assertFalse(descriptor.displayName().isBlank(), descriptor.id() + ": displayName is blank");
             assertNotNull(descriptor.description(), descriptor.id() + ": description is null");
@@ -58,6 +59,24 @@ class PluginRegistryTest {
             assertNotNull(descriptor.propagationModes(), descriptor.id() + ": propagationModes is null");
             assertNotNull(descriptor.schema(), descriptor.id() + ": schema is null");
         }
+    }
+
+    @Test
+    void existingPluginsAreExplicitlyDesignPlugins() {
+        assertEquals(PluginRegistry.ALL, PluginRegistry.ofKind(PluginKind.DESIGN));
+        assertTrue(PluginRegistry.ofKind(PluginKind.MEASUREMENT).isEmpty());
+        assertTrue(PluginRegistry.ALL.stream().noneMatch(PluginDescriptor::isMeasurementPlugin));
+        assertThrows(IllegalArgumentException.class, () -> PluginRegistry.ofKind(null));
+    }
+
+    @Test
+    void measurementCapabilitiesAreAvailableButNotMisadvertisedByDesignPlugins() {
+        assertTrue(PluginRegistry.withCapability(PluginCapability.GENERATE_CAPTURE_TARGET).isEmpty());
+        assertTrue(PluginRegistry.withCapability(PluginCapability.IMPORT_CAPTURE_SET).isEmpty());
+        assertTrue(PluginRegistry.withCapability(PluginCapability.REMOTE_CAPTURE).isEmpty());
+        assertTrue(PluginRegistry.withCapability(PluginCapability.ANALYZE_CAPTURE_SET).isEmpty());
+        assertTrue(PluginRegistry.withCapability(PluginCapability.LIVE_ANALYSIS_PREVIEW).isEmpty());
+        assertTrue(PluginRegistry.withCapability(PluginCapability.EXPORT_EXPERIMENT_BUNDLE).isEmpty());
     }
 
     @Test
@@ -88,6 +107,7 @@ class PluginRegistryTest {
     void findByIdReturnsCorrectDescriptor() {
         PluginDescriptor zonePlate = PluginRegistry.findById("zone-plate").orElseThrow();
         assertEquals("zone-plate", zonePlate.id());
+        assertEquals(PluginKind.DESIGN, zonePlate.kind());
         assertEquals("ZonePlateRenderer", zonePlate.rendererClass());
         assertEquals("SingleZonePlateParameters", zonePlate.parameterType());
         assertEquals(PluginEditorMode.SCHEMA_WITH_EXTENSIONS, zonePlate.schema().editorMode());

@@ -17,6 +17,7 @@
 
     <modules>
         <module>optics-core</module>
+        <module>measurement-core</module>
         <module>backend</module>
     </modules>
 
@@ -52,6 +53,11 @@
             <dependency>
                 <groupId>org.fresnel</groupId>
                 <artifactId>optics-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.fresnel</groupId>
+                <artifactId>measurement-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

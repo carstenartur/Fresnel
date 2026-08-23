@@ -2,6 +2,7 @@ import type { FresnelPluginId } from './jobApi';
 
 const BASE = '';
 
+export type PluginKind = 'DESIGN' | 'MEASUREMENT';
 export type PluginEditorMode = 'SCHEMA' | 'SCHEMA_WITH_EXTENSIONS' | 'CUSTOM';
 export type PluginCapability =
   | 'EXPORT_PNG'
@@ -11,15 +12,22 @@ export type PluginCapability =
   | 'EXPORT_DXF'
   | 'EXPORT_GERBER'
   | 'EXPORT_STL'
+  | 'EXPORT_EXPERIMENT_BUNDLE'
   | 'PREVIEW_PNG'
   | 'PROPAGATION_PREVIEW'
+  | 'LIVE_ANALYSIS_PREVIEW'
   | 'PRINTABILITY_ANALYSIS'
   | 'OPTICAL_QUALITY_REPORT'
-  | 'EXPERIMENTAL_VALIDATION';
+  | 'EXPERIMENTAL_VALIDATION'
+  | 'GENERATE_CAPTURE_TARGET'
+  | 'IMPORT_CAPTURE_SET'
+  | 'REMOTE_CAPTURE'
+  | 'ANALYZE_CAPTURE_SET';
 
 /** Registry IDs are runtime data and are checked against the trusted editor map. */
 export interface PluginMetadata {
   id: string;
+  kind: PluginKind;
   displayName: string;
   description: string;
   documentationUrl: string;

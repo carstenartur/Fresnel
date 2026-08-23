@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
  *
  * <h2>Adding a new plugin</h2>
  * <ol>
- *   <li>Create the parameter record and renderer in {@code optics-core}.</li>
+ *   <li>Create the parameter record and trusted renderer/workflow in the appropriate core module.</li>
  *   <li>Add versioned parameter and UI schemas under
  *       {@code src/main/resources/fresnel/plugins/&lt;id&gt;/}.</li>
  *   <li>Add a {@link PluginDescriptor} constant below and register it in
@@ -28,6 +28,7 @@ public final class PluginRegistry {
     /** Single Fresnel zone plate — binary amplitude or greyscale phase. */
     public static final PluginDescriptor ZONE_PLATE = new PluginDescriptor(
             "zone-plate",
+            PluginKind.DESIGN,
             "Zone Plate",
             "Single Fresnel zone plate — binary amplitude or greyscale phase",
             "ZonePlateRenderer",
@@ -52,6 +53,7 @@ public final class PluginRegistry {
     /** One page-axis calibration grating with phase-correct variable line pitch. */
     public static final PluginDescriptor VARIABLE_LINE_GRATING = new PluginDescriptor(
             "variable-line-grating",
+            PluginKind.DESIGN,
             "Variable-Line Grating",
             "Orientation-selectable printer calibration grating with native one-bit PCL export",
             "VariableLineGratingRenderer",
@@ -73,6 +75,7 @@ public final class PluginRegistry {
     /** Zone plate rendered at three wavelengths and composited into one RGB image. */
     public static final PluginDescriptor RGB_ZONE_PLATE = new PluginDescriptor(
             "rgb-zone-plate",
+            PluginKind.DESIGN,
             "RGB Zone Plate",
             "Zone plate rendered at three wavelengths and composited into one RGB image",
             "RgbZonePlateRenderer",
@@ -90,6 +93,7 @@ public final class PluginRegistry {
     /** Aperture divided among multiple focal targets. */
     public static final PluginDescriptor MULTI_FOCUS = new PluginDescriptor(
             "multi-focus",
+            PluginKind.DESIGN,
             "Multi-Focus",
             "Aperture divided among multiple focal targets",
             "MultiFocusRenderer",
@@ -107,6 +111,7 @@ public final class PluginRegistry {
     /** Hexagonal array of sub-zone-plates focusing to a common image point. */
     public static final PluginDescriptor HEX_MACRO_CELL = new PluginDescriptor(
             "hex-macro-cell",
+            PluginKind.DESIGN,
             "Hex Macro Cell",
             "Hexagonal array of sub-zone-plates focusing to a common image point",
             "HexMacroCellRenderer",
@@ -125,6 +130,7 @@ public final class PluginRegistry {
     /** Rectangular sheet tiled with hex macro cells. */
     public static final PluginDescriptor WINDOW_FOIL = new PluginDescriptor(
             "window-foil",
+            PluginKind.DESIGN,
             "Window Foil",
             "Rectangular sheet tiled with hex macro cells",
             "WindowFoilRenderer",
@@ -143,6 +149,7 @@ public final class PluginRegistry {
     /** Computer-generated hologram via the Gerchberg–Saxton algorithm. */
     public static final PluginDescriptor HOLOGRAM = new PluginDescriptor(
             "hologram",
+            PluginKind.DESIGN,
             "Hologram (GS)",
             "Computer-generated hologram via the Gerchberg–Saxton algorithm",
             "HologramSynthesizer",
@@ -208,6 +215,14 @@ public final class PluginRegistry {
     public static List<PluginDescriptor> withCapability(PluginCapability capability) {
         return ALL.stream()
                 .filter(descriptor -> descriptor.supports(capability))
+                .collect(Collectors.toUnmodifiableList());
+    }
+
+    /** Returns all plugins of one interaction kind in registry order. */
+    public static List<PluginDescriptor> ofKind(PluginKind kind) {
+        if (kind == null) throw new IllegalArgumentException("kind must not be null");
+        return ALL.stream()
+                .filter(descriptor -> descriptor.kind() == kind)
                 .collect(Collectors.toUnmodifiableList());
     }
 

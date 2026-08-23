@@ -5,7 +5,7 @@ package org.fresnel.optics;
  *
  * <p>Capabilities are used by the registry for targeted queries such as
  * "list all plugins that can export to PDF" or "which plugins support
- * printability analysis".
+ * printability analysis".</p>
  */
 public enum PluginCapability {
 
@@ -32,6 +32,9 @@ public enum PluginCapability {
     /** Plugin can export an STL 3-D relief mesh. */
     EXPORT_STL,
 
+    /** Plugin can export a bounded, checksummed experiment bundle. */
+    EXPORT_EXPERIMENT_BUNDLE,
+
     // ---- Preview types ----
 
     /** Plugin supports live PNG preview rendering. */
@@ -39,6 +42,9 @@ public enum PluginCapability {
 
     /** Plugin supports scalar-diffraction propagation preview. */
     PROPAGATION_PREVIEW,
+
+    /** Plugin supports a bounded live preview derived from measurement frames. */
+    LIVE_ANALYSIS_PREVIEW,
 
     // ---- Validation and analysis ----
 
@@ -50,4 +56,18 @@ public enum PluginCapability {
 
     /** Plugin supports experimental (beyond standard) validation procedures. */
     EXPERIMENTAL_VALIDATION,
+
+    // ---- Measurement workflows ----
+
+    /** Plugin can generate a deterministic printed or displayed capture target. */
+    GENERATE_CAPTURE_TARGET,
+
+    /** Plugin can accept a bounded, ordered set of manually supplied captures. */
+    IMPORT_CAPTURE_SET,
+
+    /** Plugin can request captures through a configured CaptureProvider. */
+    REMOTE_CAPTURE,
+
+    /** Plugin can derive deterministic results from a validated capture set. */
+    ANALYZE_CAPTURE_SET
 }

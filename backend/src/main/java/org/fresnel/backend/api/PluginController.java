@@ -3,6 +3,7 @@ package org.fresnel.backend.api;
 import org.fresnel.optics.PluginCapability;
 import org.fresnel.optics.PluginDescriptor;
 import org.fresnel.optics.PluginEditorMode;
+import org.fresnel.optics.PluginKind;
 import org.fresnel.optics.PluginRegistry;
 import org.fresnel.optics.PluginStabilityLevel;
 import org.fresnel.optics.PropagationMode;
@@ -56,6 +57,7 @@ public class PluginController {
      */
     public record PluginMetadata(
             String id,
+            PluginKind kind,
             String displayName,
             String description,
             String documentationUrl,
@@ -73,6 +75,7 @@ public class PluginController {
         static PluginMetadata from(PluginDescriptor descriptor) {
             return new PluginMetadata(
                     descriptor.id(),
+                    descriptor.kind(),
                     descriptor.displayName(),
                     descriptor.description(),
                     descriptor.documentationUrl(),
