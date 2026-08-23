@@ -56,6 +56,67 @@ body { margin: 0; }
   margin: 0 0 16px;
 }
 
+.capture-provider-status {
+  --capture-status-accent: #64748b;
+  border: 1px solid #dbe1e8;
+  border-left: 4px solid var(--capture-status-accent);
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 9px 10px;
+  margin: 0 0 12px;
+  color: #334155;
+  font-size: 12px;
+}
+
+.capture-provider-status.state-connected {
+  --capture-status-accent: #16a34a;
+  background: #f0fdf4;
+  color: #14532d;
+}
+
+.capture-provider-status.state-degraded,
+.capture-provider-status.state-pairing {
+  --capture-status-accent: #d97706;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.capture-provider-status.state-disconnected,
+.capture-provider-status.state-incompatible,
+.capture-provider-status.state-authentication-failed,
+.capture-provider-status.state-revoked {
+  --capture-status-accent: #dc2626;
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
+.capture-provider-status-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.capture-provider-status-heading strong { margin-right: auto; }
+
+.capture-provider-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--capture-status-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--capture-status-accent) 20%, transparent);
+}
+
+.capture-provider-status-message {
+  margin: 5px 0 0;
+  line-height: 1.35;
+}
+
+.capture-provider-status-details { margin-top: 6px; }
+.capture-provider-status-details summary { cursor: pointer; }
+.capture-provider-status-details ul { margin: 4px 0 0; padding-left: 18px; }
+.capture-provider-status-time { display: block; margin-top: 5px; opacity: .75; }
+
 .panel h2 {
   font-size: 14px;
   text-transform: uppercase;
