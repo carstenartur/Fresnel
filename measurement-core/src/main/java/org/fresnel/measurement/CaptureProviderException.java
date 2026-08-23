@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
  */
 public final class CaptureProviderException extends RuntimeException {
 
-    private static final Pattern MESSAGE_CODE = Pattern.compile("[A-Z0-9][A-Z0-9._-]*");
+    private static final Pattern MESSAGE_CODE = Pattern.compile("[A-Z0-9][A-Z0-9._:-]*");
 
     private final CaptureProvider.FailureCode code;
     private final boolean retryable;
@@ -31,7 +31,7 @@ public final class CaptureProviderException extends RuntimeException {
         super(normalizeMessageCode(messageCode), cause);
         this.code = Objects.requireNonNull(code, "code");
         this.retryable = retryable;
-        this.messageCode = normalizeMessageCode(messageCode);
+        this.messageCode = getMessage();
     }
 
     public CaptureProvider.FailureCode code() {
