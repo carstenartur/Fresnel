@@ -1,0 +1,420 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MockCaptureProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement</a> &gt; <span class="el_source">MockCaptureProvider.java</span></div><h1>MockCaptureProvider.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement;
+
+import org.fresnel.measurement.CapturePlan;
+import org.fresnel.measurement.CaptureProvider;
+import org.fresnel.measurement.CaptureProviderException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
+
+/**
+ * Deterministic development/test provider used to exercise the complete capture
+ * contract without a real camera or network service.
+ *
+ * &lt;p&gt;The provider is disabled by default and enabled only with
+ * {@code fresnel.capture.mock.enabled=true}. It implements persistent-within-the-
+ * process idempotency for session creation, step triggering and cancellation.
+ * A retry after an uncertain response therefore returns the original capture
+ * instead of generating a second image.&lt;/p&gt;
+ */
+@Component
+@ConditionalOnProperty(prefix = &quot;fresnel.capture.mock&quot;, name = &quot;enabled&quot;, havingValue = &quot;true&quot;)
+public final class MockCaptureProvider implements CaptureProvider {
+
+    public static final String PROVIDER_ID = &quot;mock-capture&quot;;
+    public static final String DEVICE_ID = &quot;mock-camera&quot;;
+
+<span class="fc" id="L48">    private static final Pattern IDEMPOTENCY_KEY =</span>
+<span class="fc" id="L49">            Pattern.compile(&quot;[A-Za-z0-9][A-Za-z0-9._:-]{0,127}&quot;);</span>
+
+<span class="fc" id="L51">    private static final Set&lt;Capability&gt; CAPABILITIES = Set.of(</span>
+            Capability.STILL_CAPTURE,
+            Capability.EXTERNAL_STEP_TRIGGER,
+            Capability.EXPOSURE_LOCK,
+            Capability.FOCUS_LOCK,
+            Capability.DURABLE_MEDIA,
+            Capability.RANGE_DOWNLOAD,
+            Capability.SHA256_INTEGRITY,
+            Capability.SSE_EVENTS);
+
+<span class="fc" id="L61">    private static final Descriptor DESCRIPTOR = new Descriptor(</span>
+            PROVIDER_ID,
+            &quot;Mock camera service&quot;,
+            1,
+            1,
+            CAPABILITIES,
+<span class="fc" id="L67">            Set.of(CapturePlan.ImageFormat.PNG),</span>
+<span class="fc" id="L68">            new Limits(64, 4 * 1024 * 1024L, Duration.ofMinutes(15)));</span>
+
+<span class="fc" id="L70">    private static final Device DEVICE = new Device(</span>
+            DEVICE_ID,
+            &quot;Deterministic mock camera&quot;,
+            DeviceState.CONNECTED,
+            CAPABILITIES,
+<span class="fc" id="L75">            Set.of(CapturePlan.ImageFormat.PNG));</span>
+
+    private final Clock clock;
+<span class="fc" id="L78">    private final AtomicLong nextSessionNumber = new AtomicLong();</span>
+<span class="fc" id="L79">    private final Map&lt;String, MockSession&gt; sessions = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L80">    private final Map&lt;String, CreationRecord&gt; creationsByKey = new HashMap&lt;&gt;();</span>
+
+    public MockCaptureProvider() {
+<span class="fc" id="L83">        this(Clock.systemUTC());</span>
+<span class="fc" id="L84">    }</span>
+
+<span class="fc" id="L86">    MockCaptureProvider(Clock clock) {</span>
+<span class="fc" id="L87">        this.clock = Objects.requireNonNull(clock, &quot;clock&quot;);</span>
+<span class="fc" id="L88">    }</span>
+
+    @Override
+    public Descriptor descriptor() {
+<span class="fc" id="L92">        return DESCRIPTOR;</span>
+    }
+
+    @Override
+    public Health health() {
+<span class="fc" id="L97">        return new Health(HealthState.CONNECTED, clock.instant(), &quot;MOCK_CONNECTED&quot;);</span>
+    }
+
+    @Override
+    public List&lt;Device&gt; listDevices() {
+<span class="fc" id="L102">        return List.of(DEVICE);</span>
+    }
+
+    @Override
+    public synchronized SessionRef createSession(CapturePlan plan, String idempotencyKey) {
+<span class="fc" id="L107">        Objects.requireNonNull(plan, &quot;plan&quot;);</span>
+<span class="fc" id="L108">        String key = requireIdempotencyKey(idempotencyKey);</span>
+<span class="fc" id="L109">        CreationRecord existing = creationsByKey.get(key);</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">        if (existing != null) {</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">            if (!existing.plan().equals(plan)) {</span>
+<span class="fc" id="L112">                throw failure(FailureCode.CONFLICT, false, &quot;IDEMPOTENCY_KEY_REUSED&quot;);</span>
+            }
+<span class="fc" id="L114">            return existing.sessionRef();</span>
+        }
+
+<span class="fc" id="L117">        validatePlan(plan);</span>
+<span class="fc" id="L118">        String id = &quot;mock-session-&quot; + nextSessionNumber.incrementAndGet();</span>
+<span class="fc" id="L119">        Instant now = clock.instant();</span>
+<span class="fc" id="L120">        SessionRef ref = new SessionRef(id, plan, now);</span>
+<span class="fc" id="L121">        MockSession session = new MockSession(id, plan, now);</span>
+<span class="fc" id="L122">        session.state = SessionState.READY;</span>
+<span class="fc" id="L123">        session.updatedAt = now;</span>
+<span class="fc" id="L124">        session.addEvent(null, SessionState.READY, &quot;MOCK_SESSION_READY&quot;, null, now);</span>
+<span class="fc" id="L125">        sessions.put(id, session);</span>
+<span class="fc" id="L126">        creationsByKey.put(key, new CreationRecord(plan, ref));</span>
+<span class="fc" id="L127">        return ref;</span>
+    }
+
+    @Override
+    public synchronized SessionStatus getSession(String remoteSessionId) {
+<span class="fc" id="L132">        return requireSession(remoteSessionId).status();</span>
+    }
+
+    @Override
+    public synchronized StepResult triggerStep(
+            String remoteSessionId,
+            String stepId,
+            StepTrigger trigger,
+            String idempotencyKey) {
+<span class="fc" id="L141">        MockSession session = requireSession(remoteSessionId);</span>
+<span class="fc" id="L142">        Objects.requireNonNull(trigger, &quot;trigger&quot;);</span>
+<span class="fc" id="L143">        String normalizedStepId = requireIdentifier(stepId, &quot;stepId&quot;);</span>
+<span class="fc" id="L144">        String key = requireIdempotencyKey(idempotencyKey);</span>
+
+<span class="fc" id="L146">        TriggerRecord previous = session.triggerByKey.get(key);</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        if (previous != null) {</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">            if (!previous.stepId().equals(normalizedStepId)</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">                    || !previous.trigger().equals(trigger)) {</span>
+<span class="fc" id="L150">                throw failure(FailureCode.CONFLICT, false, &quot;IDEMPOTENCY_KEY_REUSED&quot;);</span>
+            }
+<span class="fc" id="L152">            return previous.result();</span>
+        }
+
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        if (session.state.isTerminal()) {</span>
+<span class="fc" id="L156">            throw failure(FailureCode.CONFLICT, false, &quot;SESSION_TERMINAL&quot;);</span>
+        }
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">        if (session.completedSteps &gt;= session.plan.steps().size()) {</span>
+<span class="nc" id="L159">            throw failure(FailureCode.CONFLICT, false, &quot;NO_CAPTURE_STEP_PENDING&quot;);</span>
+        }
+
+<span class="fc" id="L162">        CapturePlan.Step expected = session.plan.steps().get(session.completedSteps);</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">        if (!expected.id().equals(normalizedStepId)) {</span>
+<span class="fc" id="L164">            throw failure(FailureCode.CONFLICT, false, &quot;CAPTURE_STEP_OUT_OF_ORDER&quot;);</span>
+        }
+<span class="fc bfc" id="L166" title="All 2 branches covered.">        if (!Objects.equals(expected.externalPatternId(), trigger.externalPatternId())</span>
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">                || !Objects.equals(</span>
+<span class="fc" id="L168">                        expected.externalPatternSha256(), trigger.externalPatternSha256())) {</span>
+<span class="fc" id="L169">            throw failure(FailureCode.INVALID_PLAN, false, &quot;DISPLAYED_PATTERN_MISMATCH&quot;);</span>
+        }
+
+<span class="fc" id="L172">        Instant startedAt = clock.instant();</span>
+<span class="fc" id="L173">        session.state = SessionState.CAPTURING;</span>
+<span class="fc" id="L174">        session.updatedAt = startedAt;</span>
+<span class="fc" id="L175">        session.addEvent(expected.id(), SessionState.CAPTURING,</span>
+                &quot;MOCK_CAPTURE_STARTED&quot;, null, startedAt);
+
+<span class="fc" id="L178">        byte[] png = renderPng(session.id, expected);</span>
+<span class="fc" id="L179">        String assetId = &quot;asset-&quot; + expected.sequenceIndex();</span>
+<span class="fc" id="L180">        Instant completedAt = clock.instant();</span>
+<span class="fc" id="L181">        AssetMetadata metadata = new AssetMetadata(</span>
+                session.id,
+                assetId,
+<span class="fc" id="L184">                expected.id(),</span>
+<span class="fc" id="L185">                expected.role(),</span>
+<span class="fc" id="L186">                &quot;mock-&quot; + expected.id() + &quot;.png&quot;,</span>
+                &quot;image/png&quot;,
+                png.length,
+<span class="fc" id="L189">                sha256(png),</span>
+                completedAt);
+<span class="fc" id="L191">        session.assets.put(assetId, new StoredAsset(metadata, png));</span>
+<span class="fc" id="L192">        session.completedSteps += 1;</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        session.state = session.completedSteps == session.plan.steps().size()</span>
+<span class="fc" id="L194">                ? SessionState.COMPLETED</span>
+<span class="fc" id="L195">                : SessionState.WAITING_FOR_EXTERNAL_TRIGGER;</span>
+<span class="fc" id="L196">        session.updatedAt = completedAt;</span>
+<span class="fc" id="L197">        session.addEvent(expected.id(), session.state,</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">                session.state == SessionState.COMPLETED</span>
+<span class="fc" id="L199">                        ? &quot;MOCK_SESSION_COMPLETED&quot;</span>
+<span class="fc" id="L200">                        : &quot;MOCK_STEP_COMPLETED&quot;,</span>
+                metadata,
+                completedAt);
+
+<span class="fc" id="L204">        StepResult result = new StepResult(session.id, expected.id(), metadata, completedAt);</span>
+<span class="fc" id="L205">        session.triggerByKey.put(key, new TriggerRecord(expected.id(), trigger, result));</span>
+<span class="fc" id="L206">        return result;</span>
+    }
+
+    @Override
+    public synchronized EventPage events(String remoteSessionId, long afterEventId) {
+<span class="fc bfc" id="L211" title="All 2 branches covered.">        if (afterEventId &lt; 0) {</span>
+<span class="fc" id="L212">            throw new IllegalArgumentException(&quot;afterEventId must not be negative&quot;);</span>
+        }
+<span class="fc" id="L214">        MockSession session = requireSession(remoteSessionId);</span>
+<span class="fc" id="L215">        List&lt;Event&gt; events = session.events.stream()</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">                .filter(event -&gt; event.eventId() &gt; afterEventId)</span>
+<span class="fc" id="L217">                .limit(1_000)</span>
+<span class="fc" id="L218">                .toList();</span>
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">        long lastEventId = session.events.isEmpty()</span>
+<span class="nc" id="L220">                ? 0</span>
+<span class="fc" id="L221">                : session.events.getLast().eventId();</span>
+<span class="fc" id="L222">        boolean hasMore = session.events.stream()</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">                .filter(event -&gt; event.eventId() &gt; afterEventId)</span>
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">                .count() &gt; events.size();</span>
+<span class="fc" id="L225">        return new EventPage(events, lastEventId, hasMore);</span>
+    }
+
+    @Override
+    public synchronized AssetMetadata getAssetMetadata(
+            String remoteSessionId, String assetId) {
+<span class="fc" id="L231">        return requireAsset(requireSession(remoteSessionId), assetId).metadata();</span>
+    }
+
+    @Override
+    public synchronized InputStream openAsset(
+            String remoteSessionId,
+            String assetId,
+            AssetRead read) {
+<span class="fc" id="L239">        StoredAsset asset = requireAsset(requireSession(remoteSessionId), assetId);</span>
+<span class="fc" id="L240">        Objects.requireNonNull(read, &quot;read&quot;);</span>
+<span class="fc" id="L241">        byte[] bytes = asset.bytes();</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">        if (read instanceof FullAsset) {</span>
+<span class="fc" id="L243">            return new ByteArrayInputStream(bytes.clone());</span>
+        }
+<span class="fc" id="L245">        ByteRange range = (ByteRange) read;</span>
+<span class="pc bpc" id="L246" title="1 of 4 branches missed.">        if (range.offset() &gt; bytes.length || range.endExclusive() &gt; bytes.length) {</span>
+<span class="fc" id="L247">            throw failure(FailureCode.INVALID_PLAN, false, &quot;ASSET_RANGE_NOT_SATISFIABLE&quot;);</span>
+        }
+<span class="fc" id="L249">        return new ByteArrayInputStream(</span>
+                bytes,
+<span class="fc" id="L251">                Math.toIntExact(range.offset()),</span>
+<span class="fc" id="L252">                Math.toIntExact(range.length()));</span>
+    }
+
+    @Override
+    public synchronized void cancel(String remoteSessionId, String idempotencyKey) {
+<span class="fc" id="L257">        MockSession session = requireSession(remoteSessionId);</span>
+<span class="fc" id="L258">        String key = requireIdempotencyKey(idempotencyKey);</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">        if (!session.cancelKeys.add(key)) {</span>
+<span class="fc" id="L260">            return;</span>
+        }
+<span class="pc bpc" id="L262" title="1 of 2 branches missed.">        if (session.state.isTerminal()) {</span>
+<span class="nc" id="L263">            return;</span>
+        }
+<span class="fc" id="L265">        Instant now = clock.instant();</span>
+<span class="fc" id="L266">        session.state = SessionState.CANCELLED;</span>
+<span class="fc" id="L267">        session.updatedAt = now;</span>
+<span class="fc" id="L268">        session.addEvent(null, SessionState.CANCELLED, &quot;MOCK_SESSION_CANCELLED&quot;, null, now);</span>
+<span class="fc" id="L269">    }</span>
+
+    private static void validatePlan(CapturePlan plan) {
+<span class="fc bfc" id="L272" title="All 2 branches covered.">        if (!DEVICE_ID.equals(plan.deviceId())) {</span>
+<span class="fc" id="L273">            throw failure(FailureCode.DEVICE_UNAVAILABLE, false, &quot;MOCK_DEVICE_NOT_FOUND&quot;);</span>
+        }
+<span class="pc bpc" id="L275" title="1 of 2 branches missed.">        if (plan.steps().size() &gt; DESCRIPTOR.limits().maximumSteps()) {</span>
+<span class="nc" id="L276">            throw failure(FailureCode.INVALID_PLAN, false, &quot;TOO_MANY_CAPTURE_STEPS&quot;);</span>
+        }
+<span class="fc bfc" id="L278" title="All 2 branches covered.">        if (!DESCRIPTOR.supportedFormats().contains(</span>
+<span class="fc" id="L279">                plan.requirements().preferredImageFormat())) {</span>
+<span class="fc" id="L280">            throw failure(FailureCode.INVALID_PLAN, false, &quot;IMAGE_FORMAT_UNSUPPORTED&quot;);</span>
+        }
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">        if (plan.requirements().lockExposure()</span>
+<span class="pc bpc" id="L283" title="1 of 2 branches missed.">                &amp;&amp; !DESCRIPTOR.supports(Capability.EXPOSURE_LOCK)) {</span>
+<span class="nc" id="L284">            throw failure(FailureCode.INVALID_PLAN, false, &quot;EXPOSURE_LOCK_UNSUPPORTED&quot;);</span>
+        }
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">        if (plan.requirements().lockFocus()</span>
+<span class="pc bpc" id="L287" title="1 of 2 branches missed.">                &amp;&amp; !DESCRIPTOR.supports(Capability.FOCUS_LOCK)) {</span>
+<span class="nc" id="L288">            throw failure(FailureCode.INVALID_PLAN, false, &quot;FOCUS_LOCK_UNSUPPORTED&quot;);</span>
+        }
+<span class="fc" id="L290">    }</span>
+
+    private MockSession requireSession(String id) {
+<span class="fc" id="L293">        String normalized = requireIdentifier(id, &quot;remoteSessionId&quot;);</span>
+<span class="fc" id="L294">        MockSession session = sessions.get(normalized);</span>
+<span class="fc bfc" id="L295" title="All 2 branches covered.">        if (session == null) {</span>
+<span class="fc" id="L296">            throw failure(FailureCode.SESSION_NOT_FOUND, false, &quot;SESSION_NOT_FOUND&quot;);</span>
+        }
+<span class="fc" id="L298">        return session;</span>
+    }
+
+    private static StoredAsset requireAsset(MockSession session, String id) {
+<span class="fc" id="L302">        String normalized = requireIdentifier(id, &quot;assetId&quot;);</span>
+<span class="fc" id="L303">        StoredAsset asset = session.assets.get(normalized);</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">        if (asset == null) {</span>
+<span class="fc" id="L305">            throw failure(FailureCode.ASSET_NOT_FOUND, false, &quot;ASSET_NOT_FOUND&quot;);</span>
+        }
+<span class="fc" id="L307">        return asset;</span>
+    }
+
+    private static String requireIdempotencyKey(String value) {
+<span class="pc bpc" id="L311" title="1 of 4 branches missed.">        if (value == null || !IDEMPOTENCY_KEY.matcher(value.trim()).matches()) {</span>
+<span class="fc" id="L312">            throw new IllegalArgumentException(&quot;idempotencyKey is invalid&quot;);</span>
+        }
+<span class="fc" id="L314">        return value.trim();</span>
+    }
+
+    private static String requireIdentifier(String value, String field) {
+<span class="pc bpc" id="L318" title="2 of 4 branches missed.">        if (value == null || !CaptureProvider.IDENTIFIER.matcher(value.trim()).matches()</span>
+<span class="pc bpc" id="L319" title="1 of 2 branches missed.">                || value.trim().length() &gt; 128) {</span>
+<span class="nc" id="L320">            throw new IllegalArgumentException(field + &quot; is invalid&quot;);</span>
+        }
+<span class="fc" id="L322">        return value.trim();</span>
+    }
+
+    private static CaptureProviderException failure(
+            FailureCode code, boolean retryable, String messageCode) {
+<span class="fc" id="L327">        return new CaptureProviderException(code, retryable, messageCode);</span>
+    }
+
+    private static byte[] renderPng(String sessionId, CapturePlan.Step step) {
+<span class="fc" id="L331">        BufferedImage image = new BufferedImage(64, 48, BufferedImage.TYPE_BYTE_GRAY);</span>
+<span class="fc" id="L332">        int seed = Objects.hash(sessionId, step.id(), step.sequenceIndex(), step.role());</span>
+<span class="fc bfc" id="L333" title="All 2 branches covered.">        for (int y = 0; y &lt; image.getHeight(); y++) {</span>
+<span class="fc bfc" id="L334" title="All 2 branches covered.">            for (int x = 0; x &lt; image.getWidth(); x++) {</span>
+<span class="fc" id="L335">                int value = Math.floorMod(seed + x * 31 + y * 17 + x * y, 256);</span>
+<span class="fc" id="L336">                image.getRaster().setSample(x, y, 0, value);</span>
+            }
+        }
+<span class="fc" id="L339">        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {</span>
+<span class="pc bpc" id="L340" title="1 of 2 branches missed.">            if (!ImageIO.write(image, &quot;png&quot;, output)) {</span>
+<span class="nc" id="L341">                throw new IllegalStateException(&quot;PNG writer unavailable&quot;);</span>
+            }
+<span class="fc" id="L343">            return output.toByteArray();</span>
+<span class="nc" id="L344">        } catch (IOException exception) {</span>
+<span class="nc" id="L345">            throw new UncheckedIOException(&quot;Cannot generate deterministic mock capture&quot;, exception);</span>
+        }
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+<span class="fc" id="L351">            return java.util.HexFormat.of().formatHex(</span>
+<span class="fc" id="L352">                    MessageDigest.getInstance(&quot;SHA-256&quot;).digest(bytes));</span>
+<span class="nc" id="L353">        } catch (NoSuchAlgorithmException exception) {</span>
+<span class="nc" id="L354">            throw new IllegalStateException(&quot;SHA-256 unavailable&quot;, exception);</span>
+        }
+    }
+
+<span class="fc" id="L358">    private record CreationRecord(CapturePlan plan, SessionRef sessionRef) {}</span>
+
+<span class="fc" id="L360">    private record TriggerRecord(String stepId, StepTrigger trigger, StepResult result) {}</span>
+
+    private record StoredAsset(AssetMetadata metadata, byte[] bytes) {
+<span class="fc" id="L363">        private StoredAsset {</span>
+<span class="fc" id="L364">            bytes = bytes.clone();</span>
+<span class="fc" id="L365">        }</span>
+
+        @Override
+        public byte[] bytes() {
+<span class="fc" id="L369">            return bytes.clone();</span>
+        }
+    }
+
+    private static final class MockSession {
+        private final String id;
+        private final CapturePlan plan;
+        private final Instant createdAt;
+<span class="fc" id="L377">        private final List&lt;Event&gt; events = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L378">        private final Map&lt;String, TriggerRecord&gt; triggerByKey = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L379">        private final Map&lt;String, StoredAsset&gt; assets = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L380">        private final Set&lt;String&gt; cancelKeys = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L381">        private SessionState state = SessionState.CREATED;</span>
+        private int completedSteps;
+        private Instant updatedAt;
+
+<span class="fc" id="L385">        private MockSession(String id, CapturePlan plan, Instant createdAt) {</span>
+<span class="fc" id="L386">            this.id = id;</span>
+<span class="fc" id="L387">            this.plan = plan;</span>
+<span class="fc" id="L388">            this.createdAt = createdAt;</span>
+<span class="fc" id="L389">            this.updatedAt = createdAt;</span>
+<span class="fc" id="L390">        }</span>
+
+        private void addEvent(
+                String stepId,
+                SessionState eventState,
+                String messageCode,
+                AssetMetadata asset,
+                Instant timestamp) {
+<span class="fc" id="L398">            events.add(new Event(</span>
+<span class="fc" id="L399">                    events.size() + 1L,</span>
+                    id,
+                    stepId,
+                    eventState,
+                    messageCode,
+                    timestamp,
+                    asset));
+<span class="fc" id="L406">        }</span>
+
+        private SessionStatus status() {
+<span class="fc" id="L409">            return new SessionStatus(</span>
+                    id,
+                    state,
+                    completedSteps,
+<span class="fc" id="L413">                    plan.steps().size(),</span>
+<span class="pc bpc" id="L414" title="1 of 2 branches missed.">                    events.isEmpty() ? 0 : events.getLast().eventId(),</span>
+                    updatedAt,
+                    null);
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

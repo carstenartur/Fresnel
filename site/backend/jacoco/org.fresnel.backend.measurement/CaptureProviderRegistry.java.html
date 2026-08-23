@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CaptureProviderRegistry.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement</a> &gt; <span class="el_source">CaptureProviderRegistry.java</span></div><h1>CaptureProviderRegistry.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement;
+
+import org.fresnel.measurement.CaptureProvider;
+import org.springframework.stereotype.Component;
+
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+
+/**
+ * Immutable registry of application-owned capture-provider adapters.
+ *
+ * &lt;p&gt;Provider IDs come only from validated {@link CaptureProvider.Descriptor}
+ * instances supplied as Spring beans. Remote configuration and measurement jobs
+ * cannot introduce implementation classes or arbitrary provider URLs.&lt;/p&gt;
+ */
+@Component
+public final class CaptureProviderRegistry {
+
+    private final List&lt;CaptureProvider&gt; providers;
+    private final Map&lt;String, CaptureProvider&gt; byId;
+
+<span class="fc" id="L26">    public CaptureProviderRegistry(List&lt;CaptureProvider&gt; discoveredProviders) {</span>
+<span class="fc" id="L27">        Objects.requireNonNull(discoveredProviders, &quot;discoveredProviders&quot;);</span>
+<span class="fc" id="L28">        List&lt;CaptureProvider&gt; ordered = discoveredProviders.stream()</span>
+<span class="fc" id="L29">                .map(provider -&gt; Objects.requireNonNull(provider, &quot;capture provider&quot;))</span>
+<span class="fc" id="L30">                .sorted(Comparator.comparing(provider -&gt; provider.descriptor().id()))</span>
+<span class="fc" id="L31">                .toList();</span>
+
+<span class="fc" id="L33">        Map&lt;String, CaptureProvider&gt; index = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">        for (CaptureProvider provider : ordered) {</span>
+<span class="fc" id="L35">            CaptureProvider.Descriptor descriptor = Objects.requireNonNull(</span>
+<span class="fc" id="L36">                    provider.descriptor(), &quot;capture provider descriptor&quot;);</span>
+<span class="fc" id="L37">            CaptureProvider previous = index.putIfAbsent(descriptor.id(), provider);</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">            if (previous != null) {</span>
+<span class="fc" id="L39">                throw new IllegalStateException(</span>
+<span class="fc" id="L40">                        &quot;Duplicate capture provider id: &quot; + descriptor.id());</span>
+            }
+<span class="fc" id="L42">        }</span>
+<span class="fc" id="L43">        this.providers = List.copyOf(ordered);</span>
+<span class="fc" id="L44">        this.byId = Map.copyOf(index);</span>
+<span class="fc" id="L45">    }</span>
+
+    public List&lt;CaptureProvider&gt; all() {
+<span class="fc" id="L48">        return providers;</span>
+    }
+
+    public Optional&lt;CaptureProvider&gt; find(String id) {
+<span class="fc" id="L52">        return Optional.ofNullable(byId.get(id));</span>
+    }
+
+    public CaptureProvider require(String id) {
+<span class="fc" id="L56">        CaptureProvider provider = byId.get(id);</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (provider == null) {</span>
+<span class="fc" id="L58">            throw new IllegalArgumentException(&quot;unknown capture provider id: &quot; + id);</span>
+        }
+<span class="fc" id="L60">        return provider;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
