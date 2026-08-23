@@ -7,8 +7,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -43,8 +43,11 @@ public class SecurityConfig {
                         // submit/status/SSE/result request requires authentication;
                         // owner-or-admin authorization is enforced by the job service.
                         .requestMatchers("/api/jobs/**").authenticated()
-                        // Public read-only endpoints.
+                        // Public read-only endpoints. Capture-provider status is
+                        // deliberately redacted and contains no service token, URL,
+                        // private camera address, serial number or file path.
                         .requestMatchers(HttpMethod.GET,
+                                "/api/capture-providers/**",
                                 "/api/designs/persist/**",
                                 "/api/designs/preview*",
                                 "/api/designs/*/info",

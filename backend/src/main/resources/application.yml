@@ -36,6 +36,11 @@ spring:
 fresnel:
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+  capture:
+    mock:
+      # Deterministic camera simulation for tests and explicit demonstrations.
+      # It is never exposed silently in a normal installation.
+      enabled: false
   jobs:
     # Terminal render results are purged opportunistically after this period.
     persisted-retention-days: 30

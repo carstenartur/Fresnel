@@ -28,6 +28,19 @@ public interface CaptureProvider {
 
     SessionStatus getSession(String remoteSessionId);
 
+    /**
+     * Triggers exactly one externally controlled capture step.
+     *
+     * <p>The provider must persist the idempotency key and normalized trigger
+     * request. Retrying an identical request returns the original result; reusing
+     * the key with different input fails with {@link FailureCode#CONFLICT}.</p>
+     */
+    StepResult triggerStep(
+            String remoteSessionId,
+            String stepId,
+            StepTrigger trigger,
+            String idempotencyKey);
+
     EventPage events(String remoteSessionId, long afterEventId);
 
     AssetMetadata getAssetMetadata(String remoteSessionId, String assetId);
@@ -68,6 +81,14 @@ public interface CaptureProvider {
         return normalized;
     }
 
+    private static String requireSha256(String value, String field) {
+        if (value == null || !SHA_256.matcher(value).matches()) {
+            throw new IllegalArgumentException(
+                    field + " must be 64 lowercase hexadecimal characters");
+        }
+        return value;
+    }
+
     private static Set<Capability> copyCapabilities(Set<Capability> capabilities) {
         return capabilities == null ? Set.of() : Set.copyOf(capabilities);
     }
@@ -90,6 +111,8 @@ public interface CaptureProvider {
     }
 
     enum HealthState {
+        NOT_CONFIGURED,
+        PAIRING,
         CONNECTED,
         DEGRADED,
         DISCONNECTED,
@@ -226,6 +249,52 @@ public interface CaptureProvider {
             id = requireIdentifier(id, "session id", 128);
             Objects.requireNonNull(effectivePlan, "effectivePlan");
             Objects.requireNonNull(createdAt, "createdAt");
+        }
+    }
+
+    /**
+     * Evidence supplied after the caller has made an external state observable.
+     * Pattern identity and hash are both absent for physical-only BOS steps and
+     * both required when the capture plan binds a displayed pattern.
+     */
+    record StepTrigger(
+            String externalPatternId,
+            String externalPatternSha256,
+            Instant presentedAt) {
+
+        public StepTrigger {
+            Objects.requireNonNull(presentedAt, "presentedAt");
+            if ((externalPatternId == null) != (externalPatternSha256 == null)) {
+                throw new IllegalArgumentException(
+                        "external pattern id and SHA-256 must either both be present or both be absent");
+            }
+            if (externalPatternId != null) {
+                externalPatternId = requireIdentifier(
+                        externalPatternId, "externalPatternId", 128);
+                externalPatternSha256 = requireSha256(
+                        externalPatternSha256, "externalPatternSha256");
+            }
+        }
+    }
+
+    /** Idempotent result of one durably committed capture step. */
+    record StepResult(
+            String sessionId,
+            String stepId,
+            AssetMetadata asset,
+            Instant completedAt) {
+
+        public StepResult {
+            sessionId = requireIdentifier(sessionId, "session id", 128);
+            stepId = requireIdentifier(stepId, "step id", 64);
+            Objects.requireNonNull(asset, "asset");
+            Objects.requireNonNull(completedAt, "completedAt");
+            if (!sessionId.equals(asset.sessionId())) {
+                throw new IllegalArgumentException("asset belongs to a different session");
+            }
+            if (!stepId.equals(asset.stepId())) {
+                throw new IllegalArgumentException("asset belongs to a different step");
+            }
         }
     }
 

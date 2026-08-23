@@ -14,6 +14,7 @@ class CapturePlanTest {
 
     private static final CapturePlan.Requirements REQUIREMENTS =
             new CapturePlan.Requirements(true, true, CapturePlan.ImageFormat.RAW_WITH_PREVIEW);
+    private static final String PATTERN_HASH = "a".repeat(64);
 
     @Test
     void validBosPlanIsNormalizedImmutableAndReportsSettleTime() {
@@ -62,6 +63,7 @@ class CapturePlanTest {
 
         assertEquals(4, plan.steps().size());
         assertEquals("pattern-dark", plan.steps().getFirst().externalPatternId());
+        assertEquals(PATTERN_HASH, plan.steps().getFirst().externalPatternSha256());
     }
 
     @Test
@@ -119,7 +121,7 @@ class CapturePlanTest {
     }
 
     @Test
-    void stepRejectsBadIdentifiersIndexesAndDelays() {
+    void stepRejectsBadIdentifiersIndexesDelaysAndPatternBindings() {
         assertThrows(IllegalArgumentException.class, () ->
                 step("bad id", 0, CapturePlan.Role.REFERENCE, Duration.ZERO, null));
         assertThrows(IllegalArgumentException.class, () ->
@@ -132,6 +134,15 @@ class CapturePlanTest {
                 step("x", 0, CapturePlan.Role.REFERENCE, Duration.ofSeconds(31), null));
         assertThrows(IllegalArgumentException.class, () ->
                 step("x", 0, CapturePlan.Role.REFERENCE, Duration.ZERO, "bad pattern"));
+        assertThrows(IllegalArgumentException.class, () -> new CapturePlan.Step(
+                "x", 0, CapturePlan.Role.REFERENCE, CapturePlan.TriggerMode.EXTERNAL,
+                Duration.ZERO, "pattern", null));
+        assertThrows(IllegalArgumentException.class, () -> new CapturePlan.Step(
+                "x", 0, CapturePlan.Role.REFERENCE, CapturePlan.TriggerMode.EXTERNAL,
+                Duration.ZERO, null, PATTERN_HASH));
+        assertThrows(IllegalArgumentException.class, () -> new CapturePlan.Step(
+                "x", 0, CapturePlan.Role.REFERENCE, CapturePlan.TriggerMode.EXTERNAL,
+                Duration.ZERO, "pattern", "ABC"));
     }
 
     @Test
@@ -167,6 +178,12 @@ class CapturePlanTest {
             Duration delay,
             String patternId) {
         return new CapturePlan.Step(
-                id, index, role, CapturePlan.TriggerMode.EXTERNAL, delay, patternId);
+                id,
+                index,
+                role,
+                CapturePlan.TriggerMode.EXTERNAL,
+                delay,
+                patternId,
+                patternId == null ? null : PATTERN_HASH);
     }
 }

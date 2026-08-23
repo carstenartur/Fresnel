@@ -26,6 +26,7 @@ public record CapturePlan(
 
     private static final int MAX_IDENTIFIER_LENGTH = 128;
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]*");
+    private static final Pattern SHA_256 = Pattern.compile("[0-9a-f]{64}");
 
     public CapturePlan {
         Objects.requireNonNull(workflowType, "workflowType");
@@ -110,9 +111,10 @@ public record CapturePlan(
                     "photometric-stereo plans may contain only dark, flat and directional-light steps");
         }
         for (Step step : steps) {
-            if (step.externalPatternId() == null) {
+            if (step.externalPatternId() == null || step.externalPatternSha256() == null) {
                 throw new IllegalArgumentException(
-                        "photometric-stereo step requires an externalPatternId: " + step.id());
+                        "photometric-stereo step requires an exact pattern id and SHA-256: "
+                                + step.id());
             }
         }
     }
@@ -129,6 +131,14 @@ public record CapturePlan(
             throw new IllegalArgumentException(field + " contains unsupported characters");
         }
         return normalized;
+    }
+
+    private static String requireSha256(String value, String field) {
+        if (value == null || !SHA_256.matcher(value).matches()) {
+            throw new IllegalArgumentException(
+                    field + " must be 64 lowercase hexadecimal characters");
+        }
+        return value;
     }
 
     public enum WorkflowType {
@@ -173,7 +183,8 @@ public record CapturePlan(
             Role role,
             TriggerMode triggerMode,
             Duration settleDelay,
-            String externalPatternId) {
+            String externalPatternId,
+            String externalPatternSha256) {
 
         public Step {
             id = requireIdentifier(id, "step id", 64);
@@ -188,9 +199,15 @@ public record CapturePlan(
                 throw new IllegalArgumentException(
                         "settleDelay must be between zero and " + MAX_SETTLE_DELAY);
             }
+            if ((externalPatternId == null) != (externalPatternSha256 == null)) {
+                throw new IllegalArgumentException(
+                        "external pattern id and SHA-256 must either both be present or both be absent");
+            }
             if (externalPatternId != null) {
                 externalPatternId = requireIdentifier(
                         externalPatternId, "externalPatternId", MAX_IDENTIFIER_LENGTH);
+                externalPatternSha256 = requireSha256(
+                        externalPatternSha256, "externalPatternSha256");
             }
         }
     }

@@ -73,11 +73,48 @@ class CaptureProviderContractTest {
                 CaptureProvider.HealthState.DEGRADED, NOW, "slow");
         CaptureProvider.Health disconnected = new CaptureProvider.Health(
                 CaptureProvider.HealthState.DISCONNECTED, NOW, "offline");
+        CaptureProvider.Health notConfigured = new CaptureProvider.Health(
+                CaptureProvider.HealthState.NOT_CONFIGURED, NOW, "not_configured");
 
         assertEquals("OK", connected.messageCode());
         assertTrue(connected.usable());
         assertTrue(degraded.usable());
         assertFalse(disconnected.usable());
+        assertFalse(notConfigured.usable());
+    }
+
+    @Test
+    void triggerEvidenceBindsPatternIdAndHashTogether() {
+        CaptureProvider.StepTrigger trigger =
+                new CaptureProvider.StepTrigger("pattern:1", HASH, NOW);
+        assertEquals("pattern:1", trigger.externalPatternId());
+        assertEquals(HASH, trigger.externalPatternSha256());
+
+        CaptureProvider.StepTrigger physicalOnly =
+                new CaptureProvider.StepTrigger(null, null, NOW);
+        assertEquals(null, physicalOnly.externalPatternId());
+
+        assertThrows(IllegalArgumentException.class, () ->
+                new CaptureProvider.StepTrigger("pattern", null, NOW));
+        assertThrows(IllegalArgumentException.class, () ->
+                new CaptureProvider.StepTrigger(null, HASH, NOW));
+        assertThrows(IllegalArgumentException.class, () ->
+                new CaptureProvider.StepTrigger("pattern", "ABC", NOW));
+        assertThrows(NullPointerException.class, () ->
+                new CaptureProvider.StepTrigger(null, null, null));
+    }
+
+    @Test
+    void stepResultRequiresAssetFromTheSameSessionAndStep() {
+        CaptureProvider.AssetMetadata asset = asset();
+        CaptureProvider.StepResult result =
+                new CaptureProvider.StepResult("session:1", "step-1", asset, NOW);
+        assertSame(asset, result.asset());
+
+        assertThrows(IllegalArgumentException.class, () ->
+                new CaptureProvider.StepResult("session:2", "step-1", asset, NOW));
+        assertThrows(IllegalArgumentException.class, () ->
+                new CaptureProvider.StepResult("session:1", "step-2", asset, NOW));
     }
 
     @Test
@@ -199,8 +236,8 @@ class CaptureProviderContractTest {
                 new CapturePlan.Requirements(true, true, CapturePlan.ImageFormat.JPEG),
                 List.of(
                         new CapturePlan.Step("reference", 0, CapturePlan.Role.REFERENCE,
-                                CapturePlan.TriggerMode.EXTERNAL, Duration.ZERO, null),
+                                CapturePlan.TriggerMode.EXTERNAL, Duration.ZERO, null, null),
                         new CapturePlan.Step("disturbed", 1, CapturePlan.Role.DISTURBED,
-                                CapturePlan.TriggerMode.EXTERNAL, Duration.ZERO, null)));
+                                CapturePlan.TriggerMode.EXTERNAL, Duration.ZERO, null, null)));
     }
 }
