@@ -1,0 +1,59 @@
+{
+  "formatVersion": 1,
+  "pluginId": "background-oriented-schlieren",
+  "parameterSchemaVersion": 1,
+  "groups": [
+    {
+      "id": "target-size",
+      "title": "Target size",
+      "fields": ["widthPx", "heightPx", "intendedDpi"]
+    },
+    {
+      "id": "dot-field",
+      "title": "Dot field",
+      "fields": [
+        "patternSeed",
+        "dotDiameterPx",
+        "targetFillRatio",
+        "minimumDotSpacingPx"
+      ]
+    },
+    {
+      "id": "registration",
+      "title": "Border and registration",
+      "fields": ["borderPx", "fiducialsEnabled", "invertPattern"],
+      "collapsible": true
+    }
+  ],
+  "widgets": {
+    "widthPx": {
+      "type": "number-with-presets",
+      "presets": [1280, 1600, 1920, 2560]
+    },
+    "heightPx": {
+      "type": "number-with-presets",
+      "presets": [720, 1000, 1080, 1440]
+    },
+    "intendedDpi": {
+      "type": "number-with-presets",
+      "presets": [96, 150, 300, 600]
+    },
+    "dotDiameterPx": {
+      "type": "number-with-presets",
+      "presets": [5, 7, 9, 12]
+    },
+    "targetFillRatio": {
+      "type": "number-with-presets",
+      "presets": [0.08, 0.12, 0.18]
+    },
+    "minimumDotSpacingPx": {
+      "type": "number-with-presets",
+      "presets": [2, 3, 5, 8]
+    },
+    "borderPx": {
+      "type": "number-with-presets",
+      "presets": [48, 64, 96, 128]
+    }
+  },
+  "extensions": ["measurement-workflow"]
+}
