@@ -90,6 +90,11 @@ body { margin: 0; }
   color: #7f1d1d;
 }
 
+.capture-provider-status.is-stale {
+  outline: 1px dashed #64748b;
+  outline-offset: -3px;
+}
+
 .capture-provider-status-heading {
   display: flex;
   align-items: center;
