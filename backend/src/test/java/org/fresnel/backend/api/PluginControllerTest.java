@@ -10,8 +10,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -37,7 +39,8 @@ class PluginControllerTest {
                 .andExpect(jsonPath("$[3].id").value("window-foil"))
                 .andExpect(jsonPath("$[4].id").value("multi-focus"))
                 .andExpect(jsonPath("$[5].id").value("rgb-zone-plate"))
-                .andExpect(jsonPath("$[6].id").value("hologram"));
+                .andExpect(jsonPath("$[6].id").value("hologram"))
+                .andExpect(jsonPath("$[*].kind", everyItem(is("DESIGN"))));
     }
 
     @Test
@@ -60,6 +63,7 @@ class PluginControllerTest {
         mvc.perform(get("/api/plugins"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").exists())
+                .andExpect(jsonPath("$[0].kind").value("DESIGN"))
                 .andExpect(jsonPath("$[0].displayName").exists())
                 .andExpect(jsonPath("$[0].description").exists())
                 .andExpect(jsonPath("$[0].documentationUrl").exists())
@@ -81,6 +85,7 @@ class PluginControllerTest {
         mvc.perform(get("/api/plugins/zone-plate"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("zone-plate"))
+                .andExpect(jsonPath("$.kind").value("DESIGN"))
                 .andExpect(jsonPath("$.displayName").value("Zone Plate"))
                 .andExpect(jsonPath("$.rendererClass").doesNotExist())
                 .andExpect(jsonPath("$.parameterType").doesNotExist())
