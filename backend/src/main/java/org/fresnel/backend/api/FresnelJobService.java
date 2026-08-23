@@ -71,6 +71,10 @@ public class FresnelJobService {
             "progression", "progressionDirection", "dutyCycle", "phaseOffsetCycles",
             "polarity", "marginMm", "annotationSizeMm", "showAxis", "axisQuantity",
             "tickCount", "showReferenceBands", "referenceBandSizeMm", "dpi");
+    private static final Set<String> BOS_PARAMETER_FIELDS = Set.of(
+            "widthPx", "heightPx", "intendedDpi", "patternSeed", "dotDiameterPx",
+            "targetFillRatio", "minimumDotSpacingPx", "borderPx",
+            "fiducialsEnabled", "invertPattern");
     private static final Set<String> FOCUS_POINT_FIELDS = Set.of("xMm", "yMm", "zMm");
     private static final Set<String> CELL_SPEC_FIELDS = Set.of(
             "focalLengthMm", "targetOffsetXmm", "targetOffsetYmm");
@@ -218,6 +222,7 @@ public class FresnelJobService {
             case "window-foil" -> WindowFoilRequest.class;
             case "hologram" -> HologramRequest.class;
             case "variable-line-grating" -> VariableLineGratingRequest.class;
+            case "background-oriented-schlieren" -> BosTargetRequest.class;
             default -> throw new IllegalArgumentException("Unknown plugin id: " + pluginId);
         };
 
@@ -229,6 +234,7 @@ public class FresnelJobService {
                     "Invalid parameters for plugin " + pluginId + ": " + conciseMessage(e), e);
         }
         if (request instanceof VariableLineGratingRequest grating) request = grating.normalized();
+        if (request instanceof BosTargetRequest bos) request = bos.normalized();
         validateBean(pluginId, request);
         validateNestedBeans(pluginId, request);
 
@@ -277,6 +283,14 @@ public class FresnelJobService {
                     r.resolvedRefractiveIndexDelta(),
                     r.resolvedMaxPhaseShiftRad());
         } else if (request instanceof VariableLineGratingRequest r) {
+            try {
+                r.toParameters();
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                        "Invalid parameters for plugin " + pluginId + ": " + conciseMessage(e), e);
+            }
+            normalizedRequest = r;
+        } else if (request instanceof BosTargetRequest r) {
             try {
                 r.toParameters();
             } catch (IllegalArgumentException e) {
@@ -356,6 +370,7 @@ public class FresnelJobService {
             case "rgb-zone-plate" -> RGB_PARAMETER_FIELDS;
             case "hologram" -> HOLOGRAM_PARAMETER_FIELDS;
             case "variable-line-grating" -> GRATING_PARAMETER_FIELDS;
+            case "background-oriented-schlieren" -> BOS_PARAMETER_FIELDS;
             default -> throw new IllegalArgumentException("Unknown plugin id: " + pluginId);
         };
         rejectUnknownFields(parameters, fields, "parameters");
