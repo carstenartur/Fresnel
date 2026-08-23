@@ -119,6 +119,8 @@ public final class MockCaptureProvider implements CaptureProvider {
         Instant now = clock.instant();
         SessionRef ref = new SessionRef(id, plan, now);
         MockSession session = new MockSession(id, plan, now);
+        session.state = SessionState.READY;
+        session.updatedAt = now;
         session.addEvent(null, SessionState.READY, "MOCK_SESSION_READY", null, now);
         sessions.put(id, session);
         creationsByKey.put(key, new CreationRecord(plan, ref));
