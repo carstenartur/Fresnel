@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CapturePlan.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Measurement Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.measurement</a> &gt; <span class="el_source">CapturePlan.java</span></div><h1>CapturePlan.java</h1><pre class="source lang-java linenums">package org.fresnel.measurement;
+
+import java.time.Duration;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.regex.Pattern;
+
+/**
+ * Provider-neutral, declarative capture plan for one optical measurement.
+ *
+ * &lt;p&gt;The plan deliberately contains no commands, callback URLs, file-system
+ * paths or provider-specific payloads. Construction validates all structural
+ * and workflow invariants before a capture provider may contact a camera.&lt;/p&gt;
+ */
+public record CapturePlan(
+        WorkflowType workflowType,
+        String deviceId,
+        Requirements requirements,
+        List&lt;Step&gt; steps) {
+
+    public static final int MAX_STEPS = 256;
+<span class="fc" id="L24">    public static final Duration MAX_SETTLE_DELAY = Duration.ofSeconds(30);</span>
+<span class="fc" id="L25">    public static final Duration MAX_DECLARED_SETTLE_TIME = Duration.ofMinutes(30);</span>
+
+    private static final int MAX_IDENTIFIER_LENGTH = 128;
+<span class="fc" id="L28">    private static final Pattern IDENTIFIER = Pattern.compile(&quot;[A-Za-z0-9][A-Za-z0-9._:-]*&quot;);</span>
+
+<span class="fc" id="L30">    public CapturePlan {</span>
+<span class="fc" id="L31">        Objects.requireNonNull(workflowType, &quot;workflowType&quot;);</span>
+<span class="fc" id="L32">        deviceId = requireIdentifier(deviceId, &quot;deviceId&quot;, MAX_IDENTIFIER_LENGTH);</span>
+<span class="fc" id="L33">        Objects.requireNonNull(requirements, &quot;requirements&quot;);</span>
+<span class="fc" id="L34">        Objects.requireNonNull(steps, &quot;steps&quot;);</span>
+<span class="fc" id="L35">        steps = List.copyOf(steps);</span>
+
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (steps.isEmpty()) {</span>
+<span class="fc" id="L38">            throw new IllegalArgumentException(&quot;capture plan must contain at least one step&quot;);</span>
+        }
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        if (steps.size() &gt; MAX_STEPS) {</span>
+<span class="fc" id="L41">            throw new IllegalArgumentException(&quot;capture plan exceeds &quot; + MAX_STEPS + &quot; steps&quot;);</span>
+        }
+
+<span class="fc" id="L44">        Set&lt;String&gt; ids = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L45">        Duration declaredSettleTime = Duration.ZERO;</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        for (int index = 0; index &lt; steps.size(); index++) {</span>
+<span class="fc" id="L47">            Step step = Objects.requireNonNull(steps.get(index), &quot;steps[&quot; + index + &quot;]&quot;);</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">            if (step.sequenceIndex() != index) {</span>
+<span class="fc" id="L49">                throw new IllegalArgumentException(</span>
+                        &quot;step sequenceIndex must match its ordered position: expected &quot;
+<span class="fc" id="L51">                                + index + &quot; but was &quot; + step.sequenceIndex());</span>
+            }
+<span class="fc bfc" id="L53" title="All 2 branches covered.">            if (!ids.add(step.id())) {</span>
+<span class="fc" id="L54">                throw new IllegalArgumentException(&quot;duplicate capture step id: &quot; + step.id());</span>
+            }
+<span class="fc" id="L56">            declaredSettleTime = declaredSettleTime.plus(step.settleDelay());</span>
+        }
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        if (declaredSettleTime.compareTo(MAX_DECLARED_SETTLE_TIME) &gt; 0) {</span>
+<span class="fc" id="L59">            throw new IllegalArgumentException(</span>
+                    &quot;capture plan settle time exceeds &quot; + MAX_DECLARED_SETTLE_TIME);
+        }
+
+<span class="fc" id="L63">        validateWorkflowSteps(workflowType, steps);</span>
+<span class="fc" id="L64">    }</span>
+
+    /** Returns the total declared delay before captures, excluding provider work. */
+    public Duration declaredSettleTime() {
+<span class="fc" id="L68">        return steps.stream()</span>
+<span class="fc" id="L69">                .map(Step::settleDelay)</span>
+<span class="fc" id="L70">                .reduce(Duration.ZERO, Duration::plus);</span>
+    }
+
+    private static void validateWorkflowSteps(WorkflowType workflowType, List&lt;Step&gt; steps) {
+<span class="pc bpc" id="L74" title="1 of 3 branches missed.">        switch (workflowType) {</span>
+<span class="fc" id="L75">            case BACKGROUND_ORIENTED_SCHLIEREN -&gt; validateBosSteps(steps);</span>
+<span class="fc" id="L76">            case DISPLAY_PHOTOMETRIC_STEREO -&gt; validatePhotometricStereoSteps(steps);</span>
+        }
+<span class="fc" id="L78">    }</span>
+
+    private static void validateBosSteps(List&lt;Step&gt; steps) {
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        long references = steps.stream().filter(step -&gt; step.role() == Role.REFERENCE).count();</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        long disturbed = steps.stream().filter(step -&gt; step.role() == Role.DISTURBED).count();</span>
+<span class="fc" id="L83">        boolean unsupportedRole = steps.stream().anyMatch(step -&gt;</span>
+<span class="fc bfc" id="L84" title="All 4 branches covered.">                step.role() != Role.REFERENCE &amp;&amp; step.role() != Role.DISTURBED);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (references != 1) {</span>
+<span class="fc" id="L86">            throw new IllegalArgumentException(&quot;BOS capture plans require exactly one reference step&quot;);</span>
+        }
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (disturbed &lt; 1) {</span>
+<span class="fc" id="L89">            throw new IllegalArgumentException(&quot;BOS capture plans require at least one disturbed step&quot;);</span>
+        }
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        if (unsupportedRole) {</span>
+<span class="nc" id="L92">            throw new IllegalArgumentException(&quot;BOS capture plans may contain only reference/disturbed steps&quot;);</span>
+        }
+<span class="fc" id="L94">    }</span>
+
+    private static void validatePhotometricStereoSteps(List&lt;Step&gt; steps) {
+<span class="fc" id="L97">        long directionalLights = steps.stream()</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">                .filter(step -&gt; step.role() == Role.DIRECTIONAL_LIGHT)</span>
+<span class="fc" id="L99">                .count();</span>
+<span class="fc" id="L100">        boolean unsupportedRole = steps.stream().anyMatch(step -&gt;</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">                step.role() != Role.DARK</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">                        &amp;&amp; step.role() != Role.FLAT</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">                        &amp;&amp; step.role() != Role.DIRECTIONAL_LIGHT);</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">        if (directionalLights &lt; 3) {</span>
+<span class="fc" id="L105">            throw new IllegalArgumentException(</span>
+                    &quot;photometric-stereo capture plans require at least three directional lights&quot;);
+        }
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (unsupportedRole) {</span>
+<span class="fc" id="L109">            throw new IllegalArgumentException(</span>
+                    &quot;photometric-stereo plans may contain only dark, flat and directional-light steps&quot;);
+        }
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        for (Step step : steps) {</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">            if (step.externalPatternId() == null) {</span>
+<span class="fc" id="L114">                throw new IllegalArgumentException(</span>
+<span class="fc" id="L115">                        &quot;photometric-stereo step requires an externalPatternId: &quot; + step.id());</span>
+            }
+<span class="fc" id="L117">        }</span>
+<span class="fc" id="L118">    }</span>
+
+    private static String requireIdentifier(String value, String field, int maximumLength) {
+<span class="pc bpc" id="L121" title="1 of 4 branches missed.">        if (value == null || value.isBlank()) {</span>
+<span class="fc" id="L122">            throw new IllegalArgumentException(field + &quot; must not be blank&quot;);</span>
+        }
+<span class="fc" id="L124">        String normalized = value.trim();</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (normalized.length() &gt; maximumLength) {</span>
+<span class="nc" id="L126">            throw new IllegalArgumentException(field + &quot; exceeds &quot; + maximumLength + &quot; characters&quot;);</span>
+        }
+<span class="fc bfc" id="L128" title="All 2 branches covered.">        if (!IDENTIFIER.matcher(normalized).matches()) {</span>
+<span class="fc" id="L129">            throw new IllegalArgumentException(field + &quot; contains unsupported characters&quot;);</span>
+        }
+<span class="fc" id="L131">        return normalized;</span>
+    }
+
+<span class="fc" id="L134">    public enum WorkflowType {</span>
+<span class="fc" id="L135">        BACKGROUND_ORIENTED_SCHLIEREN,</span>
+<span class="fc" id="L136">        DISPLAY_PHOTOMETRIC_STEREO</span>
+    }
+
+<span class="fc" id="L139">    public enum ImageFormat {</span>
+<span class="fc" id="L140">        JPEG,</span>
+<span class="fc" id="L141">        PNG,</span>
+<span class="fc" id="L142">        RAW_WITH_PREVIEW</span>
+    }
+
+<span class="fc" id="L145">    public enum TriggerMode {</span>
+<span class="fc" id="L146">        AUTOMATIC,</span>
+<span class="fc" id="L147">        EXTERNAL</span>
+    }
+
+<span class="fc" id="L150">    public enum Role {</span>
+<span class="fc" id="L151">        REFERENCE,</span>
+<span class="fc" id="L152">        DISTURBED,</span>
+<span class="fc" id="L153">        DARK,</span>
+<span class="fc" id="L154">        FLAT,</span>
+<span class="fc" id="L155">        DIRECTIONAL_LIGHT</span>
+    }
+
+    /** Capture preferences that a provider must resolve explicitly. */
+    public record Requirements(
+            boolean lockExposure,
+            boolean lockFocus,
+            ImageFormat preferredImageFormat) {
+
+<span class="fc" id="L164">        public Requirements {</span>
+<span class="fc" id="L165">            Objects.requireNonNull(preferredImageFormat, &quot;preferredImageFormat&quot;);</span>
+<span class="fc" id="L166">        }</span>
+    }
+
+    /** One immutable, ordered capture step. */
+    public record Step(
+            String id,
+            int sequenceIndex,
+            Role role,
+            TriggerMode triggerMode,
+            Duration settleDelay,
+            String externalPatternId) {
+
+<span class="fc" id="L178">        public Step {</span>
+<span class="fc" id="L179">            id = requireIdentifier(id, &quot;step id&quot;, 64);</span>
+<span class="fc bfc" id="L180" title="All 4 branches covered.">            if (sequenceIndex &lt; 0 || sequenceIndex &gt;= MAX_STEPS) {</span>
+<span class="fc" id="L181">                throw new IllegalArgumentException(</span>
+                        &quot;sequenceIndex must be between 0 and &quot; + (MAX_STEPS - 1));
+            }
+<span class="fc" id="L184">            Objects.requireNonNull(role, &quot;role&quot;);</span>
+<span class="fc" id="L185">            Objects.requireNonNull(triggerMode, &quot;triggerMode&quot;);</span>
+<span class="fc" id="L186">            Objects.requireNonNull(settleDelay, &quot;settleDelay&quot;);</span>
+<span class="fc bfc" id="L187" title="All 4 branches covered.">            if (settleDelay.isNegative() || settleDelay.compareTo(MAX_SETTLE_DELAY) &gt; 0) {</span>
+<span class="fc" id="L188">                throw new IllegalArgumentException(</span>
+                        &quot;settleDelay must be between zero and &quot; + MAX_SETTLE_DELAY);
+            }
+<span class="fc bfc" id="L191" title="All 2 branches covered.">            if (externalPatternId != null) {</span>
+<span class="fc" id="L192">                externalPatternId = requireIdentifier(</span>
+                        externalPatternId, &quot;externalPatternId&quot;, MAX_IDENTIFIER_LENGTH);
+            }
+<span class="fc" id="L195">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

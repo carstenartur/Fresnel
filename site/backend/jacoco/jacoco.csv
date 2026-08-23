@@ -76,7 +76,7 @@ Fresnel Backend,org.fresnel.backend.api,ValidationResponse.WarningDto,0,12,0,0,0
 Fresnel Backend,org.fresnel.backend.api,PluginParameterSchemaSecurityPolicy,123,398,35,63,20,86,32,31,1,10
 Fresnel Backend,org.fresnel.backend.api,ExperimentalComparison,0,24,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,FresnelJobExecutionResult,7,16,2,2,0,4,2,1,0,1
-Fresnel Backend,org.fresnel.backend.api,PluginController.PluginMetadata,0,90,0,0,0,20,0,2,0,2
+Fresnel Backend,org.fresnel.backend.api,PluginController.PluginMetadata,0,95,0,0,0,21,0,2,0,2
 Fresnel Backend,org.fresnel.backend.api,ExperimentCopilotRequest,2,23,2,2,0,2,2,2,0,2
 Fresnel Backend,org.fresnel.backend.api,DesignVariant,0,15,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,PrinterCalibrationResultController,7,91,5,7,2,25,5,4,0,3

@@ -5,7 +5,7 @@
  *
  * &lt;p&gt;Capabilities are used by the registry for targeted queries such as
  * &quot;list all plugins that can export to PDF&quot; or &quot;which plugins support
- * printability analysis&quot;.
+ * printability analysis&quot;.&lt;/p&gt;
  */
 <span class="fc" id="L10">public enum PluginCapability {</span>
 
@@ -32,23 +32,43 @@
     /** Plugin can export an STL 3-D relief mesh. */
 <span class="fc" id="L33">    EXPORT_STL,</span>
 
+    /** Plugin can export a bounded, checksummed experiment bundle. */
+<span class="fc" id="L36">    EXPORT_EXPERIMENT_BUNDLE,</span>
+
     // ---- Preview types ----
 
     /** Plugin supports live PNG preview rendering. */
-<span class="fc" id="L38">    PREVIEW_PNG,</span>
+<span class="fc" id="L41">    PREVIEW_PNG,</span>
 
     /** Plugin supports scalar-diffraction propagation preview. */
-<span class="fc" id="L41">    PROPAGATION_PREVIEW,</span>
+<span class="fc" id="L44">    PROPAGATION_PREVIEW,</span>
+
+    /** Plugin supports a bounded live preview derived from measurement frames. */
+<span class="fc" id="L47">    LIVE_ANALYSIS_PREVIEW,</span>
 
     // ---- Validation and analysis ----
 
     /** Plugin supports printability validation (outermost-zone analysis). */
-<span class="fc" id="L46">    PRINTABILITY_ANALYSIS,</span>
+<span class="fc" id="L52">    PRINTABILITY_ANALYSIS,</span>
 
     /** Plugin exposes an optical-quality report (NA, f-number, Airy disk, …). */
-<span class="fc" id="L49">    OPTICAL_QUALITY_REPORT,</span>
+<span class="fc" id="L55">    OPTICAL_QUALITY_REPORT,</span>
 
     /** Plugin supports experimental (beyond standard) validation procedures. */
-<span class="fc" id="L52">    EXPERIMENTAL_VALIDATION,</span>
+<span class="fc" id="L58">    EXPERIMENTAL_VALIDATION,</span>
+
+    // ---- Measurement workflows ----
+
+    /** Plugin can generate a deterministic printed or displayed capture target. */
+<span class="fc" id="L63">    GENERATE_CAPTURE_TARGET,</span>
+
+    /** Plugin can accept a bounded, ordered set of manually supplied captures. */
+<span class="fc" id="L66">    IMPORT_CAPTURE_SET,</span>
+
+    /** Plugin can request captures through a configured CaptureProvider. */
+<span class="fc" id="L69">    REMOTE_CAPTURE,</span>
+
+    /** Plugin can derive deterministic results from a validated capture set. */
+<span class="fc" id="L72">    ANALYZE_CAPTURE_SET</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

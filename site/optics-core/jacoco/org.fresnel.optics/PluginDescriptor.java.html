@@ -14,9 +14,10 @@ import java.util.Set;
  *
  * @param id               stable, lowercase, hyphen-separated identifier suitable
  *                         for use in API URLs (e.g. {@code &quot;zone-plate&quot;})
+ * @param kind             design renderer or durable measurement workflow
  * @param displayName      human-readable name shown in the UI
- * @param description      one-line description of the optical element
- * @param rendererClass    simple class name of the Java renderer or synthesiser
+ * @param description      one-line description of the optical element or workflow
+ * @param rendererClass    simple class name of the trusted renderer/workflow implementation
  * @param parameterType    simple class name of the parameter record
  * @param documentationUrl relative path to the plugin's Markdown documentation
  * @param stability        maturity classification of this plugin
@@ -26,6 +27,7 @@ import java.util.Set;
  */
 public record PluginDescriptor(
         String id,
+        PluginKind kind,
         String displayName,
         String description,
         String rendererClass,
@@ -38,57 +40,63 @@ public record PluginDescriptor(
 ) {
 
     /** Defensive validation and copies keep registry data immutable and complete. */
-<span class="fc" id="L41">    public PluginDescriptor {</span>
-<span class="pc bpc" id="L42" title="2 of 4 branches missed.">        if (id == null || id.isBlank()) throw new IllegalArgumentException(&quot;id must not be blank&quot;);</span>
-<span class="pc bpc" id="L43" title="2 of 4 branches missed.">        if (displayName == null || displayName.isBlank())</span>
-<span class="nc" id="L44">            throw new IllegalArgumentException(&quot;displayName must not be blank&quot;);</span>
-<span class="pc bpc" id="L45" title="2 of 4 branches missed.">        if (description == null || description.isBlank())</span>
-<span class="nc" id="L46">            throw new IllegalArgumentException(&quot;description must not be blank&quot;);</span>
-<span class="pc bpc" id="L47" title="2 of 4 branches missed.">        if (rendererClass == null || rendererClass.isBlank())</span>
-<span class="nc" id="L48">            throw new IllegalArgumentException(&quot;rendererClass must not be blank&quot;);</span>
-<span class="pc bpc" id="L49" title="2 of 4 branches missed.">        if (parameterType == null || parameterType.isBlank())</span>
-<span class="nc" id="L50">            throw new IllegalArgumentException(&quot;parameterType must not be blank&quot;);</span>
-<span class="pc bpc" id="L51" title="2 of 4 branches missed.">        if (documentationUrl == null || documentationUrl.isBlank())</span>
-<span class="nc" id="L52">            throw new IllegalArgumentException(&quot;documentationUrl must not be blank&quot;);</span>
-<span class="pc bpc" id="L53" title="1 of 2 branches missed.">        if (stability == null) throw new IllegalArgumentException(&quot;stability must not be null&quot;);</span>
-<span class="pc bpc" id="L54" title="1 of 2 branches missed.">        if (schema == null) throw new IllegalArgumentException(&quot;schema must not be null&quot;);</span>
-<span class="pc bpc" id="L55" title="1 of 2 branches missed.">        capabilities = capabilities == null ? Set.of() : Set.copyOf(capabilities);</span>
-<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        propagationModes = propagationModes == null ? Set.of() : Set.copyOf(propagationModes);</span>
-<span class="fc" id="L57">    }</span>
+<span class="fc" id="L43">    public PluginDescriptor {</span>
+<span class="pc bpc" id="L44" title="2 of 4 branches missed.">        if (id == null || id.isBlank()) throw new IllegalArgumentException(&quot;id must not be blank&quot;);</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        if (kind == null) throw new IllegalArgumentException(&quot;kind must not be null&quot;);</span>
+<span class="pc bpc" id="L46" title="2 of 4 branches missed.">        if (displayName == null || displayName.isBlank())</span>
+<span class="nc" id="L47">            throw new IllegalArgumentException(&quot;displayName must not be blank&quot;);</span>
+<span class="pc bpc" id="L48" title="2 of 4 branches missed.">        if (description == null || description.isBlank())</span>
+<span class="nc" id="L49">            throw new IllegalArgumentException(&quot;description must not be blank&quot;);</span>
+<span class="pc bpc" id="L50" title="2 of 4 branches missed.">        if (rendererClass == null || rendererClass.isBlank())</span>
+<span class="nc" id="L51">            throw new IllegalArgumentException(&quot;rendererClass must not be blank&quot;);</span>
+<span class="pc bpc" id="L52" title="2 of 4 branches missed.">        if (parameterType == null || parameterType.isBlank())</span>
+<span class="nc" id="L53">            throw new IllegalArgumentException(&quot;parameterType must not be blank&quot;);</span>
+<span class="pc bpc" id="L54" title="2 of 4 branches missed.">        if (documentationUrl == null || documentationUrl.isBlank())</span>
+<span class="nc" id="L55">            throw new IllegalArgumentException(&quot;documentationUrl must not be blank&quot;);</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        if (stability == null) throw new IllegalArgumentException(&quot;stability must not be null&quot;);</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        if (schema == null) throw new IllegalArgumentException(&quot;schema must not be null&quot;);</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        capabilities = capabilities == null ? Set.of() : Set.copyOf(capabilities);</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        propagationModes = propagationModes == null ? Set.of() : Set.copyOf(propagationModes);</span>
+<span class="fc" id="L60">    }</span>
 
     /** Returns {@code true} if this plugin supports the given capability. */
     public boolean supports(PluginCapability capability) {
-<span class="fc" id="L61">        return capabilities.contains(capability);</span>
+<span class="fc" id="L64">        return capabilities.contains(capability);</span>
     }
 
     /** Returns {@code true} if this plugin can export in the requested format. */
     public boolean supportsExport(PluginCapability exportCapability) {
-<span class="nc" id="L66">        return capabilities.contains(exportCapability);</span>
+<span class="nc" id="L69">        return capabilities.contains(exportCapability);</span>
+    }
+
+    /** Returns {@code true} for multi-step capture-and-analysis workflows. */
+    public boolean isMeasurementPlugin() {
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        return kind == PluginKind.MEASUREMENT;</span>
     }
 
     /** Returns {@code true} if this plugin provides printability analysis. */
     public boolean supportsPrintabilityAnalysis() {
-<span class="fc" id="L71">        return capabilities.contains(PluginCapability.PRINTABILITY_ANALYSIS);</span>
+<span class="fc" id="L79">        return capabilities.contains(PluginCapability.PRINTABILITY_ANALYSIS);</span>
     }
 
     /** Returns {@code true} if this plugin provides an optical quality report. */
     public boolean supportsOpticalQualityReport() {
-<span class="fc" id="L76">        return capabilities.contains(PluginCapability.OPTICAL_QUALITY_REPORT);</span>
+<span class="fc" id="L84">        return capabilities.contains(PluginCapability.OPTICAL_QUALITY_REPORT);</span>
     }
 
     /** Returns {@code true} if this plugin provides experimental validation. */
     public boolean supportsExperimentalValidation() {
-<span class="fc" id="L81">        return capabilities.contains(PluginCapability.EXPERIMENTAL_VALIDATION);</span>
+<span class="fc" id="L89">        return capabilities.contains(PluginCapability.EXPERIMENTAL_VALIDATION);</span>
     }
 
     /** Returns {@code true} if this plugin supports propagation preview. */
     public boolean supportsPropagationPreview() {
-<span class="nc" id="L86">        return capabilities.contains(PluginCapability.PROPAGATION_PREVIEW);</span>
+<span class="nc" id="L94">        return capabilities.contains(PluginCapability.PROPAGATION_PREVIEW);</span>
     }
 
     /** Returns {@code true} if this plugin supports the given propagation mode. */
     public boolean supports(PropagationMode mode) {
-<span class="fc" id="L91">        return propagationModes.contains(mode);</span>
+<span class="fc" id="L99">        return propagationModes.contains(mode);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

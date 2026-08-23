@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CaptureProviderException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Measurement Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.measurement</a> &gt; <span class="el_source">CaptureProviderException.java</span></div><h1>CaptureProviderException.java</h1><pre class="source lang-java linenums">package org.fresnel.measurement;
+
+import java.util.Locale;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+/**
+ * Typed provider failure that can cross adapter boundaries without leaking
+ * provider exception messages, credentials or private camera addresses.
+ */
+public final class CaptureProviderException extends RuntimeException {
+
+<span class="fc" id="L13">    private static final Pattern MESSAGE_CODE = Pattern.compile(&quot;[A-Z0-9][A-Z0-9._:-]*&quot;);</span>
+
+    private final CaptureProvider.FailureCode code;
+    private final boolean retryable;
+    private final String messageCode;
+
+    public CaptureProviderException(
+            CaptureProvider.FailureCode code,
+            boolean retryable,
+            String messageCode) {
+<span class="nc" id="L23">        this(code, retryable, messageCode, null);</span>
+<span class="nc" id="L24">    }</span>
+
+    public CaptureProviderException(
+            CaptureProvider.FailureCode code,
+            boolean retryable,
+            String messageCode,
+            Throwable cause) {
+<span class="fc" id="L31">        super(normalizeMessageCode(messageCode), cause);</span>
+<span class="fc" id="L32">        this.code = Objects.requireNonNull(code, &quot;code&quot;);</span>
+<span class="fc" id="L33">        this.retryable = retryable;</span>
+<span class="fc" id="L34">        this.messageCode = getMessage();</span>
+<span class="fc" id="L35">    }</span>
+
+    public CaptureProvider.FailureCode code() {
+<span class="fc" id="L38">        return code;</span>
+    }
+
+    public boolean retryable() {
+<span class="fc" id="L42">        return retryable;</span>
+    }
+
+    public String messageCode() {
+<span class="fc" id="L46">        return messageCode;</span>
+    }
+
+    public CaptureProvider.Failure toFailure() {
+<span class="fc" id="L50">        return new CaptureProvider.Failure(code, retryable, messageCode);</span>
+    }
+
+    private static String normalizeMessageCode(String value) {
+<span class="pc bpc" id="L54" title="2 of 4 branches missed.">        if (value == null || value.isBlank()) {</span>
+<span class="nc" id="L55">            throw new IllegalArgumentException(&quot;messageCode must not be blank&quot;);</span>
+        }
+<span class="fc" id="L57">        String normalized = value.trim().toUpperCase(Locale.ROOT);</span>
+<span class="pc bpc" id="L58" title="1 of 4 branches missed.">        if (normalized.length() &gt; 96 || !MESSAGE_CODE.matcher(normalized).matches()) {</span>
+<span class="fc" id="L59">            throw new IllegalArgumentException(&quot;messageCode is invalid&quot;);</span>
+        }
+<span class="fc" id="L61">        return normalized;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
