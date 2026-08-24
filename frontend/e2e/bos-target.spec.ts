@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test, type Download, type Locator, type Page } from '@playwright/test';
 
 function jobInput(page: Page): Locator {
@@ -43,6 +44,8 @@ test('BOS target generates reproducible evidence, downloads and job round trip',
   await expect(page.getByRole('img', {
     name: 'Background-Oriented Schlieren dot target',
   })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'Show target full screen' }))
+    .toBeEnabled();
   const manifest = page.getByRole('heading', { name: 'Reproducible target manifest' })
     .locator('..');
   await expect(manifest).toContainText(/bos-[0-9a-f]{12}/);
@@ -70,6 +73,16 @@ test('BOS target generates reproducible evidence, downloads and job round trip',
   );
   const savedPath = await saved.path();
   expect(savedPath).not.toBeNull();
+  const savedJob = JSON.parse(await readFile(savedPath!, 'utf8')) as {
+    plugin: { id: string; parameterSchemaVersion: number; algorithmVersion: string };
+    parameters: { patternSeed: number };
+  };
+  expect(savedJob.plugin).toEqual({
+    id: 'background-oriented-schlieren',
+    parameterSchemaVersion: 1,
+    algorithmVersion: 'background-oriented-schlieren-target/1',
+  });
+  expect(savedJob.parameters.patternSeed).toBe(123456);
 
   await form.getByLabel('Pattern seed').fill('654321');
   await jobInput(page).setInputFiles(savedPath!);
