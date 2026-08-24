@@ -98,14 +98,44 @@ export function createFresnelJob<T>(
   };
 }
 
+/** Current call shape: algorithm metadata comes from the trusted registry. */
 export async function saveFresnelJob<T>(
   pluginId: FresnelPluginId,
   parameters: T,
   parameterSchemaVersion: number,
   algorithmVersion: string,
-  filename = `fresnel-${pluginId}${FRESNEL_JOB_EXTENSION}`,
+  filename?: string,
   sourceJob?: FresnelJobDocument<unknown> | null,
+): Promise<void>;
+
+/** Compatibility call used by grounded copilot proposals that already contain a canonical job. */
+export async function saveFresnelJob<T>(
+  pluginId: FresnelPluginId,
+  parameters: T,
+  parameterSchemaVersion: number,
+  filename: string,
+  sourceJob: FresnelJobDocument<unknown>,
+): Promise<void>;
+
+export async function saveFresnelJob<T>(
+  pluginId: FresnelPluginId,
+  parameters: T,
+  parameterSchemaVersion: number,
+  algorithmVersionOrFilename: string,
+  filenameOrSourceJob?: string | FresnelJobDocument<unknown> | null,
+  sourceJobMaybe?: FresnelJobDocument<unknown> | null,
 ): Promise<void> {
+  const sourceOnlyCall = isFresnelJobDocument(filenameOrSourceJob);
+  const sourceJob = sourceOnlyCall ? filenameOrSourceJob : sourceJobMaybe;
+  const algorithmVersion = sourceOnlyCall
+    ? sourceJob.plugin.algorithmVersion
+    : algorithmVersionOrFilename;
+  const filename = sourceOnlyCall
+    ? algorithmVersionOrFilename
+    : typeof filenameOrSourceJob === 'string'
+      ? filenameOrSourceJob
+      : `fresnel-${pluginId}${FRESNEL_JOB_EXTENSION}`;
+
   const response = await fetch(`${BASE}/api/designs/job/save`, {
     method: 'POST',
     headers: {
@@ -164,6 +194,13 @@ function isLegacyDesignDocument(value: unknown): boolean {
     && typeof value.version === 'number'
     && 'payload' in value
     && !('format' in value);
+}
+
+function isFresnelJobDocument(value: unknown): value is FresnelJobDocument<unknown> {
+  return isRecord(value)
+    && isRecord(value.plugin)
+    && typeof value.plugin.id === 'string'
+    && typeof value.plugin.algorithmVersion === 'string';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
