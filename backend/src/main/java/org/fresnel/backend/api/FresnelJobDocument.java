@@ -2,6 +2,8 @@ package org.fresnel.backend.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.fresnel.optics.PluginDescriptor;
+import org.fresnel.optics.PluginRegistry;
 import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
@@ -35,7 +37,7 @@ public record FresnelJobDocument(
             "https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json";
     public static final int MAX_FILE_BYTES = 1024 * 1024;
 
-    /** Stable reference to the design plugin and its public compatibility versions. */
+    /** Stable reference to the plugin and its public compatibility versions. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PluginRef(
             String id,
@@ -56,10 +58,17 @@ public record FresnelJobDocument(
             }
             id = id.trim();
             algorithmVersion = algorithmVersion.trim();
+            PluginDescriptor descriptor = PluginRegistry.requireById(id);
+            if (!descriptor.algorithmVersion().equals(algorithmVersion)) {
+                throw new IllegalArgumentException(
+                        "Unsupported algorithmVersion for plugin " + id + ": "
+                                + algorithmVersion + " (supported: "
+                                + descriptor.algorithmVersion() + ")");
+            }
         }
     }
 
-    /** Optional non-empty list of outputs requested from the design. */
+    /** Optional non-empty list of outputs requested from the plugin. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ProductionPlan(List<ProductionOutput> outputs) {
         public ProductionPlan {
@@ -85,7 +94,7 @@ public record FresnelJobDocument(
             JsonNode options
     ) {}
 
-    /** Non-sensitive metadata needed to diagnose and reproduce a design. */
+    /** Non-sensitive metadata needed to diagnose and reproduce a plugin execution. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Provenance(
             String createdWith,
