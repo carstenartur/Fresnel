@@ -51,32 +51,62 @@ export interface BosTargetManifest {
   fiducials: BosTargetFiducial[];
 }
 
+export interface BosTargetPreview {
+  blob: Blob;
+  targetId: string;
+  semanticSha256: string;
+  activeRegionHeader: string;
+}
+
 export async function fetchBosTargetManifest(
   request: BosTargetRequest,
 ): Promise<BosTargetManifest> {
-  return postJson('/api/measurements/background-oriented-schlieren/target/manifest', request);
+  const response = await postResponse(
+    '/api/measurements/background-oriented-schlieren/target/manifest',
+    request,
+    'application/json',
+  );
+  return response.json() as Promise<BosTargetManifest>;
 }
 
 export async function fetchBosTargetPreviewPng(
   request: BosTargetRequest,
-): Promise<Blob> {
-  return postBlob(
+): Promise<BosTargetPreview> {
+  const response = await postResponse(
     '/api/measurements/background-oriented-schlieren/target/preview.png',
     request,
     'image/png',
   );
+  const targetId = requiredHeader(response, 'X-Fresnel-Target-Id');
+  const semanticSha256 = requiredHeader(response, 'X-Fresnel-Target-SHA256');
+  const activeRegionHeader = requiredHeader(response, 'X-Fresnel-Active-Region');
+  if (!/^bos-[0-9a-f]{12}$/.test(targetId)) {
+    throw new Error('BOS preview returned an invalid target identity.');
+  }
+  if (!/^[0-9a-f]{64}$/.test(semanticSha256)) {
+    throw new Error('BOS preview returned an invalid semantic SHA-256.');
+  }
+  if (!/^\d+,\d+,\d+,\d+$/.test(activeRegionHeader)) {
+    throw new Error('BOS preview returned an invalid active-region header.');
+  }
+  return {
+    blob: await response.blob(),
+    targetId,
+    semanticSha256,
+    activeRegionHeader,
+  };
 }
 
 export async function downloadBosTargetPng(
   request: BosTargetRequest,
   filename: string,
 ): Promise<void> {
-  const blob = await postBlob(
+  const response = await postResponse(
     '/api/measurements/background-oriented-schlieren/target/export.png',
     request,
     'image/png',
   );
-  downloadBlob(blob, filename);
+  downloadBlob(await response.blob(), filename);
 }
 
 export function downloadBosTargetManifest(
@@ -87,28 +117,11 @@ export function downloadBosTargetManifest(
   downloadBlob(new Blob([json], { type: 'application/json' }), filename);
 }
 
-async function postJson<T>(path: string, request: BosTargetRequest): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  });
-  if (!response.ok) throw new Error(await responseError(response));
-  const contentType = response.headers.get('content-type') ?? '';
-  if (!contentType.toLowerCase().startsWith('application/json')) {
-    throw new Error(`Expected JSON from ${path}, received ${contentType || 'no content type'}.`);
-  }
-  return response.json() as Promise<T>;
-}
-
-async function postBlob(
+async function postResponse(
   path: string,
   request: BosTargetRequest,
   expectedMediaType: string,
-): Promise<Blob> {
+): Promise<Response> {
   const response = await fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: {
@@ -124,7 +137,13 @@ async function postBlob(
       `Expected ${expectedMediaType} from ${path}, received ${contentType || 'no content type'}.`,
     );
   }
-  return response.blob();
+  return response;
+}
+
+function requiredHeader(response: Response, name: string): string {
+  const value = response.headers.get(name);
+  if (!value) throw new Error(`BOS target response is missing ${name}.`);
+  return value;
 }
 
 async function responseError(response: Response): Promise<string> {
