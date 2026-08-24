@@ -1,5 +1,8 @@
 package org.fresnel.backend.api;
 
+import org.fresnel.backend.measurement.BosTargetPngEncoder;
+import org.fresnel.measurement.BosTarget;
+import org.fresnel.measurement.BosTargetGenerator;
 import org.fresnel.optics.DxfExporter;
 import org.fresnel.optics.GerberExporter;
 import org.fresnel.optics.HexMacroCellRenderer;
@@ -107,6 +110,7 @@ public class FresnelJobExecutor {
             case "multi-focus" -> renderMultiFocus(job, output);
             case "rgb-zone-plate" -> renderRgb(job, output);
             case "hologram" -> renderHologram(job, output);
+            case "background-oriented-schlieren" -> renderBosTarget(job, output);
             default -> throw new IllegalArgumentException(
                     "No production executor for plugin " + job.plugin().id());
         };
@@ -264,6 +268,19 @@ public class FresnelJobExecutor {
                 base, request.redNm(), request.greenNm(), request.blueNm());
         return new RenderedOutput(
                 PngExporter.toPngBytes(rendered, base.dpi()), PNG, base.dpi());
+    }
+
+    private RenderedOutput renderBosTarget(
+            FresnelJobDocument job,
+            FresnelJobDocument.ProductionOutput output) {
+        requireNoOptions(output);
+        if (!"png".equals(output.format())) throw unsupported(job.plugin().id(), output.format());
+        BosTargetRequest request = mapper.convertValue(job.parameters(), BosTargetRequest.class);
+        BosTarget target = BosTargetGenerator.generate(request.toParameters());
+        return new RenderedOutput(
+                BosTargetPngEncoder.encode(target),
+                PNG,
+                target.parameters().intendedDpi());
     }
 
     private RenderedOutput renderHologram(
