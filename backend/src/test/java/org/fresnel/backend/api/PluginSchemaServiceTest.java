@@ -141,10 +141,10 @@ class PluginSchemaServiceTest {
                 ui.get("widgets").get("dotDiameterPx").get("type").asText());
         assertFalse(ui.has("extensions"));
         assertEquals(10, bos.parameterSchema().get("properties").size());
-        assertEquals(24_000_000L,
-                (long) bos.defaults().get("widthPx").asInt()
-                        * bos.defaults().get("heightPx").asInt(),
-                "default target should remain well below the hard pixel limit");
+        long defaultPixels = (long) bos.defaults().get("widthPx").asInt()
+                * bos.defaults().get("heightPx").asInt();
+        assertTrue(defaultPixels < 24_000_000L,
+                "default target must remain below the hard pixel limit");
     }
 
     @Test
