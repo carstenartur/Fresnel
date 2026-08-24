@@ -125,16 +125,22 @@ export async function saveFresnelJob<T>(
   filenameOrSourceJob?: string | FresnelJobDocument<unknown> | null,
   sourceJobMaybe?: FresnelJobDocument<unknown> | null,
 ): Promise<void> {
-  const sourceOnlyCall = isFresnelJobDocument(filenameOrSourceJob);
-  const sourceJob = sourceOnlyCall ? filenameOrSourceJob : sourceJobMaybe;
-  const algorithmVersion = sourceOnlyCall
-    ? sourceJob.plugin.algorithmVersion
-    : algorithmVersionOrFilename;
-  const filename = sourceOnlyCall
-    ? algorithmVersionOrFilename
-    : typeof filenameOrSourceJob === 'string'
+  let algorithmVersion: string;
+  let filename: string;
+  let sourceJob: FresnelJobDocument<unknown> | null | undefined;
+
+  if (isFresnelJobDocument(filenameOrSourceJob)) {
+    const canonicalSourceJob = filenameOrSourceJob;
+    sourceJob = canonicalSourceJob;
+    algorithmVersion = canonicalSourceJob.plugin.algorithmVersion;
+    filename = algorithmVersionOrFilename;
+  } else {
+    sourceJob = sourceJobMaybe;
+    algorithmVersion = algorithmVersionOrFilename;
+    filename = typeof filenameOrSourceJob === 'string'
       ? filenameOrSourceJob
       : `fresnel-${pluginId}${FRESNEL_JOB_EXTENSION}`;
+  }
 
   const response = await fetch(`${BASE}/api/designs/job/save`, {
     method: 'POST',
