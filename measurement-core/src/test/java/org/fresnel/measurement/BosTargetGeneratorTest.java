@@ -89,7 +89,7 @@ class BosTargetGeneratorTest {
             for (int x = 0; x < parameters.widthPx(); x++) {
                 if (!active.contains(x, y)) {
                     assertEquals(255, target.pixelUnsigned(x, y),
-                            () -> "unexpected foreground in quiet border at " + x + "," + y);
+                            "unexpected foreground in quiet border at " + x + "," + y);
                 }
             }
         }
