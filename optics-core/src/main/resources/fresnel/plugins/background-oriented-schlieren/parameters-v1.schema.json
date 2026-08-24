@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Fresnel/schemas/plugins/background-oriented-schlieren/parameters-v1.schema.json",
+  "title": "Background-Oriented Schlieren target parameters",
+  "description": "Seeded deterministic random-dot target for BOS reference and disturbed captures.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "widthPx",
+    "heightPx",
+    "intendedDpi",
+    "patternSeed",
+    "dotDiameterPx",
+    "targetFillRatio",
+    "minimumDotSpacingPx",
+    "borderPx",
+    "fiducialsEnabled",
+    "invertPattern"
+  ],
+  "properties": {
+    "widthPx": {
+      "type": "integer",
+      "minimum": 256,
+      "maximum": 4096,
+      "title": "Width (pixels)",
+      "x-fresnel-unit": "px",
+      "x-fresnel-step": 1
+    },
+    "heightPx": {
+      "type": "integer",
+      "minimum": 256,
+      "maximum": 4096,
+      "title": "Height (pixels)",
+      "x-fresnel-unit": "px",
+      "x-fresnel-step": 1
+    },
+    "intendedDpi": {
+      "type": "number",
+      "minimum": 50,
+      "maximum": 2400,
+      "title": "Intended output resolution",
+      "x-fresnel-unit": "dpi",
+      "x-fresnel-step": 1
+    },
+    "patternSeed": {
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647,
+      "title": "Pattern seed",
+      "x-fresnel-step": 1
+    },
+    "dotDiameterPx": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 64,
+      "title": "Dot diameter",
+      "x-fresnel-unit": "px",
+      "x-fresnel-step": 1
+    },
+    "targetFillRatio": {
+      "type": "number",
+      "minimum": 0.01,
+      "maximum": 0.35,
+      "title": "Target fill ratio",
+      "x-fresnel-step": 0.01,
+      "x-fresnel-precision": 3
+    },
+    "minimumDotSpacingPx": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 64,
+      "title": "Minimum dot spacing",
+      "x-fresnel-unit": "px",
+      "x-fresnel-step": 1
+    },
+    "borderPx": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1365,
+      "title": "Registration border",
+      "x-fresnel-unit": "px",
+      "x-fresnel-step": 1
+    },
+    "fiducialsEnabled": {
+      "type": "boolean",
+      "title": "Corner fiducials"
+    },
+    "invertPattern": {
+      "type": "boolean",
+      "title": "Invert foreground and background"
+    }
+  },
+  "default": {
+    "widthPx": 1920,
+    "heightPx": 1080,
+    "intendedDpi": 300,
+    "patternSeed": 20260824,
+    "dotDiameterPx": 7,
+    "targetFillRatio": 0.12,
+    "minimumDotSpacingPx": 3,
+    "borderPx": 64,
+    "fiducialsEnabled": true,
+    "invertPattern": false
+  }
+}
