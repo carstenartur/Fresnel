@@ -181,7 +181,7 @@ public final class PluginRegistry {
             "BosTargetGenerator",
             "BosTargetParameters",
             "docs/plugins/background-oriented-schlieren.md",
-            "background-oriented-schlieren-target/1",
+            "background-oriented-schlieren/1",
             PluginStabilityLevel.EXPERIMENTAL,
             Set.of(
                     PluginCapability.GENERATE_CAPTURE_TARGET,
