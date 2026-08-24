@@ -64,6 +64,7 @@ public class BosTargetController {
         headers.set(TARGET_ID_HEADER, target.targetId());
         headers.set(ACTIVE_REGION_HEADER,
                 active.x() + "," + active.y() + "," + active.width() + "," + active.height());
+        headers.add("X-Content-Type-Options", "nosniff");
         ContentDisposition disposition = attachment
                 ? ContentDisposition.attachment().filename(target.targetId() + ".png").build()
                 : ContentDisposition.inline().filename(target.targetId() + ".png").build();
