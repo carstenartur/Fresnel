@@ -63,10 +63,14 @@ export function createFresnelJob<T>(
   pluginId: FresnelPluginId,
   parameters: T,
   parameterSchemaVersion: number,
+  algorithmVersion: string,
   sourceJob?: FresnelJobDocument<unknown> | null,
 ): FresnelJobDocument<T> {
   if (!Number.isInteger(parameterSchemaVersion) || parameterSchemaVersion < 1) {
     throw new Error('Plugin parameter schema version must be a positive integer.');
+  }
+  if (!algorithmVersion?.trim()) {
+    throw new Error('Plugin algorithm version must be a non-empty string.');
   }
 
   const reusableSource = sourceJob?.plugin.id === pluginId ? sourceJob : null;
@@ -80,7 +84,8 @@ export function createFresnelJob<T>(
       id: pluginId,
       parameterSchemaVersion:
         reusableSource?.plugin.parameterSchemaVersion ?? parameterSchemaVersion,
-      algorithmVersion: reusableSource?.plugin.algorithmVersion ?? `${pluginId}/1`,
+      algorithmVersion:
+        reusableSource?.plugin.algorithmVersion ?? algorithmVersion.trim(),
     },
     parameters,
     production: reusableSource?.production,
@@ -97,6 +102,7 @@ export async function saveFresnelJob<T>(
   pluginId: FresnelPluginId,
   parameters: T,
   parameterSchemaVersion: number,
+  algorithmVersion: string,
   filename = `fresnel-${pluginId}${FRESNEL_JOB_EXTENSION}`,
   sourceJob?: FresnelJobDocument<unknown> | null,
 ): Promise<void> {
@@ -110,6 +116,7 @@ export async function saveFresnelJob<T>(
       pluginId,
       parameters,
       parameterSchemaVersion,
+      algorithmVersion,
       sourceJob,
     )),
   });
