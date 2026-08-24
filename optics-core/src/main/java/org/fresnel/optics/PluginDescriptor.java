@@ -6,9 +6,9 @@ import java.util.Set;
  * Machine-readable metadata record for one Fresnel plugin.
  *
  * <p>A descriptor is the single source of truth for renderer metadata,
- * documentation, supported capabilities and versioned editor schemas. Stable
- * plugin IDs are also the public route and job-file contract; frontend-only mode
- * aliases are deliberately not part of this model.</p>
+ * documentation, algorithm compatibility, supported capabilities and versioned
+ * editor schemas. Stable plugin IDs are also the public route and job-file
+ * contract; frontend-only mode aliases are deliberately not part of this model.</p>
  *
  * <p>Instances are immutable; use {@link PluginRegistry} to obtain them.</p>
  *
@@ -20,6 +20,7 @@ import java.util.Set;
  * @param rendererClass    simple class name of the trusted renderer/workflow implementation
  * @param parameterType    simple class name of the parameter record
  * @param documentationUrl relative path to the plugin's Markdown documentation
+ * @param algorithmVersion current stable algorithm compatibility identifier written to jobs
  * @param stability        maturity classification of this plugin
  * @param capabilities     immutable advertised capability set
  * @param propagationModes supported propagation modes, empty when unavailable
@@ -33,6 +34,7 @@ public record PluginDescriptor(
         String rendererClass,
         String parameterType,
         String documentationUrl,
+        String algorithmVersion,
         PluginStabilityLevel stability,
         Set<PluginCapability> capabilities,
         Set<PropagationMode> propagationModes,
@@ -53,8 +55,12 @@ public record PluginDescriptor(
             throw new IllegalArgumentException("parameterType must not be blank");
         if (documentationUrl == null || documentationUrl.isBlank())
             throw new IllegalArgumentException("documentationUrl must not be blank");
+        if (algorithmVersion == null || algorithmVersion.isBlank())
+            throw new IllegalArgumentException("algorithmVersion must not be blank");
         if (stability == null) throw new IllegalArgumentException("stability must not be null");
         if (schema == null) throw new IllegalArgumentException("schema must not be null");
+        id = id.trim();
+        algorithmVersion = algorithmVersion.trim();
         capabilities = capabilities == null ? Set.of() : Set.copyOf(capabilities);
         propagationModes = propagationModes == null ? Set.of() : Set.copyOf(propagationModes);
     }
