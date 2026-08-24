@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   downloadBosTargetManifest,
   downloadBosTargetPng,
@@ -15,6 +15,7 @@ import {
 import { PluginActionBar } from '../schema/PluginActionBar';
 import { PluginEditorShell } from '../schema/PluginEditorShell';
 import { PreviewPane, useBlobUrl } from './shared';
+import './BosTargetPanel.css';
 
 const DEFAULT: BosTargetRequest = {
   widthPx: 1600,
@@ -42,6 +43,7 @@ export function BosTargetPanel({ initialJob }: JobPanelProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreview] = useBlobUrl();
+  const targetStageRef = useRef<HTMLDivElement>(null);
   const requestFingerprint = JSON.stringify(request);
   const currentManifest = generated?.fingerprint === requestFingerprint
     ? generated.manifest
@@ -67,9 +69,31 @@ export function BosTargetPanel({ initialJob }: JobPanelProps) {
         fetchBosTargetPreviewPng(parameters),
         fetchBosTargetManifest(parameters),
       ]);
-      setPreview(preview);
+      const expectedActiveRegion = [
+        manifest.activeRegion.x,
+        manifest.activeRegion.y,
+        manifest.activeRegion.width,
+        manifest.activeRegion.height,
+      ].join(',');
+      if (preview.targetId !== manifest.targetId
+          || preview.semanticSha256 !== manifest.semanticSha256
+          || preview.activeRegionHeader !== expectedActiveRegion) {
+        throw new Error('Target manifest and PNG identity do not match.');
+      }
+      setPreview(preview.blob);
       setPreviewFingerprint(fingerprint);
       setGenerated({ fingerprint, manifest });
+    });
+  };
+
+  const showFullScreen = () => {
+    const stage = targetStageRef.current;
+    if (!stage || !currentPreviewUrl) return;
+    setError(null);
+    void stage.requestFullscreen().catch((fullScreenError: unknown) => {
+      setError(fullScreenError instanceof Error
+        ? fullScreenError.message
+        : String(fullScreenError));
     });
   };
 
@@ -126,8 +150,17 @@ export function BosTargetPanel({ initialJob }: JobPanelProps) {
               />
 
               {currentManifest && (
-                <div className="actions" style={{ marginTop: 8 }}>
+                <div className="actions bos-target-secondary-actions">
                   <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={showFullScreen}
+                  >
+                    Show target full screen
+                  </button>
+                  <button
+                    type="button"
                     className="secondary"
                     disabled={busy}
                     onClick={() => downloadBosTargetManifest(
@@ -144,15 +177,26 @@ export function BosTargetPanel({ initialJob }: JobPanelProps) {
                 pluginId="background-oriented-schlieren"
                 parameters={normalized ?? null}
                 disabled={busy || !structurallyValid}
+                filename="background-oriented-schlieren.fresnel"
               />
 
               {currentManifest && <TargetManifestView manifest={currentManifest} />}
               {error && <p className="error-message" role="alert">{error}</p>}
-              <PreviewPane url={currentPreviewUrl} alt="Background-Oriented Schlieren dot target">
-                <span style={{ color: '#9ca3af' }}>
-                  Generate a preview to inspect the exact deterministic target.
-                </span>
-              </PreviewPane>
+              <div
+                ref={targetStageRef}
+                className="bos-target-stage"
+                data-target-id={currentManifest?.targetId ?? ''}
+                data-target-sha256={currentManifest?.semanticSha256 ?? ''}
+              >
+                <PreviewPane
+                  url={currentPreviewUrl}
+                  alt="Background-Oriented Schlieren dot target"
+                >
+                  <span style={{ color: '#9ca3af' }}>
+                    Generate a preview to inspect the exact deterministic target.
+                  </span>
+                </PreviewPane>
+              </div>
             </>
           );
         }}
