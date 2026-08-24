@@ -3,18 +3,20 @@
 **Plugin ID:** `background-oriented-schlieren`  
 **Kind:** `MEASUREMENT`  
 **Stability:** `EXPERIMENTAL`  
-**Current algorithm:** `background-oriented-schlieren-target/1`
+**Plugin algorithm:** `background-oriented-schlieren/1`  
+**Target generator algorithm:** `background-oriented-schlieren-target/1`
 
 Background-Oriented Schlieren (BOS) makes small apparent movements of a
 high-contrast background visible. In a typical household experiment, a camera
 first records a random-dot target without the disturbance and then records the
 same target with warm or moving air between camera and target.
 
-The current implementation is the first complete target-generation slice. It
-creates, previews, downloads and describes a deterministic target. Capture
-import, image registration and displacement analysis remain separate later
-slices; Fresnel does not yet claim to produce a Schlieren result from camera
-images in this plugin.
+The current implementation is the first bounded target-generation slice. It
+creates, previews, downloads and describes a deterministic PNG target. Capture
+import, image registration, displacement analysis, exact-size SVG/PDF print
+outputs and the target-quality assistant remain separate later slices; Fresnel
+does not yet claim to produce a Schlieren result from camera images in this
+plugin.
 
 ## What is available now
 
@@ -53,9 +55,14 @@ reproduces the same pixels, semantic hash and target ID.
 ## Screen target
 
 Use a lossless viewer or Fresnel's generated PNG. Disable interpolation where
-the viewer permits it. Browser zoom, operating-system scaling and device pixel
-ratio can prevent one CSS pixel from corresponding to one physical display
-pixel, so record the actual presentation setup in the experiment notes.
+the viewer permits it. The **Show target full screen** action retains the
+image's natural raster size and provides scrolling rather than silently fitting
+large targets to the viewport; the browser's normal Escape key exits
+presentation mode.
+
+Browser zoom, operating-system scaling and device pixel ratio can still prevent
+one CSS pixel from corresponding to one physical display pixel, so record the
+actual presentation setup in the experiment notes.
 
 The target must remain stationary and unchanged between the reference and
 measurement captures. Do not place browser controls, labels or a pointer over
@@ -73,8 +80,8 @@ disable:
 
 The manifest reports the intended width and height in millimetres. Measure the
 printed target before treating its geometry as known. A later slice will add
-vector/PDF print targets and an explicit scale strip; this first slice exports a
-lossless physically tagged PNG only.
+vector/PDF print targets, a human-readable target ID and explicit scale marks;
+this first slice exports a lossless physically tagged PNG only.
 
 ## Parameters and hard limits
 
@@ -98,9 +105,14 @@ selected dot diameter and spacing.
 
 ## Manifest and reproducibility
 
+A `.fresnel` job records the plugin compatibility version
+`background-oriented-schlieren/1`. The generated target manifest separately
+records `background-oriented-schlieren-target/1`, allowing the target algorithm
+to evolve independently from later capture and analysis stages.
+
 The manifest records:
 
-- algorithm version and stable target ID;
+- target-generator algorithm version and stable target ID;
 - semantic SHA-256 over parameters, geometry and exact grayscale pixels;
 - source dimensions, intended DPI and physical size;
 - seed, requested and actual fill ratio, dot count and cell pitch;
@@ -109,8 +121,9 @@ The manifest records:
 - inversion and border settings.
 
 The PNG response repeats the target ID and hash in headers and uses the semantic
-hash as its ETag. The hash describes the target semantics and pixels, not a
-particular HTTP transfer.
+hash as its ETag. The browser compares those headers with the independently
+loaded manifest before displaying the preview. The hash describes the target
+semantics and pixels, not a particular HTTP transfer.
 
 ## HTTP API
 
@@ -189,18 +202,20 @@ mvn -B -ntp -Dfresnel.e2e.skip=false verify
 Tests cover deterministic pixels and hashes, seed changes, spacing and fill
 bounds, quiet borders, asymmetric fiducials, inversion, immutable manifests,
 PNG decoding, physical-resolution metadata, public preview access,
-authenticated export and cross-field resource rejection.
+authenticated export, registry/job algorithm-version separation and cross-field
+resource rejection.
 
 ## Next slices
 
 The next implementation work for issue #140 is deliberately separate from the
-target generator:
+PNG target generator:
 
-1. evaluate a reference image for dot resolution, contrast, clipping and active
+1. add exact-size SVG/PDF targets, a human-readable ID and physical scale marks;
+2. evaluate a reference image for dot resolution, contrast, clipping and active
    region coverage;
-2. add bounded ordered manual upload of reference and disturbed still images;
-3. implement global registration and deterministic local displacement
+3. add bounded ordered manual upload of reference and disturbed still images;
+4. implement global registration and deterministic local displacement
    estimation with numeric synthetic tests;
-4. add the durable measurement-session shell from issue #139;
-5. advertise `IMPORT_CAPTURE_SET`, `ANALYZE_CAPTURE_SET` and `REMOTE_CAPTURE`
+5. add the durable measurement-session shell from issue #139;
+6. advertise `IMPORT_CAPTURE_SET`, `ANALYZE_CAPTURE_SET` and `REMOTE_CAPTURE`
    only when those paths are actually implemented and tested.
