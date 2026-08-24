@@ -61,6 +61,7 @@ public class PluginController {
             String displayName,
             String description,
             String documentationUrl,
+            String algorithmVersion,
             PluginStabilityLevel stability,
             List<PluginCapability> capabilities,
             List<PropagationMode> propagationModes,
@@ -79,6 +80,7 @@ public class PluginController {
                     descriptor.displayName(),
                     descriptor.description(),
                     descriptor.documentationUrl(),
+                    descriptor.algorithmVersion(),
                     descriptor.stability(),
                     descriptor.capabilities().stream()
                             .sorted(Comparator.comparing(Enum::name))
