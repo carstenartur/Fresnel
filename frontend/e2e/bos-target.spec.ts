@@ -80,7 +80,7 @@ test('BOS target generates reproducible evidence, downloads and job round trip',
   expect(savedJob.plugin).toEqual({
     id: 'background-oriented-schlieren',
     parameterSchemaVersion: 1,
-    algorithmVersion: 'background-oriented-schlieren-target/1',
+    algorithmVersion: 'background-oriented-schlieren/1',
   });
   expect(savedJob.parameters.patternSeed).toBe(123456);
 
