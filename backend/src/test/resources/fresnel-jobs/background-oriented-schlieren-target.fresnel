@@ -1,0 +1,22 @@
+{
+  "$schema": "https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json",
+  "format": "io.github.carstenartur.fresnel.job",
+  "formatVersion": 1,
+  "plugin": {
+    "id": "background-oriented-schlieren",
+    "parameterSchemaVersion": 1,
+    "algorithmVersion": "background-oriented-schlieren/1"
+  },
+  "parameters": {
+    "widthPx": 640,
+    "heightPx": 480,
+    "intendedDpi": 300,
+    "patternSeed": 424242,
+    "dotDiameterPx": 7,
+    "targetFillRatio": 0.05,
+    "minimumDotSpacingPx": 3,
+    "borderPx": 48,
+    "fiducialsEnabled": true,
+    "invertPattern": false
+  }
+}
