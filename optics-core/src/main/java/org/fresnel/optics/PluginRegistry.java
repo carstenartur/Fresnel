@@ -72,6 +72,25 @@ public final class PluginRegistry {
             schema("variable-line-grating", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
     );
 
+    /** Seeded random-dot target for background-oriented schlieren experiments. */
+    public static final PluginDescriptor BACKGROUND_ORIENTED_SCHLIEREN = new PluginDescriptor(
+            "background-oriented-schlieren",
+            PluginKind.MEASUREMENT,
+            "Background-Oriented Schlieren",
+            "Seeded reproducible random-dot capture target for BOS experiments",
+            "BackgroundOrientedSchlierenRenderer",
+            "BackgroundOrientedSchlierenParameters",
+            "docs/plugins/background-oriented-schlieren.md",
+            PluginStabilityLevel.EXPERIMENTAL,
+            Set.of(
+                    PluginCapability.GENERATE_CAPTURE_TARGET,
+                    PluginCapability.EXPORT_PNG,
+                    PluginCapability.PREVIEW_PNG
+            ),
+            Set.of(),
+            schema("background-oriented-schlieren", PluginEditorMode.SCHEMA)
+    );
+
     /** Zone plate rendered at three wavelengths and composited into one RGB image. */
     public static final PluginDescriptor RGB_ZONE_PLATE = new PluginDescriptor(
             "rgb-zone-plate",
@@ -172,6 +191,7 @@ public final class PluginRegistry {
     public static final List<PluginDescriptor> ALL = List.of(
             ZONE_PLATE,
             VARIABLE_LINE_GRATING,
+            BACKGROUND_ORIENTED_SCHLIEREN,
             HEX_MACRO_CELL,
             WINDOW_FOIL,
             MULTI_FOCUS,
