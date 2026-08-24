@@ -11,6 +11,7 @@ export const FRESNEL_JOB_MAX_BYTES = 1024 * 1024;
 export type FresnelPluginId =
   | 'zone-plate'
   | 'variable-line-grating'
+  | 'background-oriented-schlieren'
   | 'hex-macro-cell'
   | 'window-foil'
   | 'multi-focus'
