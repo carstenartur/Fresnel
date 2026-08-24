@@ -119,7 +119,7 @@ class FresnelJobExecutorTest {
                 new FresnelJobDocument.PluginRef(
                         "background-oriented-schlieren",
                         1,
-                        "background-oriented-schlieren-target/1"),
+                        "background-oriented-schlieren/1"),
                 mapper.valueToTree(request),
                 new FresnelJobDocument.ProductionPlan(List.of(
                         output("png", "bos-target.png", null, null))),
@@ -135,6 +135,8 @@ class FresnelJobExecutorTest {
                 (artifact, content) -> secondBytes.put(artifact.filename(), content.clone()));
 
         assertEquals("background-oriented-schlieren", first.job().plugin().id());
+        assertEquals("background-oriented-schlieren/1",
+                first.job().plugin().algorithmVersion());
         assertEquals(1, first.artifacts().size());
         GeneratedArtifact artifact = first.artifacts().getFirst();
         assertEquals("bos-target.png", artifact.filename());
