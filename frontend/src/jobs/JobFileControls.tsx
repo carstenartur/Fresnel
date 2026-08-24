@@ -123,7 +123,7 @@ export function SaveJobControl<T>({
 
   return (
     <div style={{ marginTop: 16 }}>
-      <h2>Design job</h2>
+      <h2>Fresnel job</h2>
       <div className="actions">
         <button
           className="secondary"
