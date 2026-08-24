@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PluginAlgorithmVersionContractTest {
@@ -21,9 +22,12 @@ class PluginAlgorithmVersionContractTest {
     }
 
     @Test
-    void bosRegistryMetadataMatchesTheDeterministicGeneratorVersion() {
+    void bosPluginAndTargetGeneratorVersionsRemainExplicitlySeparated() {
         PluginDescriptor bos = PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN;
-        assertEquals(BosTargetParameters.ALGORITHM_VERSION, bos.algorithmVersion());
+        assertEquals("background-oriented-schlieren/1", bos.algorithmVersion());
+        assertEquals("background-oriented-schlieren-target/1",
+                BosTargetParameters.ALGORITHM_VERSION);
+        assertNotEquals(BosTargetParameters.ALGORITHM_VERSION, bos.algorithmVersion());
         assertEquals(
                 bos.algorithmVersion(),
                 PluginController.PluginMetadata.from(bos).algorithmVersion());
