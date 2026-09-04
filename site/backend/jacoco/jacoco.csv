@@ -18,7 +18,7 @@ Fresnel Backend,org.fresnel.backend.persistence,DesignEntity,37,57,2,2,10,19,12,
 Fresnel Backend,org.fresnel.backend.persistence,RenderJobEntity,12,98,1,1,4,29,5,22,4,22
 Fresnel Backend,org.fresnel.backend.persistence,RenderJobEntity.State,0,27,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.desktop,FresnelDesktopLauncher.PrimaryNotReadyException,4,0,0,0,2,0,1,0,1,0
-Fresnel Backend,org.fresnel.backend.desktop,DesktopOpenQueue,53,269,25,43,5,59,24,21,0,11
+Fresnel Backend,org.fresnel.backend.desktop,DesktopOpenQueue,50,272,24,44,5,59,24,21,0,11
 Fresnel Backend,org.fresnel.backend.desktop,DesktopOpenQueue.PendingOpen,0,9,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.desktop,DesktopOpenResult,9,49,5,5,2,7,5,3,0,3
 Fresnel Backend,org.fresnel.backend.desktop,DesktopDataDirectory,16,111,6,16,3,19,7,7,1,2
@@ -26,8 +26,8 @@ Fresnel Backend,org.fresnel.backend.desktop,DesktopInstanceMetadata,41,116,9,9,8
 Fresnel Backend,org.fresnel.backend.desktop,DesktopBrowser,80,80,13,13,18,22,12,8,3,4
 Fresnel Backend,org.fresnel.backend.desktop,DesktopLaunchRequest,55,200,11,35,9,50,11,16,0,4
 Fresnel Backend,org.fresnel.backend.desktop,PrimaryInstanceCoordinator,24,227,7,11,8,60,7,13,0,11
-Fresnel Backend,org.fresnel.backend.desktop,FresnelDesktopLauncher,430,0,44,0,120,0,37,0,15,0
 Fresnel Backend,org.fresnel.backend.desktop,DesktopOpenClient,72,156,15,15,14,43,15,11,2,9
+Fresnel Backend,org.fresnel.backend.desktop,FresnelDesktopLauncher,430,0,44,0,120,0,37,0,15,0
 Fresnel Backend,org.fresnel.backend.desktop,DesktopDiagnostics,14,121,5,7,3,26,5,8,0,7
 Fresnel Backend,org.fresnel.backend.desktop,DesktopOpenController,19,150,6,14,4,37,6,13,0,9
 Fresnel Backend,org.fresnel.backend.config,WebConfig,0,52,1,5,0,10,1,4,0,2
@@ -68,11 +68,11 @@ Fresnel Backend,org.fresnel.backend.api,DesignComparisonResult.VariantResult,0,2
 Fresnel Backend,org.fresnel.backend.api,CaptureProviderStatusController.ProviderStatus,0,45,0,0,0,5,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,ValidationResponse,0,44,0,0,0,5,0,3,0,3
 Fresnel Backend,org.fresnel.backend.api,MeasuredFocus,0,18,0,0,0,1,0,1,0,1
-Fresnel Backend,org.fresnel.backend.api,DesignDocumentController,181,231,32,18,29,60,29,13,6,11
 Fresnel Backend,org.fresnel.backend.api,AssistantRecommendationResponse,0,12,0,0,0,1,0,1,0,1
-Fresnel Backend,org.fresnel.backend.api,ExperimentCopilotProviderStatus,0,15,0,0,0,1,0,1,0,1
+Fresnel Backend,org.fresnel.backend.api,DesignDocumentController,181,231,32,18,29,60,29,13,6,11
 Fresnel Backend,org.fresnel.backend.api,FresnelJobDocument.Provenance,0,12,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,HologramImageDecoder.InspectedImage,0,16,0,0,0,4,0,2,0,2
+Fresnel Backend,org.fresnel.backend.api,ExperimentCopilotProviderStatus,0,15,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,GlobalExceptionHandler,2,14,1,1,0,4,1,2,0,2
 Fresnel Backend,org.fresnel.backend.api,MultiFocusRequest,0,70,0,6,0,7,0,5,0,2
 Fresnel Backend,org.fresnel.backend.api,PluginParameterValidationController.ParameterFieldError,0,12,0,0,0,1,0,1,0,1
@@ -86,8 +86,8 @@ Fresnel Backend,org.fresnel.backend.api,ExperimentalComparison,0,24,0,0,0,1,0,1,
 Fresnel Backend,org.fresnel.backend.api,FresnelJobExecutionResult,7,16,2,2,0,4,2,1,0,1
 Fresnel Backend,org.fresnel.backend.api,PluginController.PluginMetadata,0,95,0,0,0,21,0,2,0,2
 Fresnel Backend,org.fresnel.backend.api,ExperimentCopilotRequest,2,23,2,2,0,2,2,2,0,2
-Fresnel Backend,org.fresnel.backend.api,DesignVariant,0,15,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,PrinterCalibrationResultController,7,91,5,7,2,25,5,4,0,3
+Fresnel Backend,org.fresnel.backend.api,DesignVariant,0,15,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,ExperimentSetup,2,38,1,1,0,3,1,1,0,1
 Fresnel Backend,org.fresnel.backend.api,HexMacroCellRequest,0,85,0,8,0,9,0,6,0,2
 Fresnel Backend,org.fresnel.backend.api,FresnelJobDocument.ProductionOutput,0,21,0,0,0,1,0,1,0,1
@@ -99,12 +99,12 @@ Fresnel Backend,org.fresnel.backend.api,SingleZonePlateRequest,0,73,0,8,0,10,0,6
 Fresnel Backend,org.fresnel.backend.api,ComparisonController,44,953,21,74,4,169,21,48,0,20
 Fresnel Backend,org.fresnel.backend.api,HologramImageDecoder,49,235,21,27,13,55,18,15,0,9
 Fresnel Backend,org.fresnel.backend.api,PluginSchemaDocument,2,29,1,1,0,3,1,1,0,1
-Fresnel Backend,org.fresnel.backend.api,RenderJobController,139,186,7,11,35,43,13,14,8,10
 Fresnel Backend,org.fresnel.backend.api,WindowFoilExportController,0,33,0,0,0,9,0,2,0,2
+Fresnel Backend,org.fresnel.backend.api,RenderJobController,139,186,7,11,35,43,13,14,8,10
 Fresnel Backend,org.fresnel.backend.api,FresnelJobService,215,1626,59,223,30,308,58,121,1,27
 Fresnel Backend,org.fresnel.backend.api,ComparisonController.RankedEntry,0,15,0,0,0,1,0,1,0,1
-Fresnel Backend,org.fresnel.backend.api,CaptureProviderStatusController.ProviderLimits,0,12,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,WindowFoilRequest,0,110,1,11,0,11,1,7,0,2
+Fresnel Backend,org.fresnel.backend.api,CaptureProviderStatusController.ProviderLimits,0,12,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,VariantScore,0,12,0,0,0,1,0,1,0,1
 Fresnel Backend,org.fresnel.backend.api,GeneratedArtifact,25,52,9,9,5,7,9,1,0,1
 Fresnel Backend,org.fresnel.backend.api,DirectoryFresnelJobOutputSink,29,81,3,5,3,17,4,3,1,2
@@ -122,8 +122,8 @@ Fresnel Backend,org.fresnel.backend.api,PluginSchemaService,434,1042,103,136,69,
 Fresnel Backend,org.fresnel.backend.api,DesignGoalRequest,0,42,0,0,0,3,0,2,0,2
 Fresnel Backend,org.fresnel.backend.api,CaptureProviderStatusController.DeviceStatus,0,48,0,0,0,14,0,2,0,2
 Fresnel Backend,org.fresnel.backend.api,MultiFocusRequest.FocusPointDto,0,25,0,0,0,2,0,2,0,2
-Fresnel Backend,org.fresnel.backend.api,WindowFoilRequest.CellSpecDto,4,31,2,2,0,5,2,2,0,2
 Fresnel Backend,org.fresnel.backend.api,ComparisonController.VariantIntermediate,0,18,0,0,0,1,0,1,0,1
+Fresnel Backend,org.fresnel.backend.api,WindowFoilRequest.CellSpecDto,4,31,2,2,0,5,2,2,0,2
 Fresnel Backend,org.fresnel.backend.security,SecurityCredentials,11,115,3,13,2,28,3,14,0,9
 Fresnel Backend,org.fresnel.backend.security,SecurityConfig,0,225,0,0,0,27,0,9,0,9
 Fresnel Backend,org.fresnel.backend,FresnelBackendApplication,33,3,4,0,14,1,3,1,1,1
