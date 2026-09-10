@@ -10,10 +10,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -28,19 +26,22 @@ class PluginControllerTest {
     @Autowired MockMvc mvc;
 
     @Test
-    void listPluginsReturnsAllSevenPluginsInRegistryOrder() throws Exception {
+    void listPluginsReturnsAllEightPluginsInRegistryOrderWithExplicitKinds() throws Exception {
         mvc.perform(get("/api/plugins"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(7)))
+                .andExpect(jsonPath("$", hasSize(8)))
                 .andExpect(jsonPath("$[0].id").value("zone-plate"))
+                .andExpect(jsonPath("$[0].kind").value("DESIGN"))
                 .andExpect(jsonPath("$[1].id").value("variable-line-grating"))
                 .andExpect(jsonPath("$[2].id").value("hex-macro-cell"))
                 .andExpect(jsonPath("$[3].id").value("window-foil"))
                 .andExpect(jsonPath("$[4].id").value("multi-focus"))
                 .andExpect(jsonPath("$[5].id").value("rgb-zone-plate"))
                 .andExpect(jsonPath("$[6].id").value("hologram"))
-                .andExpect(jsonPath("$[*].kind", everyItem(is("DESIGN"))));
+                .andExpect(jsonPath("$[6].kind").value("DESIGN"))
+                .andExpect(jsonPath("$[7].id").value("background-oriented-schlieren"))
+                .andExpect(jsonPath("$[7].kind").value("MEASUREMENT"));
     }
 
     @Test
@@ -54,7 +55,8 @@ class PluginControllerTest {
                         "multi-focus",
                         "hex-macro-cell",
                         "window-foil",
-                        "hologram"
+                        "hologram",
+                        "background-oriented-schlieren"
                 )));
     }
 
@@ -138,6 +140,26 @@ class PluginControllerTest {
     }
 
     @Test
+    void getPluginByIdReturnsTheBoundedBosTargetSlice() throws Exception {
+        mvc.perform(get("/api/plugins/background-oriented-schlieren"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("background-oriented-schlieren"))
+                .andExpect(jsonPath("$.kind").value("MEASUREMENT"))
+                .andExpect(jsonPath("$.displayName").value("Background Schlieren"))
+                .andExpect(jsonPath("$.stability").value("EXPERIMENTAL"))
+                .andExpect(jsonPath("$.rendererClass").doesNotExist())
+                .andExpect(jsonPath("$.parameterType").doesNotExist())
+                .andExpect(jsonPath("$.capabilities", hasItems(
+                        "GENERATE_CAPTURE_TARGET", "PREVIEW_PNG", "EXPORT_PNG")))
+                .andExpect(jsonPath("$.capabilities",
+                        org.hamcrest.Matchers.not(hasItems(
+                                "IMPORT_CAPTURE_SET", "REMOTE_CAPTURE", "ANALYZE_CAPTURE_SET"))))
+                .andExpect(jsonPath("$.propagationModes", empty()))
+                .andExpect(jsonPath("$.schemaUrl")
+                        .value("/api/plugins/background-oriented-schlieren/schema"));
+    }
+
+    @Test
     void schemaEndpointReturnsDeterministicZonePlateContract() throws Exception {
         MvcResult first = mvc.perform(get("/api/plugins/zone-plate/schema"))
                 .andExpect(status().isOk())
@@ -161,6 +183,24 @@ class PluginControllerTest {
                 .andReturn();
         assertEquals(first.getResponse().getContentAsString(),
                 second.getResponse().getContentAsString());
+    }
+
+    @Test
+    void bosSchemaEndpointReturnsTheVersionedTargetContract() throws Exception {
+        mvc.perform(get("/api/plugins/background-oriented-schlieren/schema"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.pluginId").value("background-oriented-schlieren"))
+                .andExpect(jsonPath("$.parameterSchemaVersion").value(1))
+                .andExpect(jsonPath("$.parameterSchema.additionalProperties").value(false))
+                .andExpect(jsonPath("$.parameterSchema.properties.patternSeed.type")
+                        .value("integer"))
+                .andExpect(jsonPath("$.parameterSchema.properties.targetFillRatio.maximum")
+                        .value(0.25))
+                .andExpect(jsonPath("$.uiSchema.groups[0].id").value("target-size"))
+                .andExpect(jsonPath("$.defaults.patternSeed").value(20260823))
+                .andExpect(jsonPath("$.capabilities", hasItems(
+                        "GENERATE_CAPTURE_TARGET", "PREVIEW_PNG", "EXPORT_PNG")));
     }
 
     @Test

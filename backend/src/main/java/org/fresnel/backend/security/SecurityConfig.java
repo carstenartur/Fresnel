@@ -60,7 +60,10 @@ public class SecurityConfig {
                                 "/api/designs/load",
                                 "/api/designs/*/info",
                                 "/api/designs/*/preview.png",
-                                "/api/assistant/recommend").permitAll()
+                                "/api/assistant/recommend",
+                                "/api/measurements/background-oriented-schlieren/target/manifest",
+                                "/api/measurements/background-oriented-schlieren/target/preview.png")
+                        .permitAll()
                         // Endpoints that mutate state or may consume configured quota.
                         .requestMatchers(HttpMethod.POST,
                                 "/api/assistant/propose",
@@ -68,7 +71,9 @@ public class SecurityConfig {
                                 "/api/designs/persist",
                                 "/api/designs/export*",
                                 "/api/designs/*/export*",
-                                "/api/holograms/**").authenticated()
+                                "/api/holograms/**",
+                                "/api/measurements/background-oriented-schlieren/target/export.png")
+                        .authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/**").authenticated()
                         .anyRequest().permitAll())
                 .httpBasic(basic -> {});

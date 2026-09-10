@@ -10,6 +10,7 @@ import { consumeDesktopOpen } from './desktopOpenApi';
 import { type FresnelJobDocument, type FresnelPluginId, type LoadedFresnelJob } from './jobApi';
 import { JobSourceProvider, OpenJobControl, type JobPanelProps } from './jobs/JobFileControls';
 import { AssistantPanel } from './modes/AssistantPanel';
+import { BosTargetPanel } from './modes/BosTargetPanel';
 import { ComparisonPanel } from './modes/ComparisonPanel';
 import { HexMacroCellPanel } from './modes/HexMacroCellPanel';
 import { HologramPanel } from './modes/HologramPanel';
@@ -37,6 +38,7 @@ const EDITOR_REGISTRY: Record<FresnelPluginId, EditorRegistration> = {
   'multi-focus': { label: 'Multi-focus', component: MultiFocusPanel },
   'rgb-zone-plate': { label: 'RGB', component: RgbPanel },
   hologram: { label: 'Hologram (GS)', component: HologramPanel },
+  'background-oriented-schlieren': { label: 'BOS target', component: BosTargetPanel },
 };
 
 const FALLBACK_PLUGIN_ORDER: readonly FresnelPluginId[] = [
@@ -47,6 +49,7 @@ const FALLBACK_PLUGIN_ORDER: readonly FresnelPluginId[] = [
   'multi-focus',
   'rgb-zone-plate',
   'hologram',
+  'background-oriented-schlieren',
 ];
 
 const AUXILIARY_MODES: ReadonlyArray<{ key: AuxiliaryMode; label: string }> = [

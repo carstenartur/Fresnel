@@ -31,6 +31,7 @@ export interface PluginMetadata {
   displayName: string;
   description: string;
   documentationUrl: string;
+  algorithmVersion: string;
   capabilities: PluginCapability[];
   parameterSchemaVersion: number;
   editorMode: PluginEditorMode;
@@ -144,6 +145,26 @@ export async function fetchPluginMetadata(): Promise<PluginMetadata[]> {
     throw new Error(text || `Could not load plugin metadata (HTTP ${response.status})`);
   }
   return response.json() as Promise<PluginMetadata[]>;
+}
+
+export async function fetchPluginMetadataById(
+  pluginId: FresnelPluginId,
+): Promise<PluginMetadata> {
+  const response = await fetch(`${BASE}/api/plugins/${encodeURIComponent(pluginId)}`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Could not load metadata for ${pluginId} (HTTP ${response.status})`);
+  }
+  const metadata = await response.json() as PluginMetadata;
+  if (metadata.id !== pluginId) {
+    throw new Error(`Plugin metadata identity mismatch: expected ${pluginId}, received ${metadata.id}.`);
+  }
+  if (!metadata.algorithmVersion?.trim()) {
+    throw new Error(`Plugin metadata for ${pluginId} has no algorithm version.`);
+  }
+  return metadata;
 }
 
 export async function fetchPluginSchema<TDefaults extends object = Record<string, unknown>>(
