@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 1 – Build the React/TypeScript frontend
 # ──────────────────────────────────────────────────────────────────────────────
-FROM node:26.8.2-alpine3.23@sha256:a3024faf41c40992531ecfb00604384665be870a44626afaf181c6d583f89296 AS frontend-build
+FROM node:26.9.0-alpine3.23@sha256:7ac378c99d5b8251735073080eb6d803ce87f9b79a37230d9c13e7ed0db76227 AS frontend-build
 
 WORKDIR /app/frontend
 
@@ -16,7 +16,7 @@ RUN npm run build
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 2 – Build the Spring Boot backend (frontend already built)
 # ──────────────────────────────────────────────────────────────────────────────
-FROM maven:3-eclipse-temurin-26@sha256:2bc6924d954a6efefde0a9629228914acf72e4abcdb927b68f19edd1135a0cb1 AS backend-build
+FROM maven:3-eclipse-temurin-26@sha256:4e980a3c7def35292c12ce1a1dc7872f02165f11717204c7b1c2dc477e40c1b8 AS backend-build
 
 WORKDIR /app
 
