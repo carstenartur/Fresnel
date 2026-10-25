@@ -141,7 +141,7 @@ public class DesktopOpenQueue {
 <span class="pc bpc" id="L141" title="2 of 6 branches missed.">        if (token == null || token.length() &lt; 40 || token.length() &gt; 128) return false;</span>
 <span class="fc bfc" id="L142" title="All 2 branches covered.">        for (int i = 0; i &lt; token.length(); i++) {</span>
 <span class="fc" id="L143">            char c = token.charAt(i);</span>
-<span class="pc bpc" id="L144" title="2 of 16 branches missed.">            if (!(c &gt;= 'A' &amp;&amp; c &lt;= 'Z')</span>
+<span class="pc bpc" id="L144" title="5 of 16 branches missed.">            if (!(c &gt;= 'A' &amp;&amp; c &lt;= 'Z')</span>
                     &amp;&amp; !(c &gt;= 'a' &amp;&amp; c &lt;= 'z')
                     &amp;&amp; !(c &gt;= '0' &amp;&amp; c &lt;= '9')
                     &amp;&amp; c != '-' &amp;&amp; c != '_') {
