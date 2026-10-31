@@ -130,6 +130,7 @@ jobs:
           EXPECTED_FILES=$(printf '%s\n' \
             CITATION.cff \
             backend/pom.xml \
+            measurement-core/pom.xml \
             optics-core/pom.xml \
             pom.xml | sort)
           if [[ "$ACTUAL_FILES" != "$EXPECTED_FILES" ]]; then
@@ -395,7 +396,7 @@ jobs:
           sed -i "s/^next.release.version=.*/next.release.version=${NEXT_RELEASE}/" release.properties
 
           git checkout -B "$BRANCH_NAME"
-          git add pom.xml backend/pom.xml optics-core/pom.xml CITATION.cff release.properties
+          git add pom.xml backend/pom.xml measurement-core/pom.xml optics-core/pom.xml CITATION.cff release.properties
           git commit -m "Prepare for next development iteration ${NEXT_VERSION}"
 
           if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
@@ -443,3 +444,4 @@ jobs:
             echo "Inspect the candidate branch, tag, draft release and versioned image."
             echo "Follow docs/release-recovery.md before retrying."
           } >> "$GITHUB_STEP_SUMMARY"
+
