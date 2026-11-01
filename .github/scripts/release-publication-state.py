@@ -208,7 +208,13 @@ class Adapter:
             require(isinstance(digest, str) and re.fullmatch(r'sha256:[0-9a-f]{64}', digest) is not None, 'registry returned no immutable manifest digest')
             return digest
         except subprocess.CalledProcessError as error:
-            if missing_ok and re.search(r'manifest unknown|name unknown|not found', error.stderr or '', re.I):
+            # Accept only a manifest-resolution error naming the exact requested ref.
+            # A token service/proxy 404, an unqualified message, or another image's
+            # missing manifest does not establish absence of this destination.
+            missing_manifest = re.fullmatch(
+                r'(?:ERROR:\s*)?' + re.escape(tag) + r':\s*(?:manifest unknown|not found)',
+                (error.stderr or '').strip(), re.I)
+            if missing_ok and missing_manifest:
                 return None
             raise
 
@@ -256,6 +262,8 @@ class Adapter:
         assets = [a for page in pages for a in page]
         originals = [a for name in [f"backend-{e['version']}.jar", f"backend-{e['version']}.jar.sha256"] for a in assets if a.get('name') == name]
         require([a['id'] for a in originals] == e['asset_ids'], 'preserved asset IDs missing, duplicated or replaced')
+        if release['draft']:
+            require(len(assets) == len(e['asset_ids']), 'draft asset set must contain exactly the two preserved originals')
         downloaded = [self.command(['gh', 'api', f"repos/{e['repo']}/releases/assets/{identity}", '-H', 'Accept: application/octet-stream'], binary=True) for identity in e['asset_ids']]
         require(self.digest(e['image'] + ':' + e['version']) == e['image_digest'], 'versioned image digest changed')
         with tempfile.TemporaryDirectory(prefix='fresnel-receipt-') as folder:
@@ -264,14 +272,15 @@ class Adapter:
             jar_receipt = self.attestation(str(jar_path))
         image_receipt = self.attestation('oci://' + e['image'] + '@' + e['image_digest'])
         selected = validate_asset_receipt(assets, *downloaded, jar_receipt, image_receipt, e)
+        latest_digest = self.digest(e['image'] + ':latest', missing_ok=True)
         return {**stable_publication_evidence(release, selected),
-                'latest_matches': self.digest(e['image'] + ':latest', missing_ok=True) == e['image_digest'],
+                'latest_digest': latest_digest, 'latest_matches': latest_digest == e['image_digest'],
                 'policy_blocker': self.policy_blocker(initiator)}
 
     def resume(self, reviewed_main, initiator, dry_run=False, control_branch=None, event_sha=None):
         before = self.observe(reviewed_main, initiator, control_branch, event_sha)
         effects = plan_resume(before['release']['draft'], before['latest_matches'])
-        result = {'artifact_sha': self.expected['candidate'], 'control_sha': reviewed_main, 'effects': effects, 'policy_blocker': before['policy_blocker']}
+        result = {'artifact_sha': self.expected['candidate'], 'control_sha': reviewed_main, 'latest_digest': before['latest_digest'], 'effects': effects, 'policy_blocker': before['policy_blocker']}
         if dry_run:
             return result
         require(control_branch is not None, 'publication requires a reviewed recovery control ref')
@@ -281,11 +290,11 @@ class Adapter:
         if 'promote_latest' in effects:
             self.command(['docker', 'buildx', 'imagetools', 'create', '--tag', self.expected['image'] + ':latest', self.expected['image'] + '@' + self.expected['image_digest']])
             current = self.observe(reviewed_main, initiator, control_branch, event_sha)
-            require(current == dict(before, latest_matches=True), 'state drift after immutable latest promotion; core release remains staged')
+            require(current == dict(before, latest_digest=self.expected['image_digest'], latest_matches=True), 'state drift after immutable latest promotion; core release remains staged')
         if 'publish_release' in effects:
             self.api(f"releases/{self.expected['release_id']}", '--method', 'PATCH', '-F', 'draft=false')
         after = self.observe(reviewed_main, initiator, control_branch, event_sha)
-        require(not after['release']['draft'] and after['latest_matches'] and after['policy_blocker'] is None, 'core publication not confirmed')
+        require(not after['release']['draft'] and after['latest_digest'] == self.expected['image_digest'] and after['policy_blocker'] is None, 'core publication not confirmed')
         result['core_published'] = True
         return result
 
@@ -426,7 +435,7 @@ class Adapter:
         require(re.fullmatch(r'[1-9][0-9]*-[1-9][0-9]*', request_id) is not None, 'invalid orchestration request ID')
         before = self.observe(reviewed_main, initiator)
         result = {'artifact_sha': self.expected['candidate'], 'control_sha': reviewed_main,
-                  'effects': plan_resume(before['release']['draft'], before['latest_matches']), 'policy_blocker': before['policy_blocker']}
+                  'latest_digest': before['latest_digest'], 'effects': plan_resume(before['release']['draft'], before['latest_matches']), 'policy_blocker': before['policy_blocker']}
         if dry_run:
             return result
         require(before['policy_blocker'] is None, before['policy_blocker'])

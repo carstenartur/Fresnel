@@ -223,6 +223,9 @@ class AdapterBoundaryTest(PublicationStateTest):
         self.telemetry_churn=False
         self.downloads=0
         self.late_content_drift=False
+        self.latest_sequence=[]
+        self.latest_lookup_error=None
+        self.latest_malformed=False
         self.real_run=subprocess.run
         self.boundary=patch.object(M.subprocess,'run',side_effect=self.external)
         self.boundary.start(); self.addCleanup(self.boundary.stop)
@@ -245,6 +248,16 @@ class AdapterBoundaryTest(PublicationStateTest):
             if 'create' in args:
                 self.latest=True; output=''
             else:
+                if args[4].endswith(':latest'):
+                    if self.latest_lookup_error:
+                        raise subprocess.CalledProcessError(1,args,stderr=self.latest_lookup_error)
+                    if self.latest_malformed:
+                        return subprocess.CompletedProcess(args,0,stdout='not JSON',stderr='')
+                    if self.latest_sequence:
+                        observed=self.latest_sequence.pop(0)
+                        if observed is None:
+                            raise subprocess.CalledProcessError(1,args,stderr='ERROR: '+args[4]+': manifest unknown')
+                        return subprocess.CompletedProcess(args,0,stdout=json.dumps({'digest':observed}),stderr='')
                 output=json.dumps({'digest':self.expected['image_digest'] if not self.image_drift and (self.latest or ':latest' not in args[4]) else 'sha256:'+'a'*64})
         elif args[1:3]==['attestation','verify']:
             if self.crypto_failure: raise subprocess.CalledProcessError(1,args,stderr='certificate source digest mismatch')
@@ -366,6 +379,102 @@ class AdapterBoundaryTest(PublicationStateTest):
         self.assertEqual('repos/carstenartur/Fresnel/releases/430398234',writes[1][2])
         self.ledger=[]
         self.assertEqual([],self.resume()['effects'])
+        self.assertEqual([],self.writes())
+
+    def extra_package_asset(self):
+        return {'id':99,'name':'fresnel-linux.zip','state':'uploaded','size':3,'digest':'sha256:'+'c'*64}
+
+    def test_extra_draft_asset_is_rejected_before_any_write(self):
+        self.assets.append(self.extra_package_asset())
+        with self.assertRaisesRegex(ValueError,'draft asset set'): self.resume()
+        self.assertEqual([],self.writes())
+
+    def test_extra_draft_asset_prevents_control_dispatch(self):
+        self.assets.append(self.extra_package_asset())
+        with self.assertRaisesRegex(ValueError,'draft asset set'):
+            self.adapter.orchestrate(self.main,'initiator','123-1','0.1.9-SNAPSHOT')
+        self.assertEqual([],self.writes())
+
+    def test_published_platform_additions_allow_noop_and_post_publication_completion(self):
+        self.assets.append(self.extra_package_asset())
+        self.release.update(draft=False,published_at='2026-11-02T00:00:00Z')
+        self.latest=True
+        self.assertEqual([],self.resume()['effects'])
+        title='Release Packages 0.1.8 recovery-0.1.8-41279261127'
+        self.workflow_runs=[{'databaseId':999,'displayTitle':title,'headSha':self.candidate,'status':'completed','conclusion':'success'}]
+        self.assertEqual(999,self.adapter.dispatch_and_wait('release-package.yml','0.1.8',{},title))
+        self.assertEqual([],self.writes())
+        self.assertIn('/pull/42',self.adapter.housekeeping(self.main,'0.1.9-SNAPSHOT')['next_pr'])
+        self.assertEqual(2,len(self.writes()))
+        self.assertFalse(self.release['draft'])
+        self.assertEqual(3,len(self.assets))
+
+    def test_different_old_latest_digests_block_publication_before_writes(self):
+        self.latest_sequence=['sha256:'+'a'*64,'sha256:'+'b'*64]
+        with self.assertRaisesRegex(ValueError,'state changed'): self.resume()
+        self.assertEqual([],self.writes())
+
+    def test_missing_then_present_latest_blocks_publication_before_writes(self):
+        self.latest_sequence=[None,'sha256:'+'b'*64]
+        with self.assertRaisesRegex(ValueError,'state changed'): self.resume()
+        self.assertEqual([],self.writes())
+
+    def test_different_old_latest_digests_block_control_dispatch(self):
+        self.latest_sequence=['sha256:'+'a'*64,'sha256:'+'b'*64]
+        with self.assertRaisesRegex(ValueError,'state changed'):
+            self.adapter.orchestrate(self.main,'initiator','123-1','0.1.9-SNAPSHOT')
+        self.assertEqual([],self.writes())
+
+    def test_missing_then_present_latest_blocks_control_dispatch(self):
+        self.latest_sequence=[None,'sha256:'+'b'*64]
+        with self.assertRaisesRegex(ValueError,'state changed'):
+            self.adapter.orchestrate(self.main,'initiator','123-1','0.1.9-SNAPSHOT')
+        self.assertEqual([],self.writes())
+
+    def test_observation_retains_actual_latest_digest_or_confirmed_absence(self):
+        for digest in ('sha256:'+'a'*64,self.expected['image_digest'],None):
+            with self.subTest(digest=digest):
+                self.latest_sequence=[digest]
+                state=self.adapter.observe(self.main,'initiator')
+                self.assertIn('latest_digest',state)
+                self.assertEqual(digest,state['latest_digest'])
+                self.assertEqual(digest==self.expected['image_digest'],state['latest_matches'])
+
+    def test_unchanged_missing_latest_can_be_promoted_from_verified_digest(self):
+        self.latest_sequence=[None,None]
+        self.assertTrue(self.resume()['core_published'])
+        self.assertEqual(2,len(self.writes()))
+        self.assertEqual(self.expected['image']+'@'+self.expected['image_digest'],self.writes()[0][-1])
+
+    def test_latest_absence_requires_error_bound_to_requested_manifest(self):
+        tag=self.expected['image']+':latest'
+        for stderr in ('ERROR: '+tag+': manifest unknown','ERROR: '+tag+': not found'):
+            with self.subTest(stderr=stderr):
+                self.latest_lookup_error=stderr
+                self.assertIsNone(self.adapter.digest(tag,missing_ok=True))
+                with self.assertRaises(subprocess.CalledProcessError): self.adapter.digest(tag)
+        self.assertEqual([],self.writes())
+
+    def test_latest_auth_proxy_network_and_unqualified_errors_are_not_absence(self):
+        tag=self.expected['image']+':latest'
+        for stderr in ('failed to authorize: token endpoint 404 Not Found',
+                       'proxy response 404 Not Found',
+                       'failed to authorize: unauthorized',
+                       'network DNS failure / no such host',
+                       'manifest unknown',
+                       'ERROR: other.example/image:latest: manifest unknown',
+                       'failed to authorize: '+tag+': not found',
+                       'proxy response for '+tag+': not found'):
+            with self.subTest(stderr=stderr):
+                self.latest_lookup_error=stderr
+                with self.assertRaises(subprocess.CalledProcessError):
+                    self.adapter.digest(tag,missing_ok=True)
+                with self.assertRaises(subprocess.CalledProcessError): self.resume()
+                self.assertEqual([],self.writes())
+
+    def test_latest_malformed_json_propagates_before_any_write(self):
+        self.latest_malformed=True
+        with self.assertRaises(json.JSONDecodeError): self.resume()
         self.assertEqual([],self.writes())
 
     def test_partial_latest_only_resume_publishes_without_rebuilding(self):

@@ -281,8 +281,11 @@ settings and reviewer approval remain separate from artifact verification.
 
    Dispatch is the remaining manual entry point when the available connector
    cannot run `workflow_dispatch`. Do not create another trigger to get around it.
-4. The rehearsal downloads the two original assets by numeric asset ID, hashes
-   the actual bytes, checks the exact checksum contents and metadata digests,
+4. While the release is draft, its complete paginated asset collection must
+   contain exactly the two preserved originals; additional draft files stop
+   recovery without deletion. Published retries may retain later platform assets.
+   The rehearsal downloads the two originals by numeric asset ID, hashes the
+   actual bytes, checks the exact checksum contents and metadata digests,
    resolves the versioned image digest and cryptographically verifies **both**
    original attestations with `gh attestation verify`. Certificate policies pin
    repository, signer workflow, original candidate source and signer digests, and
@@ -303,6 +306,10 @@ settings and reviewer approval remain separate from artifact verification.
    observation immediately before the first mutation and after image promotion.
    Comparisons retain stable release/asset identity, content and publication state;
    download counters and incidental API timestamps do not cause false drift.
+   The actual `latest` digest (or confirmed requested-manifest absence) is retained
+   as destination evidence, so an old-digest change or missing-to-present change
+   stops recovery before any write. Authorization, proxy, network and parse
+   failures do not establish manifest absence.
    It promotes `latest` from `ghcr.io/carstenartur/fresnel@sha256:...`, publishes
    only numeric release `430398234`, and verifies the result. It performs no
    rebuild, re-attestation, tag creation, main update or preserved-ref deletion.
