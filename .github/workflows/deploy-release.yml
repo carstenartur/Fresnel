@@ -216,7 +216,7 @@ jobs:
             -DgenerateBackupPoms=false
           python3 .github/scripts/update-citation.py \
             --version "${{ needs.preflight.outputs.release_version }}"
-          git add pom.xml backend/pom.xml optics-core/pom.xml CITATION.cff
+          git add pom.xml backend/pom.xml measurement-core/pom.xml optics-core/pom.xml CITATION.cff
           git commit -m "Release version ${{ needs.preflight.outputs.release_version }}"
 
       - name: Validate candidate diff
@@ -236,6 +236,7 @@ jobs:
           EXPECTED_FILES=$(printf '%s\n' \
             CITATION.cff \
             backend/pom.xml \
+            measurement-core/pom.xml \
             optics-core/pom.xml \
             pom.xml | sort)
           if [[ "$ACTUAL_FILES" != "$EXPECTED_FILES" ]]; then
@@ -351,3 +352,4 @@ jobs:
             echo "The candidate branch may remain for diagnosis."
             echo "Follow docs/release-recovery.md before retrying."
           } >> "$GITHUB_STEP_SUMMARY"
+

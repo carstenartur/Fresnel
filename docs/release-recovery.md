@@ -40,8 +40,11 @@ Coverage, E2E, Maven Site and packaging checks.
 
 1. Merge the next-development version PR so Maven and `CITATION.cff` use an
    `X.Y.Z-SNAPSHOT` version and `release.properties` names `X.Y.Z`.
-2. From `main`, run the **Release** workflow with exactly that `X.Y.Z` value.
-3. The orchestrator creates a commit changing only the three Maven POMs and
+2. From `main`, run the **Release** workflow with `dry_run: true` and the desired
+   `next_development_version` (or fallback increment). The release version is
+   derived from Maven and `release.properties`; it is not entered manually.
+   Review that rehearsal before starting the publishing run.
+3. The orchestrator creates a commit changing only the four Maven POMs and
    `CITATION.cff`, runs the complete test build, pushes an ephemeral
    `release/candidate-*` branch and dispatches **Publish Release** at that exact
    commit.
@@ -205,3 +208,4 @@ For every partial release, record:
 - tag, draft/published release and GHCR image digests observed;
 - attestations and checksums verified;
 - cleanup or completion commands executed.
+
