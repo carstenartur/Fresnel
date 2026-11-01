@@ -8,6 +8,21 @@ run-name: Release ${{ github.run_id }}-${{ github.run_attempt }}
 on:
   workflow_dispatch:
     inputs:
+      resume_release_id:
+        description: 'Preserved numeric release ID; empty creates a fresh release'
+        required: false
+        type: string
+        default: ''
+      resume_publication_run_id:
+        description: 'Original publication run ID for preserved provenance'
+        required: false
+        type: string
+        default: ''
+      expected_candidate_sha:
+        description: 'Original immutable artifact candidate SHA (not recovery control SHA)'
+        required: false
+        type: string
+        default: ''
       next_development_version:
         description: 'Exact next development version (X.Y.Z-SNAPSHOT); leave empty to use the increment choice'
         required: false
@@ -44,10 +59,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
+      packages: read
+      attestations: read
     outputs:
-      release_version: ${{ steps.versions.outputs.release_version }}
-      next_snapshot: ${{ steps.versions.outputs.next_snapshot }}
-      maintenance_branch: ${{ steps.versions.outputs.maintenance_branch }}
+      release_version: ${{ steps.versions.outputs.release_version || steps.recovery.outputs.release_version }}
+      next_snapshot: ${{ steps.versions.outputs.next_snapshot || steps.recovery.outputs.next_snapshot }}
+      maintenance_branch: ${{ steps.versions.outputs.maintenance_branch || steps.recovery.outputs.maintenance_branch }}
       current_version: ${{ steps.metadata.outputs.current_version }}
       citation_version: ${{ steps.metadata.outputs.citation_version }}
       starting_sha: ${{ steps.baseline.outputs.starting_sha }}
@@ -89,7 +107,48 @@ jobs:
       - name: Test release version planner
         run: python3 .github/scripts/test-release-version-plan.py
 
+      - name: Test publication recovery and metadata guards
+        run: |
+          python3 .github/scripts/test-release-publication-state.py
+          python3 .github/scripts/test-release-metadata-commits.py
+
+      - name: Set up recovery registry reader
+        if: ${{ inputs.resume_release_id != '' }}
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - name: Authenticate recovery registry reader
+        if: ${{ inputs.resume_release_id != '' }}
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate preserved publication without writes
+        if: ${{ inputs.resume_release_id != '' }}
+        id: recovery
+        env:
+          RESUME_RELEASE_ID: ${{ inputs.resume_release_id }}
+          ORIGINAL_RUN_ID: ${{ inputs.resume_publication_run_id }}
+          ARTIFACT_SHA: ${{ inputs.expected_candidate_sha }}
+          REVIEWED_MAIN: ${{ github.sha }}
+          NEXT_INPUT: ${{ inputs.next_development_version }}
+          INCREMENT: ${{ inputs.next_version_increment }}
+        run: |
+          set -euo pipefail
+          plan_file="$RUNNER_TEMP/fresnel-recovery-version-plan"
+          python3 .github/scripts/release-version-plan.py --release 0.1.8 \
+            --next-development-version "$NEXT_INPUT" --increment "$INCREMENT" --github-output "$plan_file"
+          source "$plan_file"
+          python3 .github/scripts/release-publication-state.py preflight \
+            --release-id "$RESUME_RELEASE_ID" --publication-run-id "$ORIGINAL_RUN_ID" \
+            --candidate-sha "$ARTIFACT_SHA" --reviewed-main "$REVIEWED_MAIN" --next-snapshot "$next" --dry-run
+          echo "release_version=$release" >> "$GITHUB_OUTPUT"
+          echo "next_snapshot=$next" >> "$GITHUB_OUTPUT"
+          echo "maintenance_branch=$maintenance_branch" >> "$GITHUB_OUTPUT"
+
       - name: Read release metadata
+        if: ${{ inputs.resume_release_id == '' }}
         id: metadata
         run: |
           set -euo pipefail
@@ -102,6 +161,7 @@ jobs:
           echo "suggested_release=${SUGGESTED}" >> "$GITHUB_OUTPUT"
 
       - name: Derive repository-owned version outputs
+        if: ${{ inputs.resume_release_id == '' }}
         id: versions
         env:
           NEXT_DEVELOPMENT_VERSION_INPUT: ${{ inputs.next_development_version }}
@@ -140,6 +200,7 @@ jobs:
           echo "maintenance_branch=${maintenance_branch}" >> "$GITHUB_OUTPUT"
 
       - name: Validate project and citation versions
+        if: ${{ inputs.resume_release_id == '' }}
         run: |
           set -euo pipefail
           CURRENT="${{ steps.metadata.outputs.current_version }}"
@@ -150,6 +211,7 @@ jobs:
           fi
 
       - name: Check if release tag already exists
+        if: ${{ inputs.resume_release_id == '' }}
         run: |
           VERSION="${{ steps.versions.outputs.release_version }}"
           if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
@@ -175,6 +237,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   candidate:
+    if: ${{ inputs.resume_release_id == '' }}
     name: Prepare and validate candidate
     needs: preflight
     runs-on: ubuntu-latest
@@ -353,3 +416,45 @@ jobs:
             echo "Follow docs/release-recovery.md before retrying."
           } >> "$GITHUB_STEP_SUMMARY"
 
+
+  recovery:
+    name: Dispatch reviewed preserved-draft recovery
+    if: ${{ inputs.resume_release_id != '' }}
+    needs: preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+      packages: read
+      attestations: read
+    steps:
+      - name: Checkout reviewed main control source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.preflight.outputs.starting_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up recovery registry reader
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Authenticate recovery registry reader
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate and dispatch canonical recovery
+        env:
+          RESUME_RELEASE_ID: ${{ inputs.resume_release_id }}
+          ORIGINAL_RUN_ID: ${{ inputs.resume_publication_run_id }}
+          ARTIFACT_SHA: ${{ inputs.expected_candidate_sha }}
+          REVIEWED_MAIN: ${{ needs.preflight.outputs.starting_sha }}
+          NEXT_SNAPSHOT: ${{ needs.preflight.outputs.next_snapshot }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [[ "$DRY_RUN" == true ]]; then args+=(--dry-run); fi
+          python3 .github/scripts/release-publication-state.py orchestrate \
+            --release-id "$RESUME_RELEASE_ID" --publication-run-id "$ORIGINAL_RUN_ID" \
+            --candidate-sha "$ARTIFACT_SHA" --reviewed-main "$REVIEWED_MAIN" \
+            --next-snapshot "$NEXT_SNAPSHOT" --request-id "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "${args[@]}"

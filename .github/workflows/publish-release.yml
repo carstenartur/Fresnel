@@ -9,6 +9,21 @@ run-name: Publish Release ${{ inputs.release_version }} ${{ inputs.request_id }}
 on:
   workflow_dispatch:
     inputs:
+      resume_release_id:
+        description: 'Preserved numeric release ID; empty creates a fresh release'
+        required: false
+        type: string
+        default: ''
+      resume_publication_run_id:
+        description: 'Original publication run ID for preserved provenance'
+        required: false
+        type: string
+        default: ''
+      expected_candidate_sha:
+        description: 'Original immutable artifact candidate SHA (not recovery control SHA)'
+        required: false
+        type: string
+        default: ''
       release_version:
         description: 'Release version (X.Y.Z)'
         required: true
@@ -46,6 +61,7 @@ env:
 
 jobs:
   publish:
+    if: ${{ inputs.resume_release_id == '' }}
     name: Build, attest and publish candidate
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -313,7 +329,7 @@ jobs:
             --verify-tag \
             --draft
 
-          RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases/tags/${VERSION}" --jq '.id')
+          RELEASE_ID=$(python3 .github/scripts/release-publication-state.py resolve-draft --release-version "$VERSION")
           echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Fast-forward main to candidate
@@ -445,3 +461,81 @@ jobs:
             echo "Follow docs/release-recovery.md before retrying."
           } >> "$GITHUB_STEP_SUMMARY"
 
+
+  resume:
+    name: Verify original provenance and finish preserved publication
+    if: ${{ inputs.resume_release_id != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    environment: release
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+      actions: write
+      attestations: read
+    env:
+      RESUME_RELEASE_ID: ${{ inputs.resume_release_id }}
+      ORIGINAL_RUN_ID: ${{ inputs.resume_publication_run_id }}
+      ARTIFACT_SHA: ${{ inputs.expected_candidate_sha }}
+      REVIEWED_MAIN: ${{ inputs.expected_main_sha }}
+      CONTROL_BRANCH: ${{ inputs.candidate_branch }}
+      EVENT_SHA: ${{ github.sha }}
+      RELEASE_VERSION: ${{ inputs.release_version }}
+      NEXT_SNAPSHOT: ${{ inputs.next_snapshot }}
+    steps:
+      - name: Checkout reviewed recovery control commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Set up JDK 21 for next-development metadata
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+      - name: Set up Docker Buildx for immutable digest verification
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Authenticate GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify and complete only missing core effects
+        id: core
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/release-publication-state.py resume \
+            --release-version "$RELEASE_VERSION" --release-id "$RESUME_RELEASE_ID" \
+            --publication-run-id "$ORIGINAL_RUN_ID" --candidate-sha "$ARTIFACT_SHA" \
+            --reviewed-main "$REVIEWED_MAIN" --control-branch "$CONTROL_BRANCH" \
+            --event-sha "$EVENT_SHA" --next-snapshot "$NEXT_SNAPSHOT"
+      - name: Complete platform packages at original immutable tag
+        id: packages
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/release-publication-state.py packages \
+            --release-version "$RELEASE_VERSION" --release-id "$RESUME_RELEASE_ID" \
+            --publication-run-id "$ORIGINAL_RUN_ID" --candidate-sha "$ARTIFACT_SHA" \
+            --reviewed-main "$REVIEWED_MAIN" --control-branch "$CONTROL_BRANCH" --event-sha "$EVENT_SHA"
+      - name: Complete housekeeping from reviewed main
+        id: housekeeping
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          python3 .github/scripts/release-publication-state.py housekeeping \
+            --release-version "$RELEASE_VERSION" --release-id "$RESUME_RELEASE_ID" \
+            --publication-run-id "$ORIGINAL_RUN_ID" --candidate-sha "$ARTIFACT_SHA" \
+            --reviewed-main "$REVIEWED_MAIN" --control-branch "$CONTROL_BRANCH" \
+            --event-sha "$EVENT_SHA" --next-snapshot "$NEXT_SNAPSHOT"
+      - name: Report separate post-publication failure
+        if: steps.core.outcome == 'success' && (steps.packages.outcome == 'failure' || steps.housekeeping.outcome == 'failure')
+        run: |
+          echo '::error::Core release is published and verified. Package completion or housekeeping needs retry; preserve the original candidate, tag and release.'
+          echo 'Core release is published. Inspect package and housekeeping outcomes before retrying numeric resume.' >> "$GITHUB_STEP_SUMMARY"
+          exit 1
