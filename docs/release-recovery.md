@@ -304,6 +304,8 @@ settings and reviewer approval remain separate from artifact verification.
    environment. Before writes it repeats all identity, downloaded-byte,
    cryptographic attestation, image and main/control-ref checks. It repeats the
    observation immediately before the first mutation and after image promotion.
+   Each observation renews the current-main lease after downloads, attestation
+   verification and environment reads, immediately before returning write evidence.
    Comparisons retain stable release/asset identity, content and publication state;
    download counters and incidental API timestamps do not cause false drift.
    The actual `latest` digest (or confirmed requested-manifest absence) is retained
@@ -322,8 +324,15 @@ settings and reviewer approval remain separate from artifact verification.
    their run URL, status and conclusion without retrying or admitting them.
    Diagnose them separately and obtain explicit authorization for any normal
    GitHub retry/admission; a subsequent numeric resume discovers and watches the
-   same run after that external action. Ambiguous or wrong-head requests abort.
-   Package attachment still uses its existing `release` environment job.
+   same run after that external action. After watching a package run, the helper
+   re-reads its completed-success metadata and paginates jobs for that current
+   attempt. Exactly one `Attach verified platform packages` job must have
+   completed successfully on that same run, attempt and original artifact head.
+   It re-reads the run afterward to reject an attempt change. A validation-only
+   success with missing or skipped attachment is insufficient. Ambiguous, failed,
+   incomplete or differently bound attachment proof stops for inspection without
+   automatic retry. Package attachment still uses its existing `release`
+   environment job.
 8. Housekeeping fast-forwards the maintenance branch to reviewed main only under
    the existing no-force ancestry rules. It prepares next-development metadata
    from reviewed main and opens the ordinary next-SNAPSHOT PR, retaining all

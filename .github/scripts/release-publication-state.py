@@ -273,9 +273,13 @@ class Adapter:
         image_receipt = self.attestation('oci://' + e['image'] + '@' + e['image_digest'])
         selected = validate_asset_receipt(assets, *downloaded, jar_receipt, image_receipt, e)
         latest_digest = self.digest(e['image'] + ':latest', missing_ok=True)
+        policy_blocker = self.policy_blocker(initiator)
+        # Downloads, cryptographic verification and policy reads can take time.
+        # Renew the main lease after all of them, before returning write evidence.
+        require(self.ref('heads/main')['sha'] == reviewed_main, 'main lease drift after verification')
         return {**stable_publication_evidence(release, selected),
                 'latest_digest': latest_digest, 'latest_matches': latest_digest == e['image_digest'],
-                'policy_blocker': self.policy_blocker(initiator)}
+                'policy_blocker': policy_blocker}
 
     def resume(self, reviewed_main, initiator, dry_run=False, control_branch=None, event_sha=None):
         before = self.observe(reviewed_main, initiator, control_branch, event_sha)
@@ -327,7 +331,39 @@ class Adapter:
                              'Separate diagnosis and explicit authorization for normal GitHub retry/admission are required; '
                              'this helper does not retry or admit unsuccessful runs.')
         self.command(['gh', 'run', 'watch', str(run['id']), '--repo', self.expected['repo'], '--exit-status'])
+        if workflow == 'release-package.yml':
+            self.verify_package_attachment(run['id'], expected_head)
         return run['id']
+
+    def verify_package_attachment(self, run_id, expected_head):
+        """A successful validation-only run can have the same title and source."""
+        run_url = f"https://github.com/{self.expected['repo']}/actions/runs/{run_id}"
+
+        def completed_run():
+            current = self.api(f'actions/runs/{run_id}')
+            require(type(current.get('id')) is int and current['id'] == run_id
+                    and current.get('head_sha') == expected_head
+                    and current.get('status') == 'completed' and current.get('conclusion') == 'success',
+                    f'package attachment run identity/head/completion mismatch: {run_url}')
+            require(type(current.get('run_attempt')) is int and current['run_attempt'] > 0,
+                    f'package attachment run has invalid current attempt: {run_url}')
+            return current
+
+        current = completed_run()
+        attempt = current['run_attempt']
+        pages = self.api(f'actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100', '--paginate', '--slurp')
+        matches = [job for page in pages for job in page['jobs']
+                   if job.get('name') == 'Attach verified platform packages']
+        require(len(matches) == 1, f'package attachment job absent or ambiguous in attempt {attempt}: {run_url}')
+        job = matches[0]
+        require(type(job.get('id')) is int and job['id'] > 0
+                and type(job.get('run_id')) is int and job['run_id'] == run_id
+                and type(job.get('run_attempt')) is int and job['run_attempt'] == attempt
+                and job.get('head_sha') == expected_head
+                and job.get('status') == 'completed' and job.get('conclusion') == 'success',
+                f'package attachment job lacks bound successful completion in attempt {attempt}: {run_url}')
+        require(completed_run()['run_attempt'] == attempt,
+                f'package attachment run attempt changed during inspection: {run_url}')
 
     def main_lease(self, reviewed_main):
         require(self.ref('heads/main')['sha'] == reviewed_main, 'main lease drift during housekeeping')

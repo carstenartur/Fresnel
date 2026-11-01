@@ -226,6 +226,17 @@ class AdapterBoundaryTest(PublicationStateTest):
         self.latest_sequence=[]
         self.latest_lookup_error=None
         self.latest_malformed=False
+        self.main_moved=False
+        self.attestations=0
+        self.policy_reads=0
+        self.move_main_during_attestation_at=None
+        self.move_main_during_policy_at=None
+        self.package_run_attempt=1
+        self.package_run_overrides={}
+        self.package_attempt_after_jobs=None
+        self.package_jobs_by_attempt=None
+        self.package_jobs=[[{'id':1234,'run_id':999,'run_attempt':1,'head_sha':self.candidate,
+                            'name':'Attach verified platform packages','status':'completed','conclusion':'success'}]]
         self.real_run=subprocess.run
         self.boundary=patch.object(M.subprocess,'run',side_effect=self.external)
         self.boundary.start(); self.addCleanup(self.boundary.stop)
@@ -260,6 +271,8 @@ class AdapterBoundaryTest(PublicationStateTest):
                         return subprocess.CompletedProcess(args,0,stdout=json.dumps({'digest':observed}),stderr='')
                 output=json.dumps({'digest':self.expected['image_digest'] if not self.image_drift and (self.latest or ':latest' not in args[4]) else 'sha256:'+'a'*64})
         elif args[1:3]==['attestation','verify']:
+            self.attestations+=1
+            if self.attestations==self.move_main_during_attestation_at: self.main_moved=True
             if self.crypto_failure: raise subprocess.CalledProcessError(1,args,stderr='certificate source digest mismatch')
             self.assertIn('--source-digest',args)
             self.assertEqual(self.candidate,args[args.index('--source-digest')+1])
@@ -280,6 +293,8 @@ class AdapterBoundaryTest(PublicationStateTest):
         elif args[1:3]==['run','watch']:
             if self.workflow_runs[0]['conclusion']=='failure':
                 raise subprocess.CalledProcessError(1,args,stderr='failed workflow')
+            if self.workflow_runs[0]['status']!='completed':
+                self.workflow_runs[0].update(status='completed',conclusion='success')
             output=''
         elif args[1:3]==['pr','list']:
             output=json.dumps([{'number':42,'state':'OPEN','headRefOid':self.next_head,'baseRefName':'main'}] if self.next_head else [])
@@ -293,7 +308,7 @@ class AdapterBoundaryTest(PublicationStateTest):
                 self.control_created=True; output='{}'
             elif path=='git/ref/heads/main':
                 self.reads+=1
-                sha='b'*40 if self.main_drift and self.reads>1 else self.main
+                sha='b'*40 if self.main_moved or (self.main_drift and self.reads>1) else self.main
                 output=json.dumps({'object':{'sha':sha,'type':'commit','url':'https://api.github.com/repos/carstenartur/Fresnel/git/commits/'+sha}})
             elif path=='git/ref/heads/maintenance/0.1.x':
                 output=json.dumps({'object':{'sha':self.maintenance_sha}})
@@ -316,6 +331,17 @@ class AdapterBoundaryTest(PublicationStateTest):
                     self.release.update(draft=False,published_at='2026-11-02T00:00:00Z')
                 output=json.dumps(self.release)
             elif path=='actions/runs/41279261127': output=json.dumps(self.run)
+            elif path=='actions/runs/999':
+                active=self.workflow_runs[0]
+                output=json.dumps(dict(id=999,head_sha=active['headSha'],head_branch='0.1.8',
+                                       path='.github/workflows/release-package.yml',event='workflow_dispatch',
+                                       status=active['status'],conclusion=active['conclusion'],
+                                       run_attempt=self.package_run_attempt) | self.package_run_overrides)
+            elif path.startswith('actions/runs/999/attempts/'):
+                attempt=int(path.split('/')[4])
+                pages=self.package_jobs if self.package_jobs_by_attempt is None else self.package_jobs_by_attempt[attempt]
+                output=json.dumps([{'jobs':jobs} for jobs in pages])
+                if self.package_attempt_after_jobs is not None: self.package_run_attempt=self.package_attempt_after_jobs
             elif path.startswith('actions/workflows/'):
                 output=json.dumps([{'workflow_runs':[dict(id=r['databaseId'],display_title=r['displayTitle'],head_sha=r['headSha'],status=r['status'],conclusion=r['conclusion']) for r in self.workflow_runs]}])
             elif path.startswith('releases/430398234/assets'): output=json.dumps([self.assets])
@@ -332,6 +358,8 @@ class AdapterBoundaryTest(PublicationStateTest):
                 if self.late_content_drift and index==0 and self.reads>1:
                     output+=b'changed content'
             elif path=='environments/release':
+                self.policy_reads+=1
+                if self.policy_reads==self.move_main_during_policy_at: self.main_moved=True
                 output=json.dumps(self.policy() if self.policy_ok else {'protection_rules':[],'deployment_branch_policy':None})
             elif path.startswith('environments/release/deployment-branch-policies'):
                 output=json.dumps([{'branch_policies':[{'name':'release/candidate-*','type':'branch'},{'name':'[0-9]*.[0-9]*.[0-9]*','type':'tag'}]}])
@@ -370,6 +398,37 @@ class AdapterBoundaryTest(PublicationStateTest):
         self.main_drift=True
         with self.assertRaisesRegex(ValueError,'main lease drift'): self.resume()
         self.assertEqual([],self.writes())
+
+    def configure_late_main_move(self, phase, publish_only=False):
+        self.main_moved=False
+        self.attestations=0; self.policy_reads=0; self.ledger=[]
+        self.control_created=False; self.workflow_runs=[]
+        self.move_main_during_attestation_at=3 if phase=='attestation' else None
+        self.move_main_during_policy_at=2 if phase=='policy' else None
+        self.latest=publish_only
+        self.release.update(draft=True,published_at=None)
+
+    def test_main_moving_during_second_observation_prevents_control_dispatch(self):
+        for phase in ('attestation','policy'):
+            with self.subTest(phase=phase):
+                self.configure_late_main_move(phase)
+                with self.assertRaisesRegex(ValueError,'main lease drift'):
+                    self.adapter.orchestrate(self.main,'initiator','123-1','0.1.9-SNAPSHOT')
+                self.assertEqual([],self.writes())
+
+    def test_main_moving_during_second_observation_prevents_image_and_release_writes(self):
+        for phase in ('attestation','policy'):
+            with self.subTest(phase=phase):
+                self.configure_late_main_move(phase)
+                with self.assertRaisesRegex(ValueError,'main lease drift'): self.resume()
+                self.assertEqual([],self.writes())
+
+    def test_main_moving_during_publish_only_observation_prevents_release_write(self):
+        for phase in ('attestation','policy'):
+            with self.subTest(phase=phase):
+                self.configure_late_main_move(phase,publish_only=True)
+                with self.assertRaisesRegex(ValueError,'main lease drift'): self.resume()
+                self.assertEqual([],self.writes())
 
     def test_resume_promotes_by_immutable_digest_and_numeric_id_then_is_idempotent(self):
         self.assertTrue(self.resume()['core_published'])
@@ -608,6 +667,66 @@ class AdapterBoundaryTest(PublicationStateTest):
         self.ledger=[]
         self.adapter.dispatch_and_wait('release-package.yml','0.1.8',fields,title)
         self.assertEqual([],self.writes())
+
+    def existing_package_run(self):
+        title='Release Packages 0.1.8 recovery-0.1.8-41279261127'
+        self.workflow_runs=[{'databaseId':999,'displayTitle':title,'headSha':self.candidate,'status':'completed','conclusion':'success'}]
+        return title
+
+    def test_validation_only_package_success_does_not_prove_attachment(self):
+        title=self.existing_package_run()
+        self.package_jobs=[[{'id':1233,'run_id':999,'head_sha':self.candidate,
+                            'name':'Test and build jar + ZIP/tar.gz','status':'completed','conclusion':'success'}],
+                           [dict(self.package_jobs[0][0],conclusion='skipped')]]
+        with self.assertRaisesRegex(ValueError,'package attachment'):
+            self.adapter.dispatch_and_wait('release-package.yml','0.1.8',{},title)
+        self.assertEqual([],self.writes())
+
+    def test_attachment_proof_must_be_unique_completed_success(self):
+        title=self.existing_package_run()
+        valid=copy.deepcopy(self.package_jobs[0][0])
+        cases=([],[dict(valid,conclusion='skipped')],[dict(valid,conclusion='failure')],
+               [dict(valid,status='queued',conclusion=None)],[valid,dict(valid,id=1235)],
+               [dict(valid,head_sha=self.main)],[dict(valid,run_id=777)],[dict(valid,run_attempt=2)])
+        for jobs in cases:
+            with self.subTest(jobs=jobs):
+                self.package_jobs=[jobs]; self.ledger=[]
+                with self.assertRaisesRegex(ValueError,'package attachment'):
+                    self.adapter.dispatch_and_wait('release-package.yml','0.1.8',{},title)
+                self.assertEqual([],self.writes())
+
+    def test_successful_attachment_on_later_page_of_current_attempt_is_reused(self):
+        title=self.existing_package_run()
+        self.package_run_attempt=3
+        self.package_jobs=[[],[dict(self.package_jobs[0][0],run_attempt=3)]]
+        self.assertEqual(999,self.adapter.dispatch_and_wait('release-package.yml','0.1.8',{},title))
+        self.assertTrue(any('actions/runs/999/attempts/3/jobs?per_page=100' in a[2] and '--paginate' in a and '--slurp' in a
+                            for a in self.ledger if a[1]=='api'))
+        self.assertEqual([],self.writes())
+
+    def test_old_attempt_attachment_cannot_prove_current_attempt(self):
+        title=self.existing_package_run()
+        self.package_run_attempt=2
+        self.package_jobs_by_attempt={1:self.package_jobs,2:[[]]}
+        with self.assertRaisesRegex(ValueError,'package attachment'):
+            self.adapter.dispatch_and_wait('release-package.yml','0.1.8',{},title)
+        self.assertEqual([],self.writes())
+
+    def test_package_run_attempt_change_during_job_inspection_is_rejected(self):
+        title=self.existing_package_run()
+        self.package_attempt_after_jobs=2
+        with self.assertRaisesRegex(ValueError,'package attachment'):
+            self.adapter.dispatch_and_wait('release-package.yml','0.1.8',{},title)
+        self.assertEqual([],self.writes())
+
+    def test_package_run_head_or_identity_drift_after_watch_is_rejected(self):
+        title=self.existing_package_run()
+        for override in ({'head_sha':self.main},{'id':777},{'status':'in_progress','conclusion':None}):
+            with self.subTest(override=override):
+                self.package_run_overrides=override; self.ledger=[]
+                with self.assertRaisesRegex(ValueError,'package attachment'):
+                    self.adapter.dispatch_and_wait('release-package.yml','0.1.8',{},title)
+                self.assertEqual([],self.writes())
 
     def test_completed_non_success_runs_require_diagnosis_without_retry_or_admission(self):
         title='Release Packages 0.1.8 recovery-0.1.8-41279261127'
