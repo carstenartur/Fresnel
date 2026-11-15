@@ -444,7 +444,10 @@ components:
         fresnelInstanceId: {$ref: '#/components/schemas/Id'}
         fresnelDisplayName: {$ref: '#/components/schemas/Label'}
         fresnelApplicationVersion: {$ref: '#/components/schemas/Label'}
-        fresnelProtocolVersion: {type: integer, minimum: 1}
+        fresnelProtocolVersion:
+          type: integer
+          minimum: 1
+          description: Protocol major offered for this pairing. Fresnel offers 1 to use this contract.
     PairResult:
       type: object
       required: [pairingId, bearerToken, scopes, descriptor]
