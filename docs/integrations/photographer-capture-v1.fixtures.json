@@ -1,0 +1,1419 @@
+{
+  "instructions": "Resolve JSON body references against this file. Replay requests reuse the same UTF-8 body bytes and Idempotency-Key. Given clauses define scenario setup and assertions describe expected side effects. Fixture identifiers, tokens, times and images are synthetic.",
+  "patterns": [
+    {
+      "id": "red",
+      "canonicalBytesHex": "465245534e454c2d5041545445524e2d524742382d5631000000000100000001ff0000",
+      "sha256": "5269b8a8e1025d5110aee6c8d5f6746d0b02d2aa159e687c086c5bc5f8797f73"
+    },
+    {
+      "id": "green",
+      "canonicalBytesHex": "465245534e454c2d5041545445524e2d524742382d563100000000010000000100ff00",
+      "sha256": "02c4a5e2099ee8c935321039d1445d58be775dc708286de5ed6fef47b3e7cd83"
+    },
+    {
+      "id": "blue",
+      "canonicalBytesHex": "465245534e454c2d5041545445524e2d524742382d56310000000001000000010000ff",
+      "sha256": "6b749ddd0e26319c9e9b5798b444e26f7d37bc0d52301fec3a4ff9cf8e931d3b"
+    }
+  ],
+  "media": [
+    {
+      "metadata": {
+        "sessionId": "capture-bos",
+        "stepId": "reference",
+        "assetId": "asset-reference",
+        "role": "REFERENCE",
+        "originalFileName": "reference.png",
+        "mediaType": "image/png",
+        "byteLength": 69,
+        "sha256": "b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2",
+        "capturedAt": "2026-01-01T00:00:01Z"
+      },
+      "bytesHex": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63505050000000c400612995f9b00000000049454e44ae426082",
+      "etag": "\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\""
+    },
+    {
+      "metadata": {
+        "sessionId": "capture-bos",
+        "stepId": "disturbed",
+        "assetId": "asset-disturbed",
+        "role": "DISTURBED",
+        "originalFileName": "disturbed.png",
+        "mediaType": "image/png",
+        "byteLength": 69,
+        "sha256": "5d0c7e1714277d42f9a73aaa72efdabdba442f158013329c9dc1c70a26a48e05",
+        "capturedAt": "2026-01-01T00:00:04Z"
+      },
+      "bytesHex": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63d0d5d50500011200883696529c0000000049454e44ae426082",
+      "etag": "\"5d0c7e1714277d42f9a73aaa72efdabdba442f158013329c9dc1c70a26a48e05\""
+    }
+  ],
+  "values": {
+    "pair": {
+      "pairingCode": "test-only-code-fixture",
+      "fresnelInstanceId": "fresnel-fixture",
+      "fresnelDisplayName": "Fresnel fixture",
+      "fresnelApplicationVersion": "fixture.1",
+      "fresnelProtocolVersion": 1
+    },
+    "pairResult": {
+      "pairingId": "pair-fixture",
+      "bearerToken": "test-only-bearer-fixture",
+      "scopes": [
+        "fresnel:descriptor:read",
+        "fresnel:cameras:read",
+        "fresnel:capture-sessions:write",
+        "fresnel:media:read"
+      ],
+      "descriptor": {
+        "protocolVersion": 1,
+        "minimumSupportedProtocolVersion": 1,
+        "instanceId": "photographer-fixture",
+        "displayName": "Photographer fixture",
+        "applicationVersion": "fixture.1",
+        "capabilities": [
+          "STILL_CAPTURE",
+          "EXTERNAL_STEP_TRIGGER",
+          "DURABLE_MEDIA",
+          "RANGE_DOWNLOAD",
+          "SHA256_INTEGRITY"
+        ],
+        "supportedFormats": [
+          "PNG"
+        ],
+        "eventTransports": [
+          "POLLING"
+        ],
+        "limits": {
+          "maximumSteps": 8,
+          "maximumAssetBytes": 1024,
+          "maximumSessionDurationMs": 60000,
+          "maximumTriggerWaitMs": 10000,
+          "idempotencyRetentionSeconds": 86400
+        },
+        "serverTime": "2026-01-01T00:00:00Z"
+      }
+    },
+    "descriptor": {
+      "protocolVersion": 1,
+      "minimumSupportedProtocolVersion": 1,
+      "instanceId": "photographer-fixture",
+      "displayName": "Photographer fixture",
+      "applicationVersion": "fixture.1",
+      "capabilities": [
+        "STILL_CAPTURE",
+        "EXTERNAL_STEP_TRIGGER",
+        "DURABLE_MEDIA",
+        "RANGE_DOWNLOAD",
+        "SHA256_INTEGRITY"
+      ],
+      "supportedFormats": [
+        "PNG"
+      ],
+      "eventTransports": [
+        "POLLING"
+      ],
+      "limits": {
+        "maximumSteps": 8,
+        "maximumAssetBytes": 1024,
+        "maximumSessionDurationMs": 60000,
+        "maximumTriggerWaitMs": 10000,
+        "idempotencyRetentionSeconds": 86400
+      },
+      "serverTime": "2026-01-01T00:00:00Z"
+    },
+    "descriptorWithExtension": {
+      "protocolVersion": 1,
+      "minimumSupportedProtocolVersion": 1,
+      "instanceId": "photographer-fixture",
+      "displayName": "Photographer fixture",
+      "applicationVersion": "fixture.1",
+      "capabilities": [
+        "STILL_CAPTURE",
+        "EXTERNAL_STEP_TRIGGER",
+        "DURABLE_MEDIA",
+        "RANGE_DOWNLOAD",
+        "SHA256_INTEGRITY",
+        "FUTURE_OPTIONAL_CAPABILITY"
+      ],
+      "supportedFormats": [
+        "PNG"
+      ],
+      "eventTransports": [
+        "POLLING"
+      ],
+      "limits": {
+        "maximumSteps": 8,
+        "maximumAssetBytes": 1024,
+        "maximumSessionDurationMs": 60000,
+        "maximumTriggerWaitMs": 10000,
+        "idempotencyRetentionSeconds": 86400
+      },
+      "serverTime": "2026-01-01T00:00:00Z",
+      "futureOptionalField": "ignored"
+    },
+    "health": {
+      "state": "CONNECTED",
+      "checkedAt": "2026-01-01T00:00:00Z",
+      "messageCode": "HEALTH_OK"
+    },
+    "cameras": [
+      {
+        "cameraProfileId": "profile-mock-1",
+        "displayName": "Mock camera",
+        "state": "CONNECTED",
+        "capabilities": [
+          "STILL_CAPTURE",
+          "EXTERNAL_STEP_TRIGGER",
+          "DURABLE_MEDIA",
+          "RANGE_DOWNLOAD",
+          "SHA256_INTEGRITY"
+        ],
+        "supportedFormats": [
+          "PNG"
+        ]
+      }
+    ],
+    "bosPlan": {
+      "externalExperimentId": "fixture-bos-1",
+      "cameraProfileId": "profile-mock-1",
+      "workflowType": "BACKGROUND_ORIENTED_SCHLIEREN",
+      "requestedSettings": {
+        "lockExposure": false,
+        "lockFocus": false,
+        "preferredFormat": "PNG"
+      },
+      "steps": [
+        {
+          "id": "reference",
+          "sequenceIndex": 0,
+          "role": "REFERENCE",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0
+        },
+        {
+          "id": "disturbed",
+          "sequenceIndex": 1,
+          "role": "DISTURBED",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0
+        }
+      ]
+    },
+    "displayPlan": {
+      "externalExperimentId": "fixture-display-1",
+      "cameraProfileId": "profile-mock-1",
+      "workflowType": "DISPLAY_PHOTOMETRIC_STEREO",
+      "requestedSettings": {
+        "lockExposure": false,
+        "lockFocus": false,
+        "preferredFormat": "PNG"
+      },
+      "steps": [
+        {
+          "id": "light-red",
+          "sequenceIndex": 0,
+          "role": "DIRECTIONAL_LIGHT",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0,
+          "externalPatternId": "red",
+          "externalPatternSha256": "5269b8a8e1025d5110aee6c8d5f6746d0b02d2aa159e687c086c5bc5f8797f73"
+        },
+        {
+          "id": "light-green",
+          "sequenceIndex": 1,
+          "role": "DIRECTIONAL_LIGHT",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0,
+          "externalPatternId": "green",
+          "externalPatternSha256": "02c4a5e2099ee8c935321039d1445d58be775dc708286de5ed6fef47b3e7cd83"
+        },
+        {
+          "id": "light-blue",
+          "sequenceIndex": 2,
+          "role": "DIRECTIONAL_LIGHT",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0,
+          "externalPatternId": "blue",
+          "externalPatternSha256": "6b749ddd0e26319c9e9b5798b444e26f7d37bc0d52301fec3a4ff9cf8e931d3b"
+        }
+      ]
+    },
+    "bosTrigger": {
+      "presentedAt": "2026-01-01T00:00:00Z"
+    },
+    "disturbedTrigger": {
+      "presentedAt": "2026-01-01T00:00:03Z"
+    },
+    "displayTrigger": {
+      "externalPatternId": "red",
+      "externalPatternSha256": "5269b8a8e1025d5110aee6c8d5f6746d0b02d2aa159e687c086c5bc5f8797f73",
+      "presentedAt": "2026-01-01T00:00:00Z"
+    },
+    "bosChange": {
+      "presentedAt": "2026-01-01T00:00:01Z"
+    },
+    "wrongDisplayHash": {
+      "externalPatternId": "red",
+      "externalPatternSha256": "02c4a5e2099ee8c935321039d1445d58be775dc708286de5ed6fef47b3e7cd83",
+      "presentedAt": "2026-01-01T00:00:00Z"
+    },
+    "unknownPlanField": {
+      "externalExperimentId": "fixture-bos-1",
+      "cameraProfileId": "profile-mock-1",
+      "workflowType": "BACKGROUND_ORIENTED_SCHLIEREN",
+      "requestedSettings": {
+        "lockExposure": false,
+        "lockFocus": false,
+        "preferredFormat": "PNG"
+      },
+      "steps": [
+        {
+          "id": "reference",
+          "sequenceIndex": 0,
+          "role": "REFERENCE",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0
+        },
+        {
+          "id": "disturbed",
+          "sequenceIndex": 1,
+          "role": "DISTURBED",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0
+        }
+      ],
+      "callbackUrl": "https://example.invalid/"
+    },
+    "nonContiguousPlan": {
+      "externalExperimentId": "fixture-bos-1",
+      "cameraProfileId": "profile-mock-1",
+      "workflowType": "BACKGROUND_ORIENTED_SCHLIEREN",
+      "requestedSettings": {
+        "lockExposure": false,
+        "lockFocus": false,
+        "preferredFormat": "PNG"
+      },
+      "steps": [
+        {
+          "id": "reference",
+          "sequenceIndex": 0,
+          "role": "REFERENCE",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0
+        },
+        {
+          "id": "disturbed",
+          "sequenceIndex": 2,
+          "role": "DISTURBED",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0
+        }
+      ]
+    },
+    "duplicateStepIdPlan": {
+      "externalExperimentId": "fixture-bos-1",
+      "cameraProfileId": "profile-mock-1",
+      "workflowType": "BACKGROUND_ORIENTED_SCHLIEREN",
+      "requestedSettings": {
+        "lockExposure": false,
+        "lockFocus": false,
+        "preferredFormat": "PNG"
+      },
+      "steps": [
+        {
+          "id": "reference",
+          "sequenceIndex": 0,
+          "role": "REFERENCE",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0
+        },
+        {
+          "id": "reference",
+          "sequenceIndex": 1,
+          "role": "DISTURBED",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0
+        }
+      ]
+    },
+    "missingDisplayHashPlan": {
+      "externalExperimentId": "fixture-display-1",
+      "cameraProfileId": "profile-mock-1",
+      "workflowType": "DISPLAY_PHOTOMETRIC_STEREO",
+      "requestedSettings": {
+        "lockExposure": false,
+        "lockFocus": false,
+        "preferredFormat": "PNG"
+      },
+      "steps": [
+        {
+          "id": "light-red",
+          "sequenceIndex": 0,
+          "role": "DIRECTIONAL_LIGHT",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0,
+          "externalPatternId": "red"
+        },
+        {
+          "id": "light-green",
+          "sequenceIndex": 1,
+          "role": "DIRECTIONAL_LIGHT",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0,
+          "externalPatternId": "green",
+          "externalPatternSha256": "02c4a5e2099ee8c935321039d1445d58be775dc708286de5ed6fef47b3e7cd83"
+        },
+        {
+          "id": "light-blue",
+          "sequenceIndex": 2,
+          "role": "DIRECTIONAL_LIGHT",
+          "triggerMode": "EXTERNAL",
+          "settleDelayMs": 0,
+          "externalPatternId": "blue",
+          "externalPatternSha256": "6b749ddd0e26319c9e9b5798b444e26f7d37bc0d52301fec3a4ff9cf8e931d3b"
+        }
+      ]
+    },
+    "sessionRef": {
+      "sessionId": "capture-bos",
+      "cameraProfileId": "profile-mock-1",
+      "effectiveSettings": {
+        "lockExposure": false,
+        "lockFocus": false,
+        "format": "PNG"
+      },
+      "createdAt": "2026-01-01T00:00:00Z"
+    },
+    "displaySessionRef": {
+      "sessionId": "capture-display",
+      "cameraProfileId": "profile-mock-1",
+      "effectiveSettings": {
+        "lockExposure": false,
+        "lockFocus": false,
+        "format": "PNG"
+      },
+      "createdAt": "2026-01-01T00:00:00Z"
+    },
+    "referenceResult": {
+      "sessionId": "capture-bos",
+      "stepId": "reference",
+      "asset": {
+        "sessionId": "capture-bos",
+        "stepId": "reference",
+        "assetId": "asset-reference",
+        "role": "REFERENCE",
+        "originalFileName": "reference.png",
+        "mediaType": "image/png",
+        "byteLength": 69,
+        "sha256": "b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2",
+        "capturedAt": "2026-01-01T00:00:01Z"
+      },
+      "completedAt": "2026-01-01T00:00:02Z"
+    },
+    "disturbedResult": {
+      "sessionId": "capture-bos",
+      "stepId": "disturbed",
+      "asset": {
+        "sessionId": "capture-bos",
+        "stepId": "disturbed",
+        "assetId": "asset-disturbed",
+        "role": "DISTURBED",
+        "originalFileName": "disturbed.png",
+        "mediaType": "image/png",
+        "byteLength": 69,
+        "sha256": "5d0c7e1714277d42f9a73aaa72efdabdba442f158013329c9dc1c70a26a48e05",
+        "capturedAt": "2026-01-01T00:00:04Z"
+      },
+      "completedAt": "2026-01-01T00:00:05Z"
+    },
+    "capturePending": {
+      "sessionId": "capture-bos",
+      "state": "CAPTURING",
+      "completedSteps": 0,
+      "totalSteps": 2,
+      "lastEventId": 1,
+      "updatedAt": "2026-01-01T00:00:00Z",
+      "steps": [
+        {
+          "stepId": "reference",
+          "sequenceIndex": 0,
+          "state": "CAPTURING"
+        },
+        {
+          "stepId": "disturbed",
+          "sequenceIndex": 1,
+          "state": "PENDING"
+        }
+      ]
+    },
+    "captureFailedUncertain": {
+      "sessionId": "capture-bos",
+      "state": "RECOVERY_REQUIRED",
+      "completedSteps": 0,
+      "totalSteps": 2,
+      "lastEventId": 2,
+      "updatedAt": "2026-01-01T00:00:02Z",
+      "steps": [
+        {
+          "stepId": "reference",
+          "sequenceIndex": 0,
+          "state": "RECOVERY_REQUIRED"
+        },
+        {
+          "stepId": "disturbed",
+          "sequenceIndex": 1,
+          "state": "PENDING"
+        }
+      ]
+    },
+    "captureCompleted": {
+      "sessionId": "capture-bos",
+      "state": "COMPLETED",
+      "completedSteps": 2,
+      "totalSteps": 2,
+      "lastEventId": 3,
+      "updatedAt": "2026-01-01T00:00:05Z",
+      "steps": [
+        {
+          "stepId": "reference",
+          "sequenceIndex": 0,
+          "state": "COMPLETED",
+          "result": {
+            "sessionId": "capture-bos",
+            "stepId": "reference",
+            "asset": {
+              "sessionId": "capture-bos",
+              "stepId": "reference",
+              "assetId": "asset-reference",
+              "role": "REFERENCE",
+              "originalFileName": "reference.png",
+              "mediaType": "image/png",
+              "byteLength": 69,
+              "sha256": "b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2",
+              "capturedAt": "2026-01-01T00:00:01Z"
+            },
+            "completedAt": "2026-01-01T00:00:02Z"
+          }
+        },
+        {
+          "stepId": "disturbed",
+          "sequenceIndex": 1,
+          "state": "COMPLETED",
+          "result": {
+            "sessionId": "capture-bos",
+            "stepId": "disturbed",
+            "asset": {
+              "sessionId": "capture-bos",
+              "stepId": "disturbed",
+              "assetId": "asset-disturbed",
+              "role": "DISTURBED",
+              "originalFileName": "disturbed.png",
+              "mediaType": "image/png",
+              "byteLength": 69,
+              "sha256": "5d0c7e1714277d42f9a73aaa72efdabdba442f158013329c9dc1c70a26a48e05",
+              "capturedAt": "2026-01-01T00:00:04Z"
+            },
+            "completedAt": "2026-01-01T00:00:05Z"
+          }
+        }
+      ]
+    },
+    "completionEventPage": {
+      "events": [
+        {
+          "eventId": 2,
+          "sessionId": "capture-bos",
+          "stepId": "reference",
+          "state": "WAITING_FOR_EXTERNAL_TRIGGER",
+          "messageCode": "CAPTURE_COMMITTED",
+          "timestamp": "2026-01-01T00:00:02Z",
+          "asset": {
+            "sessionId": "capture-bos",
+            "stepId": "reference",
+            "assetId": "asset-reference",
+            "role": "REFERENCE",
+            "originalFileName": "reference.png",
+            "mediaType": "image/png",
+            "byteLength": 69,
+            "sha256": "b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2",
+            "capturedAt": "2026-01-01T00:00:01Z"
+          }
+        },
+        {
+          "eventId": 3,
+          "sessionId": "capture-bos",
+          "stepId": "disturbed",
+          "state": "COMPLETED",
+          "messageCode": "CAPTURE_COMMITTED",
+          "timestamp": "2026-01-01T00:00:05Z",
+          "asset": {
+            "sessionId": "capture-bos",
+            "stepId": "disturbed",
+            "assetId": "asset-disturbed",
+            "role": "DISTURBED",
+            "originalFileName": "disturbed.png",
+            "mediaType": "image/png",
+            "byteLength": 69,
+            "sha256": "5d0c7e1714277d42f9a73aaa72efdabdba442f158013329c9dc1c70a26a48e05",
+            "capturedAt": "2026-01-01T00:00:04Z"
+          }
+        }
+      ],
+      "lastEventId": 3,
+      "hasMore": false
+    },
+    "displayCapturePending": {
+      "sessionId": "capture-display",
+      "state": "CAPTURING",
+      "completedSteps": 0,
+      "totalSteps": 3,
+      "lastEventId": 1,
+      "updatedAt": "2026-01-01T00:00:00Z",
+      "steps": [
+        {
+          "stepId": "light-red",
+          "sequenceIndex": 0,
+          "state": "CAPTURING"
+        },
+        {
+          "stepId": "light-green",
+          "sequenceIndex": 1,
+          "state": "PENDING"
+        },
+        {
+          "stepId": "light-blue",
+          "sequenceIndex": 2,
+          "state": "PENDING"
+        }
+      ]
+    },
+    "INVALID_REQUEST": {
+      "type": "urn:fresnel:problem:invalid-request",
+      "title": "Invalid request",
+      "status": 400,
+      "code": "INVALID_REQUEST",
+      "retryable": false,
+      "messageCode": "INVALID_REQUEST"
+    },
+    "AUTHENTICATION_FAILED": {
+      "type": "urn:fresnel:problem:authentication-failed",
+      "title": "Authorization required",
+      "status": 401,
+      "code": "AUTHENTICATION_FAILED",
+      "retryable": false,
+      "messageCode": "AUTHENTICATION_FAILED"
+    },
+    "PAIRING_CODE_INVALID": {
+      "type": "urn:fresnel:problem:pairing-code-invalid",
+      "title": "Operation forbidden",
+      "status": 403,
+      "code": "PAIRING_CODE_INVALID",
+      "retryable": false,
+      "messageCode": "PAIRING_CODE_INVALID"
+    },
+    "INSUFFICIENT_SCOPE": {
+      "type": "urn:fresnel:problem:insufficient-scope",
+      "title": "Operation forbidden",
+      "status": 403,
+      "code": "INSUFFICIENT_SCOPE",
+      "retryable": false,
+      "messageCode": "INSUFFICIENT_SCOPE"
+    },
+    "ASSET_NOT_FOUND": {
+      "type": "urn:fresnel:problem:asset-not-found",
+      "title": "Resource unavailable",
+      "status": 404,
+      "code": "ASSET_NOT_FOUND",
+      "retryable": false,
+      "messageCode": "ASSET_NOT_FOUND"
+    },
+    "IDEMPOTENCY_CONFLICT": {
+      "type": "urn:fresnel:problem:idempotency-conflict",
+      "title": "Request conflict",
+      "status": 409,
+      "code": "IDEMPOTENCY_CONFLICT",
+      "retryable": false,
+      "messageCode": "IDEMPOTENCY_CONFLICT"
+    },
+    "STEP_ALREADY_TRIGGERED": {
+      "type": "urn:fresnel:problem:step-already-triggered",
+      "title": "Request conflict",
+      "status": 409,
+      "code": "STEP_ALREADY_TRIGGERED",
+      "retryable": false,
+      "messageCode": "STEP_ALREADY_TRIGGERED"
+    },
+    "RECOVERY_REQUIRED": {
+      "type": "urn:fresnel:problem:recovery-required",
+      "title": "Request conflict",
+      "status": 409,
+      "code": "RECOVERY_REQUIRED",
+      "retryable": false,
+      "messageCode": "RECOVERY_REQUIRED"
+    },
+    "RANGE_NOT_SATISFIABLE": {
+      "type": "urn:fresnel:problem:range-not-satisfiable",
+      "title": "Range unavailable",
+      "status": 416,
+      "code": "RANGE_NOT_SATISFIABLE",
+      "retryable": false,
+      "messageCode": "RANGE_NOT_SATISFIABLE"
+    },
+    "INVALID_PLAN": {
+      "type": "urn:fresnel:problem:invalid-plan",
+      "title": "Request cannot be applied",
+      "status": 422,
+      "code": "INVALID_PLAN",
+      "retryable": false,
+      "messageCode": "INVALID_PLAN"
+    },
+    "PATTERN_MISMATCH": {
+      "type": "urn:fresnel:problem:pattern-mismatch",
+      "title": "Request cannot be applied",
+      "status": 422,
+      "code": "PATTERN_MISMATCH",
+      "retryable": false,
+      "messageCode": "PATTERN_MISMATCH"
+    }
+  },
+  "cases": [
+    {
+      "id": "pair-once",
+      "given": "The Photographer administrator issued the fixture code.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/pair",
+        "headers": {
+          "Idempotency-Key": "pair-1",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/pair"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/pairResult"
+      }
+    },
+    {
+      "id": "reject-spent-code",
+      "given": "The preceding pairing succeeded.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/pair",
+        "headers": {
+          "Idempotency-Key": "pair-1",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/pair"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/PAIRING_CODE_INVALID"
+      },
+      "assert": "The token is never returned again."
+    },
+    {
+      "id": "discover",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/descriptor",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/descriptor"
+      }
+    },
+    {
+      "id": "ignore-additive-response",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/descriptor",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/descriptorWithExtension"
+      },
+      "assert": "Use known capabilities and ignore the new response field and optional capability."
+    },
+    {
+      "id": "health",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/health",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/health"
+      }
+    },
+    {
+      "id": "redacted-camera",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/cameras",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/cameras"
+      },
+      "assert": "Map profile-mock-1 directly to CaptureProvider.Device.id in this Photographer instance."
+    },
+    {
+      "id": "create-bos",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "bos-create",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosPlan"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/sessionRef"
+      }
+    },
+    {
+      "id": "replay-create",
+      "given": "The client lost the create response.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "bos-create",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosPlan"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/sessionRef"
+      },
+      "assert": "Return the same session ID without creating another session."
+    },
+    {
+      "id": "reject-unknown-plan-field",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "bad-plan",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/unknownPlanField"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/INVALID_REQUEST"
+      },
+      "assert": "No camera call or session creation."
+    },
+    {
+      "id": "reject-noncontiguous-plan",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "bad-index",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/nonContiguousPlan"
+      },
+      "response": {
+        "status": 422,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/INVALID_PLAN"
+      },
+      "assert": "No camera call or session creation."
+    },
+    {
+      "id": "reject-duplicate-step-id",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "bad-step",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/duplicateStepIdPlan"
+      },
+      "response": {
+        "status": 422,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/INVALID_PLAN"
+      },
+      "assert": "No camera call or session creation."
+    },
+    {
+      "id": "reject-unbound-display-pattern",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "bad-display",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/missingDisplayHashPlan"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/INVALID_REQUEST"
+      },
+      "assert": "No camera call or session creation."
+    },
+    {
+      "id": "trigger-reference",
+      "given": "The reference condition is presented and the fixture worker holds the reserved capture.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/reference/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-reference",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosTrigger"
+      },
+      "response": {
+        "status": 202,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/capturePending"
+      },
+      "assert": "Persist one reservation and call capture at most once for this step."
+    },
+    {
+      "id": "reference-after-response-loss",
+      "given": "The reference asset and result were committed before the previous response was lost.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/reference/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-reference",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosTrigger"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/referenceResult"
+      },
+      "assert": "Return the existing asset. Zero additional camera calls."
+    },
+    {
+      "id": "same-key-changed-request",
+      "given": "The reference trigger key was already reserved.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/reference/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-reference",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosChange"
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/IDEMPOTENCY_CONFLICT"
+      },
+      "assert": "Zero additional camera calls."
+    },
+    {
+      "id": "new-key-existing-step",
+      "given": "The reference asset was already committed.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/reference/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "new-reference-key",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosTrigger"
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/STEP_ALREADY_TRIGGERED"
+      },
+      "assert": "Zero additional camera calls."
+    },
+    {
+      "id": "trigger-disturbed",
+      "given": "The disturbed condition is presented and this trigger completes before the response.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/disturbed/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-disturbed",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/disturbedTrigger"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/disturbedResult"
+      },
+      "assert": "Use the same camera lease and commit the second distinct step result."
+    },
+    {
+      "id": "completed-status-after-restart",
+      "given": "Both assets were committed and the server was restarted.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/captureCompleted"
+      },
+      "assert": "Both committed results remain discoverable without camera calls."
+    },
+    {
+      "id": "resume-events-from-cursor",
+      "given": "Both completion events were persisted before restart.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/events?afterEventId=1&limit=2",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/completionEventPage"
+      }
+    },
+    {
+      "id": "get-asset-metadata",
+      "given": "The reference asset is committed.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference/metadata",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/media/0/metadata"
+      },
+      "assert": "The SHA-256 and byte length identify the complete uncoded asset."
+    },
+    {
+      "id": "asset-head",
+      "given": "The reference asset is committed.",
+      "request": {
+        "method": "HEAD",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "image/png",
+          "ETag": "\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\"",
+          "Accept-Ranges": "bytes",
+          "Content-Length": "69"
+        }
+      }
+    },
+    {
+      "id": "asset-conditional",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "If-None-Match": "\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\""
+        }
+      },
+      "response": {
+        "status": 304,
+        "headers": {
+          "ETag": "\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\""
+        }
+      }
+    },
+    {
+      "id": "asset-resume",
+      "given": "The client already saved the first eight bytes with the matching ETag.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Range": "bytes=8-68",
+          "If-Range": "\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\""
+        }
+      },
+      "response": {
+        "status": 206,
+        "headers": {
+          "Content-Type": "image/png",
+          "ETag": "\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\"",
+          "Accept-Ranges": "bytes",
+          "Content-Length": "61",
+          "Content-Range": "bytes 8-68/69"
+        },
+        "bodyHex": "0000000d4948445200000001000000010802000000907753de0000000c49444154789c63505050000000c400612995f9b00000000049454e44ae426082"
+      },
+      "assert": "Append only at byte eight and verify the full length and SHA-256 before import."
+    },
+    {
+      "id": "asset-stale-validator",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Range": "bytes=8-68",
+          "If-Range": "\"0000000000000000000000000000000000000000000000000000000000000000\""
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "image/png",
+          "ETag": "\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\"",
+          "Accept-Ranges": "bytes",
+          "Content-Length": "69"
+        },
+        "bodyHex": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63505050000000c400612995f9b00000000049454e44ae426082"
+      },
+      "assert": "Discard the saved prefix and verify the new full transfer before import."
+    },
+    {
+      "id": "asset-unsatisfiable-range",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Range": "bytes=69-70"
+        }
+      },
+      "response": {
+        "status": 416,
+        "headers": {
+          "Content-Type": "application/problem+json",
+          "Content-Range": "bytes */69"
+        },
+        "jsonBodyRef": "#/values/RANGE_NOT_SATISFIABLE"
+      }
+    },
+    {
+      "id": "asset-cross-pairing",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
+        "headers": {
+          "Authorization": "Bearer test-only-different-pairing"
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/ASSET_NOT_FOUND"
+      },
+      "assert": "Indistinguishable from an unknown asset with this pairing."
+    },
+    {
+      "id": "asset-missing-scope",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
+        "headers": {
+          "Authorization": "Bearer test-only-no-media-scope"
+        }
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/INSUFFICIENT_SCOPE"
+      }
+    },
+    {
+      "id": "asset-revoked-before-conditional",
+      "given": "The Photographer administrator revoked the pairing.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "If-None-Match": "\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\""
+        }
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "Content-Type": "application/problem+json",
+          "WWW-Authenticate": "Bearer"
+        },
+        "jsonBodyRef": "#/values/AUTHENTICATION_FAILED"
+      },
+      "assert": "Deny the request before evaluating If-None-Match."
+    },
+    {
+      "id": "create-display-plan",
+      "given": "The mock camera is available and this is an independent display session.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "display-create",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/displayPlan"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/displaySessionRef"
+      }
+    },
+    {
+      "id": "wrong-displayed-pattern",
+      "given": "The plan binds light-red to the canonical red raster.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-display/steps/light-red/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "wrong-display-pattern",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/wrongDisplayHash"
+      },
+      "response": {
+        "status": 422,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/PATTERN_MISMATCH"
+      },
+      "assert": "Zero camera calls and no trigger reservation."
+    },
+    {
+      "id": "matching-displayed-pattern",
+      "given": "Fresnel presented the red raster and the worker holds the reservation.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-display/steps/light-red/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-light-red",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/displayTrigger"
+      },
+      "response": {
+        "status": 202,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/displayCapturePending"
+      }
+    },
+    {
+      "id": "poll-uncertain-shutter-after-restart",
+      "given": "In an independent BOS run the reference shutter may have fired, but the server crashed before committing media.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/captureFailedUncertain"
+      },
+      "assert": "The reference has no result. The provider does not move to the disturbed step."
+    },
+    {
+      "id": "replay-uncertain-shutter-after-restart",
+      "given": "The same independent run has an unresolved reference capture.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/reference/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-reference",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosTrigger"
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/RECOVERY_REQUIRED"
+      },
+      "assert": "Zero additional camera calls."
+    },
+    {
+      "id": "new-key-uncertain-shutter-after-restart",
+      "given": "The same independent run has an unresolved reference capture.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/reference/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "new-reference-key",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosTrigger"
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/RECOVERY_REQUIRED"
+      },
+      "assert": "Zero additional camera calls."
+    },
+    {
+      "id": "cancel-uncertain-session",
+      "given": "The same independent run has an unresolved reference capture.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/cancel",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "cancel-uncertain"
+        }
+      },
+      "response": {
+        "status": 204
+      },
+      "assert": "Persist the stop and leave the trigger fence in place."
+    },
+    {
+      "id": "replay-cancel",
+      "given": "The same independent run has already recorded cancellation.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/cancel",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "cancel-uncertain"
+        }
+      },
+      "response": {
+        "status": 204
+      },
+      "assert": "No additional camera calls or lease cleanup."
+    }
+  ],
+  "clientChecks": [
+    {
+      "id": "reject-same-length-corruption",
+      "asset": "#/media/0/metadata",
+      "assembledBytesHex": "89504e470d0a1a0a0100000d4948445200000001000000010802000000907753de0000000c49444154789c63505050000000c400612995f9b00000000049454e44ae426082",
+      "expectedCode": "INTEGRITY_MISMATCH"
+    },
+    {
+      "id": "reject-truncated-asset",
+      "asset": "#/media/0/metadata",
+      "assembledBytesHex": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63505050000000c400612995f9b00000000049454e44ae4260",
+      "expectedCode": "INTEGRITY_MISMATCH"
+    }
+  ]
+}

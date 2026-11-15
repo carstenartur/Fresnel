@@ -1,0 +1,684 @@
+openapi: 3.1.1
+info:
+  title: Photographer capture REST API for Fresnel
+  version: 1.0.0-draft
+  description: |
+    Candidate for the first paired, externally triggered still-capture workflow.
+    The integration note defines the cross-request invariants for this document.
+    Clients use only an administrator-configured origin. The relative server URL
+    permits native or container deployment through the same protocol.
+servers:
+  - url: /api/v1/integrations/fresnel
+security:
+  - PairingToken: []
+paths:
+  /pair:
+    post:
+      operationId: pair
+      summary: Exchange one Photographer-issued code for a scoped token
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      description: |
+        The code authorizes this operation. A successful exchange consumes it
+        irrevocably and returns the token once. Repeating the key and body after
+        success returns 403 PAIRING_CODE_INVALID. A lost response requires
+        revoking the orphaned pairing and obtaining a fresh code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PairRequest'}
+      responses:
+        '201':
+          description: Pairing created. Store the token on the Fresnel server.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PairResult'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/Problem'}
+        default: {$ref: '#/components/responses/Problem'}
+  /descriptor:
+    get:
+      operationId: getDescriptor
+      summary: Advertise the paired Photographer instance, limits and features
+      x-required-service-scope: fresnel:descriptor:read
+      responses:
+        '200':
+          description: Descriptor for the configured Photographer instance.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Descriptor'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        default: {$ref: '#/components/responses/Problem'}
+  /health:
+    get:
+      operationId: getHealth
+      summary: Check availability over the authenticated connection
+      x-required-service-scope: fresnel:descriptor:read
+      responses:
+        '200':
+          description: Live integration health.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Health'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        default: {$ref: '#/components/responses/Problem'}
+  /cameras:
+    get:
+      operationId: listCameras
+      summary: List redacted camera profiles visible to this pairing
+      x-required-service-scope: fresnel:cameras:read
+      responses:
+        '200':
+          description: Camera profiles. Use cameraProfileId verbatim as the Fresnel provider device ID.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Camera'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        default: {$ref: '#/components/responses/Problem'}
+  /capture-sessions:
+    post:
+      operationId: createCaptureSession
+      summary: Create an immutable, durable capture plan
+      x-required-service-scope: fresnel:capture-sessions:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CapturePlan'}
+      responses:
+        '201':
+          description: Durable creation result. An identical replay returns the original result.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SessionRef'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        default: {$ref: '#/components/responses/Problem'}
+  /capture-sessions/{sessionId}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      operationId: getCaptureSession
+      summary: Poll persisted session and step state
+      x-required-service-scope: fresnel:capture-sessions:write
+      responses:
+        '200': {$ref: '#/components/responses/SessionStatus'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        default: {$ref: '#/components/responses/Problem'}
+  /capture-sessions/{sessionId}/events:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      operationId: getCaptureEvents
+      summary: Read a bounded page of persisted events
+      x-required-service-scope: fresnel:capture-sessions:write
+      description: |
+        Events are immutable and returned in strictly increasing order after the cursor.
+        The response cursor is the last returned event ID, or the input cursor when
+        the page is empty. Advance only to this cursor, including if hasMore is true.
+      parameters:
+        - name: afterEventId
+          in: query
+          schema: {type: integer, format: int64, minimum: 0, default: 0}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 1000, default: 100}
+      responses:
+        '200':
+          description: A page of durable capture events.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EventPage'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        default: {$ref: '#/components/responses/Problem'}
+  /capture-sessions/{sessionId}/steps/{stepId}/trigger:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+      - $ref: '#/components/parameters/StepId'
+    post:
+      operationId: triggerCaptureStep
+      summary: Confirm a presented condition and reserve one shutter dispatch
+      x-required-service-scope: fresnel:capture-sessions:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StepTrigger'}
+      responses:
+        '200':
+          description: The original durably committed result, including on replay.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StepResult'}
+        '202':
+          description: Trigger durably reserved or ongoing. Poll this session for progress.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SessionStatus'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        default: {$ref: '#/components/responses/Problem'}
+  /capture-sessions/{sessionId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      operationId: cancelCaptureSession
+      summary: Request a durable, safe stop
+      x-required-service-scope: fresnel:capture-sessions:write
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      description: |
+        Send an empty request body. Success fences new shutter dispatches. An
+        in-flight operation can still reach its safe stopping point, so poll for
+        terminal state. Terminal sessions accept an idempotent no-op cancellation.
+      responses:
+        '204': {description: Cancellation recorded or already unnecessary.}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        default: {$ref: '#/components/responses/Problem'}
+  /capture-sessions/{sessionId}/assets/{assetId}/metadata:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+      - $ref: '#/components/parameters/AssetId'
+    get:
+      operationId: getCaptureAssetMetadata
+      summary: Read the committed source asset identity, length and checksum
+      x-required-service-scope: fresnel:media:read
+      responses:
+        '200':
+          description: Durable metadata for the immutable source asset.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AssetMetadata'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        default: {$ref: '#/components/responses/Problem'}
+  /capture-sessions/{sessionId}/assets/{assetId}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+      - $ref: '#/components/parameters/AssetId'
+      - $ref: '#/components/parameters/IfNoneMatch'
+    head:
+      operationId: headCaptureAsset
+      summary: Read full representation headers without source bytes
+      x-required-service-scope: fresnel:media:read
+      responses:
+        '200':
+          description: Full asset headers, including the source media type. Ignore Range on HEAD.
+          headers:
+            ETag: {$ref: '#/components/headers/AssetETag'}
+            Accept-Ranges: {$ref: '#/components/headers/AcceptRanges'}
+            Content-Length: {$ref: '#/components/headers/ContentLength'}
+        '304': {$ref: '#/components/responses/NotModified'}
+        '401':
+          description: Bearer authorization absent, invalid or revoked. No response body.
+          headers:
+            WWW-Authenticate:
+              required: true
+              schema: {type: string}
+        '404': {description: Asset unavailable to this pairing.}
+        default: {description: See the matching GET error status. HEAD has no response body.}
+    get:
+      operationId: getCaptureAsset
+      summary: Stream the complete immutable asset or one byte range
+      x-required-service-scope: fresnel:media:read
+      description: |
+        Evaluate If-None-Match before Range. A mismatched If-Range results in a
+        full 200. Return uncoded representation bytes. The media type matches
+        the source metadata, including for partial responses.
+      parameters:
+        - name: Range
+          in: header
+          description: One bounded inclusive byte range. Suffix, open-ended and multiple ranges are unsupported.
+          schema: {type: string, pattern: '^bytes=[0-9]+-[0-9]+$', maxLength: 46}
+        - name: If-Range
+          in: header
+          description: Strong ETag from the original transfer, used by a resuming client.
+          schema: {$ref: '#/components/schemas/StrongETag'}
+      responses:
+        '200':
+          description: Full source bytes.
+          headers:
+            ETag: {$ref: '#/components/headers/AssetETag'}
+            Accept-Ranges: {$ref: '#/components/headers/AcceptRanges'}
+            Content-Length: {$ref: '#/components/headers/ContentLength'}
+          content:
+            'image/*': {}
+            application/octet-stream: {}
+        '206':
+          description: Partial source bytes from one satisfiable range.
+          headers:
+            ETag: {$ref: '#/components/headers/AssetETag'}
+            Accept-Ranges: {$ref: '#/components/headers/AcceptRanges'}
+            Content-Length: {$ref: '#/components/headers/ContentLength'}
+            Content-Range:
+              required: true
+              schema: {type: string, pattern: '^bytes [0-9]+-[0-9]+/[0-9]+$'}
+          content:
+            'image/*': {}
+            application/octet-stream: {}
+        '304': {$ref: '#/components/responses/NotModified'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '416':
+          description: The requested range starts at or after the end of the asset.
+          headers:
+            Content-Range:
+              required: true
+              schema: {type: string, pattern: '^bytes \*/[0-9]+$'}
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        default: {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    PairingToken:
+      type: http
+      scheme: bearer
+      description: |
+        Opaque service token. Each operation's x-required-service-scope is required.
+        A revoked, missing or invalid token returns 401 AUTHENTICATION_FAILED.
+        A valid token without the required scope returns 403 INSUFFICIENT_SCOPE.
+        Authorize before resolving resources, request keys or conditional headers.
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {$ref: '#/components/schemas/Id'}
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Id'}
+    StepId:
+      name: stepId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/StepId'}
+    AssetId:
+      name: assetId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Id'}
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      description: Standard HTTP conditional read precondition.
+      schema: {type: string, maxLength: 1024}
+  headers:
+    AssetETag:
+      required: true
+      description: Quoted SHA-256 of the complete uncoded asset, including on partial responses.
+      schema: {$ref: '#/components/schemas/StrongETag'}
+    AcceptRanges:
+      required: true
+      schema: {const: bytes}
+    ContentLength:
+      required: true
+      schema: {type: integer, format: int64, minimum: 1}
+  responses:
+    Problem:
+      description: Sanitized RFC 9457 problem, with a stable integration error code.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Unauthorized:
+      description: Request lacks valid authorization.
+      headers:
+        WWW-Authenticate:
+          required: true
+          description: Bearer challenge for service-token operations.
+          schema: {type: string}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Conflict:
+      description: Request conflicts with protocol, idempotency, lease or capture state.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    NotFound:
+      description: Resource is missing or belongs to a different pairing.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    NotModified:
+      description: If-None-Match matches the current asset. No response body.
+      headers:
+        ETag: {$ref: '#/components/headers/AssetETag'}
+    SessionStatus:
+      description: Current durable status, including each step and its committed result.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/SessionStatus'}
+  schemas:
+    Id:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$'
+    StepId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$'
+    Code:
+      type: string
+      maxLength: 96
+      pattern: '^[A-Z0-9][A-Z0-9._:-]*$'
+    Label:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[^\u0000-\u001f\u007f]+$'
+    Sha256:
+      type: string
+      minLength: 64
+      maxLength: 64
+      pattern: '^[0-9a-f]{64}$'
+    StrongETag:
+      type: string
+      pattern: '^"[0-9a-f]{64}"$'
+    MediaType:
+      type: string
+      maxLength: 128
+      pattern: '^(image/[a-z0-9!#$&^_.+-]+|application/octet-stream)$'
+    DateTime:
+      type: string
+      format: date-time
+    WorkflowType:
+      type: string
+      enum: [BACKGROUND_ORIENTED_SCHLIEREN, DISPLAY_PHOTOMETRIC_STEREO]
+    Role:
+      type: string
+      enum: [REFERENCE, DISTURBED, DARK, FLAT, DIRECTIONAL_LIGHT]
+    Format:
+      type: string
+      enum: [JPEG, PNG, RAW_WITH_PREVIEW]
+    PairRequest:
+      type: object
+      additionalProperties: false
+      required: [pairingCode, fresnelInstanceId, fresnelDisplayName, fresnelApplicationVersion, fresnelProtocolVersion]
+      properties:
+        pairingCode: {type: string, minLength: 1, maxLength: 512, writeOnly: true}
+        fresnelInstanceId: {$ref: '#/components/schemas/Id'}
+        fresnelDisplayName: {$ref: '#/components/schemas/Label'}
+        fresnelApplicationVersion: {$ref: '#/components/schemas/Label'}
+        fresnelProtocolVersion: {type: integer, minimum: 1}
+    PairResult:
+      type: object
+      required: [pairingId, bearerToken, scopes, descriptor]
+      properties:
+        pairingId: {$ref: '#/components/schemas/Id'}
+        bearerToken: {type: string, minLength: 1, maxLength: 512, pattern: '^[A-Za-z0-9._~+/-]+=*$'}
+        scopes:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [fresnel:descriptor:read, fresnel:cameras:read, fresnel:capture-sessions:write, fresnel:media:read]
+        descriptor: {$ref: '#/components/schemas/Descriptor'}
+    Descriptor:
+      type: object
+      required: [protocolVersion, minimumSupportedProtocolVersion, instanceId, displayName, applicationVersion, capabilities, supportedFormats, eventTransports, limits, serverTime]
+      properties:
+        protocolVersion: {type: integer, minimum: 1}
+        minimumSupportedProtocolVersion: {type: integer, minimum: 1}
+        instanceId: {$ref: '#/components/schemas/Id'}
+        displayName: {$ref: '#/components/schemas/Label'}
+        applicationVersion: {$ref: '#/components/schemas/Label'}
+        capabilities:
+          type: array
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/Code'}
+        supportedFormats:
+          type: array
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/Code'}
+        eventTransports:
+          type: array
+          uniqueItems: true
+          contains: {const: POLLING}
+          items: {$ref: '#/components/schemas/Code'}
+        limits: {$ref: '#/components/schemas/Limits'}
+        serverTime: {$ref: '#/components/schemas/DateTime'}
+    Limits:
+      type: object
+      required: [maximumSteps, maximumAssetBytes, maximumSessionDurationMs, maximumTriggerWaitMs, idempotencyRetentionSeconds]
+      properties:
+        maximumSteps: {type: integer, minimum: 1, maximum: 256}
+        maximumAssetBytes: {type: integer, format: int64, minimum: 1}
+        maximumSessionDurationMs: {type: integer, format: int64, minimum: 1}
+        maximumTriggerWaitMs: {type: integer, format: int64, minimum: 1}
+        idempotencyRetentionSeconds: {type: integer, format: int64, minimum: 86400}
+    Health:
+      type: object
+      required: [state, checkedAt, messageCode]
+      properties:
+        state:
+          $ref: '#/components/schemas/Code'
+          description: One of CONNECTED, DEGRADED or DISCONNECTED in this slice.
+        checkedAt: {$ref: '#/components/schemas/DateTime'}
+        messageCode: {$ref: '#/components/schemas/Code'}
+    Camera:
+      type: object
+      required: [cameraProfileId, displayName, state, capabilities, supportedFormats]
+      properties:
+        cameraProfileId: {$ref: '#/components/schemas/Id'}
+        displayName: {$ref: '#/components/schemas/Label'}
+        state:
+          $ref: '#/components/schemas/Code'
+          description: One of CONNECTED, BUSY, DISCONNECTED or UNSUPPORTED in this slice.
+        capabilities:
+          type: array
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/Code'}
+        supportedFormats:
+          type: array
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/Code'}
+    RequestedSettings:
+      type: object
+      additionalProperties: false
+      required: [lockExposure, lockFocus, preferredFormat]
+      properties:
+        lockExposure: {type: boolean}
+        lockFocus: {type: boolean}
+        preferredFormat: {$ref: '#/components/schemas/Format'}
+    EffectiveSettings:
+      type: object
+      required: [lockExposure, lockFocus, format]
+      properties:
+        lockExposure: {type: boolean}
+        lockFocus: {type: boolean}
+        format: {$ref: '#/components/schemas/Code'}
+    CapturePlan:
+      type: object
+      additionalProperties: false
+      required: [externalExperimentId, cameraProfileId, workflowType, requestedSettings, steps]
+      properties:
+        externalExperimentId: {$ref: '#/components/schemas/Id'}
+        cameraProfileId: {$ref: '#/components/schemas/Id'}
+        workflowType: {$ref: '#/components/schemas/WorkflowType'}
+        requestedSettings: {$ref: '#/components/schemas/RequestedSettings'}
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 256
+          items: {$ref: '#/components/schemas/PlanStep'}
+      allOf:
+        - if:
+            properties:
+              workflowType: {const: BACKGROUND_ORIENTED_SCHLIEREN}
+          then:
+            properties:
+              steps:
+                minItems: 2
+                items:
+                  properties:
+                    role: {enum: [REFERENCE, DISTURBED]}
+                contains:
+                  properties:
+                    role: {const: REFERENCE}
+                maxContains: 1
+          else:
+            properties:
+              steps:
+                items:
+                  required: [externalPatternId, externalPatternSha256]
+                  properties:
+                    role: {enum: [DARK, FLAT, DIRECTIONAL_LIGHT]}
+                contains:
+                  properties:
+                    role: {const: DIRECTIONAL_LIGHT}
+                minContains: 3
+    PlanStep:
+      type: object
+      additionalProperties: false
+      required: [id, sequenceIndex, role, triggerMode, settleDelayMs]
+      dependentRequired:
+        externalPatternId: [externalPatternSha256]
+        externalPatternSha256: [externalPatternId]
+      properties:
+        id: {$ref: '#/components/schemas/StepId'}
+        sequenceIndex: {type: integer, minimum: 0, maximum: 255}
+        role: {$ref: '#/components/schemas/Role'}
+        triggerMode: {const: EXTERNAL}
+        settleDelayMs: {type: integer, minimum: 0, maximum: 30000}
+        externalPatternId: {$ref: '#/components/schemas/Id'}
+        externalPatternSha256: {$ref: '#/components/schemas/Sha256'}
+    StepTrigger:
+      type: object
+      additionalProperties: false
+      required: [presentedAt]
+      dependentRequired:
+        externalPatternId: [externalPatternSha256]
+        externalPatternSha256: [externalPatternId]
+      properties:
+        externalPatternId: {$ref: '#/components/schemas/Id'}
+        externalPatternSha256: {$ref: '#/components/schemas/Sha256'}
+        presentedAt: {$ref: '#/components/schemas/DateTime'}
+    SessionRef:
+      type: object
+      required: [sessionId, cameraProfileId, effectiveSettings, createdAt]
+      properties:
+        sessionId: {$ref: '#/components/schemas/Id'}
+        cameraProfileId: {$ref: '#/components/schemas/Id'}
+        effectiveSettings: {$ref: '#/components/schemas/EffectiveSettings'}
+        createdAt: {$ref: '#/components/schemas/DateTime'}
+    SessionState:
+      $ref: '#/components/schemas/Code'
+      description: |
+        Defined states are CREATED, READY, WAITING_FOR_EXTERNAL_TRIGGER, CAPTURING,
+        PERSISTING, PAUSED, COMPLETED, FAILED, CANCELLED and RECOVERY_REQUIRED.
+        Only COMPLETED, FAILED and CANCELLED are terminal.
+    StepStatus:
+      type: object
+      required: [stepId, sequenceIndex, state]
+      properties:
+        stepId: {$ref: '#/components/schemas/StepId'}
+        sequenceIndex: {type: integer, minimum: 0, maximum: 255}
+        state:
+          $ref: '#/components/schemas/Code'
+          description: PENDING, CAPTURING, PERSISTING, COMPLETED, FAILED, CANCELLED or RECOVERY_REQUIRED.
+        result: {$ref: '#/components/schemas/StepResult'}
+    SessionStatus:
+      type: object
+      required: [sessionId, state, completedSteps, totalSteps, lastEventId, updatedAt, steps]
+      properties:
+        sessionId: {$ref: '#/components/schemas/Id'}
+        state: {$ref: '#/components/schemas/SessionState'}
+        completedSteps: {type: integer, minimum: 0, maximum: 256}
+        totalSteps: {type: integer, minimum: 1, maximum: 256}
+        lastEventId: {type: integer, format: int64, minimum: 0}
+        updatedAt: {$ref: '#/components/schemas/DateTime'}
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 256
+          items: {$ref: '#/components/schemas/StepStatus'}
+        failure: {$ref: '#/components/schemas/Failure'}
+    Failure:
+      type: object
+      required: [code, retryable, messageCode]
+      properties:
+        code: {$ref: '#/components/schemas/Code'}
+        retryable: {type: boolean}
+        messageCode: {$ref: '#/components/schemas/Code'}
+    StepResult:
+      type: object
+      required: [sessionId, stepId, asset, completedAt]
+      properties:
+        sessionId: {$ref: '#/components/schemas/Id'}
+        stepId: {$ref: '#/components/schemas/StepId'}
+        asset: {$ref: '#/components/schemas/AssetMetadata'}
+        completedAt: {$ref: '#/components/schemas/DateTime'}
+    Event:
+      type: object
+      required: [eventId, sessionId, state, messageCode, timestamp]
+      properties:
+        eventId: {type: integer, format: int64, minimum: 1}
+        sessionId: {$ref: '#/components/schemas/Id'}
+        stepId: {$ref: '#/components/schemas/StepId'}
+        state: {$ref: '#/components/schemas/SessionState'}
+        messageCode: {$ref: '#/components/schemas/Code'}
+        timestamp: {$ref: '#/components/schemas/DateTime'}
+        asset: {$ref: '#/components/schemas/AssetMetadata'}
+    EventPage:
+      type: object
+      required: [events, lastEventId, hasMore]
+      properties:
+        events:
+          type: array
+          maxItems: 1000
+          items: {$ref: '#/components/schemas/Event'}
+        lastEventId: {type: integer, format: int64, minimum: 0}
+        hasMore: {type: boolean}
+    AssetMetadata:
+      type: object
+      required: [sessionId, stepId, assetId, role, originalFileName, mediaType, byteLength, sha256, capturedAt]
+      properties:
+        sessionId: {$ref: '#/components/schemas/Id'}
+        stepId: {$ref: '#/components/schemas/StepId'}
+        assetId: {$ref: '#/components/schemas/Id'}
+        role: {$ref: '#/components/schemas/Code'}
+        originalFileName:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '^(?!\.{1,2}$)[^/\\:\u0000-\u001f\u007f]+$'
+        mediaType: {$ref: '#/components/schemas/MediaType'}
+        byteLength: {type: integer, format: int64, minimum: 1}
+        sha256: {$ref: '#/components/schemas/Sha256'}
+        capturedAt: {$ref: '#/components/schemas/DateTime'}
+    Problem:
+      type: object
+      required: [type, title, status, code, retryable, messageCode]
+      properties:
+        type: {type: string, format: uri-reference, maxLength: 256}
+        title: {$ref: '#/components/schemas/Label'}
+        status: {type: integer, minimum: 400, maximum: 599}
+        detail: {type: string, maxLength: 256}
+        code: {$ref: '#/components/schemas/Code'}
+        retryable: {type: boolean}
+        messageCode: {$ref: '#/components/schemas/Code'}
