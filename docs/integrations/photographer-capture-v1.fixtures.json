@@ -15,6 +15,11 @@
       "id": "blue",
       "canonicalBytesHex": "465245534e454c2d5041545445524e2d524742382d56310000000001000000010000ff",
       "sha256": "6b749ddd0e26319c9e9b5798b444e26f7d37bc0d52301fec3a4ff9cf8e931d3b"
+    },
+    {
+      "id": "asymmetric-2x2",
+      "canonicalBytesHex": "465245534e454c2d5041545445524e2d524742382d5631000000000200000002010203090807112233c8c9ca",
+      "sha256": "b4cdaed2adc75c59cad1e968b64c3164ffa5aed74e4034f643f4731e460bfce5"
     }
   ],
   "media": [
@@ -589,6 +594,128 @@
         }
       ]
     },
+    "captureFailed": {
+      "sessionId": "capture-bos",
+      "state": "FAILED",
+      "completedSteps": 0,
+      "totalSteps": 2,
+      "lastEventId": 2,
+      "updatedAt": "2026-01-01T00:00:02Z",
+      "steps": [
+        {
+          "stepId": "reference",
+          "sequenceIndex": 0,
+          "state": "FAILED"
+        },
+        {
+          "stepId": "disturbed",
+          "sequenceIndex": 1,
+          "state": "PENDING"
+        }
+      ],
+      "failure": {
+        "code": "DEVICE_UNAVAILABLE",
+        "retryable": false,
+        "messageCode": "CAMERA_DISCONNECTED"
+      }
+    },
+    "captureRestartedBetweenSteps": {
+      "sessionId": "capture-bos",
+      "state": "RECOVERY_REQUIRED",
+      "completedSteps": 1,
+      "totalSteps": 2,
+      "lastEventId": 3,
+      "updatedAt": "2026-01-01T00:00:03Z",
+      "steps": [
+        {
+          "stepId": "reference",
+          "sequenceIndex": 0,
+          "state": "COMPLETED",
+          "result": {
+            "sessionId": "capture-bos",
+            "stepId": "reference",
+            "asset": {
+              "sessionId": "capture-bos",
+              "stepId": "reference",
+              "assetId": "asset-reference",
+              "role": "REFERENCE",
+              "originalFileName": "reference.png",
+              "mediaType": "image/png",
+              "byteLength": 69,
+              "sha256": "b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2",
+              "capturedAt": "2026-01-01T00:00:01Z"
+            },
+            "completedAt": "2026-01-01T00:00:02Z"
+          }
+        },
+        {
+          "stepId": "disturbed",
+          "sequenceIndex": 1,
+          "state": "PENDING"
+        }
+      ]
+    },
+    "captureCancelledBetweenSteps": {
+      "sessionId": "capture-bos",
+      "state": "CANCELLED",
+      "completedSteps": 1,
+      "totalSteps": 2,
+      "lastEventId": 4,
+      "updatedAt": "2026-01-01T00:00:04Z",
+      "steps": [
+        {
+          "stepId": "reference",
+          "sequenceIndex": 0,
+          "state": "COMPLETED",
+          "result": {
+            "sessionId": "capture-bos",
+            "stepId": "reference",
+            "asset": {
+              "sessionId": "capture-bos",
+              "stepId": "reference",
+              "assetId": "asset-reference",
+              "role": "REFERENCE",
+              "originalFileName": "reference.png",
+              "mediaType": "image/png",
+              "byteLength": 69,
+              "sha256": "b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2",
+              "capturedAt": "2026-01-01T00:00:01Z"
+            },
+            "completedAt": "2026-01-01T00:00:02Z"
+          }
+        },
+        {
+          "stepId": "disturbed",
+          "sequenceIndex": 1,
+          "state": "CANCELLED"
+        }
+      ]
+    },
+    "displayCaptureCancelled": {
+      "sessionId": "capture-display",
+      "state": "CANCELLED",
+      "completedSteps": 0,
+      "totalSteps": 3,
+      "lastEventId": 2,
+      "updatedAt": "2026-01-01T00:00:01Z",
+      "steps": [
+        {
+          "stepId": "light-red",
+          "sequenceIndex": 0,
+          "state": "CANCELLED"
+        },
+        {
+          "stepId": "light-green",
+          "sequenceIndex": 1,
+          "state": "CANCELLED"
+        },
+        {
+          "stepId": "light-blue",
+          "sequenceIndex": 2,
+          "state": "CANCELLED"
+        }
+      ]
+    },
     "INVALID_REQUEST": {
       "type": "urn:fresnel:problem:invalid-request",
       "title": "Invalid request",
@@ -774,6 +901,7 @@
     },
     {
       "id": "redacted-camera",
+      "given": "The mock provider has a camera key outside the wire ID grammar.",
       "request": {
         "method": "GET",
         "path": "/api/v1/integrations/fresnel/cameras",
@@ -788,7 +916,7 @@
         },
         "jsonBodyRef": "#/values/cameras"
       },
-      "assert": "Map profile-mock-1 directly to CaptureProvider.Device.id in this Photographer instance."
+      "assert": "Photographer advertises stable alias profile-mock-1. Map that alias directly to CaptureProvider.Device.id."
     },
     {
       "id": "create-bos",
@@ -1005,6 +1133,28 @@
       "assert": "Zero additional camera calls."
     },
     {
+      "id": "reject-trigger-key-reuse-across-steps",
+      "given": "This exact body was recorded under the same key on the reference step of this session.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/disturbed/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-reference",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosTrigger"
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/IDEMPOTENCY_CONFLICT"
+      },
+      "assert": "The step mismatch wins even with identical body bytes. Zero additional camera calls."
+    },
+    {
       "id": "trigger-disturbed",
       "given": "The disturbed condition is presented and this trigger completes before the response.",
       "request": {
@@ -1044,6 +1194,25 @@
         "jsonBodyRef": "#/values/captureCompleted"
       },
       "assert": "Both committed results remain discoverable without camera calls."
+    },
+    {
+      "id": "poll-failed-with-details",
+      "given": "Independent run: the camera disconnected before dispatch and the bridge recorded a definite failure.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/captureFailed"
+      },
+      "assert": "Only the FAILED session carries structured failure details."
     },
     {
       "id": "resume-events-from-cursor",
@@ -1120,6 +1289,26 @@
       }
     },
     {
+      "id": "asset-weak-list-conditional-before-range",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "If-None-Match": "\"does-not-match\", W/\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\"",
+          "Range": "bytes=0-3,6-8",
+          "If-Range": "\"0000000000000000000000000000000000000000000000000000000000000000\""
+        }
+      },
+      "response": {
+        "status": 304,
+        "headers": {
+          "ETag": "\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\""
+        }
+      },
+      "assert": "A weak match in the entity-tag list wins before If-Range and range validation."
+    },
+    {
       "id": "asset-resume",
       "given": "The client already saved the first eight bytes with the matching ETag.",
       "request": {
@@ -1165,7 +1354,30 @@
         },
         "bodyHex": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63505050000000c400612995f9b00000000049454e44ae426082"
       },
-      "assert": "Discard the saved prefix and verify the new full transfer before import."
+      "assert": "Discard the prefix and verify the full response against the original pinned identity and hash."
+    },
+    {
+      "id": "asset-weak-if-range",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Range": "bytes=69-70",
+          "If-Range": "W/\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\""
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "image/png",
+          "ETag": "\"b53f64da37b75330a069934dea5baf4e3279214dee236f39e21848c7a29a99a2\"",
+          "Accept-Ranges": "bytes",
+          "Content-Length": "69"
+        },
+        "bodyHex": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63505050000000c400612995f9b00000000049454e44ae426082"
+      },
+      "assert": "A weak If-Range cannot select a partial response. The full response wins before range satisfiability."
     },
     {
       "id": "asset-unsatisfiable-range",
@@ -1205,12 +1417,65 @@
       "assert": "Indistinguishable from an unknown asset with this pairing."
     },
     {
+      "id": "capture-write-scope-completion-metadata",
+      "given": "The token owns this completed session and has the capture write scope only.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos",
+        "headers": {
+          "Authorization": "Bearer test-only-capture-write-scope"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/captureCompleted"
+      },
+      "assert": "Embedded step results include completion asset metadata."
+    },
+    {
+      "id": "asset-metadata-missing-scope",
+      "given": "The token owns the session and has the capture write scope only.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference/metadata",
+        "headers": {
+          "Authorization": "Bearer test-only-capture-write-scope"
+        }
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/INSUFFICIENT_SCOPE"
+      },
+      "assert": "The direct metadata route denies access despite embedded completion metadata."
+    },
+    {
+      "id": "asset-head-missing-scope",
+      "given": "The token owns the session and has the capture write scope only.",
+      "request": {
+        "method": "HEAD",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
+        "headers": {
+          "Authorization": "Bearer test-only-capture-write-scope"
+        }
+      },
+      "response": {
+        "status": 403
+      }
+    },
+    {
       "id": "asset-missing-scope",
+      "given": "The token owns the session and has the capture write scope only.",
       "request": {
         "method": "GET",
         "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/assets/asset-reference",
         "headers": {
-          "Authorization": "Bearer test-only-no-media-scope"
+          "Authorization": "Bearer test-only-capture-write-scope"
         }
       },
       "response": {
@@ -1307,6 +1572,255 @@
       }
     },
     {
+      "id": "cancel-display-before-dispatch",
+      "given": "The displayed condition is lost after reservation, and cancellation wins the dispatch race.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-display/cancel",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "cancel-display"
+        }
+      },
+      "response": {
+        "status": 204
+      },
+      "assert": "The persisted stop fences the reserved step. Zero camera calls."
+    },
+    {
+      "id": "replay-display-cancel-after-response-loss",
+      "given": "The display cancel response was lost.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-display/cancel",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "cancel-display"
+        }
+      },
+      "response": {
+        "status": 204
+      },
+      "assert": "Replay the original cancel with no additional camera or cleanup calls."
+    },
+    {
+      "id": "poll-display-cancelled-before-dispatch",
+      "given": "The display cancel was recorded and cleanup completed without dispatching the camera.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-display",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/displayCaptureCancelled"
+      }
+    },
+    {
+      "id": "cancel-display-after-dispatch",
+      "given": "In an independent display session, the camera call started before the acknowledged condition was lost.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-display/cancel",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "cancel-display"
+        }
+      },
+      "response": {
+        "status": 204
+      },
+      "assert": "Only the dispatched shot can finish. Fresnel discards it if continuity cannot be verified."
+    },
+    {
+      "id": "poll-restart-before-dispatch",
+      "given": "Independent restart: the reference reservation was persisted and no dispatch marker was recorded.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/captureFailedUncertain"
+      },
+      "assert": "Fence the session even though no shutter was dispatched. The reservation cannot be resumed by replay."
+    },
+    {
+      "id": "replay-restart-before-dispatch",
+      "given": "The reservation-before-dispatch restart established a durable fence.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/reference/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-reference",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosTrigger"
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/RECOVERY_REQUIRED"
+      },
+      "assert": "An identical trigger replay causes zero camera calls."
+    },
+    {
+      "id": "idempotency-conflict-precedes-recovery",
+      "given": "The reservation-before-dispatch restart established a durable fence.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/reference/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-reference",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosChange"
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/IDEMPOTENCY_CONFLICT"
+      },
+      "assert": "Changed bytes against the known key receive conflict before recovery status is considered."
+    },
+    {
+      "id": "poll-restart-between-steps",
+      "given": "Independent restart: the reference asset was committed and the disturbed step was still unreserved.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/captureRestartedBetweenSteps"
+      },
+      "assert": "Keep the original verified result. The pending step remains fenced."
+    },
+    {
+      "id": "replay-committed-between-steps-after-restart",
+      "given": "The between-steps startup verified the original reference asset.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/reference/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-reference",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosTrigger"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/referenceResult"
+      },
+      "assert": "Return the original result with zero additional camera calls."
+    },
+    {
+      "id": "reject-next-step-after-restart",
+      "given": "The between-steps recovery fenced the session.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/disturbed/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-disturbed",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/disturbedTrigger"
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "jsonBodyRef": "#/values/RECOVERY_REQUIRED"
+      },
+      "assert": "The next step is fenced even with a new key and no previous reservation."
+    },
+    {
+      "id": "cancel-between-steps-after-restart",
+      "given": "The between-steps recovery fenced the session.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/cancel",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "cancel-between-steps"
+        }
+      },
+      "response": {
+        "status": 204
+      },
+      "assert": "Persist the stop and clean up safely without dispatch."
+    },
+    {
+      "id": "poll-cancelled-between-steps",
+      "given": "The between-steps cancellation completed safe lease cleanup.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/captureCancelledBetweenSteps"
+      },
+      "assert": "Keep the verified reference result and cancel the undispatched step."
+    },
+    {
+      "id": "replay-committed-after-cancel",
+      "given": "The between-steps cancellation completed safe lease cleanup.",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos/steps/reference/trigger",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture",
+          "Idempotency-Key": "trigger-reference",
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/bosTrigger"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/referenceResult"
+      },
+      "assert": "Return the original result with zero additional camera calls."
+    },
+    {
       "id": "poll-uncertain-shutter-after-restart",
       "given": "In an independent BOS run the reference shutter may have fired, but the server crashed before committing media.",
       "request": {
@@ -1386,6 +1900,25 @@
       "assert": "Persist the stop and leave the trigger fence in place."
     },
     {
+      "id": "poll-cancel-cleanup-unresolved",
+      "given": "The unresolved-shutter session accepted cancel and safe cleanup is still pending.",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations/fresnel/capture-sessions/capture-bos",
+        "headers": {
+          "Authorization": "Bearer test-only-bearer-fixture"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "jsonBodyRef": "#/values/captureFailedUncertain"
+      },
+      "assert": "The session remains RECOVERY_REQUIRED. The durable stop stays in force."
+    },
+    {
       "id": "replay-cancel",
       "given": "The same independent run has already recorded cancellation.",
       "request": {
@@ -1402,7 +1935,35 @@
       "assert": "No additional camera calls or lease cleanup."
     }
   ],
+  "presentationChecks": [
+    {
+      "id": "presentation-lost-before-dispatch",
+      "given": "Fresnel loses the acknowledged display while the trigger is reserved. Cancellation reaches the dispatch guard first.",
+      "cancelCase": "cancel-display-before-dispatch",
+      "cancelReplayCase": "replay-display-cancel-after-response-loss",
+      "statusCase": "poll-display-cancelled-before-dispatch",
+      "additionalTriggerRequests": 0,
+      "totalShutterDispatches": 0,
+      "importUnverifiedExposure": false
+    },
+    {
+      "id": "presentation-lost-after-dispatch",
+      "given": "Fresnel cannot verify continuity after a camera call starts. The camera returns source bytes.",
+      "cancelCase": "cancel-display-after-dispatch",
+      "additionalTriggerRequests": 0,
+      "totalShutterDispatches": 1,
+      "importUnverifiedExposure": false
+    }
+  ],
   "clientChecks": [
+    {
+      "id": "reject-replacement-after-stale-validator",
+      "given": "A full 200 and refreshed metadata refer to a consistent asset other than the one originally pinned.",
+      "asset": "#/media/0/metadata",
+      "replacementMetadata": "#/media/1/metadata",
+      "assembledBytesHex": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63d0d5d50500011200883696529c0000000049454e44ae426082",
+      "expectedCode": "INTEGRITY_MISMATCH"
+    },
     {
       "id": "reject-same-length-corruption",
       "asset": "#/media/0/metadata",

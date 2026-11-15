@@ -111,6 +111,7 @@ paths:
       operationId: getCaptureSession
       summary: Poll persisted session and step state
       x-required-service-scope: fresnel:capture-sessions:write
+      description: Includes committed asset metadata for capture orchestration. Asset resource endpoints require the media scope.
       responses:
         '200': {$ref: '#/components/responses/SessionStatus'}
         '401': {$ref: '#/components/responses/Unauthorized'}
@@ -127,6 +128,7 @@ paths:
         Events are immutable and returned in strictly increasing order after the cursor.
         The response cursor is the last returned event ID, or the input cursor when
         the page is empty. Advance only to this cursor, including if hasMore is true.
+        Completion events can include asset metadata for capture orchestration.
       parameters:
         - name: afterEventId
           in: query
@@ -151,6 +153,12 @@ paths:
       operationId: triggerCaptureStep
       summary: Confirm a presented condition and reserve one shutter dispatch
       x-required-service-scope: fresnel:capture-sessions:write
+      description: |
+        Stop sending or replaying triggers after presentation loss and request cancellation.
+        Matching verified results can be read back by replay after startup. While a
+        session is RECOVERY_REQUIRED, an unfinished step returns 409 RECOVERY_REQUIRED.
+        Trigger keys are scoped to the session. Reusing a key for another step or
+        with different request bytes returns 409 IDEMPOTENCY_CONFLICT.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -165,7 +173,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/StepResult'}
         '202':
-          description: Trigger durably reserved or ongoing. Poll this session for progress.
+          description: Trigger durably reserved or ongoing. Poll this session for the matching step result.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/SessionStatus'}
@@ -187,7 +195,9 @@ paths:
       description: |
         Send an empty request body. Success fences new shutter dispatches. An
         in-flight operation can still reach its safe stopping point, so poll for
-        terminal state. Terminal sessions accept an idempotent no-op cancellation.
+        the outcome. An identical replay returns 204 even after restart. A session
+        remains RECOVERY_REQUIRED while safe cleanup is unresolved. Terminal
+        sessions accept an idempotent no-op cancellation.
       responses:
         '204': {description: Cancellation recorded or already unnecessary.}
         '404': {$ref: '#/components/responses/NotFound'}
@@ -208,6 +218,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AssetMetadata'}
+        '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         default: {$ref: '#/components/responses/Problem'}
@@ -234,6 +245,7 @@ paths:
             WWW-Authenticate:
               required: true
               schema: {type: string}
+        '403': {description: Token lacks the media scope. No response body.}
         '404': {description: Asset unavailable to this pairing.}
         default: {description: See the matching GET error status. HEAD has no response body.}
     get:
@@ -241,18 +253,18 @@ paths:
       summary: Stream the complete immutable asset or one byte range
       x-required-service-scope: fresnel:media:read
       description: |
-        Evaluate If-None-Match before Range. A mismatched If-Range results in a
-        full 200. Return uncoded representation bytes. The media type matches
-        the source metadata, including for partial responses.
+        Authorize access, evaluate If-None-Match, then evaluate If-Range before
+        processing Range. A mismatched If-Range results in a full 200. Return
+        uncoded representation bytes of the previously identified asset.
       parameters:
         - name: Range
           in: header
           description: One bounded inclusive byte range. Suffix, open-ended and multiple ranges are unsupported.
-          schema: {type: string, pattern: '^bytes=[0-9]+-[0-9]+$', maxLength: 46}
+          schema: {type: string, maxLength: 1024}
         - name: If-Range
           in: header
-          description: Strong ETag from the original transfer, used by a resuming client.
-          schema: {$ref: '#/components/schemas/StrongETag'}
+          description: Strong ETag from the original transfer. A nonmatching, weak or date validator selects the full asset.
+          schema: {type: string, maxLength: 1024}
       responses:
         '200':
           description: Full source bytes.
@@ -277,6 +289,7 @@ paths:
             application/octet-stream: {}
         '304': {$ref: '#/components/responses/NotModified'}
         '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '416':
           description: The requested range starts at or after the end of the asset.
@@ -299,6 +312,8 @@ components:
         A revoked, missing or invalid token returns 401 AUTHENTICATION_FAILED.
         A valid token without the required scope returns 403 INSUFFICIENT_SCOPE.
         Authorize before resolving resources, request keys or conditional headers.
+        Capture control can expose completion asset metadata with the capture scope.
+        Each /assets resource endpoint, including metadata and HEAD, requires fresnel:media:read.
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -323,7 +338,7 @@ components:
     IfNoneMatch:
       name: If-None-Match
       in: header
-      description: Standard HTTP conditional read precondition.
+      description: HTTP entity-tag list or wildcard. GET and HEAD compare entity-tags weakly.
       schema: {type: string, maxLength: 1024}
   headers:
     AssetETag:
@@ -354,6 +369,11 @@ components:
           schema: {$ref: '#/components/schemas/Problem'}
     Conflict:
       description: Request conflicts with protocol, idempotency, lease or capture state.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Forbidden:
+      description: The service token lacks the scope required for this operation.
       content:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problem'}
@@ -484,7 +504,9 @@ components:
       type: object
       required: [cameraProfileId, displayName, state, capabilities, supportedFormats]
       properties:
-        cameraProfileId: {$ref: '#/components/schemas/Id'}
+        cameraProfileId:
+          $ref: '#/components/schemas/Id'
+          description: Stable redacted wire identity, with an opaque alias for private or unsupported internal keys.
         displayName: {$ref: '#/components/schemas/Label'}
         state:
           $ref: '#/components/schemas/Code'
@@ -592,6 +614,8 @@ components:
         Defined states are CREATED, READY, WAITING_FOR_EXTERNAL_TRIGGER, CAPTURING,
         PERSISTING, PAUSED, COMPLETED, FAILED, CANCELLED and RECOVERY_REQUIRED.
         Only COMPLETED, FAILED and CANCELLED are terminal.
+        Startup fences each nonterminal session. RECOVERY_REQUIRED blocks all new
+        capture dispatches, including when the next step has never been reserved.
     StepStatus:
       type: object
       required: [stepId, sequenceIndex, state]
@@ -618,6 +642,13 @@ components:
           maxItems: 256
           items: {$ref: '#/components/schemas/StepStatus'}
         failure: {$ref: '#/components/schemas/Failure'}
+      if:
+        properties:
+          state: {const: FAILED}
+      then:
+        required: [failure]
+      else:
+        not: {required: [failure]}
     Failure:
       type: object
       required: [code, retryable, messageCode]
