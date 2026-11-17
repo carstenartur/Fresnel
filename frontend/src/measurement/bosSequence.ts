@@ -1,5 +1,5 @@
 import { cameraLimits, type CameraModel } from './bosCameraModel';
-import { settings, type PairResult } from './bosDisplacement';
+import { settings, pyramidSettings, type LocalSearch, type PairResult } from './bosDisplacement';
 import type { FrameInput, Reply, Request } from './bosSequence.worker';
 export type Policy = 'fixed' | 'median';
 export const MAX_FRAMES = 24;
@@ -160,6 +160,7 @@ export async function runSequence(
   policy: Policy,
   rate: number,
   cameraModel: CameraModel,
+  localSearch: LocalSearch,
   signal: AbortSignal,
   onProgress: (s: string) => void,
   onFrame: (frame: FrameResult) => void,
@@ -218,7 +219,7 @@ export async function runSequence(
         if (movie) referenceSamples.set(i, sampled);
       }
     onProgress('Preparing reference…');
-    const provenance = await ask({ kind: 'reference', inputs: refs, cameraModel });
+    const provenance = await ask({ kind: 'reference', inputs: refs, cameraModel, localSearch });
     if (provenance.kind !== 'ready') throw new Error('Unexpected reference response.');
     refs.length = 0;
     const frames: FrameResult[] = [];
@@ -254,7 +255,9 @@ export async function runSequence(
     return {
       pluginId: 'background-oriented-schlieren',
       algorithmVersion: 'background-oriented-schlieren/1',
-      method: 'sequence-' + cameraModel + '-zncc/1',
+      method: 'sequence-' + cameraModel + (localSearch === 'pyramid' ? '-pyramid-zncc/2' : '-zncc/1'),
+      localSearch,
+      pyramidSettings: localSearch === 'pyramid' ? pyramidSettings : undefined,
       cameraModel,
       schemaVersion: 1,
       settings: cameraModel === 'translation' ? settings : { ...settings, ...cameraLimits },

@@ -2,6 +2,7 @@ package org.fresnel.backend.api;
 
 import org.fresnel.backend.measurement.CaptureProviderRegistry;
 import org.fresnel.measurement.CapturePlan;
+import org.fresnel.measurement.CaptureSource;
 import org.fresnel.measurement.CaptureProvider;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +40,9 @@ public class CaptureProviderStatusController {
                 .toList();
         return Overview.from(providers);
     }
+
+    @GetMapping(value = "/sources", produces = MediaType.APPLICATION_JSON_VALUE)
+    public List<CaptureSource.Info> sources() { return registry.sources(); }
 
     @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ProviderStatus> provider(@PathVariable("id") String id) {

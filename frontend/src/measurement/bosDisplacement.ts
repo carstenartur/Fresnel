@@ -27,6 +27,43 @@ export const settings = {
   minimumVectorFraction: 0.45,
 } as const;
 
+export type LocalSearch = 'single-scale' | 'pyramid';
+export const pyramidSettings = {
+  decimation: 2,
+  lowPassKernel: [1, 4, 6, 4, 1],
+  coarseWindowRadius: 4,
+  coarseRadius: 7,
+  refineRadius: 3,
+  smallWindowRadius: 4,
+  maximumComponent: 10,
+} as const;
+
+function halfSize(frame: GrayFrame): GrayFrame {
+  const width = Math.floor(frame.width / 2),
+    height = Math.floor(frame.height / 2);
+  // Separable binomial low pass before decimation reduces aliasing when the dot
+  // texture shifts by a fraction of a coarse pixel. Each sample is centered at (2x, 2y).
+  const kernel = pyramidSettings.lowPassKernel,
+    horizontal = new Uint16Array(width * frame.height);
+  for (let y = 0; y < frame.height; y++)
+    for (let x = 0; x < width; x++) {
+      let sum = 0;
+      for (let k = -2; k <= 2; k++)
+        sum +=
+          kernel[k + 2] * frame.pixels[y * frame.width + Math.max(0, Math.min(frame.width - 1, 2 * x + k))];
+      horizontal[y * width + x] = sum;
+    }
+  const pixels = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      let sum = 0;
+      for (let k = -2; k <= 2; k++)
+        sum += kernel[k + 2] * horizontal[Math.max(0, Math.min(frame.height - 1, 2 * y + k)) * width + x];
+      pixels[y * width + x] = Math.round(sum / 256);
+    }
+  return { width, height, pixels };
+}
+
 function median(values: number[]) {
   const sorted = [...values].sort((a, b) => a - b);
   return (sorted[(sorted.length - 1) >> 1] + sorted[sorted.length >> 1]) / 2;
@@ -47,9 +84,20 @@ function match(
   baseX: number,
   baseY: number,
   radius: number,
+  h: number = settings.windowRadius,
 ) {
-  const h = settings.windowRadius,
-    side = 2 * h + 1,
+  if (
+    x - h < 0 ||
+    y - h < 0 ||
+    x + h >= reference.width ||
+    y + h >= reference.height ||
+    x + baseX - h - radius < 0 ||
+    y + baseY - h - radius < 0 ||
+    x + baseX + h + radius >= disturbed.width ||
+    y + baseY + h + radius >= disturbed.height
+  )
+    return null;
+  const side = 2 * h + 1,
     n = side * side;
   const a = reference.pixels,
     b = disturbed.pixels,
@@ -143,7 +191,12 @@ export function register(reference: GrayFrame, disturbed: GrayFrame, model: Came
   return { model, matrix, dx, dy, residualRms, inliers: inliers.length, anchors: 12 };
 }
 
-export function analyzePair(reference: GrayFrame, disturbed: GrayFrame, model: CameraModel = 'translation') {
+export function analyzePair(
+  reference: GrayFrame,
+  disturbed: GrayFrame,
+  model: CameraModel = 'translation',
+  localSearch: LocalSearch = 'pyramid',
+) {
   const { width, height } = reference;
   if (width !== disturbed.width || height !== disturbed.height)
     throw new Error('Reference and disturbed image dimensions must match.');
@@ -161,6 +214,66 @@ export function analyzePair(reference: GrayFrame, disturbed: GrayFrame, model: C
   const offsetY = model === 'translation' ? registration.dy : 0;
   const baseX = Math.round(offsetX),
     baseY = Math.round(offsetY);
+  const coarse = localSearch === 'pyramid' ? { ref: halfSize(reference), frame: halfSize(aligned) } : null;
+  function localMatch(x: number, y: number) {
+    const valid = (cx: number, cy: number, radius: number) =>
+      model === 'translation' || validFootprint(registration.matrix, cx, cy, radius, width, height);
+    const halfRadius = pyramidSettings.coarseWindowRadius + pyramidSettings.coarseRadius;
+    const guide =
+      coarse && valid(x, y, 2 * halfRadius + 2)
+        ? match(
+            coarse.ref,
+            coarse.frame,
+            Math.round(x / 2),
+            Math.round(y / 2),
+            Math.round(offsetX / 2),
+            Math.round(offsetY / 2),
+            pyramidSettings.coarseRadius,
+            pyramidSettings.coarseWindowRadius,
+          )
+        : null;
+    const predictedX = guide ? Math.round(2 * guide.dx) : baseX;
+    const predictedY = guide ? Math.round(2 * guide.dy) : baseY;
+    const wide = guide && Math.max(Math.abs(predictedX - baseX), Math.abs(predictedY - baseY)) >= 4;
+    const bx = wide ? predictedX : baseX,
+      by = wide ? predictedY : baseY;
+    const radius = wide ? pyramidSettings.refineRadius : settings.localRadius;
+    const fullWindow = settings.windowRadius + radius;
+    if (!valid(x + bx, y + by, fullWindow)) return null;
+    let result = match(reference, aligned, x, y, bx, by, radius);
+    // Strong local gradients can decorrelate a 15-pixel patch. An independent coarse
+    // peak must support the smaller window within two full-resolution pixels.
+    if (!result && guide) {
+      const small = match(
+        reference,
+        aligned,
+        x,
+        y,
+        predictedX,
+        predictedY,
+        pyramidSettings.refineRadius,
+        pyramidSettings.smallWindowRadius,
+      );
+      if (
+        small &&
+        Math.hypot(small.dx - 2 * guide.dx, small.dy - 2 * guide.dy) <= 2 &&
+        valid(
+          x + predictedX,
+          y + predictedY,
+          pyramidSettings.smallWindowRadius + pyramidSettings.refineRadius,
+        )
+      )
+        result = small;
+    }
+    if (
+      result &&
+      localSearch === 'pyramid' &&
+      Math.max(Math.abs(result.dx - offsetX), Math.abs(result.dy - offsetY)) >
+        pyramidSettings.maximumComponent
+    )
+      return null;
+    return result;
+  }
   const step = Math.max(12, Math.ceil(Math.max(width, height) / 28));
   const margin = settings.windowRadius + settings.globalRadius + settings.localRadius;
   const cols = Math.floor((width - 1 - 2 * margin) / step) + 1,
@@ -172,17 +285,7 @@ export function analyzePair(reference: GrayFrame, disturbed: GrayFrame, model: C
     for (let col = 0; col < cols; col++) {
       const x = x0 + col * step,
         y = y0 + row * step;
-      const inside =
-        model === 'translation' ||
-        validFootprint(
-          registration.matrix,
-          x,
-          y,
-          settings.windowRadius + settings.localRadius,
-          width,
-          height,
-        );
-      const m = inside ? match(reference, aligned, x, y, baseX, baseY, settings.localRadius) : null;
+      const m = localMatch(x, y);
       vectors.push({
         x,
         y,
@@ -226,6 +329,7 @@ export function analyzePair(reference: GrayFrame, disturbed: GrayFrame, model: C
     width,
     height,
     registration,
+    localSearch,
     grid: { x0, y0, step, cols, rows },
     vectors,
     accepted: magnitudes.length,

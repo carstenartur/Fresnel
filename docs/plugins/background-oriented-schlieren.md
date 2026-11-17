@@ -82,7 +82,17 @@ pixels to disturbed pixels within the selected region. The disturbed luminance i
 bilinearly sampled onto the reference grid before local correlation. Windows
 that would sample beyond the frame are masked. Translation uses the original
 integer search center and subtracts the fitted fractional shift. The local
-search radius is ±5 px with parabolic peak interpolation. Flat windows,
+search refines the integer peak by parabolic interpolation.
+
+New experiments use a two-level image pyramid. A separable five-tap binomial
+filter precedes 2× decimation. A 9 × 9 coarse patch searches ±7 half-resolution
+pixels. The nearest full-resolution peak is refined in a 15 × 15 patch. The
+accepted local displacement is bounded to 10 analysis px per axis. Large
+gradients can use a 9 × 9 full-resolution patch when the coarse match agrees
+within two pixels. Coarse and fine matches both apply contrast, correlation and
+peak-separation gates. The JSON identifies the pyramid estimator as version 2
+and records its settings. Older archives reopen with the original single-scale
+±5 px search. Both choices are available under **Correlation settings**. Flat windows,
 boundary peaks, correlations below 0.65, competing peaks within 0.055 and
 isolated outliers are masked. At least 45% of the grid must survive.
 Missing vectors are null and excluded from the robust 95th-percentile color
@@ -99,6 +109,11 @@ On fixtures with camera rotation, shear or perspective and optional local
 displacement, the camera prediction error at nine independent locations must
 stay below 0.55 px. At least 88% of the grid must survive, with a 95th-percentile
 vector error below 0.40 px and central local-field error below 0.48 px.
+A 224 × 224 fixture with a 7.25 px horizontal and −5.75 px vertical plateau
+requires ≥4 central vectors within 0.45 px, and two opposing rotational image
+warps require a 95th-percentile error below 0.42 px. A separate browser test
+encodes both warped and reference images as JPEG at quality 0.68 before upload
+and checks the exported grid (≥84% accepted, 95th-percentile error <0.50 px).
 
 ## Ordered frames and short video
 

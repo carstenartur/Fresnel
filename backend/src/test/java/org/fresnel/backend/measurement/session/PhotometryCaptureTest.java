@@ -128,6 +128,13 @@ class PhotometryCaptureTest {
             var analyzed = bundles.read("carol",new ByteArrayInputStream(bundle.toByteArray()));
             assertEquals(original,CaptureEvidence.read(sessions.dir("carol",analyzed.id()),json));
             assertEquals("COMPLETED",analyzed.state());
+            var altered = new ArrayList<>(original.exposures());
+            var first = altered.getFirst();
+            altered.set(0,new CaptureEvidence.Exposure(first.step(), "1".repeat(64), first.sourceSha256(), first.capturedAt()));
+            var mismatchedRaster = new CaptureEvidence(original.provider(),original.sequenceId(),false,false,true,altered);
+            assertThrows(ResponseStatusException.class, () -> mismatchedRaster.verifyIllumination(plan,json));
+            var unconfirmed = new CaptureEvidence(original.provider(),original.sequenceId(),false,false,false,original.exposures());
+            assertThrows(ResponseStatusException.class, () -> unconfirmed.verifyIllumination(plan,json));
             assertTrue(original.manualLocksConfirmed());
             assertEquals(sequence.sequenceId(),original.sequenceId());
             assertEquals(6,original.exposures().size());

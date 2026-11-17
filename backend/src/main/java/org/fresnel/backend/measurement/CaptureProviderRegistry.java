@@ -1,10 +1,9 @@
 package org.fresnel.backend.measurement;
 
 import org.fresnel.measurement.CaptureProvider;
+import org.fresnel.measurement.CaptureSource;
 import org.springframework.stereotype.Component;
 
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -20,30 +19,28 @@ import java.util.Optional;
 @Component
 public final class CaptureProviderRegistry {
 
+    private final List<CaptureSource.Info> sources;
     private final List<CaptureProvider> providers;
     private final Map<String, CaptureProvider> byId;
 
-    public CaptureProviderRegistry(List<CaptureProvider> discoveredProviders) {
-        Objects.requireNonNull(discoveredProviders, "discoveredProviders");
-        List<CaptureProvider> ordered = discoveredProviders.stream()
-                .map(provider -> Objects.requireNonNull(provider, "capture provider"))
-                .sorted(Comparator.comparing(provider -> provider.descriptor().id()))
-                .toList();
-
-        Map<String, CaptureProvider> index = new LinkedHashMap<>();
-        for (CaptureProvider provider : ordered) {
-            CaptureProvider.Descriptor descriptor = Objects.requireNonNull(
-                    provider.descriptor(), "capture provider descriptor");
-            CaptureProvider previous = index.putIfAbsent(descriptor.id(), provider);
-            if (previous != null) {
-                throw new IllegalStateException(
-                        "Duplicate capture provider id: " + descriptor.id());
-            }
+    public CaptureProviderRegistry(List<? extends CaptureSource> discoveredSources) {
+        Objects.requireNonNull(discoveredSources, "discoveredSources");
+        var metadata = new java.util.TreeMap<String,CaptureSource.Info>();
+        var cameras = new java.util.TreeMap<String,CaptureProvider>();
+        for (var source : discoveredSources) {
+            var info = Objects.requireNonNull(source, "capture source").source();
+            if (metadata.putIfAbsent(info.id(), info) != null)
+                throw new IllegalStateException("Duplicate capture source id: " + info.id());
+            if (source instanceof CaptureProvider camera) cameras.put(info.id(),camera);
         }
-        this.providers = List.copyOf(ordered);
-        this.byId = Map.copyOf(index);
+        sources = List.copyOf(metadata.values());
+        providers = List.copyOf(cameras.values());
+        byId = Map.copyOf(cameras);
     }
 
+    public List<CaptureSource.Info> sources() { return sources; }
+
+    /** Remote or mock camera services used by the existing independent camera-health dashboard. */
     public List<CaptureProvider> all() {
         return providers;
     }
