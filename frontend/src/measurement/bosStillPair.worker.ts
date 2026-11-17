@@ -1,5 +1,5 @@
 import { cameraLimits, stabilize, type CameraModel } from './bosCameraModel';
-import { analyzePair, settings } from './bosDisplacement';
+import { analyzePair, settings, pyramidSettings, type LocalSearch } from './bosDisplacement';
 import { decodeFrame } from './bosImage';
 import { fullFrame, type Region } from './bosReferenceQuality';
 
@@ -8,6 +8,7 @@ async function processPair(
   disturbedFile: File,
   region: Region = fullFrame,
   model: CameraModel = 'translation',
+  localSearch: LocalSearch = 'pyramid',
 ) {
   const reference = await decodeFrame(referenceFile, region);
   const disturbed = await decodeFrame(disturbedFile, region);
@@ -18,7 +19,7 @@ async function processPair(
     throw new Error('The orientation-corrected reference and disturbed image dimensions must match.');
   }
   self.postMessage({ stage: 'Registering outer dot field and measuring displacement…' });
-  const analysis = analyzePair(reference.frame, disturbed.frame, model);
+  const analysis = analyzePair(reference.frame, disturbed.frame, model, localSearch);
   const stabilized = new OffscreenCanvas(analysis.width, analysis.height);
   const ctx = stabilized.getContext('2d');
   if (!ctx) throw new Error('A 2D image renderer is unavailable.');
@@ -41,7 +42,7 @@ async function processPair(
     result: {
       pluginId: 'background-oriented-schlieren',
       algorithmVersion: 'background-oriented-schlieren/1',
-      method: 'still-pair-' + model + '-zncc/1',
+      method: 'still-pair-' + model + (localSearch === 'pyramid' ? '-pyramid-zncc/2' : '-zncc/1'),
       captureProvider: 'manual',
       schemaVersion: 1,
       coordinateSystem:
@@ -49,6 +50,7 @@ async function processPair(
       luminance: 'BT.709 coefficients on browser-decoded sRGB values. Alpha composites on white.',
       sources: { reference: reference.metadata, disturbed: disturbed.metadata },
       settings: model === 'translation' ? settings : { ...settings, ...cameraLimits },
+      pyramidSettings: localSearch === 'pyramid' ? pyramidSettings : undefined,
       registrationCoordinates:
         'Row-major 3 by 3 homogeneous matrix maps reference analysis pixels to disturbed analysis pixels. Divide x and y by w. Local vectors are expressed on the reference grid.',
       ...analysis,
@@ -58,9 +60,17 @@ async function processPair(
 export type WorkerOutput = Awaited<ReturnType<typeof processPair>>;
 self.onmessage = async ({
   data,
-}: MessageEvent<{ reference: File; disturbed: File; region?: Region; model?: CameraModel }>) => {
+}: MessageEvent<{
+  reference: File;
+  disturbed: File;
+  region?: Region;
+  model?: CameraModel;
+  localSearch?: LocalSearch;
+}>) => {
   try {
-    self.postMessage(await processPair(data.reference, data.disturbed, data.region, data.model));
+    self.postMessage(
+      await processPair(data.reference, data.disturbed, data.region, data.model, data.localSearch),
+    );
   } catch (failure) {
     self.postMessage({
       error: failure instanceof Error ? failure.message : 'Could not analyze this pair.',
