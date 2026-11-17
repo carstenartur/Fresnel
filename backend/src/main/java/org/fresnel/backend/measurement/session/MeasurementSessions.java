@@ -22,6 +22,8 @@ import static java.nio.file.StandardCopyOption.*;
 @Service
 public class MeasurementSessions {
     static final long IMAGE_BYTES = 20L << 20, RESULT_BYTES = 24L << 20, SESSION_BYTES = 160L << 20;
+    static final long VIDEO_BYTES = 64L << 20;
+    static final int MAX_BOS_FRAMES = 24;
     static final int PLAN_BYTES = 64 << 10, MAX_SESSIONS = 32;
     private final Path root;
     final ObjectMapper json;
@@ -48,11 +50,11 @@ public class MeasurementSessions {
     Path dir(String owner, UUID id) { return ownerDir(owner).resolve(id.toString()); }
 
     void validate(Plan plan) {
-        if (plan == null || plan.pluginId == null || plan.steps == null || plan.steps.size() > 18 || plan.parameters == null
+        if (plan == null || plan.pluginId == null || plan.steps == null || plan.steps.size() > MAX_BOS_FRAMES + 1 || plan.parameters == null
                 || !plan.parameters.isObject() || json.writeValueAsBytes(plan.parameters).length > PLAN_BYTES)
             throw bad("Invalid measurement plan or parameter size");
         boolean ok = switch (plan.pluginId) {
-            case "background-oriented-schlieren" -> plan.steps.equals(List.of("reference", "disturbed"));
+            case "background-oriented-schlieren" -> validBosSteps(plan.steps);
             case "display-photometric-stereo" -> {
                 var lights = new ArrayList<>(plan.steps);
                 lights.remove("dark");
@@ -65,6 +67,18 @@ public class MeasurementSessions {
             default -> false;
         };
         if (!ok) throw bad("Unsupported plugin or capture steps");
+    }
+
+    private static boolean validBosSteps(List<String> steps) {
+        if (steps.equals(List.of("reference", "disturbed")) || steps.equals(List.of("video"))
+                || steps.equals(List.of("reference","video"))) return true;
+        int start = !steps.isEmpty() && "reference".equals(steps.getFirst()) ? 1 : 0;
+        int frames = steps.size() - start;
+        if (frames < 2 || frames > MAX_BOS_FRAMES) return false;
+        for (int i=0; i<frames; i++) {
+            if (!String.format(Locale.ROOT, "frame-%02d", i+1).equals(steps.get(start+i))) return false;
+        }
+        return true;
     }
 
     List<View> list(String owner) throws IOException {
@@ -129,14 +143,15 @@ public class MeasurementSessions {
             if (!v.steps.contains(step) && !result) throw bad("Unknown capture step");
             if (result && !v.assets.keySet().containsAll(v.steps)) throw conflict("Upload every source before saving a result");
             if (expected == null || !expected.matches("[0-9a-f]{64}")) throw bad("A lowercase SHA-256 is required");
-            if (result ? !"application/json".equals(type) : !Set.of("image/png", "image/jpeg").contains(type))
+            boolean video = "video".equals(step);
+            if (result ? !"application/json".equals(type) : video ? !"video/mp4".equals(type) : !Set.of("image/png", "image/jpeg").contains(type))
                 throw bad("Unsupported media type");
             Path directory = dir(owner, id), stage = Files.createTempFile(directory, ".upload-", ".part");
             try {
                 var digest = digest();
                 long size;
                 try (var out = new DigestOutputStream(Files.newOutputStream(stage), digest)) {
-                    size = copy(input, out, result ? RESULT_BYTES : IMAGE_BYTES);
+                    size = copy(input, out, result ? RESULT_BYTES : video ? VIDEO_BYTES : IMAGE_BYTES);
                 }
                 if (!expected.equals(HexFormat.of().formatHex(digest.digest()))) throw bad("Checksum mismatch");
                 var existing = v.assets.get(step);
@@ -152,8 +167,9 @@ public class MeasurementSessions {
                     if (data == null || !data.isObject()) throw bad("Expected a result JSON object");
                     asset = new Asset(expected, size, type, 0, 0);
                 } else {
-                    asset = inspectImage(stage, expected, size, type);
-                    if (v.assets.values().stream().anyMatch(a -> a.width != asset.width || a.height != asset.height))
+                    asset = video ? BoundedMp4.inspect(stage, expected, size) : inspectImage(stage, expected, size, type);
+                    if (v.assets.values().stream().anyMatch(a -> (a.width != asset.width || a.height != asset.height) &&
+                            !(v.steps.contains("video") && a.width == asset.height && a.height == asset.width)))
                         throw bad("Capture dimensions differ");
                 }
                 var assets = new TreeMap<>(v.assets);

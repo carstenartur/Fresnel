@@ -37,6 +37,37 @@ class MeasurementSessionsTest {
         return s.put("alice", id, step, "image/png", MeasurementSessions.hash(bytes), new ByteArrayInputStream(bytes));
     }
 
+    @Test void videoAndOrderedSequenceRoundTripWithOriginalBytes() throws IOException {
+        var service = service();
+        var sequence = new MeasurementSessions.Plan(plan.pluginId(), plan.parameters(), List.of("reference","frame-01","frame-02"));
+        var seq = service.create("alice", sequence);
+        byte[] same = picture(2);
+        for (String step : seq.steps()) put(service, seq.id(), step, same);
+        var sequenceZip = new ByteArrayOutputStream();
+        new MeasurementBundles(service, documents).export("alice", seq.id(), sequenceZip);
+        var restoredSequence = new MeasurementBundles(service, documents).read("bob", new ByteArrayInputStream(sequenceZip.toByteArray()));
+        assertEquals(sequence.steps(), restoredSequence.steps());
+        assertEquals(1, restoredSequence.assets().values().stream().map(MeasurementSessions.Asset::sha256).distinct().count());
+        assertThrows(ResponseStatusException.class, () -> service.create("alice",
+                new MeasurementSessions.Plan(plan.pluginId(),plan.parameters(),List.of("frame-02","frame-01"))));
+
+        Path fixture = Path.of(System.getProperty("user.dir")).resolve("../frontend/e2e/fixtures/bos-eight-frames.mp4");
+        if (!Files.exists(fixture)) fixture = Path.of("frontend/e2e/fixtures/bos-eight-frames.mp4");
+        byte[] mp4 = Files.readAllBytes(fixture);
+        var video = service.create("alice",new MeasurementSessions.Plan(plan.pluginId(),plan.parameters(),List.of("video")));
+        var uploaded = service.put("alice", video.id(), "video", "video/mp4",MeasurementSessions.hash(mp4),new ByteArrayInputStream(mp4));
+        assertEquals(144, uploaded.assets().get("video").width());
+        assertEquals(128, uploaded.assets().get("video").height());
+        var out = new ByteArrayOutputStream();
+        new MeasurementBundles(service, documents).export("alice",video.id(),out);
+        var restored = new MeasurementBundles(service, documents).read("bob",new ByteArrayInputStream(out.toByteArray()));
+        assertArrayEquals(mp4, Files.readAllBytes(service.source("bob",restored.id(),"video").path()));
+        var malformed = service.create("alice",new MeasurementSessions.Plan(plan.pluginId(),plan.parameters(),List.of("video")));
+        assertThrows(ResponseStatusException.class, () -> service.put("alice",malformed.id(),"video","video/mp4",
+                MeasurementSessions.hash(same),new ByteArrayInputStream(same)));
+        assertTrue(service.get("alice",malformed.id()).assets().isEmpty());
+    }
+
     @Test void inputSurvivesRestartAndRetryIsImmutableAndPrivate() throws IOException {
         var s = service();
         var id = s.create("alice", plan).id();
