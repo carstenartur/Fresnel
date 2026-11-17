@@ -1,0 +1,44 @@
+import { expect, test } from '@playwright/test';
+
+// The Failsafe network gate supplies a real paired backend and a containerized Photographer.
+test.skip(!process.env.FRESNEL_PHOTOMETRY_NETWORK_IT, 'Run with the paired Photographer network fixture.');
+test('paired Photographer records four directional exposures and reconstructs archived camera media after a reload', async ({page})=>{
+  test.setTimeout(120_000);
+  const user=process.env.E2E_USER??'user',password=process.env.E2E_PASSWORD??'user';
+  await page.goto('/plugins/display-photometric-stereo');
+  await page.getByText('Camera and display raster',{exact:true}).click();
+  await page.getByLabel('Directional lights').fill('4');
+  await page.getByRole('button',{name:'Use this display’s pixel dimensions'}).click();
+  await page.getByRole('button',{name:'Prepare illumination sequence'}).click();
+  await page.getByText('Synchronized Photographer capture',{exact:true}).click();
+  await page.getByLabel('Operator username').fill(user);
+  await page.getByLabel('Operator password').fill(password);
+  await page.getByRole('button',{name:'Connect camera provider'}).click();
+  await expect(page.getByRole('option',{name:'Mock camera',exact:true})).toBeAttached();
+  await page.getByLabel('I have manually locked exposure and focus',{exact:false}).check();
+  await page.getByRole('button',{name:'Prepare camera capture'}).click();
+  await page.getByRole('button',{name:'Run camera sequence full screen'}).click();
+  await expect(page.getByText('COMPLETED · 6 / 6 exposures accepted')).toBeVisible({timeout:60000});
+  await page.getByRole('button',{name:'Open captured exposures'}).click();
+  await expect(page.getByText('6 / 6 exposures mapped')).toBeVisible();
+  await page.getByRole('button',{name:'Reconstruct surface'}).click();
+  await expect(page.getByRole('heading',{name:'Measured surface'})).toBeVisible();
+  await page.reload();
+  await page.getByText('Saved experiments',{exact:true}).click();
+  await page.getByLabel('Fresnel username').fill(user);
+  await page.getByLabel('Password',{exact:true}).fill(password);
+  await page.getByRole('button',{name:'Sign in to saved experiments'}).click();
+  await page.getByRole('button',{name:'Open saved captures'}).click();
+  await expect(page.getByText('6 / 6 exposures mapped')).toBeVisible();
+  await page.getByRole('button',{name:'Reconstruct surface'}).click();
+  await expect(page.getByRole('heading',{name:'Measured surface'})).toBeVisible();
+  const grid=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Download result grid and provenance'}).click();
+  const stream=await (await grid).createReadStream(),chunks:Buffer[]=[];
+  for await (const chunk of stream) chunks.push(chunk as Buffer);
+  const solved=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  expect([solved.width,solved.height]).toEqual([64,64]);
+  expect(solved.sources.map((s: {patternId:string})=>s.patternId)).toEqual(['dark','flat','light-01','light-02','light-03','light-04']);
+  expect(solved.grid.valid.some((v:number)=>v===1)).toBe(true);
+  expect(solved.scale).toBe('Relative');
+});
