@@ -2,8 +2,6 @@ package org.fresnel.backend.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.fresnel.optics.PluginDescriptor;
-import org.fresnel.optics.PluginRegistry;
 import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
@@ -58,13 +56,6 @@ public record FresnelJobDocument(
             }
             id = id.trim();
             algorithmVersion = algorithmVersion.trim();
-            PluginDescriptor descriptor = PluginRegistry.requireById(id);
-            if (!descriptor.algorithmVersion().equals(algorithmVersion)) {
-                throw new IllegalArgumentException(
-                        "Unsupported algorithmVersion for plugin " + id + ": "
-                                + algorithmVersion + " (supported: "
-                                + descriptor.algorithmVersion() + ")");
-            }
         }
     }
 

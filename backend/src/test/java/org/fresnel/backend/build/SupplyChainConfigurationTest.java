@@ -32,6 +32,19 @@ class SupplyChainConfigurationTest {
     private static final Path WORKFLOWS = ROOT.resolve(".github/workflows");
 
     @Test
+    void releaseMetadataCommitsContainEveryReactorModule() throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(
+                "python3", ".github/scripts/test-release-metadata-commits.py")
+                .directory(ROOT.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), UTF_8);
+        assertThat(process.waitFor())
+                .as("Release metadata staging and candidate guards: %s", output)
+                .isZero();
+    }
+
+    @Test
     void immutableSupplyChainAndReleaseInvariantsArePartOfMavenVerify() throws IOException {
         List<String> errors = new ArrayList<>();
 
@@ -253,3 +266,4 @@ class SupplyChainConfigurationTest {
         return ROOT.relativize(file) + ":" + line;
     }
 }
+

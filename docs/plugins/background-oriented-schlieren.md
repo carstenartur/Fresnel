@@ -1,10 +1,10 @@
 # Background-Oriented Schlieren
 
-**Plugin ID:** `background-oriented-schlieren`  
-**Kind:** `MEASUREMENT`  
-**Stability:** `EXPERIMENTAL`  
-**Plugin algorithm:** `background-oriented-schlieren/1`  
-**Target generator algorithm:** `background-oriented-schlieren-target/1`
+- **Plugin ID:** `background-oriented-schlieren`
+- **Kind:** `MEASUREMENT`
+- **Stability:** `EXPERIMENTAL`
+- **Plugin algorithm:** `background-oriented-schlieren/1`
+- **Target generator algorithm:** `background-oriented-schlieren-target/1`
 
 Background-Oriented Schlieren (BOS) makes small apparent movements of a
 high-contrast background visible. In a typical household experiment, a camera
@@ -48,6 +48,9 @@ The implementation is selected only through the reviewed `PluginRegistry`.
    the controls.
 6. Download the PNG and its manifest. Save the `.fresnel` job when the target
    must be reproduced later.
+
+The [1920 × 1080 example job](../../examples/background-oriented-schlieren/screen-target.fresnel)
+opens in the same editor and includes a production plan for `bos-target.png`.
 
 Changing the seed changes dot placement. Keeping every parameter unchanged
 reproduces the same pixels, semantic hash and target ID.
@@ -134,6 +137,10 @@ POST /api/measurements/background-oriented-schlieren/target/manifest
 POST /api/measurements/background-oriented-schlieren/target/preview.png
 ```
 
+Add `?thumbnail=true` to the preview URL for a nearest-neighbor PNG with a
+maximum side of 1600 pixels. The identity headers describe the full source
+target. Native-size preview and production PNGs carry the intended print DPI.
+
 Authenticated production download:
 
 ```text
@@ -147,6 +154,9 @@ ETag
 X-Fresnel-Target-SHA256
 X-Fresnel-Target-Id
 X-Fresnel-Active-Region
+X-Fresnel-Pattern-Seed
+X-Fresnel-Dot-Count
+X-Fresnel-Achieved-Fill-Ratio
 X-Content-Type-Options: nosniff
 ```
 

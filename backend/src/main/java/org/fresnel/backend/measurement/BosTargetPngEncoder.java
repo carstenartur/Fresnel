@@ -58,6 +58,32 @@ public final class BosTargetPngEncoder {
         }
     }
 
+    /** Nearest-neighbor thumbnail for inspection. Its pixels are never used for measurement. */
+    public static byte[] thumbnail(BosTarget target, int maximumSide) {
+        int sourceWidth = target.parameters().widthPx();
+        int sourceHeight = target.parameters().heightPx();
+        int longest = Math.max(sourceWidth, sourceHeight);
+        if (longest <= maximumSide) return encode(target);
+        double scale = maximumSide / (double) longest;
+        int width = Math.max(1, (int) Math.round(sourceWidth * scale));
+        int height = Math.max(1, (int) Math.round(sourceHeight * scale));
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+        byte[] pixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
+        for (int y = 0; y < height; y++) {
+            int sourceY = (2 * y + 1) * sourceHeight / (2 * height);
+            for (int x = 0; x < width; x++) {
+                int sourceX = (2 * x + 1) * sourceWidth / (2 * width);
+                pixels[y * width + x] = (byte) target.pixelUnsigned(sourceX, sourceY);
+            }
+        }
+        try (ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+            if (!ImageIO.write(image, "png", bytes)) throw new IllegalStateException("PNG writer unavailable");
+            return bytes.toByteArray();
+        } catch (IOException exception) {
+            throw new UncheckedIOException("Could not encode BOS thumbnail", exception);
+        }
+    }
+
     private static void addPhysicalResolution(IIOMetadata metadata, double dpi) throws IOException {
         int pixelsPerMeter = Math.toIntExact(Math.round(dpi / 0.0254));
         IIOMetadataNode root = new IIOMetadataNode(PNG_METADATA_FORMAT);

@@ -12,12 +12,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Public, deterministic target-generation endpoints for the BOS measurement plugin. */
 @RestController
 @RequestMapping("/api/measurements/background-oriented-schlieren")
 public class BosTargetController {
+
+    private static final int THUMBNAIL_SIDE_PX = 1600;
 
     public static final String TARGET_SHA256_HEADER = "X-Fresnel-Target-SHA256";
     public static final String TARGET_ID_HEADER = "X-Fresnel-Target-Id";
@@ -35,9 +38,11 @@ public class BosTargetController {
             value = "/target/preview.png",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
-    public ResponseEntity<byte[]> preview(@Valid @RequestBody BosTargetRequest request) {
+    public ResponseEntity<byte[]> preview(
+            @Valid @RequestBody BosTargetRequest request,
+            @RequestParam(defaultValue = "false") boolean thumbnail) {
         BosTarget target = generate(request);
-        return imageResponse(target, false);
+        return imageResponse(target, false, thumbnail);
     }
 
     @PostMapping(
@@ -46,22 +51,28 @@ public class BosTargetController {
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> export(@Valid @RequestBody BosTargetRequest request) {
         BosTarget target = generate(request);
-        return imageResponse(target, true);
+        return imageResponse(target, true, false);
     }
 
     private static BosTarget generate(BosTargetRequest request) {
         return BosTargetGenerator.generate(request.toParameters());
     }
 
-    private static ResponseEntity<byte[]> imageResponse(BosTarget target, boolean attachment) {
-        byte[] png = BosTargetPngEncoder.encode(target);
+    private static ResponseEntity<byte[]> imageResponse(
+            BosTarget target, boolean attachment, boolean thumbnail) {
+        byte[] png = thumbnail
+                ? BosTargetPngEncoder.thumbnail(target, THUMBNAIL_SIDE_PX)
+                : BosTargetPngEncoder.encode(target);
         BosTarget.Region active = target.activeRegion();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.IMAGE_PNG);
         headers.setCacheControl(CacheControl.noStore());
-        headers.setETag('"' + target.semanticSha256() + '"');
+        headers.setETag('"' + target.semanticSha256() + (thumbnail ? "-thumbnail" : "") + '"');
         headers.set(TARGET_SHA256_HEADER, target.semanticSha256());
         headers.set(TARGET_ID_HEADER, target.targetId());
+        headers.set("X-Fresnel-Pattern-Seed", Long.toString(target.parameters().patternSeed()));
+        headers.set("X-Fresnel-Dot-Count", Integer.toString(target.dotCount()));
+        headers.set("X-Fresnel-Achieved-Fill-Ratio", Double.toString(target.actualFillRatio()));
         headers.set(ACTIVE_REGION_HEADER,
                 active.x() + "," + active.y() + "," + active.width() + "," + active.height());
         headers.add("X-Content-Type-Options", "nosniff");

@@ -6,6 +6,7 @@ import org.fresnel.optics.HologramParameters;
 import org.fresnel.optics.MaskType;
 import org.fresnel.optics.PluginCapability;
 import org.fresnel.optics.PluginDescriptor;
+import org.fresnel.optics.PluginKind;
 import org.fresnel.optics.PluginRegistry;
 import org.fresnel.optics.Polarity;
 import org.springframework.stereotype.Service;
@@ -176,6 +177,14 @@ public class FresnelJobService {
 
         String pluginId = job.plugin().id().trim();
         PluginDescriptor descriptor = PluginRegistry.requireById(pluginId);
+        // Measurement jobs identify a versioned numerical pipeline. Existing design
+        // jobs preserve their source algorithm metadata when opened and edited.
+        if (descriptor.kind() == PluginKind.MEASUREMENT
+                && !descriptor.algorithmVersion().equals(job.plugin().algorithmVersion())) {
+            throw new IllegalArgumentException(
+                    "Unsupported algorithmVersion for plugin " + pluginId + ": "
+                            + job.plugin().algorithmVersion());
+        }
         int parameterSchemaVersion = job.plugin().parameterSchemaVersion() <= 0
                 ? FresnelJobDocument.CURRENT_PARAMETER_SCHEMA_VERSION
                 : job.plugin().parameterSchemaVersion();

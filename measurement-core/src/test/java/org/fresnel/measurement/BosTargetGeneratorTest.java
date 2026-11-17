@@ -2,6 +2,7 @@ package org.fresnel.measurement;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -54,6 +55,53 @@ class BosTargetGeneratorTest {
         assertEquals(first.activeRegion(), second.activeRegion());
         assertEquals(first.dotCount(), second.dotCount());
         assertEquals(first.cellPitchPx(), second.cellPitchPx());
+    }
+
+    @Test
+    void renderedDotsRespectMinimumEdgeSpacingAcrossSeeds() {
+        record Center(int x, int y) {}
+        for (int seed : List.of(0, 13, 20260824)) {
+            BosTargetParameters parameters = new BosTargetParameters(
+                    320, 240, 150, seed, 5, 0.15, 3, 24, false, false);
+            BosTarget target = BosTargetGenerator.generate(parameters);
+            BosTarget.Region active = target.activeRegion();
+            int radius = parameters.dotDiameterPx() / 2;
+            int minimumDistance = parameters.dotDiameterPx() + parameters.minimumDotSpacingPx();
+            List<Center> centers = new ArrayList<>();
+
+            // An odd-diameter disk has a unique pixel with a full, centered
+            // diameter of foreground in both directions. Read the output raster
+            // so the oracle is independent of placement cells and jitter.
+            for (int y = active.y() + radius; y < active.maxYExclusive() - radius; y++) {
+                for (int x = active.x() + radius; x < active.maxXExclusive() - radius; x++) {
+                    boolean centered = true;
+                    for (int offset = -radius; offset <= radius; offset++) {
+                        if (target.pixelUnsigned(x + offset, y) != 0
+                                || target.pixelUnsigned(x, y + offset) != 0) {
+                            centered = false;
+                            break;
+                        }
+                    }
+                    if (centered) centers.add(new Center(x, y));
+                }
+            }
+            assertEquals(target.dotCount(), centers.size());
+            for (int i = 0; i < centers.size(); i++) {
+                for (int j = 0; j < i; j++) {
+                    int dx = centers.get(i).x() - centers.get(j).x();
+                    int dy = centers.get(i).y() - centers.get(j).y();
+                    assertTrue(dx * dx + dy * dy >= minimumDistance * minimumDistance,
+                            "Rendered dot centers violate spacing for seed " + seed);
+                }
+            }
+        }
+    }
+
+    @Test
+    void infeasibleFillIsRejectedEvenWithValidBorderAndDimensions() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> new BosTargetParameters(640, 480, 150, 42, 5, 0.25, 15, 32, false, false));
+        assertTrue(error.getMessage().contains("targetFillRatio cannot be achieved"));
     }
 
     @Test

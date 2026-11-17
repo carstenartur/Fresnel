@@ -11,6 +11,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import javax.imageio.ImageIO;
+import java.io.ByteArrayInputStream;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -87,6 +90,9 @@ class BosTargetControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.IMAGE_PNG))
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(header().string("X-Fresnel-Pattern-Seed", "20260823"))
+                .andExpect(header().string("X-Fresnel-Dot-Count", matchesPattern("[1-9][0-9]*")))
+                .andExpect(header().string("X-Fresnel-Achieved-Fill-Ratio", matchesPattern("0[.][0-9]+")))
                 .andExpect(header().string(HttpHeaders.ETAG,
                         matchesPattern("\"[0-9a-f]{64}\"")))
                 .andExpect(header().string(BosTargetController.TARGET_SHA256_HEADER,
@@ -111,6 +117,25 @@ class BosTargetControllerTest {
         assertThat(second.getResponse().getContentAsByteArray()).isEqualTo(firstBytes);
         assertThat(second.getResponse().getHeader(BosTargetController.TARGET_SHA256_HEADER))
                 .isEqualTo(first.getResponse().getHeader(BosTargetController.TARGET_SHA256_HEADER));
+    }
+
+    @Test
+    void optionalThumbnailKeepsSourceIdentityAndCapsLongestSide() throws Exception {
+        String large = VALID.replace("640", "1920").replace("480", "1080");
+        var source = mvc.perform(post(BASE + "/preview.png")
+                        .contentType(MediaType.APPLICATION_JSON).content(large))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        var thumbnail = mvc.perform(post(BASE + "/preview.png").param("thumbnail", "true")
+                        .contentType(MediaType.APPLICATION_JSON).content(large))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        var nativeImage = ImageIO.read(new ByteArrayInputStream(source.getContentAsByteArray()));
+        var smallImage = ImageIO.read(new ByteArrayInputStream(thumbnail.getContentAsByteArray()));
+        assertThat(nativeImage.getWidth()).isEqualTo(1920);
+        assertThat(smallImage.getWidth()).isEqualTo(1600);
+        assertThat(smallImage.getHeight()).isEqualTo(900);
+        assertThat(thumbnail.getHeader(BosTargetController.TARGET_SHA256_HEADER))
+                .isEqualTo(source.getHeader(BosTargetController.TARGET_SHA256_HEADER));
+        assertThat(thumbnail.getHeader(HttpHeaders.ETAG)).isNotEqualTo(source.getHeader(HttpHeaders.ETAG));
     }
 
     @Test

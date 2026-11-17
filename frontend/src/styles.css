@@ -120,6 +120,10 @@ body { margin: 0; }
 .capture-provider-status-details { margin-top: 6px; }
 .capture-provider-status-details summary { cursor: pointer; }
 .capture-provider-status-details ul { margin: 4px 0 0; padding-left: 18px; }
+.photographer-pairing-form { display: grid; gap: 6px; padding-top: 8px; }
+.photographer-pairing-form label { display: grid; gap: 2px; }
+.photographer-pairing-form div { display: flex; flex-wrap: wrap; gap: 6px; }
+.photographer-pairing-form p { margin: 0; }
 .capture-provider-status-time { display: block; margin-top: 5px; opacity: .75; }
 
 .panel h2 {

@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -31,7 +30,6 @@ class FresnelJobExecutorTest {
             "negative-polarity");
 
     @Autowired FresnelJobExecutor executor;
-    @Autowired ObjectMapper mapper;
 
     @TempDir Path tempDir;
 
@@ -101,29 +99,8 @@ class FresnelJobExecutorTest {
 
     @Test
     void bosProductionPlanReproducesTheSameTargetThroughTheCommonExecutor() throws Exception {
-        BosTargetRequest request = new BosTargetRequest(
-                640,
-                480,
-                100.0,
-                123456L,
-                5,
-                0.10,
-                2,
-                32,
-                true,
-                false);
-        FresnelJobDocument job = new FresnelJobDocument(
-                FresnelJobDocument.SCHEMA_URL,
-                FresnelJobDocument.FORMAT_IDENTIFIER,
-                FresnelJobDocument.CURRENT_FORMAT_VERSION,
-                new FresnelJobDocument.PluginRef(
-                        "background-oriented-schlieren",
-                        1,
-                        "background-oriented-schlieren/1"),
-                mapper.valueToTree(request),
-                new FresnelJobDocument.ProductionPlan(List.of(
-                        output("png", "bos-target.png", null, null))),
-                null);
+        byte[] job = Files.readAllBytes(repositoryFile(
+                "examples/background-oriented-schlieren/screen-target.fresnel"));
 
         Map<String, byte[]> firstBytes = new LinkedHashMap<>();
         FresnelJobExecutionResult first = executor.execute(
@@ -141,10 +118,12 @@ class FresnelJobExecutorTest {
         GeneratedArtifact artifact = first.artifacts().getFirst();
         assertEquals("bos-target.png", artifact.filename());
         assertEquals("image/png", artifact.mediaType());
-        assertEquals(640, artifact.widthPx());
-        assertEquals(480, artifact.heightPx());
-        assertEquals(100.0, artifact.dpi());
+        assertEquals(1920, artifact.widthPx());
+        assertEquals(1080, artifact.heightPx());
+        assertEquals(300.0, artifact.dpi());
         assertTrue(artifact.normalizedSha256().matches("[0-9a-f]{64}"));
+        assertEquals(first.job().provenance().parameterSha256(),
+                second.job().provenance().parameterSha256());
         assertArrayEquals(firstBytes.get("bos-target.png"), secondBytes.get("bos-target.png"));
         assertEquals(artifact.normalizedSha256(),
                 second.artifacts().getFirst().normalizedSha256());

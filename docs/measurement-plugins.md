@@ -160,13 +160,11 @@ selection, exclusive camera leases, shutter and live-view operations, effective
 capture settings, durable source-media storage and integrity metadata.
 
 The applications must not share a database, filesystem volume, Java classpath or
-administrator password. Both user interfaces will show negotiated protocol,
-last successful communication, selected camera, active session and a truthful
-connection state.
+administrator password. The [Photographer provider guide](integrations/photographer-provider.md) covers pairing, supported capture plans, durable replay and verification of original media.
 
 Detailed implementation work is tracked in:
 
 - #139 — durable measurement sessions and CaptureProvider adapters;
 - #140 — Background-Oriented Schlieren plugin;
 - #141 — display photometric-stereo plugin;
-- `carstenartur/Photographer#314` — paired Photographer capture bridge.
+- [Photographer paired capture guide](https://github.com/carstenartur/Photographer/blob/main/docs/fresnel-capture.md) — camera service setup, session limits and recovery.
