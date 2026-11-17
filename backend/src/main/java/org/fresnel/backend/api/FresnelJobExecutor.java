@@ -3,6 +3,8 @@ package org.fresnel.backend.api;
 import org.fresnel.backend.measurement.BosTargetPngEncoder;
 import org.fresnel.backend.measurement.BosTargetPrintExporter;
 import org.fresnel.measurement.BosTarget;
+import org.fresnel.measurement.photometry.DisplayGeometry;
+import org.fresnel.measurement.photometry.DisplayIlluminationSequenceGenerator;
 import org.fresnel.measurement.BosTargetGenerator;
 import org.fresnel.optics.DxfExporter;
 import org.fresnel.optics.GerberExporter;
@@ -112,6 +114,7 @@ public class FresnelJobExecutor {
             case "rgb-zone-plate" -> renderRgb(job, output);
             case "hologram" -> renderHologram(job, output);
             case "background-oriented-schlieren" -> renderBosTarget(job, output);
+            case "display-photometric-stereo" -> renderDisplayPattern(job, output);
             default -> throw new IllegalArgumentException(
                     "No production executor for plugin " + job.plugin().id());
         };
@@ -269,6 +272,15 @@ public class FresnelJobExecutor {
                 base, request.redNm(), request.greenNm(), request.blueNm());
         return new RenderedOutput(
                 PngExporter.toPngBytes(rendered, base.dpi()), PNG, base.dpi());
+    }
+
+    private RenderedOutput renderDisplayPattern(FresnelJobDocument job, FresnelJobDocument.ProductionOutput output) {
+        if (!"png".equals(output.format())) throw unsupported(job.plugin().id(), output.format());
+        var options = output.options();
+        if (options == null || options.size() != 1 || !options.path("patternId").isTextual())
+            throw new IllegalArgumentException("Select an illumination pattern with options.patternId");
+        var geometry = mapper.convertValue(job.parameters(), DisplayGeometry.class);
+        return new RenderedOutput(DisplayIlluminationSequenceGenerator.png(geometry, options.get("patternId").textValue()), PNG, null);
     }
 
     private RenderedOutput renderBosTarget(

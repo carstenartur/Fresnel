@@ -1,0 +1,34 @@
+{
+  "formatVersion": 1,
+  "pluginId": "display-photometric-stereo",
+  "parameterSchemaVersion": 1,
+  "groups": [
+    {
+      "id": "setup",
+      "title": "Screen and object",
+      "fields": [
+        "screenWidthMm",
+        "screenHeightMm",
+        "objectDistanceMm"
+      ]
+    },
+    {
+      "id": "camera",
+      "title": "Camera and display raster",
+      "fields": [
+        "cameraOffsetXmm",
+        "cameraOffsetYmm",
+        "widthPx",
+        "heightPx",
+        "lightCount",
+        "patchDiameterPercent",
+        "settleDelayMs",
+        "cameraGamma"
+      ],
+      "collapsible": true,
+      "advanced": true
+    }
+  ],
+  "widgets": {},
+  "extensions": []
+}

@@ -1,5 +1,8 @@
 package org.fresnel.backend.api;
 
+import org.fresnel.backend.api.photometry.DisplayPhotometryController;
+import org.fresnel.measurement.photometry.DisplayGeometry;
+
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.fresnel.optics.HologramParameters;
@@ -232,6 +235,7 @@ public class FresnelJobService {
             case "hologram" -> HologramRequest.class;
             case "variable-line-grating" -> VariableLineGratingRequest.class;
             case "background-oriented-schlieren" -> BosTargetRequest.class;
+            case "display-photometric-stereo" -> DisplayGeometry.class;
             default -> throw new IllegalArgumentException("Unknown plugin id: " + pluginId);
         };
 
@@ -298,6 +302,8 @@ public class FresnelJobService {
                 throw new IllegalArgumentException(
                         "Invalid parameters for plugin " + pluginId + ": " + conciseMessage(e), e);
             }
+            normalizedRequest = r;
+        } else if (request instanceof DisplayGeometry r) {
             normalizedRequest = r;
         } else if (request instanceof BosTargetRequest r) {
             try {
@@ -380,6 +386,7 @@ public class FresnelJobService {
             case "hologram" -> HOLOGRAM_PARAMETER_FIELDS;
             case "variable-line-grating" -> GRATING_PARAMETER_FIELDS;
             case "background-oriented-schlieren" -> BOS_PARAMETER_FIELDS;
+            case "display-photometric-stereo" -> DisplayPhotometryController.FIELDS;
             default -> throw new IllegalArgumentException("Unknown plugin id: " + pluginId);
         };
         rejectUnknownFields(parameters, fields, "parameters");
@@ -429,6 +436,8 @@ public class FresnelJobService {
                 throw new IllegalArgumentException("production.outputs[" + i + "] must not be null");
             }
             String format = normalizeFormat(output.format());
+            if (descriptor == PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO && "stl".equals(format))
+                throw new IllegalArgumentException("Relative STL requires a completed surface solve and explicit export scale");
             PluginCapability capability = capabilityFor(format);
             if (!descriptor.supportsExport(capability)) {
                 throw new IllegalArgumentException(

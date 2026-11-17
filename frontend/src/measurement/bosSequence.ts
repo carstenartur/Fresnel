@@ -73,7 +73,7 @@ async function openMovie(file: File, signal: AbortSignal) {
       scale = Math.min(1, settings.maximumSide / Math.max(w, h));
     canvas.width = Math.round(w * scale);
     canvas.height = Math.round(h * scale);
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', {willReadFrequently:true});
     if (!ctx) throw new Error('Browser image decoder is unavailable.');
     ctx.imageSmoothingQuality = 'high';
     const sample = async (t: number, index: number): Promise<FrameInput> => {
@@ -82,7 +82,18 @@ async function openMovie(file: File, signal: AbortSignal) {
           video.currentTime = t;
         });
       signal.throwIfAborted();
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // A seek can finish before the compositor has exposed an opaque decoded frame.
+      // Reading back the raster synchronizes canvas drawing before the PNG encoder runs.
+      let ready=false;
+      for (let i=0;i<8&&!ready;i++) {
+        signal.throwIfAborted();
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(video,0,0,canvas.width,canvas.height);
+        const rgba=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+        for (let a=3;a<rgba.length;a+=4) if (rgba[a]) {ready=true;break;}
+        if(!ready) await new Promise(resolve=>setTimeout(resolve,25));
+      }
+      if(!ready) throw new Error('The MP4 decoder did not produce a visible frame.');
       const blob = await new Promise<Blob>((resolve, reject) =>
         canvas.toBlob(
           (b) => (b ? resolve(b) : reject(new Error('Could not sample video frame.'))),
