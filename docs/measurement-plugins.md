@@ -24,19 +24,21 @@ schema-backed parameters
         → portable .fresnel job
 ```
 
-It deliberately advertises only:
+The editor advertises the implemented target and still-pair capabilities:
 
 ```text
 GENERATE_CAPTURE_TARGET
 PREVIEW_PNG
 EXPORT_PNG
+IMPORT_CAPTURE_SET
+ANALYZE_CAPTURE_SET
+EXPORT_EXPERIMENT_BUNDLE
 ```
 
-It does **not** yet advertise upload, remote capture, image analysis, live
-analysis or experiment-bundle export. This keeps the metadata truthful while the
-shared session and analysis layers are implemented separately. See
-[Background-Oriented Schlieren](plugins/background-oriented-schlieren.md) for
-the user workflow and scientific claim boundary.
+The still-pair editor runs deterministic local displacement analysis in a
+browser worker and saves original images, settings and the numeric result
+through the shared measurement-session service. See the
+[Background-Oriented Schlieren guide](plugins/background-oriented-schlieren.md).
 
 ## Why measurement workflows need a separate lifecycle
 
