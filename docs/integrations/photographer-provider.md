@@ -15,7 +15,7 @@ This two-step workflow records the operator's acknowledgement of a physical refe
 
 ## Capture and recovery
 
-A measurement workflow obtains `photographer-rest` from `CaptureProviderRegistry` and passes its durable local experiment ID to `createSession(plan, externalExperimentId, key)`. Use the camera profile ID from calibrated device selection on that pairing. The workflow must check its local owner before using the saved remote session. It also owns the observation that the intended physical condition or displayed raster remains in place.
+A measurement workflow obtains `photographer-rest` from `CaptureProviderRegistry` and passes its durable local experiment ID to `createSession(plan, externalExperimentId, key)`. Use the camera profile ID returned by discovery for that pairing. The workflow must check its local owner before using the saved remote session. It also owns the observation that the intended physical condition or displayed raster remains in place.
 
 The adapter stores immutable session plans, original asset identities and the exact outbound bytes for idempotent operations under `fresnel.capture.photographer.journal-directory` (the `photographer-captures` subdirectory of the Fresnel data directory by default). Keep this directory on persistent local storage, separate from Photographer. The adapter scopes these records to the origin, instance and pairing. A reconnect with the same pairing can replay the same key. When a create request is older than the one-day replay guarantee, Fresnel stops automatic recreation. Its workflow can reconcile an existing session through its recorded ID. Keep a journal while it is needed for experiment recovery.
 
