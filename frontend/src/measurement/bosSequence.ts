@@ -1,3 +1,4 @@
+import { pixelRegion, readRegion, type Region } from './bosReferenceQuality';
 import { cameraLimits, type CameraModel } from './bosCameraModel';
 import { settings, pyramidSettings, type LocalSearch, type PairResult } from './bosDisplacement';
 import type { FrameInput, Reply, Request } from './bosSequence.worker';
@@ -13,6 +14,8 @@ export interface FrameResult {
   sha256: string;
   sourceWidth: number;
   sourceHeight: number;
+  sourceRegion: Region;
+  sourcePixelsPerAnalysisPixel: { x: number; y: number };
   result: PairResult | null;
   rejection?: string;
 }
@@ -69,7 +72,7 @@ async function presented(
   }
 }
 
-async function openMovie(file: File, signal: AbortSignal) {
+async function openMovie(file: File, region: Region, signal: AbortSignal) {
   if (!file.size || file.size > 64 * 1024 * 1024) throw new Error('Each MP4 is limited to 64 MiB.');
   const prefix = new Uint8Array(await file.slice(0, 12).arrayBuffer());
   if (String.fromCharCode(...prefix.subarray(4, 8)) !== 'ftyp')
@@ -112,10 +115,11 @@ async function openMovie(file: File, signal: AbortSignal) {
       video.preload = 'auto';
     });
     const { videoWidth: w, videoHeight: h, duration } = video;
-    const canvas = document.createElement('canvas'),
-      scale = Math.min(1, settings.maximumSide / Math.max(w, h));
-    canvas.width = Math.round(w * scale);
-    canvas.height = Math.round(h * scale);
+    const crop = pixelRegion(region, w, h);
+    const canvas = document.createElement('canvas');
+    const scale = Math.min(1, settings.maximumSide / Math.max(crop.width, crop.height));
+    canvas.width = Math.round(crop.width * scale);
+    canvas.height = Math.round(crop.height * scale);
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) throw new Error('Browser image decoder is unavailable.');
     ctx.imageSmoothingQuality = 'high';
@@ -128,7 +132,7 @@ async function openMovie(file: File, signal: AbortSignal) {
         );
       }
       signal.throwIfAborted();
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
       const blob = await new Promise<Blob>((resolve, reject) =>
         canvas.toBlob(
           (b) => (b ? resolve(b) : reject(new Error('Could not sample video frame.'))),
@@ -138,6 +142,7 @@ async function openMovie(file: File, signal: AbortSignal) {
       return {
         file: new File([blob], stepName(index) + '.png', { type: 'image/png' }),
         presentedTimeSeconds: actualTime,
+        croppedSourceRegion: crop,
         sourceWidth: w,
         sourceHeight: h,
       };
@@ -161,6 +166,7 @@ export async function runSequence(
   rate: number,
   cameraModel: CameraModel,
   localSearch: LocalSearch,
+  region: Region,
   signal: AbortSignal,
   onProgress: (s: string) => void,
   onFrame: (frame: FrameResult) => void,
@@ -174,7 +180,8 @@ export async function runSequence(
       files.reduce((s, f) => s + f.size, external?.size ?? 0) > 128 * 1024 * 1024)
   )
     throw new Error('Choose 2–24 ordered images totaling at most 128 MiB with the reference.');
-  const movie = clip ? await openMovie(clip, signal) : undefined;
+  if (!readRegion(region)) throw new Error('Choose a positive region inside the frame.');
+  const movie = clip ? await openMovie(clip, region, signal) : undefined;
   let worker: Worker | undefined;
   function ask(request: Request): Promise<Reply> {
     return new Promise((resolve, reject) => {
@@ -219,7 +226,7 @@ export async function runSequence(
         if (movie) referenceSamples.set(i, sampled);
       }
     onProgress('Preparing reference…');
-    const provenance = await ask({ kind: 'reference', inputs: refs, cameraModel, localSearch });
+    const provenance = await ask({ kind: 'reference', inputs: refs, cameraModel, localSearch, region });
     if (provenance.kind !== 'ready') throw new Error('Unexpected reference response.');
     refs.length = 0;
     const frames: FrameResult[] = [];
@@ -238,6 +245,8 @@ export async function runSequence(
         sha256: value.sha256,
         sourceWidth: value.sourceWidth,
         sourceHeight: value.sourceHeight,
+        sourceRegion: value.sourceRegion,
+        sourcePixelsPerAnalysisPixel: value.sourcePixelsPerAnalysisPixel,
         result: value.result,
         rejection: value.reason,
       };
@@ -257,6 +266,7 @@ export async function runSequence(
       algorithmVersion: 'background-oriented-schlieren/1',
       method: 'sequence-' + cameraModel + (localSearch === 'pyramid' ? '-pyramid-zncc/2' : '-zncc/1'),
       localSearch,
+      analysisRegion: region,
       pyramidSettings: localSearch === 'pyramid' ? pyramidSettings : undefined,
       cameraModel,
       schemaVersion: 1,
@@ -287,7 +297,7 @@ export async function runSequence(
       timeBasis: movie
         ? 'Requested sampling time and actual media presentation time in seconds'
         : 'Declared still-frame cadence in seconds',
-      coordinateSystem: 'Analysis pixels in the oriented reference raster, +x right, +y down',
+      coordinateSystem: 'Analysis pixels relative to the top-left of the selected oriented source region, +x right, +y down. Each frame records its source-pixel offset and scale.',
       colorLimitPx: Math.max(0.15, magnitudes[Math.floor(0.95 * (magnitudes.length - 1))] ?? 0),
       frames,
     };
