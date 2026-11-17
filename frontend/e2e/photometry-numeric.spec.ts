@@ -24,6 +24,7 @@ test('recovers a tilted Lambertian normal and relative albedo with a clipped and
   const grid = reconstruct(lights, dark, flat, samples);
   expect(grid.valid[0]).toBe(1);
   expect(grid.lightCount[0]).toBe(6);
+  expect(grid.confidence[0]).toBeCloseTo(.75, 5);
   expect(grid.albedo[0]).toBeCloseTo(albedo, 5);
   expect(grid.residual[0]).toBeLessThan(.00001);
   normal.forEach((n, i) => expect(grid.normals[i]).toBeCloseTo(n, 5));
@@ -35,8 +36,11 @@ test('rejects one sparse specular outlier and preserves an unsupported pixel as 
   const grid = reconstruct(lights, dark, flat, samples);
   expect(grid.valid[0]).toBe(1);
   expect(grid.lightCount[0]).toBe(7);
+  expect(grid.confidence[0]).toBeCloseTo(.875, 5);
   normal.forEach((n, i) => expect(grid.normals[i]).toBeCloseTo(n, 5));
-  expect(reconstruct(lights, dark, flat, samples.map(() => Float32Array.of(1))).valid[0]).toBe(0);
+  const clipped = reconstruct(lights, dark, flat, samples.map(() => Float32Array.of(1)));
+  expect(clipped.valid[0]).toBe(0);
+  expect(clipped.confidence[0]).toBe(0);
   expect(reconstruct(lights.map(() => lights[0]), dark, flat, observations()).valid[0]).toBe(0);
 });
 
@@ -59,7 +63,8 @@ function field(width: number, height: number, slope: (x:number,y:number)=>number
 
 test('masked Poisson relief preserves quadratic height differences and separate component datums', () => {
   const w=23,h=19, grid=field(w,h,(x,y)=>[.02*x,.04*y]);
-  for (let y=0;y<h;y++) grid.valid[y*w+11]=0;
+  // Low-confidence normals must not connect two separately referenced surfaces.
+  for (let y=0;y<h;y++) grid.confidence[y*w+11]=.05;
   const relief=integrate(w,h,grid,false);
   expect(relief.components).toBe(2);
   expect(relief.valid[11]).toBe(0);
