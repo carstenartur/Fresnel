@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { download, type Manifest, type Result } from './data';
+import { describeRelief } from './RelativeRelief';
+import type { Relief } from './height';
+import { registrationLimits,registrationMethod } from './registration';
 import { limits } from './solve';
 
 const layers = ['Relighting','Normal','Albedo','Confidence','Residual','Validity'] as const;
 type Layer = typeof layers[number];
 
-export function Relighting({ result, manifest }: { result: Result; manifest: Manifest }) {
+export function Relighting({ result, manifest, relief }: { result: Result; manifest: Manifest; relief: Relief|null }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [layer, setLayer] = useState<Layer>('Relighting');
   const [light, setLight] = useState([0,0]);
@@ -49,12 +52,14 @@ export function Relighting({ result, manifest }: { result: Result; manifest: Man
   function numeric() {
     const arrays = Object.fromEntries(Object.entries(grid).map(([key,v]) => [key,Array.from(v)]));
     const metadata = { manifest, sources:result.sources, width,height, solver:'trimmed-lambertian/1', limits,
-      alignment:'Fixed camera and object; no registration correction', scale:'Relative', grid:arrays,
+      alignment:{method:registrationMethod,limits:registrationLimits},warnings:result.warnings, scale:'Relative', grid:arrays,
+      relief:relief && {...describeRelief(relief), values:Array.from(relief.values),valid:Array.from(relief.valid)},
       relighting: { x:light[0],y:light[1],z:Math.sqrt(Math.max(0,1-light[0]**2-light[1]**2)), intensity,ambient } };
     download(new Blob([JSON.stringify(metadata)],{type:'application/json'}),'photometry-result.json');
   }
   return <section><h3>Measured surface</h3>
     <p>{valid.toLocaleString()} of {grid.valid.length.toLocaleString()} pixels passed the solve. Unsupported surface pixels are transparent in the relit image.</p>
+    {result.warnings.length>0 && <ul>{result.warnings.map(w=><li key={w}>{w}</li>)}</ul>}
     <label>Result layer <select value={layer} onChange={e => setLayer(e.target.value as Layer)}>
       {layers.map(x => <option key={x}>{x}</option>)}</select></label>
     <canvas ref={canvas} aria-label="Measured surface result" width={width} height={height}

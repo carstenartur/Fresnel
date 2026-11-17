@@ -21,6 +21,15 @@ test('analyzes two local images, re-renders a stored grid and exports it', async
   });
   const file = { name: 'dots.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') };
   await panel.getByLabel('Reference image', { exact: true }).setInputFiles(file);
+  const quality = panel.getByRole('region', { name: 'Reference image quality' });
+  await expect(quality).toContainText('Luminance contrast');
+  await quality.getByText('Adjust analysis region').click();
+  await quality.getByLabel('Left (%)').fill('5');
+  await quality.getByLabel('Top (%)').fill('5');
+  await quality.getByLabel('Width (%)').fill('90');
+  await quality.getByLabel('Height (%)').fill('90');
+  await quality.getByRole('button', { name: 'Apply region' }).click();
+  await expect(quality).toContainText('Using the manual region');
   await panel.getByLabel('Disturbed image', { exact: true }).setInputFiles(file);
   await panel.getByRole('button', { name: 'Analyze still pair' }).click();
   await expect(panel.getByRole('status')).toContainText('Registered 12 of 12');
@@ -30,6 +39,11 @@ test('analyzes two local images, re-renders a stored grid and exports it', async
   const download = page.waitForEvent('download');
   await panel.getByRole('link', { name: 'Download numeric grid' }).click();
   const result = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
+  expect(result.sources.reference.sourceRegion).toEqual({ x: 8, y: 6, width: 144, height: 116 });
+  expect(result.referenceQuality.selection).toBe('manual');
+  expect(result.referenceQuality.referenceSha256).toBe(result.sources.reference.sha256);
+  expect(result.width).toBe(144);
+  expect(result.height).toBe(116);
   expect(result.sources.reference.sha256).toMatch(/^[0-9a-f]{64}$/);
   expect(result.sources.disturbed.sha256).toBe(result.sources.reference.sha256);
   expect(result.visualization).toBe('horizontal');

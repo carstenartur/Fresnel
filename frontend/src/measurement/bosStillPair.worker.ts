@@ -1,9 +1,10 @@
 import { analyzePair, settings } from './bosDisplacement';
 import { decodeFrame } from './bosImage';
+import { fullFrame, type Region } from './bosReferenceQuality';
 
-async function processPair(referenceFile: File, disturbedFile: File) {
-  const reference = await decodeFrame(referenceFile);
-  const disturbed = await decodeFrame(disturbedFile);
+async function processPair(referenceFile: File, disturbedFile: File, region: Region = fullFrame) {
+  const reference = await decodeFrame(referenceFile, region);
+  const disturbed = await decodeFrame(disturbedFile, region);
   if (
     reference.metadata.sourceWidth !== disturbed.metadata.sourceWidth ||
     reference.metadata.sourceHeight !== disturbed.metadata.sourceHeight
@@ -28,7 +29,7 @@ async function processPair(referenceFile: File, disturbedFile: File) {
       captureProvider: 'manual',
       schemaVersion: 1,
       coordinateSystem:
-        'Orientation-corrected reference analysis pixels. Origin top left, +x right, +y down.',
+        "Orientation-corrected reference analysis pixels. Origin is the selected region's top left, +x right, +y down. Each sourceRegion records the source-pixel offset.",
       luminance: 'BT.709 coefficients on browser-decoded sRGB values. Alpha composites on white.',
       sources: { reference: reference.metadata, disturbed: disturbed.metadata },
       settings,
@@ -37,9 +38,9 @@ async function processPair(referenceFile: File, disturbedFile: File) {
   };
 }
 export type WorkerOutput = Awaited<ReturnType<typeof processPair>>;
-self.onmessage = async ({ data }: MessageEvent<{ reference: File; disturbed: File }>) => {
+self.onmessage = async ({ data }: MessageEvent<{ reference: File; disturbed: File; region?: Region }>) => {
   try {
-    self.postMessage(await processPair(data.reference, data.disturbed));
+    self.postMessage(await processPair(data.reference, data.disturbed, data.region));
   } catch (failure) {
     self.postMessage({
       error: failure instanceof Error ? failure.message : 'Could not analyze this pair.',

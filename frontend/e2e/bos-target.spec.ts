@@ -60,6 +60,11 @@ test('BOS target generates reproducible evidence, downloads and job round trip',
   );
   expect(targetDownload.suggestedFilename()).toMatch(/^bos-[0-9a-f]{12}\.png$/);
 
+  const actualTargetPath = await targetDownload.path();
+  const measurement = page.getByRole('region', {name:'Still-pair displacement'});
+  await measurement.getByLabel('Reference image', { exact:true }).setInputFiles(actualTargetPath!);
+  await expect(measurement.getByRole('region', {name:'Reference image quality'}))
+    .toContainText('Four orientation markers matched');
   const manifestDownload = await clickDownload(
     page,
     page.getByRole('button', { name: 'Download target manifest' }),

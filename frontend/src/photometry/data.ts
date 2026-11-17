@@ -1,3 +1,4 @@
+import type { Transform } from './registration';
 import type { Grid, Light } from './solve';
 export const pluginId = 'display-photometric-stereo';
 export const defaults = { screenWidthMm: 530, screenHeightMm: 300, widthPx: 1920, heightPx: 1080,
@@ -12,8 +13,8 @@ export interface Manifest {
   algorithmVersion: string; sequenceId: string; coordinateSystem: string; geometry: Geometry;
   conditionNumber: number; patterns: Pattern[];
 }
-export interface Source { patternId: string; sha256: string; name: string; width: number; height: number; lastModified: number }
-export interface Result { width: number; height: number; grid: Grid; sources: Source[] }
+export interface Source { patternId: string; sha256: string; name: string; width: number; height: number; lastModified: number; transform: Transform|null; clippedFraction: number }
+export interface Result { width: number; height: number; grid: Grid; sources: Source[]; warnings: string[] }
 
 export async function generator(path: string, geometry: Geometry) {
   const r = await fetch('/api/measurements/display-photometric-stereo/' + path, {

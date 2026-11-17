@@ -1,8 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { initialJobParameters, SaveJobControl, type JobPanelProps } from '../jobs/JobFileControls';
 import { PluginEditorShell } from '../schema/PluginEditorShell';
 import { defaults, download, generator, pluginId, type Geometry, type Manifest, type Result } from './data';
 import { PatternPresenter } from './PatternPresenter';
+import { MeasurementArchive } from '../measurement/MeasurementArchive';
+import { archiveResult } from './archive';
+import type { Relief } from './height';
+import { RelativeRelief } from './RelativeRelief';
 import { Relighting } from './Relighting';
 
 export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
@@ -11,6 +15,8 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   const [files, setFiles] = useState<Record<string,File>>({});
   const [selected, select] = useState('dark');
   const [result, setResult] = useState<Result | null>(null);
+  const [relief,setRelief] = useState<Relief|null>(null);
+  const archived = useMemo(()=>manifest && result ? archiveResult(manifest,result,relief) : null,[manifest,result,relief]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<'sequence' | 'solve' | null>(null);
   const worker = useRef<Worker | null>(null);
@@ -19,22 +25,24 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   function change(next: Geometry) {
     generation.current++;
     worker.current?.terminate();
-    setGeometry(next); setManifest(null); setFiles({}); setResult(null); setError(''); setBusy(null);
+    setGeometry(next); setManifest(null); setFiles({}); setResult(null); setRelief(null); setError(''); setBusy(null);
   }
-  async function prepare(settings: Geometry, restored: Record<string,File> = {}) {
+  async function prepare(settings: Geometry, restored?: Record<string,File>) {
     const ticket = ++generation.current;
     setError(''); setBusy('sequence');
     try {
       const generated: Manifest = await (await generator('sequence',settings)).json();
       if (generation.current !== ticket) return;
-      setManifest(generated); setFiles(restored); select('dark'); setResult(null);
-    } catch (e) { if (ticket === generation.current) setError(String(e)); }
+      if (restored && Object.keys(restored).some(id => !generated.patterns.some(p=>p.id===id)))
+        throw new Error('Saved source mapping differs from the regenerated illumination plan.');
+      setGeometry(generated.geometry); setManifest(generated); setFiles(restored ?? {}); select('dark'); setResult(null); setRelief(null);
+    } catch (e) { if (ticket === generation.current) setError(String(e)); if (restored) throw e; }
     finally { if (ticket === generation.current) setBusy(null); }
   }
   function stop() { worker.current?.terminate(); worker.current = null; setBusy(null); }
   function analyze() {
     if (!manifest) return;
-    setError(''); setBusy('solve'); setResult(null);
+    setError(''); setBusy('solve'); setResult(null); setRelief(null);
     const task = new Worker(new URL('./analyze.worker.ts',import.meta.url), { type:'module' });
     worker.current = task;
     task.onerror = e => { setError(e.message || 'Analysis failed.'); stop(); };
@@ -56,6 +64,11 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
         <SaveJobControl pluginId={pluginId} parameters={geometry} disabled={!!busy || !validation?.valid}/>
       </>}
     </PluginEditorShell>
+    <MeasurementArchive pluginId={pluginId} parameters={geometry} steps={manifest?.patterns.map(p=>p.id) ?? []}
+      files={files} result={archived} onRestore={async (parameters,images)=>{
+        const restored=parameters as Geometry;
+        stop(); await prepare(restored,images);
+      }}/>
     {manifest && <>
       <h3>Manual capture</h3>
       <p>Light matrix condition number {manifest.conditionNumber.toFixed(2)}. Show each pattern, wait at least {manifest.geometry.settleDelayMs} ms, and take one exposure. Press Esc to return and map the camera file to that pattern.</p>
@@ -68,13 +81,16 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
         disabled={!!busy} onChange={e => {
           const f = e.target.files?.[0]; if (!f) return;
           if (f.size > 16*1024*1024) { setError('Choose a file of at most 16 MiB.'); return; }
-          setFiles({ ...files,[selected]:f }); setResult(null); setError('');
+          setFiles({ ...files,[selected]:f }); setResult(null); setRelief(null); setError('');
         }}/></label>
       {files[selected] && <p>{files[selected].name}</p>}
       <p role="status">{Object.keys(files).length} / {manifest.patterns.length} exposures mapped</p>
       <button onClick={analyze} disabled={!!busy || !complete}>Reconstruct surface</button>
       {busy === 'solve' && <button onClick={stop}>Cancel reconstruction</button>}
-      {result && <Relighting result={result} manifest={manifest}/>}
+      {result && <>
+        <Relighting result={result} manifest={manifest} relief={relief}/>
+        <RelativeRelief result={result} relief={relief} onChange={setRelief}/>
+      </>}
     </>}
     {error && <p role="alert">{error}</p>}
   </>;

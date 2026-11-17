@@ -1,0 +1,27 @@
+services:
+  fresnel:
+    build: ../..
+    ports:
+      - "127.0.0.1:8081:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: standalone,container
+      FRESNEL_DATA_DIR: /data
+      FRESNEL_SECURITY_USER_USERNAME: ${FRESNEL_SECURITY_USER_USERNAME:-user}
+      FRESNEL_SECURITY_ADMIN_USERNAME: ${FRESNEL_SECURITY_ADMIN_USERNAME:-admin}
+      FRESNEL_SECURITY_USER_PASSWORD: ${FRESNEL_SECURITY_USER_PASSWORD:?Set the Fresnel operator password}
+      FRESNEL_SECURITY_ADMIN_PASSWORD: ${FRESNEL_SECURITY_ADMIN_PASSWORD:?Set a different Fresnel administrator password}
+      FRESNEL_CAPTURE_PHOTOGRAPHER_ENABLED: "true"
+      FRESNEL_CAPTURE_PHOTOGRAPHER_ORIGIN: ${FRESNEL_CAPTURE_PHOTOGRAPHER_ORIGIN:-http://focusstack:8080}
+      FRESNEL_CAPTURE_PHOTOGRAPHER_TRUST_PRIVATE_NETWORK: "true"
+    volumes:
+      - fresnel-data:/data
+    networks:
+      - capture
+
+volumes:
+  fresnel-data:
+
+networks:
+  capture:
+    external: true
+    name: fresnel-capture
