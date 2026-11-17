@@ -100,3 +100,60 @@ test('ordered stills preserve the declared time base and cancel cleanly', async 
   await expect(panel.getByRole('figure', { name: 'Live displacement preview' })).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'Download time-series grid' })).toHaveCount(0);
 });
+
+test('fits camera rotation both when preparing the temporal median and when measuring each frame', async ({
+  page,
+}) => {
+  await page.goto('/plugins/background-oriented-schlieren');
+  await page.getByText('Analyze a sequence or video', { exact: true }).click();
+  const panel = page.getByRole('region', { name: 'BOS time series' });
+  const frames = await page.evaluate(() => {
+    const texture = document.createElement('canvas');
+    texture.width = texture.height = 160;
+    const original = texture.getContext('2d')!;
+    const image = original.createImageData(160, 160);
+    const noise = new Uint8Array(160 * 160);
+    let seed = 2352;
+    for (let i = 0; i < noise.length; i++) {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      noise[i] = seed >>> 24;
+    }
+    for (let y = 1; y < 159; y++)
+      for (let x = 1; x < 159; x++) {
+        const i = y * 160 + x;
+        const value = (4 * noise[i] + noise[i - 1] + noise[i + 1] + noise[i - 160] + noise[i + 160]) / 8;
+        image.data[4 * i] = image.data[4 * i + 1] = image.data[4 * i + 2] = value;
+        image.data[4 * i + 3] = 255;
+      }
+    original.putImageData(image, 0, 0);
+    return [0, 0.037, -0.032].map((angle) => {
+      const c = document.createElement('canvas');
+      c.width = c.height = 160;
+      const ctx = c.getContext('2d')!;
+      ctx.translate(80, 80);
+      ctx.rotate(angle);
+      ctx.drawImage(texture, -80, -80);
+      return c.toDataURL().split(',')[1];
+    });
+  });
+  await panel.getByLabel('Ordered frames', { exact: true }).setInputFiles(
+    frames.map((bytes, i) => ({
+      name: 'rotation-' + i + '.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(bytes, 'base64'),
+    })),
+  );
+  await panel.getByLabel('Reference policy').selectOption('median');
+  await panel.getByLabel('Camera motion model').selectOption('affine');
+  await panel.getByRole('button', { name: 'Analyze time series' }).click();
+  await expect(panel.getByRole('status')).toHaveText('3 of 3 frames registered.');
+  const download = page.waitForEvent('download');
+  await panel.getByRole('button', { name: 'Download time-series grid' }).click();
+  const report = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
+  expect(report.method).toBe('sequence-affine-zncc/1');
+  for (const frame of report.frames) {
+    expect(frame.result.registration.model).toBe('affine');
+    expect(frame.result.accepted / frame.result.vectors.length).toBeGreaterThan(0.85);
+    expect(frame.result.autoLimitPx).toBeLessThan(0.4);
+  }
+});

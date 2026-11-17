@@ -9,6 +9,9 @@ import type { BosTargetManifest } from '../bosTargetApi';
 import type { WorkerOutput } from './bosStillPair.worker';
 import { paintMap, type MapMode } from './bosMap';
 
+import type { CameraModel } from './bosCameraModel';
+import { CameraModelControl, restoreCameraModel } from './CameraModelControl';
+
 const imageRoles = ['reference', 'disturbed'] as const;
 type Role = (typeof imageRoles)[number];
 type Images = Partial<Record<Role, File>>;
@@ -35,6 +38,7 @@ function useObjectUrl(blob?: Blob) {
 export function BosStillPairPanel({ target, manifest, pairedCapture }: { target: TargetEvidence; manifest: BosTargetManifest | null; pairedCapture?:PairedBosCapture }) {
   const [restoredTarget, setRestoredTarget] = useState<TargetEvidence>();
   const [analyzedTarget, setAnalyzedTarget] = useState<TargetEvidence>({configuredTarget:null});
+  const [cameraModel, setCameraModel] = useState<CameraModel>('translation');
   const [origin,setOrigin]=useState<BosOrigin|null>(null);
   const panel=useRef<HTMLElement>(null);
   const [files, setFiles] = useState<Images>({});
@@ -111,6 +115,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
     changeFiles({ reference: restored.reference, disturbed: restored.disturbed });
     setRestoredTarget(restoreTarget(params));
     setManualArea(readRegion(params.analysisRegion));
+    setCameraModel(restoreCameraModel(params.cameraModel));
     setOrigin(restoredOrigin);
     setInputGeneration((n) => n + 1);
     setMode(
@@ -152,7 +157,11 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
           setError('Could not process the image pair in this browser.');
         }
       };
-      task.postMessage({ ...files, region: manualArea ?? inspection?.data?.result.region ?? fullFrame });
+      task.postMessage({
+        ...files,
+        model: cameraModel,
+        region: manualArea ?? inspection?.data?.result.region ?? fullFrame,
+      });
     } catch {
       stop();
       setError('This browser could not start image analysis.');
@@ -164,7 +173,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
       <h3>Measure still-pair displacement</h3>
       <p>
         Photograph the same dot field before and during the disturbance. Keep its outer edges sharp and
-        undisturbed so Fresnel can register camera translation.
+        undisturbed so Fresnel can measure camera motion separately from the local displacement.
       </p>
       {origin&&<p>Photographer capture {origin.captureId} · Reference {new Date(origin.reference.capturedAt).toLocaleString()}, disturbed {new Date(origin.disturbed.capturedAt).toLocaleString()}.</p>}
       {imageRoles.map((role) => (
@@ -190,6 +199,15 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
           }}
         />
       )}
+      <CameraModelControl
+        value={cameraModel}
+        onChange={(model) => {
+          stop();
+          setCameraModel(model);
+          setOutput(undefined);
+          setError('');
+        }}
+      />
       <button
         type="button"
         disabled={!files.reference || !files.disturbed || Boolean(status) || !inspection}
@@ -209,7 +227,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
       {output && (
         <>
           <p role="status">
-            Registered {output.result.registration.inliers} of 12 outer windows. Camera translation (
+            Registered {output.result.registration.inliers} of 12 outer windows. Camera motion at the center (
             {output.result.registration.dx.toFixed(2)}, {output.result.registration.dy.toFixed(2)}) px,
             residual RMS {output.result.registration.residualRms.toFixed(2)} px. {output.result.accepted} of{' '}
             {output.result.vectors.length} displacement vectors accepted.
@@ -307,6 +325,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
         acceptsSteps={steps=>steps.length===2 && steps[0]==='reference' && steps[1]==='disturbed'}
         files={files}
         parameters={{
+          cameraModel,
           captureOrigin:origin,
           visualization: mode,
           amplification: gain,
@@ -321,8 +340,8 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
       <p>
         <small>
           Qualitative measurement of apparent background displacement from refractive-index gradients.
-          Image-plane vectors do not measure airflow direction, velocity, density or temperature. Camera
-          rotation, rolling shutter and compression can produce artifacts.
+          Image-plane vectors do not measure airflow direction, velocity, density or temperature. Rolling
+          shutter, compression and movement outside the fitted camera model can produce artifacts.
         </small>
       </p>
     </section>

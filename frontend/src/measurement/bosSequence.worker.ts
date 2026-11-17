@@ -1,3 +1,4 @@
+import { stabilize, type CameraModel } from './bosCameraModel';
 import { analyzePair, register, type GrayFrame, type PairResult } from './bosDisplacement';
 import { decodeFrame } from './bosImage';
 
@@ -7,7 +8,7 @@ export interface FrameInput {
   sourceWidth?: number;
   sourceHeight?: number;
 }
-export type Request = { kind: 'reference'; inputs: FrameInput[] } | { kind: 'frame'; input: FrameInput };
+export type Request = { kind: 'reference'; inputs: FrameInput[]; cameraModel: CameraModel } | { kind: 'frame'; input: FrameInput };
 export type Reply =
   | { kind: 'ready'; sourceHashes: string[]; pixelSha256: string; width: number; height: number }
   | {
@@ -20,6 +21,7 @@ export type Reply =
     }
   | { kind: 'error'; message: string };
 let reference: GrayFrame | undefined;
+let cameraModel: CameraModel = 'translation';
 let width = 0,
   height = 0;
 
@@ -38,7 +40,9 @@ async function read(input: FrameInput) {
 
 // Warp each median sample onto the first reference grid before taking the temporal median.
 function align(first: GrayFrame, frame: GrayFrame): GrayFrame {
-  const { dx, dy } = register(first, frame);
+  const registration = register(first, frame, cameraModel);
+  if (cameraModel !== 'translation') return stabilize(frame, registration.matrix);
+  const { dx, dy } = registration;
   const { width, height } = first,
     pixels = new Uint8Array(width * height),
     p = frame.pixels;
@@ -63,6 +67,7 @@ async function process(message: Request): Promise<Reply> {
   if (message.kind === 'reference') {
     if (!message.inputs.length || message.inputs.length > 5)
       throw new Error('Choose 1–5 reference samples.');
+    cameraModel = message.cameraModel;
     const frames: GrayFrame[] = [];
     const sourceHashes: string[] = [];
     for (const item of message.inputs) {
@@ -94,7 +99,7 @@ async function process(message: Request): Promise<Reply> {
   if (!reference) throw new Error('Missing registered reference.');
   const { frame, ...source } = await read(message.input);
   try {
-    return { kind: 'result', result: analyzePair(reference, frame), ...source };
+    return { kind: 'result', result: analyzePair(reference, frame, cameraModel), ...source };
   } catch (error) {
     return {
       kind: 'result',

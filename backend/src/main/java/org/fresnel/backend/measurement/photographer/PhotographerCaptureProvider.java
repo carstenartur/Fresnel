@@ -34,6 +34,7 @@ public final class PhotographerCaptureProvider implements CaptureProvider {
             new Limits(1, 1, Duration.ofSeconds(1)));
     private final Supplier<Optional<PhotographerPairing.Connection>> pairing;
     private final PhotographerJournal journal;
+    private final PhotographerDiscovery discovery = new PhotographerDiscovery(System::nanoTime);
 
     @Autowired
     public PhotographerCaptureProvider(PhotographerPairing pairing,
@@ -71,7 +72,8 @@ public final class PhotographerCaptureProvider implements CaptureProvider {
         var configured = pairing.get();
         if (configured.isEmpty()) return new Health(HealthState.NOT_CONFIGURED, Instant.now(), "PHOTOGRAPHER_NOT_PAIRED");
         try {
-            var wire = json(configured.get(), "/health", null, null, 200).body();
+            var conn = configured.get();
+            var wire = discovery.read(conn.pairingId(), () -> json(conn, "/health", null, null, 200).body());
             return new Health(HealthState.valueOf(text(wire, "state")), Instant.now(), text(wire, "messageCode"));
         } catch (CaptureProviderException ex) {
             var state = switch (ex.code()) {
@@ -89,7 +91,8 @@ public final class PhotographerCaptureProvider implements CaptureProvider {
     public List<Device> listDevices() {
         var configured = pairing.get();
         if (configured.isEmpty()) return List.of();
-        var list = json(configured.get(), "/cameras", null, null, 200).body();
+        var conn = configured.get();
+        var list = discovery.read(conn.pairingId(), () -> json(conn, "/cameras", null, null, 200).body());
         if (!list.isArray()) throw incompatible();
         return list.valueStream().map(w -> new Device(text(w, "cameraProfileId"), text(w, "displayName"),
                 enumValue(w, "state", DeviceState.class), known(w, "capabilities", Capability.class),
@@ -219,7 +222,7 @@ public final class PhotographerCaptureProvider implements CaptureProvider {
             }
             if (System.nanoTime() - started >= budget) throw transport();
             try {
-                Thread.sleep(backoff);
+                Thread.sleep(java.util.concurrent.ThreadLocalRandom.current().nextLong(backoff / 2, backoff + 1));
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 throw transport();

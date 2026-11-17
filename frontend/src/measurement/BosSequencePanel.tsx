@@ -1,3 +1,5 @@
+import type { CameraModel } from './bosCameraModel';
+import { CameraModelControl, restoreCameraModel } from './CameraModelControl';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { restoreTarget, type TargetEvidence } from './bosTargetEvidence';
 import { MeasurementArchive } from './MeasurementArchive';
@@ -69,6 +71,7 @@ async function reviewVideo(result: SequenceResult, mode: MapMode, signal: AbortS
 export function BosSequencePanel({ target }: { target: TargetEvidence }) {
   const [liveFrame, setLiveFrame] = useState<FrameResult>();
   const liveCanvas = useRef<HTMLCanvasElement>(null);
+  const [cameraModel, setCameraModel] = useState<CameraModel>('translation');
   const [restoredTarget, setRestoredTarget] = useState<TargetEvidence>();
   const [analyzedTarget, setAnalyzedTarget] = useState<TargetEvidence>({ configuredTarget: null });
   const [kind, setKind] = useState<'stills' | 'video'>('stills');
@@ -133,6 +136,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
         .map((k) => sources[k]),
     );
     setRate(typeof params.rate === 'number' && params.rate >= 0.25 && params.rate <= 12 ? params.rate : 2);
+    setCameraModel(restoreCameraModel(params.cameraModel));
     setPolicy(params.policy === 'median' ? 'median' : 'fixed');
   }
   function download(blob: Blob, name: string) {
@@ -164,6 +168,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
           policy === 'fixed' ? external : undefined,
           policy,
           rate,
+          cameraModel,
           controller.signal,
           (s) => {
             if (!controller.signal.aborted) setStatus(s);
@@ -272,6 +277,13 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
               {clip?.name}
             </label>
           )}
+          <CameraModelControl
+            value={cameraModel}
+            onChange={(model) => {
+              reset();
+              setCameraModel(model);
+            }}
+          />
           <label>
             Reference policy{' '}
             <select
@@ -421,6 +433,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
             sourceKind: kind,
             policy,
             rate,
+            cameraModel,
             ...(result ? analyzedTarget : (restoredTarget ?? target)),
           }}
           acceptsSteps={(s) => s.includes('video') || s.includes('frame-01')}

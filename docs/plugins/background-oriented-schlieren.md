@@ -45,7 +45,10 @@ and scale. The source files retain their original pixels.
 ## Analyze a still pair
 
 1. Keep the outer dot field undisturbed in both exposures. Select **Reference
-   image** and **Disturbed image**, then **Analyze still pair**.
+   image** and **Disturbed image**. Select the camera motion model, then
+   **Analyze still pair**. Translation is the default. Affine also fits small
+   rotation, scale and shear. Perspective fits a planar target viewed from a
+   slightly different angle.
    For a paired camera, choose **Open paired Photographer capture**, sign in, pick
    the camera and acknowledge the undisturbed and disturbed conditions. On a
    completed capture, choose **Use verified pair in BOS analysis**. Fresnel
@@ -68,13 +71,18 @@ uses BT.709 luma coefficients on browser-decoded sRGB. The analysis raster
 preserves aspect ratio, has at most 512 pixels on its longest side and at
 least 96 on its shortest. The original files remain available at full size.
 
-For each pair, 12 outer patches measure global translation by zero-mean
+For each pair, 12 outer patches measure global camera motion by zero-mean
 normalized cross-correlation (ZNCC), using 15 × 15 interrogation windows and
 an integer search of ±9 analysis pixels. A fit requires at least nine agreeing
-anchors within 0.85 pixels, with support in all four quadrants. Rotation,
-projective motion or loss of texture can lead to a registration error. For a
-stable pair, each grid patch searches ±5 pixels around the integer global
-shift and refines the peak by parabolic interpolation. Flat windows,
+anchors within 0.85 pixels, with support in all four quadrants. Affine and
+projective modes test nine-anchor subsets, refit the consensus and independently
+predict each anchor from the others (maximum held-out error 1.35 px). Corner
+motion is limited to 18 px. The exported row-major 3 × 3 matrix maps reference
+pixels to disturbed pixels within the selected region. The disturbed luminance is
+bilinearly sampled onto the reference grid before local correlation. Windows
+that would sample beyond the frame are masked. Translation uses the original
+integer search center and subtracts the fitted fractional shift. The local
+search radius is ±5 px with parabolic peak interpolation. Flat windows,
 boundary peaks, correlations below 0.65, competing peaks within 0.055 and
 isolated outliers are masked. At least 45% of the grid must survive.
 Missing vectors are null and excluded from the robust 95th-percentile color
@@ -87,6 +95,10 @@ The numeric fixtures exercise fractional camera motion, a smooth local field
 under camera translation, occlusion, illumination changes, repeated patterns
 and excessive motion. For a textured 160 × 160 fixture the translation error
 must be below 0.22 analysis pixels and the local field error below 0.4 pixels.
+On fixtures with camera rotation, shear or perspective and optional local
+displacement, the camera prediction error at nine independent locations must
+stay below 0.55 px. At least 88% of the grid must survive, with a 95th-percentile
+vector error below 0.40 px and central local-field error below 0.48 px.
 
 ## Ordered frames and short video
 
@@ -100,6 +112,7 @@ and at most 24 samples. The JSON records both the requested sampling time and th
 media presentation timestamp reported by the browser for each decoded frame.
 
 Use a separate undisturbed still or the first frame for a fixed reference.
+The selected camera motion model applies to every frame and to median preparation.
 Temporal median registers three or five samples spread across the sequence
 onto the first sample before taking their per-pixel median. It requires at
 least three frames with sufficient stable texture. Each subsequent frame is
@@ -328,9 +341,3 @@ bounds, quiet borders, asymmetric fiducials, inversion, immutable manifests,
 PNG decoding, physical-resolution metadata, public preview access,
 authenticated export, registry/job algorithm-version separation and cross-field
 resource rejection.
-
-## Next slices
-
-Remaining work for issue #140 includes the following.
-
-1. Extend inter-frame registration from translation to affine motion models.
