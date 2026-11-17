@@ -90,7 +90,7 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
         <SaveJobControl pluginId={pluginId} parameters={geometry} disabled={!!busy || !validation?.valid}/>
       </>}
     </PluginEditorShell>
-    <MeasurementArchive sourceSessionId={sourceSessionId} pluginId={pluginId} parameters={{geometry,roi,screenProfile:profile}} steps={manifest?.patterns.map(p=>p.id) ?? []}
+    <MeasurementArchive analysis={{ready:!!complete,running:busy === 'solve',error,start:analyze,stop}} sourceSessionId={sourceSessionId} pluginId={pluginId} parameters={{geometry,roi,screenProfile:profile}} steps={manifest?.patterns.map(p=>p.id) ?? []}
       files={files} result={archived} onRestore={async (parameters,images,sourceId?:string)=>{
         const restored=(parameters.geometry ?? parameters) as Geometry;
         stop(); await prepare(restored,images,regionFrom(parameters.roi),sourceId);
