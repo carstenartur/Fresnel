@@ -104,6 +104,7 @@ Fresnel samples evenly at the midpoint of each interval, with at least two
 and at most 24 samples. The JSON records the requested presentation times.
 
 Use a separate undisturbed still or the first frame for a fixed reference.
+The selected camera motion model applies to every frame and to median preparation.
 Temporal median registers three or five samples spread across the sequence
 onto the first sample before taking their per-pixel median. It requires at
 least three frames with sufficient stable texture. Each subsequent frame is

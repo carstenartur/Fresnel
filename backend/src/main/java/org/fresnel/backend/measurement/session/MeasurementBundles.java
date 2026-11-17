@@ -22,7 +22,7 @@ class MeasurementBundles {
     MeasurementBundles(MeasurementSessions sessions, ExperimentDocuments documents) {
         this.sessions = sessions; this.documents = documents;
     }
-    record Manifest(int version, Plan plan, Map<String,Asset> assets, String jobSha256, String reportSha256) {}
+    record Manifest(int version, Plan plan, Map<String,Asset> assets, String jobSha256, String reportSha256, CaptureEvidence capture) {}
 
     void export(String owner, UUID id, OutputStream output) throws IOException {
         var lock = sessions.lock(owner); lock.lock();
@@ -30,9 +30,11 @@ class MeasurementBundles {
             View view = sessions.get(owner, id);
             try (var zip = new ZipOutputStream(output)) {
                 byte[] job = documents.job(view.plan());
-                byte[] report = documents.report(view.plan(), view.assets(), job != null);
+                var capture = CaptureEvidence.read(sessions.dir(owner,id),sessions.json);
+                if (capture != null) capture.verify(view.plan(), view.assets());
+                byte[] report = documents.report(view.plan(), view.assets(), job != null, capture);
                 byte[] manifest = sessions.json.writeValueAsBytes(new Manifest(1, view.plan(), new TreeMap<>(view.assets()),
-                        job == null ? null : hash(job), hash(report)));
+                        job == null ? null : hash(job), hash(report), capture));
                 add(zip, "manifest.json", new ByteArrayInputStream(manifest));
                 add(zip, "reports/summary.md", new ByteArrayInputStream(report));
                 if (job != null) add(zip, "job.fresnel", new ByteArrayInputStream(job));
@@ -102,6 +104,7 @@ class MeasurementBundles {
         } catch (tools.jackson.core.JacksonException e) { throw bad("Invalid experiment manifest"); }
         if (m == null || m.version != 1 || m.assets == null) throw bad("Unsupported experiment manifest");
         sessions.validate(m.plan);
+        if (m.capture != null) m.capture.verify(m.plan, m.assets);
         Set<String> expected = new HashSet<>(Set.of("manifest.json"));
         if (m.reportSha256 != null) {
             checkedDocument(zip, entries, "reports/summary.md", m.reportSha256);
@@ -142,6 +145,8 @@ class MeasurementBundles {
                     }
                     if (!v.assets().get(step).equals(a)) throw bad("Asset metadata mismatch");
                 }
+                if (m.capture != null) Files.write(staging.dir(owner,v.id()).resolve(CaptureEvidence.FILE),
+                        sessions.json.writeValueAsBytes(m.capture), StandardOpenOption.CREATE_NEW);
                 Files.move(staging.dir(owner, v.id()), sessions.dir(owner, v.id()), StandardCopyOption.ATOMIC_MOVE);
                 return v;
             } finally { MeasurementSessions.remove(stagingDirectory); }

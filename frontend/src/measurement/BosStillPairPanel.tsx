@@ -9,12 +9,8 @@ import type { WorkerOutput } from './bosStillPair.worker';
 import { paintMap, type MapMode } from './bosMap';
 
 import type { CameraModel } from './bosCameraModel';
+import { CameraModelControl, restoreCameraModel } from './CameraModelControl';
 
-const cameraModels: Record<CameraModel, string> = {
-  translation: 'Translation',
-  affine: 'Affine (rotation, scale and shear)',
-  homography: 'Perspective (homography)',
-};
 const imageRoles = ['reference', 'disturbed'] as const;
 type Role = (typeof imageRoles)[number];
 type Images = Partial<Record<Role, File>>;
@@ -100,11 +96,7 @@ export function BosStillPairPanel({ target, manifest }: { target: TargetEvidence
     changeFiles({ reference: restored.reference, disturbed: restored.disturbed });
     setRestoredTarget(restoreTarget(params));
     setManualArea(readRegion(params.analysisRegion));
-    setCameraModel(
-      params.cameraModel === 'affine' || params.cameraModel === 'homography'
-        ? params.cameraModel
-        : 'translation',
-    );
+    setCameraModel(restoreCameraModel(params.cameraModel));
     setInputGeneration((n) => n + 1);
     setMode(
       typeof params.visualization === 'string' &&
@@ -186,24 +178,15 @@ export function BosStillPairPanel({ target, manifest }: { target: TargetEvidence
           }}
         />
       )}
-      <label style={{ display: 'block', marginBlock: 8 }}>
-        Camera motion model{' '}
-        <select
-          value={cameraModel}
-          onChange={(e) => {
-            stop();
-            setCameraModel(e.currentTarget.value as CameraModel);
-            setOutput(undefined);
-            setError('');
-          }}
-        >
-          {Object.entries(cameraModels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <CameraModelControl
+        value={cameraModel}
+        onChange={(model) => {
+          stop();
+          setCameraModel(model);
+          setOutput(undefined);
+          setError('');
+        }}
+      />
       <button
         type="button"
         disabled={!files.reference || !files.disturbed || Boolean(status) || !inspection}

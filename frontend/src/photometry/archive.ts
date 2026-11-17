@@ -18,7 +18,7 @@ function encode(values:Uint8Array|Float32Array) {
 
 export function archiveResult(manifest:Manifest,result:Result,relief:Relief|null) {
   return new Blob([JSON.stringify({manifest,sources:result.sources,width:result.width,height:result.height,
-    solver:'trimmed-lambertian/1',limits,scale:'Relative',alignment:{method:registrationMethod,limits:registrationLimits},warnings:result.warnings,
+    solver:'trimmed-lambertian/1',limits,scale:'Relative',alignment:{method:registrationMethod,limits:registrationLimits},warnings:result.warnings,roi:result.roi,
     grid:Object.fromEntries(Object.entries(result.grid).map(([k,v])=>[k,encode(v)])),
     relief:relief && {...describeRelief(relief),values:encode(relief.values),valid:encode(relief.valid)},
   })],{type:'application/json'});

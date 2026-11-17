@@ -34,12 +34,18 @@ class ExperimentDocuments {
             throw MeasurementSessions.bad("Target job and measurement plan differ");
     }
 
-    byte[] report(MeasurementSessions.Plan plan, Map<String,MeasurementSessions.Asset> assets, boolean hasJob) {
+    byte[] report(MeasurementSessions.Plan plan, Map<String,MeasurementSessions.Asset> assets, boolean hasJob, CaptureEvidence capture) {
         boolean bos = "background-oriented-schlieren".equals(plan.pluginId());
         var s = new StringBuilder("# ").append(bos ? "Background-oriented Schlieren" : "Display photometric stereo")
                 .append(" experiment\n\n");
         s.append(bos ? "This experiment estimates apparent image-plane displacement in pixels. Airflow direction, temperature and velocity require independent calibration.\n\n"
                 : "This experiment estimates diffuse surface normals and relative albedo. Relief uses relative units unless an operator assigns a scale.\n\n");
+        if (capture != null) {
+            s.append("Capture provider: ").append(capture.provider()).append(". Sequence: `")
+                    .append(capture.sequenceId()).append("`.\n\n");
+            s.append("Exposure lock: ").append(capture.exposureLock() ? "camera" : "operator-confirmed")
+                    .append(". Focus lock: ").append(capture.focusLock() ? "camera" : "operator-confirmed").append(".\n\n");
+        }
         long sources = plan.steps().stream().filter(assets::containsKey).count();
         s.append("Captured steps: ").append(sources).append(" of ").append(plan.steps().size()).append(".\n\n");
         if (hasJob) s.append("Open `job.fresnel` to reproduce the target or illumination geometry.\n\n");
