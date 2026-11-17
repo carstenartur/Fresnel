@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BosExperiments.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.photographer</a> &gt; <span class="el_source">BosExperiments.java</span></div><h1>BosExperiments.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.photographer;
+
+import org.fresnel.backend.desktop.DesktopDataDirectory;
+import org.fresnel.backend.measurement.CaptureProviderRegistry;
+import org.fresnel.measurement.CapturePlan;
+import org.fresnel.measurement.CaptureProvider;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Service;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.security.DigestInputStream;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Comparator;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.UUID;
+
+import static org.fresnel.measurement.CapturePlan.ImageFormat.PNG;
+import static org.fresnel.measurement.CapturePlan.Role.DISTURBED;
+import static org.fresnel.measurement.CapturePlan.Role.REFERENCE;
+
+/** Owner-private BOS experiments and verified local source images. Remote identities stay server-side. */
+@Service
+@ConditionalOnProperty(name = &quot;fresnel.capture.photographer.enabled&quot;, havingValue = &quot;true&quot;)
+final class BosExperiments {
+<span class="fc" id="L32">    private static final JsonMapper JSON = JsonMapper.builder().build();</span>
+    private final Path directory;
+    private final PhotographerPairing pairings;
+    private final CaptureProviderRegistry providers;
+
+    BosExperiments(PhotographerPairing pairings, CaptureProviderRegistry providers,
+<span class="fc" id="L38">                   @Value(&quot;${fresnel.capture.photographer.experiments-directory:}&quot;) String directory) {</span>
+<span class="fc" id="L39">        this.pairings = pairings;</span>
+<span class="fc" id="L40">        this.providers = providers;</span>
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">        Path root = directory.isBlank() ? DesktopDataDirectory.resolve().resolve(&quot;bos-captures&quot;) : Path.of(directory);</span>
+<span class="fc" id="L42">        this.directory = root.toAbsolutePath().normalize();</span>
+<span class="fc" id="L43">    }</span>
+
+<span class="fc" id="L45">    record Camera(String id, String name) {}</span>
+<span class="fc" id="L46">    record Image(long byteLength, String sha256, Instant capturedAt) {}</span>
+<span class="fc" id="L47">    record View(UUID id, String state, Image reference, Image disturbed, String pendingStep) {}</span>
+
+    private static final class Experiment {
+        public UUID id;
+        public String pairing;
+        public String selection;
+        public String device;
+        public String createKey;
+        public String session;
+        public boolean cancelled;
+        public Instant referenceAck;
+        public Instant disturbedAck;
+        public Image reference;
+        public Image disturbed;
+        View view() {
+<span class="pc bpc" id="L62" title="1 of 6 branches missed.">            String state = cancelled ? &quot;CANCELLED&quot; : disturbed != null ? &quot;COMPLETED&quot; : reference != null</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">                    ? &quot;WAITING_DISTURBED&quot; : session != null ? &quot;WAITING_REFERENCE&quot; : &quot;CREATING&quot;;</span>
+<span class="fc" id="L64">            String pending = null;</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">            if (!cancelled) {</span>
+<span class="fc bfc" id="L66" title="All 4 branches covered.">                if (referenceAck != null &amp;&amp; reference == null) pending = &quot;reference&quot;;</span>
+<span class="pc bpc" id="L67" title="1 of 4 branches missed.">                if (disturbedAck != null &amp;&amp; disturbed == null) pending = &quot;disturbed&quot;;</span>
+            }
+<span class="fc" id="L69">            return new View(id, state, reference, disturbed, pending);</span>
+        }
+    }
+
+    List&lt;Camera&gt; cameras() {
+<span class="fc" id="L74">        return pairings.withConnection(c -&gt; available().stream()</span>
+<span class="fc" id="L75">                .map(d -&gt; new Camera(selection(binding(c), d.id()), d.displayName())).toList());</span>
+    }
+
+    List&lt;View&gt; list(String owner) {
+<span class="fc" id="L79">        Path parent = ownerDirectory(owner);</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (Files.notExists(parent)) return List.of();</span>
+<span class="fc" id="L81">        try (var files = Files.list(parent)) {</span>
+<span class="fc" id="L82">            return files.filter(p -&gt; Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS))</span>
+<span class="fc" id="L83">                    .map(p -&gt; p.resolve(&quot;experiment.json&quot;)).filter(p -&gt; Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS))</span>
+<span class="fc" id="L84">                    .map(BosExperiments::load).map(Experiment::view)</span>
+<span class="fc" id="L85">                    .sorted(Comparator.comparing(View::id)).toList();</span>
+<span class="nc" id="L86">        } catch (IOException ex) { throw storeFailure(); }</span>
+    }
+
+<span class="fc" id="L89">    View get(String owner, UUID id) { return load(manifest(owner, id)).view(); }</span>
+
+    View create(String owner, UUID id, String cameraId) {
+<span class="fc" id="L92">        return pairings.withConnection(c -&gt; {</span>
+<span class="fc" id="L93">            String binding = binding(c);</span>
+<span class="fc" id="L94">            Path file = manifest(owner, id);</span>
+            Experiment e;
+<span class="fc bfc" id="L96" title="All 2 branches covered.">            if (Files.exists(file)) {</span>
+<span class="fc" id="L97">                e = load(file);</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">                if (!e.selection.equals(cameraId)) throw failure(409, &quot;EXPERIMENT_CAMERA_MISMATCH&quot;);</span>
+<span class="fc" id="L99">                requireBinding(e, c);</span>
+<span class="pc bpc" id="L100" title="3 of 4 branches missed.">                if (e.session != null || e.cancelled) return e.view();</span>
+            } else {
+<span class="fc" id="L102">                var device = available().stream().filter(d -&gt; selection(binding, d.id()).equals(cameraId))</span>
+<span class="pc" id="L103">                        .findFirst().orElseThrow(() -&gt; failure(409, &quot;CAMERA_UNAVAILABLE&quot;));</span>
+<span class="fc" id="L104">                e = new Experiment();</span>
+<span class="fc" id="L105">                e.id = id;</span>
+<span class="fc" id="L106">                e.pairing = binding;</span>
+<span class="fc" id="L107">                e.selection = cameraId;</span>
+<span class="fc" id="L108">                e.device = device.id();</span>
+<span class="fc" id="L109">                e.createKey = UUID.randomUUID().toString();</span>
+<span class="fc" id="L110">                save(file, e);</span>
+            }
+<span class="fc" id="L112">            createRemote(file, e);</span>
+<span class="fc" id="L113">            return e.view();</span>
+        });
+    }
+
+    View confirm(String owner, UUID id, String step, boolean continuous) {
+<span class="fc" id="L118">        var role = role(step);</span>
+<span class="fc" id="L119">        Path file = manifest(owner, id);</span>
+<span class="fc" id="L120">        var latest = load(file);</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (image(latest, role) != null) return latest.view();</span>
+<span class="fc" id="L122">        return pairings.withConnection(c -&gt; {</span>
+<span class="fc" id="L123">            var e = load(file);</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">            if (image(e, role) != null) return e.view();</span>
+<span class="fc" id="L125">            requireBinding(e, c);</span>
+<span class="pc bpc" id="L126" title="2 of 8 branches missed.">            if (e.cancelled || e.session == null || (role == DISTURBED &amp;&amp; e.reference == null))</span>
+<span class="fc" id="L127">                throw failure(409, &quot;STEP_NOT_READY&quot;);</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">            Instant at = role == REFERENCE ? e.referenceAck : e.disturbedAck;</span>
+<span class="fc bfc" id="L129" title="All 4 branches covered.">            if (at != null &amp;&amp; !continuous) throw failure(409, &quot;CONTINUITY_CONFIRMATION_REQUIRED&quot;);</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">            if (at == null) {</span>
+<span class="fc" id="L131">                at = Instant.now();</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">                if (role == REFERENCE) e.referenceAck = at; else e.disturbedAck = at;</span>
+<span class="fc" id="L133">                save(file, e);</span>
+            }
+            // The create key and step uniquely determine the trigger key, including across restarts.
+<span class="fc" id="L136">            var result = provider().triggerStep(e.session, step, new CaptureProvider.StepTrigger(null, null, at),</span>
+                    e.createKey + &quot;-&quot; + step);
+<span class="fc" id="L138">            var metadata = result.asset();</span>
+<span class="pc bpc" id="L139" title="3 of 6 branches missed.">            if (!metadata.sessionId().equals(e.session) || !metadata.stepId().equals(step) || metadata.role() != role</span>
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">                    || !&quot;image/png&quot;.equals(metadata.mediaType())) throw failure(502, &quot;ASSET_MISMATCH&quot;);</span>
+<span class="fc" id="L141">            try (var source = provider().openAsset(e.session, metadata.assetId(), CaptureProvider.FullAsset.INSTANCE)) {</span>
+<span class="fc" id="L142">                importImage(imagePath(file, role), metadata, source);</span>
+<span class="pc" id="L143">            } catch (IOException ex) { throw storeFailure(); }</span>
+<span class="fc" id="L144">            var imported = new Image(metadata.byteLength(), metadata.sha256(), metadata.capturedAt());</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">            if (role == REFERENCE) e.reference = imported; else e.disturbed = imported;</span>
+<span class="fc" id="L146">            save(file, e);</span>
+<span class="fc" id="L147">            return e.view();</span>
+        });
+    }
+
+    View cancel(String owner, UUID id) {
+<span class="nc" id="L152">        Path file = manifest(owner, id);</span>
+<span class="nc" id="L153">        Experiment latest = load(file);</span>
+<span class="nc bnc" id="L154" title="All 4 branches missed.">        if (latest.cancelled || latest.disturbed != null) return latest.view();</span>
+<span class="nc" id="L155">        return pairings.withConnection(c -&gt; {</span>
+<span class="nc" id="L156">            Experiment e = load(file);</span>
+<span class="nc bnc" id="L157" title="All 4 branches missed.">            if (e.cancelled || e.disturbed != null) return e.view();</span>
+<span class="nc" id="L158">            requireBinding(e, c);</span>
+            // Reconcile a lost create response with its original key before cancelling the remote lease.
+<span class="nc bnc" id="L160" title="All 2 branches missed.">            if (e.session == null) createRemote(file, e);</span>
+<span class="nc" id="L161">            provider().cancel(e.session, e.createKey + &quot;-cancel&quot;);</span>
+<span class="nc" id="L162">            e.cancelled = true;</span>
+<span class="nc" id="L163">            save(file, e);</span>
+<span class="nc" id="L164">            return e.view();</span>
+        });
+    }
+
+    Path source(String owner, UUID id, String step) {
+<span class="fc" id="L169">        Path file = manifest(owner, id);</span>
+<span class="fc" id="L170">        CapturePlan.Role requested = role(step);</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">        if (image(load(file), requested) == null) throw failure(404, &quot;IMAGE_NOT_FOUND&quot;);</span>
+<span class="fc" id="L172">        Path source = imagePath(file, requested);</span>
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) throw failure(404, &quot;IMAGE_NOT_FOUND&quot;);</span>
+<span class="fc" id="L174">        return source;</span>
+    }
+
+    private List&lt;CaptureProvider.Device&gt; available() {
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">        return provider().listDevices().stream().filter(d -&gt; d.state() == CaptureProvider.DeviceState.CONNECTED</span>
+<span class="pc bpc" id="L179" title="2 of 4 branches missed.">                &amp;&amp; d.supportedFormats().contains(PNG) &amp;&amp; d.supports(CaptureProvider.Capability.EXTERNAL_STEP_TRIGGER)</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">                &amp;&amp; d.supports(CaptureProvider.Capability.STILL_CAPTURE)).toList();</span>
+    }
+
+    private void createRemote(Path file, Experiment e) {
+<span class="fc" id="L184">        var plan = new CapturePlan(CapturePlan.WorkflowType.BACKGROUND_ORIENTED_SCHLIEREN, e.device,</span>
+<span class="fc" id="L185">                new CapturePlan.Requirements(false, false, PNG), List.of(</span>
+                new CapturePlan.Step(&quot;reference&quot;, 0, REFERENCE, CapturePlan.TriggerMode.EXTERNAL, Duration.ZERO, null, null),
+                new CapturePlan.Step(&quot;disturbed&quot;, 1, DISTURBED, CapturePlan.TriggerMode.EXTERNAL, Duration.ZERO, null, null)));
+<span class="fc" id="L188">        e.session = provider().createSession(plan, e.id.toString(), e.createKey).id();</span>
+<span class="fc" id="L189">        save(file, e);</span>
+<span class="fc" id="L190">    }</span>
+
+<span class="fc" id="L192">    private CaptureProvider provider() { return providers.require(PhotographerCaptureProvider.ID); }</span>
+
+    private static void importImage(Path target, CaptureProvider.AssetMetadata meta, InputStream source) throws IOException {
+<span class="fc" id="L195">        Path temp = Files.createTempFile(target.getParent(), &quot;.image-&quot;, &quot;.tmp&quot;);</span>
+        try {
+<span class="fc" id="L197">            var digest = PhotographerJournal.sha256();</span>
+<span class="fc" id="L198">            try (var input = new DigestInputStream(source, digest); var out = Files.newOutputStream(temp,</span>
+                    StandardOpenOption.WRITE, StandardOpenOption.SYNC)) {
+<span class="fc" id="L200">                byte[] buf = new byte[8192];</span>
+<span class="fc" id="L201">                long length = 0;</span>
+                int size;
+<span class="fc bfc" id="L203" title="All 2 branches covered.">                while ((size = input.read(buf)) != -1) {</span>
+<span class="fc" id="L204">                    length += size;</span>
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">                    if (length &gt; meta.byteLength()) throw failure(502, &quot;ASSET_MISMATCH&quot;);</span>
+<span class="fc" id="L206">                    out.write(buf, 0, size);</span>
+                }
+<span class="pc bpc" id="L208" title="1 of 4 branches missed.">                if (length != meta.byteLength() || !meta.sha256().equals(HexFormat.of().formatHex(digest.digest())))</span>
+<span class="fc" id="L209">                    throw failure(502, &quot;ASSET_MISMATCH&quot;);</span>
+            }
+<span class="fc" id="L211">            Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="fc" id="L212">        } finally { Files.deleteIfExists(temp); }</span>
+<span class="fc" id="L213">    }</span>
+
+    private static CapturePlan.Role role(String step) {
+<span class="fc bfc" id="L216" title="All 3 branches covered.">        return switch (step) {</span>
+<span class="fc" id="L217">            case &quot;reference&quot; -&gt; REFERENCE;</span>
+<span class="fc" id="L218">            case &quot;disturbed&quot; -&gt; DISTURBED;</span>
+<span class="fc" id="L219">            default -&gt; throw failure(404, &quot;STEP_NOT_FOUND&quot;);</span>
+        };
+    }
+
+<span class="fc bfc" id="L223" title="All 2 branches covered.">    private static Image image(Experiment e, CapturePlan.Role role) { return role == REFERENCE ? e.reference : e.disturbed; }</span>
+    private static Path imagePath(Path manifest, CapturePlan.Role role) {
+<span class="pc bpc" id="L225" title="1 of 3 branches missed.">        return switch (role) {</span>
+<span class="fc" id="L226">            case REFERENCE -&gt; child(manifest.getParent(), &quot;reference.png&quot;);</span>
+<span class="fc" id="L227">            case DISTURBED -&gt; child(manifest.getParent(), &quot;disturbed.png&quot;);</span>
+<span class="nc" id="L228">            default -&gt; throw failure(404, &quot;STEP_NOT_FOUND&quot;);</span>
+        };
+    }
+
+<span class="fc" id="L232">    private Path ownerDirectory(String owner) { return child(directory, hash(owner)); }</span>
+
+    private Path manifest(String owner, UUID id) {
+<span class="fc" id="L235">        Path experimentDirectory = child(ownerDirectory(owner), id.toString());</span>
+<span class="fc" id="L236">        return child(experimentDirectory, &quot;experiment.json&quot;);</span>
+    }
+
+    private static Path child(Path parent, String name) {
+<span class="fc" id="L240">        Path path = parent.resolve(name).normalize();</span>
+<span class="pc bpc" id="L241" title="3 of 6 branches missed.">        if (!path.startsWith(parent) || !parent.equals(path.getParent()) || Files.isSymbolicLink(path))</span>
+<span class="nc" id="L242">            throw failure(404, &quot;EXPERIMENT_NOT_FOUND&quot;);</span>
+<span class="fc" id="L243">        return path;</span>
+    }
+<span class="fc" id="L245">    private static String binding(PhotographerPairing.Connection c) { return hash(c.origin() + &quot;\n&quot; + c.instanceId() + &quot;\n&quot; + c.pairingId()); }</span>
+<span class="fc" id="L246">    private static String selection(String binding, String device) { return hash(binding + &quot;\n&quot; + device); }</span>
+    private static String hash(String text) {
+<span class="fc" id="L248">        return HexFormat.of().formatHex(PhotographerJournal.sha256().digest(text.getBytes(StandardCharsets.UTF_8)));</span>
+    }
+    private static void requireBinding(Experiment e, PhotographerPairing.Connection c) {
+<span class="pc bpc" id="L251" title="1 of 2 branches missed.">        if (!binding(c).equals(e.pairing)) throw failure(409, &quot;EXPERIMENT_PAIRING_CHANGED&quot;);</span>
+<span class="fc" id="L252">    }</span>
+
+    private static Experiment load(Path file) {
+<span class="fc" id="L255">        try { return JSON.readValue(Files.readAllBytes(file), Experiment.class); }</span>
+<span class="fc" id="L256">        catch (NoSuchFileException missing) { throw failure(404, &quot;EXPERIMENT_NOT_FOUND&quot;); }</span>
+<span class="nc" id="L257">        catch (IOException | tools.jackson.core.JacksonException ex) { throw storeFailure(); }</span>
+    }
+
+    private static void save(Path file, Experiment e) {
+        try {
+<span class="fc" id="L262">            Files.createDirectories(file.getParent());</span>
+<span class="fc" id="L263">            Path tmp = Files.createTempFile(file.getParent(), &quot;.experiment-&quot;, &quot;.tmp&quot;);</span>
+            try {
+<span class="fc" id="L265">                Files.write(tmp, JSON.writeValueAsBytes(e), StandardOpenOption.WRITE, StandardOpenOption.SYNC);</span>
+<span class="fc" id="L266">                Files.move(tmp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="fc" id="L267">            } finally { Files.deleteIfExists(tmp); }</span>
+<span class="pc" id="L268">        } catch (IOException ex) { throw storeFailure(); }</span>
+<span class="fc" id="L269">    }</span>
+
+<span class="fc" id="L271">    private static PhotographerPairing.Failure failure(int status, String code) { return new PhotographerPairing.Failure(status, code); }</span>
+<span class="nc" id="L272">    private static PhotographerPairing.Failure storeFailure() { return failure(500, &quot;EXPERIMENT_STORE_UNAVAILABLE&quot;); }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

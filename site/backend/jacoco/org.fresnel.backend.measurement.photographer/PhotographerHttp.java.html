@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PhotographerHttp.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.photographer</a> &gt; <span class="el_source">PhotographerHttp.java</span></div><h1>PhotographerHttp.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.photographer;
+
+import org.fresnel.measurement.CaptureProvider.FailureCode;
+import org.fresnel.measurement.CaptureProviderException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.util.Map;
+import java.util.Set;
+
+<span class="nc" id="L14">final class PhotographerHttp {</span>
+<span class="fc" id="L15">    static final JsonMapper JSON = JsonMapper.builder().build();</span>
+    private static final int MAX_RESPONSE = 1024 * 1024;
+    static final String BASE = &quot;/api/v1/integrations/fresnel&quot;;
+
+<span class="fc" id="L19">    record Reply(int status, JsonNode body) {}</span>
+
+    static Reply json(PhotographerPairing.Connection pairing, String path, String key,
+                      byte[] body, int... accepted) {
+<span class="fc" id="L23">        HttpURLConnection call = open(pairing, path, key, body, Map.of());</span>
+        try {
+<span class="fc" id="L25">            int status = call.getResponseCode();</span>
+<span class="fc bfc" id="L26" title="All 2 branches covered.">            for (int allowed : accepted) {</span>
+<span class="fc bfc" id="L27" title="All 2 branches covered.">                if (allowed == status) {</span>
+<span class="fc bfc" id="L28" title="All 2 branches covered.">                    return new Reply(status, status == 204 ? null : parse(call.getInputStream()));</span>
+                }
+            }
+<span class="fc" id="L31">            throw error(call, status);</span>
+<span class="nc" id="L32">        } catch (IOException ex) {</span>
+<span class="nc" id="L33">            throw transport();</span>
+        } finally {
+<span class="fc" id="L35">            call.disconnect();</span>
+        }
+    }
+
+    static HttpURLConnection open(PhotographerPairing.Connection pairing, String path, String key,
+                                  byte[] body, Map&lt;String, String&gt; headers) {
+<span class="fc" id="L41">        HttpURLConnection call = null;</span>
+        try {
+<span class="fc" id="L43">            call = (HttpURLConnection) pairing.origin().resolve(BASE + path).toURL().openConnection();</span>
+<span class="fc" id="L44">            call.setInstanceFollowRedirects(false);</span>
+<span class="fc" id="L45">            call.setConnectTimeout(3_000);</span>
+<span class="fc" id="L46">            call.setReadTimeout(8_000);</span>
+<span class="fc" id="L47">            call.setRequestProperty(&quot;Authorization&quot;, &quot;Bearer &quot; + pairing.bearerToken());</span>
+<span class="fc" id="L48">            call.setRequestProperty(&quot;Accept-Encoding&quot;, &quot;identity&quot;);</span>
+<span class="fc" id="L49">            headers.forEach(call::setRequestProperty);</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">            if (key != null) {</span>
+<span class="fc" id="L51">                call.setRequestMethod(&quot;POST&quot;);</span>
+<span class="fc" id="L52">                call.setRequestProperty(&quot;Idempotency-Key&quot;, id(key));</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">                if (body != null) {</span>
+<span class="fc" id="L54">                    call.setDoOutput(true);</span>
+<span class="fc" id="L55">                    call.setFixedLengthStreamingMode(body.length);</span>
+<span class="fc" id="L56">                    call.setRequestProperty(&quot;Content-Type&quot;, &quot;application/json&quot;);</span>
+<span class="fc" id="L57">                    try (var out = call.getOutputStream()) {</span>
+<span class="fc" id="L58">                        out.write(body);</span>
+                    }
+                }
+            }
+<span class="fc" id="L62">            return call;</span>
+<span class="nc" id="L63">        } catch (IOException ex) {</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            if (call != null) call.disconnect();</span>
+<span class="nc" id="L65">            throw transport();</span>
+        }
+    }
+
+    private static JsonNode parse(InputStream source) throws IOException {
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (source == null) throw incompatible();</span>
+<span class="fc" id="L71">        try (source) {</span>
+<span class="fc" id="L72">            byte[] bytes = source.readNBytes(MAX_RESPONSE + 1);</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">            if (bytes.length &gt; MAX_RESPONSE) throw incompatible();</span>
+            try {
+<span class="fc" id="L75">                JsonNode node = JSON.readTree(bytes);</span>
+<span class="pc bpc" id="L76" title="3 of 6 branches missed.">                if (node == null || node.isNull() || node.isMissingNode()) throw incompatible();</span>
+<span class="fc" id="L77">                return node;</span>
+<span class="nc" id="L78">            } catch (tools.jackson.core.JacksonException ex) {</span>
+<span class="nc" id="L79">                throw incompatible();</span>
+            }
+        }
+    }
+
+    static CaptureProviderException error(HttpURLConnection call, int status) {
+<span class="fc" id="L85">        String remote = &quot;&quot;;</span>
+        try {
+<span class="fc" id="L87">            remote = parse(call.getErrorStream()).path(&quot;code&quot;).asText(&quot;&quot;);</span>
+<span class="nc" id="L88">        } catch (IOException | CaptureProviderException ignored) {</span>
+            // A proxy or unavailable peer need not speak the protocol.
+<span class="fc" id="L90">        }</span>
+<span class="pc bpc" id="L91" title="6 of 7 branches missed.">        FailureCode code = switch (remote) {</span>
+<span class="nc" id="L92">            case &quot;CAMERA_UNAVAILABLE&quot;, &quot;CAMERA_NOT_FOUND&quot; -&gt; FailureCode.DEVICE_UNAVAILABLE;</span>
+<span class="nc" id="L93">            case &quot;SESSION_NOT_FOUND&quot; -&gt; FailureCode.SESSION_NOT_FOUND;</span>
+<span class="nc" id="L94">            case &quot;ASSET_NOT_FOUND&quot; -&gt; FailureCode.ASSET_NOT_FOUND;</span>
+<span class="nc" id="L95">            case &quot;STEP_NOT_FOUND&quot;, &quot;UNSUPPORTED_SETTINGS&quot; -&gt; FailureCode.INVALID_PLAN;</span>
+<span class="nc" id="L96">            case &quot;INCOMPATIBLE&quot; -&gt; FailureCode.INCOMPATIBLE;</span>
+<span class="nc" id="L97">            case &quot;INTEGRITY_MISMATCH&quot; -&gt; FailureCode.INTEGRITY_MISMATCH;</span>
+<span class="pc bpc" id="L98" title="5 of 6 branches missed.">            default -&gt; switch (status) {</span>
+<span class="fc" id="L99">                case 401, 403 -&gt; FailureCode.AUTHENTICATION_FAILED;</span>
+<span class="nc" id="L100">                case 400, 413, 415, 422 -&gt; FailureCode.INVALID_PLAN;</span>
+<span class="nc" id="L101">                case 409 -&gt; FailureCode.CONFLICT;</span>
+<span class="nc" id="L102">                case 408, 429, 502, 503, 504 -&gt; FailureCode.TRANSIENT_IO;</span>
+<span class="nc" id="L103">                case 404 -&gt; FailureCode.UNAVAILABLE;</span>
+<span class="pc" id="L104">                default -&gt; FailureCode.INCOMPATIBLE;</span>
+            };
+        };
+<span class="fc" id="L107">        String detail = Set.of(&quot;RECOVERY_REQUIRED&quot;, &quot;IDEMPOTENCY_CONFLICT&quot;, &quot;STEP_ALREADY_TRIGGERED&quot;,</span>
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">                &quot;LEASE_CONFLICT&quot;, &quot;STEP_NOT_READY&quot;, &quot;UNSUPPORTED_SETTINGS&quot;, &quot;PATTERN_MISMATCH&quot;, &quot;INSUFFICIENT_SCOPE&quot;).contains(remote)</span>
+<span class="pc" id="L109">                ? remote : code.name();</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">        return new CaptureProviderException(code, code == FailureCode.TRANSIENT_IO, detail);</span>
+    }
+
+    static String id(String value) {
+<span class="pc bpc" id="L114" title="3 of 6 branches missed.">        if (value == null || value.length() &gt; 128 || !org.fresnel.measurement.CaptureProvider.IDENTIFIER.matcher(value).matches()) {</span>
+<span class="nc" id="L115">            throw new IllegalArgumentException(&quot;Invalid capture identifier&quot;);</span>
+        }
+<span class="fc" id="L117">        return value;</span>
+    }
+
+    static CaptureProviderException transport() {
+<span class="nc" id="L121">        return new CaptureProviderException(FailureCode.TRANSIENT_IO, true, &quot;PHOTOGRAPHER_TRANSPORT_UNAVAILABLE&quot;);</span>
+    }
+
+    static CaptureProviderException incompatible() {
+<span class="nc" id="L125">        return new CaptureProviderException(FailureCode.INCOMPATIBLE, false, &quot;PHOTOGRAPHER_PROTOCOL_MISMATCH&quot;);</span>
+    }
+
+    static CaptureProviderException integrity() {
+<span class="fc" id="L129">        return new CaptureProviderException(FailureCode.INTEGRITY_MISMATCH, false, &quot;PHOTOGRAPHER_ASSET_MISMATCH&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

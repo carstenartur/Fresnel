@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PhotographerPairingController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.photographer</a> &gt; <span class="el_source">PhotographerPairingController.java</span></div><h1>PhotographerPairingController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.photographer;
+
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+
+/** Fresnel administrator operations. The service bearer and remote origin never enter the response. */
+@RestController
+@RequestMapping(&quot;/api/admin/capture-providers/photographer/pairing&quot;)
+@ConditionalOnProperty(name = &quot;fresnel.capture.photographer.enabled&quot;, havingValue = &quot;true&quot;)
+class PhotographerPairingController {
+    private final PhotographerPairing pairing;
+
+<span class="fc" id="L17">    PhotographerPairingController(PhotographerPairing pairing) { this.pairing = pairing; }</span>
+
+<span class="fc" id="L19">    record Code(String pairingCode) {</span>
+<span class="nc" id="L20">        @Override public String toString() { return &quot;Photographer pairing code&quot;; }</span>
+    }
+
+    @GetMapping
+    ResponseEntity&lt;PhotographerPairing.Status&gt; status() {
+<span class="fc" id="L25">        return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;).body(pairing.status());</span>
+    }
+
+    @PostMapping(consumes = &quot;application/json&quot;)
+    ResponseEntity&lt;Void&gt; pair(@RequestBody Code code) {
+<span class="fc" id="L30">        pairing.pair(code.pairingCode());</span>
+<span class="fc" id="L31">        return noContent();</span>
+    }
+
+    @DeleteMapping
+    ResponseEntity&lt;Void&gt; forget() {
+<span class="fc" id="L36">        pairing.forget();</span>
+<span class="fc" id="L37">        return noContent();</span>
+    }
+
+    @ExceptionHandler(PhotographerPairing.Failure.class)
+    ResponseEntity&lt;Map&lt;String, String&gt;&gt; failure(PhotographerPairing.Failure error) {
+<span class="nc" id="L42">        return ResponseEntity.status(error.status()).header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;)</span>
+<span class="nc" id="L43">                .body(Map.of(&quot;code&quot;, error.getMessage()));</span>
+    }
+
+    private static ResponseEntity&lt;Void&gt; noContent() {
+<span class="fc" id="L47">        return ResponseEntity.noContent().header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;).build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BosCaptureController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.photographer</a> &gt; <span class="el_source">BosCaptureController.java</span></div><h1>BosCaptureController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.photographer;
+
+import org.fresnel.measurement.CaptureProviderException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+@RestController
+@RequestMapping(&quot;/api/experiments/bos-captures&quot;)
+@ConditionalOnProperty(name = &quot;fresnel.capture.photographer.enabled&quot;, havingValue = &quot;true&quot;)
+class BosCaptureController {
+    private final BosExperiments experiments;
+<span class="nc" id="L19">    BosCaptureController(BosExperiments experiments) { this.experiments = experiments; }</span>
+
+<span class="nc" id="L21">    record Selection(String cameraId) {}</span>
+<span class="fc" id="L22">    record Acknowledgement(boolean ready, Boolean continuous) {}</span>
+
+    @GetMapping(&quot;/cameras&quot;)
+<span class="nc" id="L25">    ResponseEntity&lt;List&lt;BosExperiments.Camera&gt;&gt; cameras() { return ok(experiments.cameras()); }</span>
+
+    @GetMapping
+<span class="nc" id="L28">    ResponseEntity&lt;List&lt;BosExperiments.View&gt;&gt; list(Principal caller) { return ok(experiments.list(caller.getName())); }</span>
+
+    @PutMapping(&quot;/{id}&quot;)
+    ResponseEntity&lt;BosExperiments.View&gt; create(Principal caller, @PathVariable(&quot;id&quot;) UUID id, @RequestBody Selection body) {
+<span class="nc" id="L32">        return ok(experiments.create(caller.getName(), id, body.cameraId()));</span>
+    }
+
+    @GetMapping(&quot;/{id}&quot;)
+    ResponseEntity&lt;BosExperiments.View&gt; read(Principal caller, @PathVariable(&quot;id&quot;) UUID id) {
+<span class="nc" id="L37">        return ok(experiments.get(caller.getName(), id));</span>
+    }
+
+    @PostMapping(&quot;/{id}/steps/{step}&quot;)
+    ResponseEntity&lt;BosExperiments.View&gt; confirm(Principal caller, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;step&quot;) String step,
+                                                 @RequestBody Acknowledgement confirmation) {
+<span class="nc bnc" id="L43" title="All 2 branches missed.">        if (!confirmation.ready()) throw new PhotographerPairing.Failure(400, &quot;STEP_ACKNOWLEDGEMENT_REQUIRED&quot;);</span>
+<span class="nc" id="L44">        return ok(experiments.confirm(caller.getName(), id, step, Boolean.TRUE.equals(confirmation.continuous())));</span>
+    }
+
+    @DeleteMapping(&quot;/{id}&quot;)
+    ResponseEntity&lt;BosExperiments.View&gt; cancel(Principal caller, @PathVariable(&quot;id&quot;) UUID id) {
+<span class="nc" id="L49">        return ok(experiments.cancel(caller.getName(), id));</span>
+    }
+
+    @GetMapping(&quot;/{id}/images/{step}&quot;)
+    ResponseEntity&lt;FileSystemResource&gt; image(Principal caller, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;step&quot;) String step) {
+<span class="nc" id="L54">        var file = experiments.source(caller.getName(), id, step);</span>
+<span class="nc" id="L55">        return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;)</span>
+<span class="nc" id="L56">                .contentType(MediaType.IMAGE_PNG).body(new FileSystemResource(file));</span>
+    }
+
+    @ExceptionHandler(PhotographerPairing.Failure.class)
+<span class="nc" id="L60">    ResponseEntity&lt;?&gt; failure(PhotographerPairing.Failure error) { return problem(error.status(), error.getMessage()); }</span>
+
+    @ExceptionHandler(CaptureProviderException.class)
+    ResponseEntity&lt;?&gt; failure(CaptureProviderException error) {
+<span class="nc bnc" id="L64" title="All 3 branches missed.">        int status = switch (error.code()) {</span>
+<span class="nc" id="L65">            case CONFLICT, DEVICE_UNAVAILABLE, INVALID_PLAN -&gt; 409;</span>
+<span class="nc" id="L66">            case UNAVAILABLE, TRANSIENT_IO -&gt; 503;</span>
+<span class="nc" id="L67">            default -&gt; 502;</span>
+        };
+<span class="nc" id="L69">        return problem(status, error.code().name());</span>
+    }
+
+    private static ResponseEntity&lt;Map&lt;String, String&gt;&gt; problem(int status, String code) {
+<span class="nc" id="L73">        return ResponseEntity.status(status).header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;).body(Map.of(&quot;code&quot;, code));</span>
+    }
+    private static &lt;T&gt; ResponseEntity&lt;T&gt; ok(T result) {
+<span class="nc" id="L76">        return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;).body(result);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

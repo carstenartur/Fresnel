@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PhotographerPairing.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.photographer</a> &gt; <span class="el_source">PhotographerPairing.java</span></div><h1>PhotographerPairing.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.photographer;
+
+import org.fresnel.backend.desktop.DesktopDataDirectory;
+import org.fresnel.measurement.CaptureProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.regex.Pattern;
+
+/** Server-side credential and instance binding for the administrator-configured Photographer origin. */
+@Component
+@ConditionalOnProperty(name = &quot;fresnel.capture.photographer.enabled&quot;, havingValue = &quot;true&quot;)
+public final class PhotographerPairing {
+<span class="fc" id="L33">    private static final JsonMapper JSON = JsonMapper.builder().build();</span>
+<span class="fc" id="L34">    private static final Pattern ID = Pattern.compile(&quot;[A-Za-z0-9][A-Za-z0-9._:-]{0,127}&quot;);</span>
+<span class="fc" id="L35">    private static final Pattern TOKEN = Pattern.compile(&quot;[A-Za-z0-9._~+/-]+=*&quot;);</span>
+<span class="fc" id="L36">    private static final Set&lt;String&gt; SCOPES = Set.of(&quot;fresnel:descriptor:read&quot;, &quot;fresnel:cameras:read&quot;,</span>
+            &quot;fresnel:capture-sessions:write&quot;, &quot;fresnel:media:read&quot;);
+    private static final int MAX_REPLY_BYTES = 64 * 1024;
+    private final URI origin;
+    private final Path directory;
+    private final Path manifest;
+
+    @Autowired
+    PhotographerPairing(@Value(&quot;${fresnel.capture.photographer.origin:}&quot;) String configuredOrigin,
+                        @Value(&quot;${fresnel.capture.photographer.trust-private-network:false}&quot;) boolean trustNetwork,
+                        @Value(&quot;${fresnel.capture.photographer.directory:}&quot;) String directory) {
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        this(configuredOrigin, trustNetwork, directory.isBlank()</span>
+<span class="nc" id="L48">                ? DesktopDataDirectory.resolve().resolve(&quot;photographer&quot;) : Path.of(directory));</span>
+<span class="nc" id="L49">    }</span>
+
+<span class="fc" id="L51">    PhotographerPairing(String configuredOrigin, boolean trustNetwork, Path directory) {</span>
+<span class="fc" id="L52">        this.origin = origin(configuredOrigin, trustNetwork);</span>
+<span class="fc" id="L53">        this.directory = directory;</span>
+<span class="fc" id="L54">        this.manifest = directory.resolve(&quot;connection.json&quot;);</span>
+<span class="fc" id="L55">    }</span>
+
+    public record Connection(URI origin, String instanceId, String pairingId, String bearerToken,
+                             List&lt;String&gt; scopes, CaptureProvider.Descriptor descriptor) {
+<span class="fc" id="L59">        public Connection { scopes = List.copyOf(scopes); }</span>
+<span class="fc" id="L60">        @Override public String toString() { return &quot;Photographer connection &quot; + pairingId; }</span>
+    }
+<span class="fc" id="L62">    public record Status(boolean paired, boolean originMatches, String instanceId, String pairingId, List&lt;String&gt; scopes) {}</span>
+<span class="fc" id="L63">    private record Stored(String fresnelInstanceId, Connection connection) {</span>
+<span class="nc" id="L64">        @Override public String toString() { return &quot;Stored Photographer pairing&quot;; }</span>
+    }
+    public static final class Failure extends RuntimeException {
+        private final int status;
+<span class="fc" id="L68">        Failure(int status, String code) { super(code); this.status = status; }</span>
+<span class="fc" id="L69">        public int status() { return status; }</span>
+    }
+
+    public Optional&lt;Connection&gt; current() {
+<span class="fc" id="L73">        Stored stored = read();</span>
+<span class="fc" id="L74">        return Optional.ofNullable(stored).map(Stored::connection).filter(c -&gt; origin.equals(c.origin()));</span>
+    }
+
+    /** Keep the selected origin and grant stable through a provider operation. */
+    synchronized &lt;T&gt; T withConnection(java.util.function.Function&lt;Connection, T&gt; action) {
+<span class="nc" id="L79">        return locked(() -&gt; action.apply(current().orElseThrow(() -&gt; new Failure(409, &quot;PHOTOGRAPHER_NOT_PAIRED&quot;))));</span>
+    }
+
+    public Status status() {
+<span class="fc" id="L83">        Stored stored = read();</span>
+<span class="pc bpc" id="L84" title="2 of 4 branches missed.">        if (stored == null || stored.connection() == null) return new Status(false, true, null, null, List.of());</span>
+<span class="fc" id="L85">        Connection c = stored.connection();</span>
+<span class="fc" id="L86">        return new Status(true, origin.equals(c.origin()), c.instanceId(), c.pairingId(), c.scopes());</span>
+    }
+
+    public synchronized void pair(String code) {
+<span class="pc bpc" id="L90" title="3 of 6 branches missed.">        if (code == null || code.isBlank() || code.length() &gt; 512) throw new Failure(400, &quot;INVALID_PAIRING_CODE&quot;);</span>
+<span class="fc" id="L91">        locked(() -&gt; {</span>
+<span class="fc" id="L92">            Stored stored = read();</span>
+<span class="fc bfc" id="L93" title="All 4 branches covered.">            if (stored != null &amp;&amp; stored.connection() != null) throw new Failure(409, &quot;ALREADY_PAIRED&quot;);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">            if (stored == null) {</span>
+<span class="fc" id="L95">                stored = new Stored(UUID.randomUUID().toString(), null);</span>
+<span class="fc" id="L96">                save(stored);</span>
+            }
+<span class="fc" id="L98">            JsonNode grant = exchange(code, stored.fresnelInstanceId());</span>
+<span class="fc" id="L99">            save(new Stored(stored.fresnelInstanceId(), connection(grant)));</span>
+<span class="fc" id="L100">            return null;</span>
+        });
+<span class="fc" id="L102">    }</span>
+
+    /** Remove the local token. The authenticated Photographer administrator controls remote revocation. */
+    public synchronized void forget() {
+<span class="fc" id="L106">        locked(() -&gt; {</span>
+<span class="fc" id="L107">            Stored stored = read();</span>
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">            if (stored != null) save(new Stored(stored.fresnelInstanceId(), null));</span>
+<span class="fc" id="L109">            return null;</span>
+        });
+<span class="fc" id="L111">    }</span>
+
+    private JsonNode exchange(String code, String localId) {
+<span class="fc" id="L114">        String version = PhotographerPairing.class.getPackage().getImplementationVersion();</span>
+<span class="fc" id="L115">        byte[] bytes = JSON.writeValueAsBytes(Map.of(&quot;pairingCode&quot;, code, &quot;fresnelInstanceId&quot;, localId,</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">                &quot;fresnelDisplayName&quot;, &quot;Fresnel&quot;, &quot;fresnelApplicationVersion&quot;, version == null ? &quot;development&quot; : version,</span>
+<span class="fc" id="L117">                &quot;fresnelProtocolVersion&quot;, 1));</span>
+<span class="fc" id="L118">        HttpURLConnection http = null;</span>
+        try {
+<span class="fc" id="L120">            http = (HttpURLConnection) origin.resolve(PhotographerHttp.BASE + &quot;/pair&quot;).toURL().openConnection();</span>
+<span class="fc" id="L121">            http.setInstanceFollowRedirects(false);</span>
+<span class="fc" id="L122">            http.setUseCaches(false);</span>
+<span class="fc" id="L123">            http.setConnectTimeout(4_000);</span>
+<span class="fc" id="L124">            http.setReadTimeout(8_000);</span>
+<span class="fc" id="L125">            http.setDoOutput(true);</span>
+<span class="fc" id="L126">            http.setRequestMethod(&quot;POST&quot;);</span>
+<span class="fc" id="L127">            http.setRequestProperty(&quot;Content-Type&quot;, &quot;application/json&quot;);</span>
+<span class="fc" id="L128">            http.setRequestProperty(&quot;Accept&quot;, &quot;application/json&quot;);</span>
+<span class="fc" id="L129">            http.setRequestProperty(&quot;Idempotency-Key&quot;, UUID.randomUUID().toString());</span>
+<span class="fc" id="L130">            http.setFixedLengthStreamingMode(bytes.length);</span>
+<span class="fc" id="L131">            try (var output = http.getOutputStream()) { output.write(bytes); }</span>
+<span class="fc" id="L132">            int status = http.getResponseCode();</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">            if (status == 403) throw new Failure(400, &quot;PAIRING_CODE_INVALID&quot;);</span>
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">            if (status == 409) throw new Failure(409, &quot;INCOMPATIBLE&quot;);</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">            if (status == 429) throw new Failure(429, &quot;RATE_LIMITED&quot;);</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">            if (status != 201) throw new Failure(502, &quot;PAIRING_EXCHANGE_FAILED&quot;);</span>
+<span class="fc" id="L137">            try (var input = http.getInputStream()) {</span>
+<span class="fc" id="L138">                byte[] response = input.readNBytes(MAX_REPLY_BYTES + 1);</span>
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">                if (response.length &gt; MAX_REPLY_BYTES) throw new Failure(502, &quot;INVALID_PAIRING_RESPONSE&quot;);</span>
+<span class="fc" id="L140">                return JSON.readTree(response);</span>
+            }
+<span class="nc" id="L142">        } catch (IOException e) { throw new Failure(502, &quot;PHOTOGRAPHER_UNAVAILABLE&quot;); }</span>
+<span class="nc" id="L143">        catch (tools.jackson.core.JacksonException e) { throw new Failure(502, &quot;INVALID_PAIRING_RESPONSE&quot;); }</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">        finally { if (http != null) http.disconnect(); }</span>
+    }
+
+    private Connection connection(JsonNode grant) {
+        try {
+<span class="fc" id="L149">            String pairingId = field(grant, &quot;pairingId&quot;, ID, 128);</span>
+<span class="fc" id="L150">            String token = field(grant, &quot;bearerToken&quot;, TOKEN, 512);</span>
+<span class="fc" id="L151">            JsonNode wire = grant.required(&quot;descriptor&quot;);</span>
+<span class="fc" id="L152">            String instanceId = field(wire, &quot;instanceId&quot;, ID, 128);</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">            if (wire.required(&quot;minimumSupportedProtocolVersion&quot;).asInt() &gt; 1</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">                    || wire.required(&quot;protocolVersion&quot;).asInt() &lt; 1) throw new Failure(409, &quot;INCOMPATIBLE&quot;);</span>
+<span class="fc" id="L155">            var scopeList = new ArrayList&lt;String&gt;();</span>
+<span class="fc" id="L156">            JsonNode scopes = grant.required(&quot;scopes&quot;);</span>
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">            if (!scopes.isArray()) throw new IllegalArgumentException();</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">            for (JsonNode scope : scopes) {</span>
+<span class="pc bpc" id="L159" title="3 of 6 branches missed.">                if (!scope.isString() || !SCOPES.contains(scope.asString()) || scopeList.contains(scope.asString()))</span>
+<span class="nc" id="L160">                    throw new IllegalArgumentException();</span>
+<span class="fc" id="L161">                scopeList.add(scope.asString());</span>
+<span class="fc" id="L162">            }</span>
+<span class="fc" id="L163">            return new Connection(origin, instanceId, pairingId, token, scopeList,</span>
+<span class="fc" id="L164">                    PhotographerCaptureProvider.descriptor(wire));</span>
+<span class="nc" id="L165">        } catch (Failure e) { throw e; }</span>
+<span class="nc" id="L166">        catch (RuntimeException e) { throw new Failure(502, &quot;INVALID_PAIRING_RESPONSE&quot;); }</span>
+    }
+
+    private static String field(JsonNode node, String name, Pattern pattern, int max) {
+<span class="fc" id="L170">        JsonNode value = node.required(name);</span>
+<span class="pc bpc" id="L171" title="3 of 6 branches missed.">        if (!value.isString() || value.asString().length() &gt; max || !pattern.matcher(value.asString()).matches())</span>
+<span class="nc" id="L172">            throw new IllegalArgumentException();</span>
+<span class="fc" id="L173">        return value.asString();</span>
+    }
+
+    private Stored read() {
+        try {
+<span class="fc bfc" id="L178" title="All 2 branches covered.">            if (Files.notExists(manifest)) return null;</span>
+<span class="fc" id="L179">            return JSON.readValue(Files.readAllBytes(manifest), Stored.class);</span>
+<span class="nc" id="L180">        } catch (IOException | tools.jackson.core.JacksonException e) { throw new Failure(500, &quot;PAIRING_STORE_UNAVAILABLE&quot;); }</span>
+    }
+
+    private &lt;T&gt; T locked(java.util.function.Supplier&lt;T&gt; action) {
+        try {
+<span class="pc bpc" id="L185" title="1 of 2 branches missed.">            if (directory.getFileSystem().supportedFileAttributeViews().contains(&quot;posix&quot;))</span>
+<span class="fc" id="L186">                Files.createDirectories(directory, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString(&quot;rwx------&quot;)));</span>
+<span class="nc" id="L187">            else Files.createDirectories(directory);</span>
+<span class="fc" id="L188">            try (var channel = FileChannel.open(directory.resolve(&quot;pairing.lock&quot;), StandardOpenOption.CREATE,</span>
+<span class="fc" id="L189">                    StandardOpenOption.WRITE); var lock = channel.lock()) {</span>
+<span class="fc" id="L190">                return action.get();</span>
+            }
+<span class="nc" id="L192">        } catch (IOException e) { throw new Failure(500, &quot;PAIRING_STORE_UNAVAILABLE&quot;); }</span>
+    }
+
+    private void save(Stored stored) {
+        try {
+            // createTempFile uses owner-only permissions on POSIX. Replacement publishes a complete snapshot.
+<span class="fc" id="L198">            Path temp = Files.createTempFile(directory, &quot;.pairing-&quot;, &quot;.tmp&quot;);</span>
+            try {
+<span class="fc" id="L200">                Files.write(temp, JSON.writeValueAsBytes(stored), StandardOpenOption.WRITE, StandardOpenOption.SYNC);</span>
+<span class="fc" id="L201">                Files.move(temp, manifest, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="fc" id="L202">            } finally { Files.deleteIfExists(temp); }</span>
+<span class="pc" id="L203">        } catch (IOException e) { throw new Failure(500, &quot;PAIRING_STORE_UNAVAILABLE&quot;); }</span>
+<span class="fc" id="L204">    }</span>
+
+    private static URI origin(String value, boolean trustNetwork) {
+        try {
+<span class="fc" id="L208">            URI uri = URI.create(value);</span>
+<span class="fc" id="L209">            String host = uri.getHost();</span>
+<span class="fc" id="L210">            boolean local = Set.of(&quot;127.0.0.1&quot;, &quot;localhost&quot;, &quot;[::1]&quot;, &quot;[0:0:0:0:0:0:0:1]&quot;).contains(</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">                    host == null ? &quot;&quot; : host.toLowerCase(java.util.Locale.ROOT));</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">            boolean secure = &quot;https&quot;.equalsIgnoreCase(uri.getScheme())</span>
+<span class="fc bfc" id="L213" title="All 6 branches covered.">                    || (&quot;http&quot;.equalsIgnoreCase(uri.getScheme()) &amp;&amp; (local || trustNetwork));</span>
+<span class="pc bpc" id="L214" title="1 of 8 branches missed.">            if (secure &amp;&amp; host != null &amp;&amp; uri.getRawUserInfo() == null &amp;&amp; uri.getRawQuery() == null</span>
+<span class="pc bpc" id="L215" title="3 of 6 branches missed.">                    &amp;&amp; uri.getRawFragment() == null &amp;&amp; uri.getPort() != 0 &amp;&amp; uri.getPort() &lt;= 65535</span>
+<span class="pc bpc" id="L216" title="1 of 4 branches missed.">                    &amp;&amp; (&quot;&quot;.equals(uri.getRawPath()) || &quot;/&quot;.equals(uri.getRawPath())))</span>
+<span class="fc" id="L217">                return URI.create(uri.getScheme().toLowerCase(java.util.Locale.ROOT) + &quot;://&quot; + uri.getRawAuthority());</span>
+<span class="pc" id="L218">        } catch (IllegalArgumentException ignored) { /* Never include configured URLs in diagnostics. */ }</span>
+<span class="fc" id="L219">        throw new IllegalArgumentException(&quot;Configure a trusted Photographer HTTPS origin or a loopback origin&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>
