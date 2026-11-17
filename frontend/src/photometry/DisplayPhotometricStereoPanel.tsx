@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { initialJobParameters, SaveJobControl, type JobPanelProps } from '../jobs/JobFileControls';
 import { PluginEditorShell } from '../schema/PluginEditorShell';
 import { defaults, download, generator, pluginId, type Geometry, type Manifest, type Result } from './data';
+import { PhysicalSetup,SetupAssistant } from './SetupAssistant';
+import { fullRegion,regionFrom,profileIdentity,type Region } from './setup';
 import { PatternPresenter } from './PatternPresenter';
 import { MeasurementArchive } from '../measurement/MeasurementArchive';
 import { archiveResult } from './archive';
@@ -11,6 +13,8 @@ import { Relighting } from './Relighting';
 
 export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   const [geometry, setGeometry] = useState(() => initialJobParameters(initialJob,pluginId,defaults));
+  const [roi,setRoi]=useState<Region>(fullRegion);
+  const [profile,setProfile]=useState<Awaited<ReturnType<typeof profileIdentity>>|null>(null);
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [files, setFiles] = useState<Record<string,File>>({});
   const [selected, select] = useState('dark');
@@ -25,17 +29,18 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   function change(next: Geometry) {
     generation.current++;
     worker.current?.terminate();
-    setGeometry(next); setManifest(null); setFiles({}); setResult(null); setRelief(null); setError(''); setBusy(null);
+    setGeometry(next); setRoi(fullRegion); setProfile(null); setManifest(null); setFiles({}); setResult(null); setRelief(null); setError(''); setBusy(null);
   }
-  async function prepare(settings: Geometry, restored?: Record<string,File>) {
+  async function prepare(settings: Geometry, restored?: Record<string,File>, region:Region=fullRegion) {
     const ticket = ++generation.current;
     setError(''); setBusy('sequence');
     try {
       const generated: Manifest = await (await generator('sequence',settings)).json();
+      const screenProfile=await profileIdentity(generated.geometry);
       if (generation.current !== ticket) return;
       if (restored && Object.keys(restored).some(id => !generated.patterns.some(p=>p.id===id)))
         throw new Error('Saved source mapping differs from the regenerated illumination plan.');
-      setGeometry(generated.geometry); setManifest(generated); setFiles(restored ?? {}); select('dark'); setResult(null); setRelief(null);
+      setRoi(region); setProfile(screenProfile); setGeometry(generated.geometry); setManifest(generated); setFiles(restored ?? {}); select('dark'); setResult(null); setRelief(null);
     } catch (e) { if (ticket === generation.current) setError(String(e)); if (restored) throw e; }
     finally { if (ticket === generation.current) setBusy(null); }
   }
@@ -50,13 +55,14 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
       if (e.data.error) setError(e.data.error); else setResult(e.data.result);
       stop();
     };
-    task.postMessage({ manifest, files });
+    task.postMessage({ manifest, files, roi });
   }
   const pattern = manifest?.patterns.find(p => p.id === selected);
   const complete = manifest?.patterns.every(p => !!files[p.id]);
   return <>
     <h2>Display photometric stereo</h2>
     <p>Face a small matte object toward the screen. Mount an upright camera beside the display, aim at the object center, and lock focus, exposure and white balance. Keep the scene still throughout the sequence.</p>
+    <PhysicalSetup geometry={geometry} onChange={change} disabled={!!busy}/>
     <PluginEditorShell pluginId={pluginId} value={geometry} onChange={change} disabled={!!busy} domainValidationEnabled={false}>
       {(_, validation) => <>
         <button disabled={!!busy} onClick={() => change({ ...geometry,widthPx:Math.round(screen.width*devicePixelRatio),heightPx:Math.round(screen.height*devicePixelRatio) })}>Use this display’s pixel dimensions</button>
@@ -64,13 +70,15 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
         <SaveJobControl pluginId={pluginId} parameters={geometry} disabled={!!busy || !validation?.valid}/>
       </>}
     </PluginEditorShell>
-    <MeasurementArchive pluginId={pluginId} parameters={geometry} steps={manifest?.patterns.map(p=>p.id) ?? []}
+    <MeasurementArchive pluginId={pluginId} parameters={{geometry,roi,screenProfile:profile}} steps={manifest?.patterns.map(p=>p.id) ?? []}
       files={files} result={archived} onRestore={async (parameters,images)=>{
-        const restored=parameters as Geometry;
-        stop(); await prepare(restored,images);
+        const restored=(parameters.geometry ?? parameters) as Geometry;
+        stop(); await prepare(restored,images,regionFrom(parameters.roi));
       }}/>
     {manifest && <>
       <h3>Manual capture</h3>
+      <SetupAssistant manifest={manifest} files={files} roi={roi} disabled={!!busy} onSelect={select}
+        onChange={next=>{setRoi(next);setResult(null);setRelief(null);}}/>
       <p>Light matrix condition number {manifest.conditionNumber.toFixed(2)}. Show each pattern, wait at least {manifest.geometry.settleDelayMs} ms, and take one exposure. Press Esc to return and map the camera file to that pattern.</p>
       <button onClick={() => download(new Blob([JSON.stringify(manifest,null,2)],{type:'application/json'}),'illumination-manifest.json')}>Download sequence manifest</button>
       <label>Pattern <select aria-label="Pattern" disabled={!!busy} value={selected} onChange={e => select(e.target.value)}>
@@ -88,7 +96,7 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
       <button onClick={analyze} disabled={!!busy || !complete}>Reconstruct surface</button>
       {busy === 'solve' && <button onClick={stop}>Cancel reconstruction</button>}
       {result && <>
-        <Relighting result={result} manifest={manifest} relief={relief}/>
+        <Relighting result={result} manifest={manifest} relief={relief} files={files}/>
         <RelativeRelief result={result} relief={relief} onChange={setRelief}/>
       </>}
     </>}

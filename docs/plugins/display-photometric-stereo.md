@@ -24,3 +24,13 @@ The exported geometry job can be reopened with **Open job**. A PNG production ou
 Choose **Integrate relative height** to solve a masked Poisson least-squares problem from the measured normal gradients. The solver excludes low-confidence and grazing pixels, calculates the circulation around each complete four-pixel cell and rejects excessive curl or residual. It assigns independent zero datums to disconnected regions and leaves holes empty. Optionally subtract a fitted plane per component. The result grid contains the height method, curl, residual, mask and relative values. The PNG stretches supported heights over the grayscale range.
 
 An accepted result with a nonzero height range can be exported as a closed STL relief. Supply the model width, desired height span and base thickness. All three dimensions are user-assigned millimeters. The file header records the assigned scale. The experiment does not measure physical height or length.
+
+## Setup checks and object region
+
+The setup drawing shows an upright camera above the display. Camera placement presets fill in offsets for the selected screen size; adjust them to match the actual mount. Save a named display profile in the browser to reuse its physical size and native raster. Saved experiment parameters also record the resolved display values and their SHA-256 identity.
+
+Open **Test exposures and object region** after preparing the sequence. Map the flat exposure first to inspect a bounded, upright camera preview. Add the dark frame and two opposite directional patches for an ambient-to-flat ratio and directional response check. Results identify clipping, low signal, movement and limited texture. Flat, textureless material may have a low-contrast edge metric even when focus is correct; inspect the preview visually.
+
+Drag across the preview or set the four percentage boundaries to select a rectangular region. The solve retains the source grid dimensions and masks pixels outside this region. Saved experiments restore that selection, and the result records its normalized bounds. A geometry job can also be used independently of camera media.
+
+Select **Camera exposure** in the result layers to compare the original mapped frame with the measured relighting. Relit PNGs carry the sequence identity, region and numeric light position, intensity and ambient level in the PNG text metadata.
