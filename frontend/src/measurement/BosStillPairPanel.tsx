@@ -23,6 +23,7 @@ const modes: Record<MapMode, string> = {
   horizontal: 'Signed horizontal displacement',
   vertical: 'Signed vertical displacement',
   confidence: 'Correlation confidence',
+  vectors: 'Vector field over magnitude',
 };
 function useObjectUrl(blob?: Blob) {
   const [url, setUrl] = useState('');
@@ -324,13 +325,14 @@ export function BosStillPairPanel({ target, manifest, pairedCapture, explicitReg
           <p>
             {mode === 'confidence'
               ? 'Correlation ranges from black (0) to white (1).'
-              : mode === 'magnitude'
+              : mode === 'magnitude' || mode === 'vectors'
                 ? 'Navy is zero and gold is ' +
                   (output.result.autoLimitPx / gain).toFixed(2) +
                   ' analysis px or greater.'
                 : 'Blue is negative, white is zero and red is positive. The color limits are ±' +
                   (output.result.autoLimitPx / gain).toFixed(2) +
                   ' analysis px.'}{' '}
+            {mode==='vectors' && 'Arrows show image-plane displacement. An arrow one grid interval long reaches the display limit. '}
             Charcoal marks unmeasured or rejected windows.
           </p>
           <a href={reportUrl} download="bos-displacement.json">

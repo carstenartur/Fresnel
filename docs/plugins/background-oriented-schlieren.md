@@ -59,10 +59,21 @@ and scale. The source files retain their original pixels.
 2. Check the accepted windows and registration residual. Inspect the stabilized
    disturbed frame alongside the map. Switch between magnitude, signed horizontal
    or vertical displacement and normalized correlation. Display amplification
-   changes the colors of the stored grid.
+   changes the colors of the stored grid. **Vector field over magnitude** draws
+   arrows at every second row and column of accepted windows. The arrow tip gives
+   the displacement direction in image coordinates. Length scales with magnitude
+   up to one grid interval at the displayed color limit. The PNG and time-series
+   WebM include the selected visualization and amplification.
 3. Download the PNG visualization or numeric JSON. Use **Saved experiments** to
    keep the source images and result together in an owner-scoped session and
    export a checksummed experiment bundle.
+
+![Stabilized dot field beside the vector map of a local two-pixel shift](../assets/plugins/background-oriented-schlieren/paired-vector-map.png)
+
+In this browser test, a 100 × 90 pixel patch of the generated target moved two
+pixels to the right before the paired mock camera supplied the disturbed image.
+At 2× display amplification the arrows point right inside the displaced patch.
+The surrounding field provides the stationary registration reference.
 
 The worker checks each image header before decoding. It accepts PNG and JPEG up
 to 20 MiB, 24 megapixels and 16,384 pixels per side, normalizes orientation, and

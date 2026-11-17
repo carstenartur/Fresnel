@@ -24,9 +24,9 @@ import {
   type SequenceResult,
 } from './bosSequence';
 
-function draw(canvas: HTMLCanvasElement, seq: SequenceResult, index: number, mode: MapMode) {
+function draw(canvas: HTMLCanvasElement, seq: SequenceResult, index: number, mode: MapMode, gain: number) {
   const frame = seq.frames[index];
-  if (frame.result) paintMap(canvas, { ...frame.result, autoLimitPx: seq.colorLimitPx }, mode, 1);
+  if (frame.result) paintMap(canvas, { ...frame.result, autoLimitPx: seq.colorLimitPx }, mode, gain);
   else {
     const exemplar = seq.frames.find((f) => f.result)?.result;
     canvas.width = exemplar?.width ?? 240;
@@ -41,9 +41,9 @@ function draw(canvas: HTMLCanvasElement, seq: SequenceResult, index: number, mod
   }
 }
 
-async function reviewVideo(result: SequenceResult, mode: MapMode, signal: AbortSignal) {
+async function reviewVideo(result: SequenceResult, mode: MapMode, gain: number, signal: AbortSignal) {
   const canvas = document.createElement('canvas');
-  draw(canvas, result, 0, mode);
+  draw(canvas, result, 0, mode, gain);
   if (typeof MediaRecorder === 'undefined' || !canvas.captureStream)
     throw new Error('WebM review export is unavailable in this browser.');
   const type = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((t) =>
@@ -65,7 +65,7 @@ async function reviewVideo(result: SequenceResult, mode: MapMode, signal: AbortS
     try {
       for (let i = 0; i < result.frames.length; i++) {
         signal.throwIfAborted();
-        draw(canvas, result, i, mode);
+        draw(canvas, result, i, mode, gain);
         await new Promise((r) => setTimeout(r, 200));
       }
     } finally {
@@ -106,6 +106,7 @@ export function BosSequencePanel({
   const [result, setResult] = useState<SequenceResult>(),
     [index, setIndex] = useState(0),
     [mode, setMode] = useState<MapMode>('magnitude');
+  const [gain, setGain] = useState(1);
   const [status, setStatus] = useState(''),
     [error, setError] = useState(''),
     [key, setKey] = useState(0);
@@ -113,8 +114,8 @@ export function BosSequencePanel({
     map = useRef<HTMLCanvasElement>(null);
   useEffect(() => () => job.current?.abort(), []);
   useEffect(() => {
-    if (map.current && result) draw(map.current, result, index, mode);
-  }, [result, index, mode]);
+    if (map.current && result) draw(map.current, result, index, mode, gain);
+  }, [result, index, mode, gain]);
   useEffect(() => {
     if (liveFrame?.result && liveCanvas.current)
       paintMap(liveCanvas.current, liveFrame.result, 'magnitude', 1);
@@ -143,13 +144,16 @@ export function BosSequencePanel({
           JSON.stringify({
             ...result,
             ...analyzedTarget,
+            visualization: mode,
+            amplification: gain,
+            displayedLimitPx: mode === 'confidence' ? null : result.colorLimitPx / gain,
             captureProvider: origin?.provider ?? 'manual',
             captureOrigin: origin ?? null,
           }),
         ],
         { type: 'application/json' },
       ),
-    [result, analyzedTarget, origin],
+    [result, analyzedTarget, origin, mode, gain],
   );
   const sources = useMemo(() => {
     const items: Record<string, File> = {};
@@ -200,6 +204,20 @@ export function BosSequencePanel({
     reset();
     setOrigin(metadata ?? undefined);
     setRestoredTarget(restoreTarget(params));
+    const savedMode = params.visualization;
+    setMode(
+      savedMode === 'horizontal' ||
+        savedMode === 'vertical' ||
+        savedMode === 'confidence' ||
+        savedMode === 'vectors'
+        ? savedMode
+        : 'magnitude',
+    );
+    setGain(
+      typeof params.amplification === 'number' && Number.isFinite(params.amplification)
+        ? Math.max(0.25, Math.min(8, params.amplification))
+        : 1,
+    );
     setRegion(readRegion(params.manualRegion));
     setKey((k) => k + 1);
     setKind(sources.video || params.sourceKind === 'video' ? 'video' : 'stills');
@@ -233,7 +251,7 @@ export function BosSequencePanel({
     setError('');
     try {
       if (exporting && result) {
-        const blob = await reviewVideo(result, mode, controller.signal);
+        const blob = await reviewVideo(result, mode, gain, controller.signal);
         controller.signal.throwIfAborted();
         download(blob, 'bos-review.webm');
       } else {
@@ -545,8 +563,23 @@ export function BosSequencePanel({
                 <option value="horizontal">Signed horizontal</option>
                 <option value="vertical">Signed vertical</option>
                 <option value="confidence">Correlation confidence</option>
+                <option value="vectors">Vector field over magnitude</option>
               </select>
             </label>
+            {mode !== 'confidence' && (
+              <label>
+                Time-series amplification {gain}×
+                <input
+                  aria-label="Time-series amplification"
+                  type="range"
+                  min="0.25"
+                  max="8"
+                  step="0.25"
+                  value={gain}
+                  onChange={(e) => setGain(Number(e.target.value))}
+                />
+              </label>
+            )}
             <canvas
               ref={map}
               aria-label="Selected frame map"
@@ -557,7 +590,11 @@ export function BosSequencePanel({
               All frames share a color scale.{' '}
               {mode === 'confidence'
                 ? 'Black to white spans correlations of 0 to 1.'
-                : 'The display limit is ' + result.colorLimitPx.toFixed(2) + ' analysis pixels.'}{' '}
+                : 'The display limit is ' +
+                  (result.colorLimitPx / gain).toFixed(2) +
+                  ' analysis pixels.'}{' '}
+              {mode === 'vectors' &&
+                'Arrows show image-plane displacement. An arrow one grid interval long reaches the display limit. '}
               Charcoal marks unmeasured regions.
             </p>
             <button type="button" onClick={() => report && download(report, 'bos-time-series.json')}>
@@ -576,6 +613,8 @@ export function BosSequencePanel({
           files={sources}
           parameters={{
             sourceKind: kind,
+            visualization: mode,
+            amplification: gain,
             ...(origin ? { captureOrigin: origin } : {}),
             manualRegion: region,
             policy,
