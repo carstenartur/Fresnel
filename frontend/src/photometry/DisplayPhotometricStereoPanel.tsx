@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { initialJobParameters, SaveJobControl, type JobPanelProps } from '../jobs/JobFileControls';
 import { PluginEditorShell } from '../schema/PluginEditorShell';
 import { defaults, download, generator, pluginId, type Geometry, type Manifest, type Result } from './data';
+import { displayFrame } from './stage';
 import { PhotometryCamera } from './PhotometryCamera';
 import { PatternPresenter } from './PatternPresenter';
 import { MeasurementArchive } from '../measurement/MeasurementArchive';
@@ -19,7 +20,8 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   const [relief,setRelief] = useState<Relief|null>(null);
   const archived = useMemo(()=>manifest && result ? archiveResult(manifest,result,relief) : null,[manifest,result,relief]);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState<'sequence' | 'solve' | null>(null);
+  const [busy, setBusy] = useState<'screen' | 'sequence' | 'solve' | null>(null);
+  const screenProbe=useRef<HTMLCanvasElement>(null);
   const worker = useRef<Worker | null>(null);
   const generation = useRef(0);
   useEffect(() => () => { generation.current++; worker.current?.terminate(); }, []);
@@ -27,6 +29,21 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
     generation.current++;
     worker.current?.terminate();
     setGeometry(next); setManifest(null); setFiles({}); setResult(null); setRelief(null); setError(''); setBusy(null);
+  }
+  async function measureScreen() {
+    const target=screenProbe.current;
+    if(!target)return;
+    setBusy('screen');setError('');
+    try {
+      await target.requestFullscreen({navigationUI:'hide'});
+      await displayFrame();await displayFrame();
+      if(document.fullscreenElement!==target || document.hidden) throw new Error('Fullscreen measurement was interrupted.');
+      const box=target.getBoundingClientRect();
+      const widthPx=Math.round(box.width*devicePixelRatio),heightPx=Math.round(box.height*devicePixelRatio);
+      if(!widthPx || !heightPx) throw new Error('Could not measure the native full-screen raster.');
+      await document.exitFullscreen();
+      change({...geometry,widthPx,heightPx});
+    } catch(e){if(document.fullscreenElement===target)await document.exitFullscreen().catch(()=>undefined);setError(String(e));setBusy(null);}
   }
   async function prepare(settings: Geometry, restored?: Record<string,File>) {
     const ticket = ++generation.current;
@@ -58,9 +75,10 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   return <>
     <h2>Display photometric stereo</h2>
     <p>Face a small matte object toward the screen. Mount an upright camera beside the display, aim at the object center, and lock focus, exposure and white balance. Keep the scene still throughout the sequence.</p>
+    <canvas ref={screenProbe} className="photometry-illumination" aria-label="Measuring fullscreen raster"/>
     <PluginEditorShell pluginId={pluginId} value={geometry} onChange={change} disabled={!!busy} domainValidationEnabled={false}>
       {(_, validation) => <>
-        <button disabled={!!busy} onClick={() => change({ ...geometry,widthPx:Math.round(screen.width*devicePixelRatio),heightPx:Math.round(screen.height*devicePixelRatio) })}>Use this display’s pixel dimensions</button>
+        <button disabled={!!busy} onClick={() => void measureScreen()}>Use this display’s pixel dimensions</button>
         <button disabled={!!busy || !validation?.valid || !!manifest} onClick={() => void prepare(geometry)}>Prepare illumination sequence</button>
         <SaveJobControl pluginId={pluginId} parameters={geometry} disabled={!!busy || !validation?.valid}/>
       </>}
