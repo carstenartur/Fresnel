@@ -15,6 +15,7 @@ import static org.fresnel.backend.measurement.session.MeasurementSessions.*;
 @Service
 class MeasurementBundles {
     static final String TYPE = "application/vnd.carstenartur.fresnel.experiment+zip";
+    private static final int MAX_ENTRIES = MAX_BOS_FRAMES + 5;
     private static final int MANIFEST_MAX = 96 << 10;
     private final MeasurementSessions sessions;
     private final ExperimentDocuments documents;
@@ -74,7 +75,7 @@ class MeasurementBundles {
             long directorySize = Integer.toUnsignedLong(header.getInt(12));
             long directoryOffset = Integer.toUnsignedLong(header.getInt(16));
             if (header.getInt(0) != 0x06054b50 || header.getInt(4) != 0 || header.getShort(20) != 0
-                    || entries != Short.toUnsignedInt(header.getShort(8)) || entries == 0 || entries > 24
+                    || entries != Short.toUnsignedInt(header.getShort(8)) || entries == 0 || entries > MAX_ENTRIES
                     || directorySize > 8192 || directoryOffset + directorySize != file.length() - 22) throw bad("Unsupported ZIP layout");
         }
     }
@@ -84,8 +85,8 @@ class MeasurementBundles {
         long expanded = 0;
         for (var iterator = zip.getEntries(); iterator.hasMoreElements();) {
             var entry = iterator.nextElement();
-            if (entries.size() >= 24 || entry.isDirectory() || entry.isUnixSymlink()
-                    || !zip.canReadEntryData(entry) || entry.getSize() < 0 || entry.getSize() > RESULT_BYTES
+            if (entries.size() >= MAX_ENTRIES || entry.isDirectory() || entry.isUnixSymlink()
+                    || !zip.canReadEntryData(entry) || entry.getSize() < 0 || entry.getSize() > VIDEO_BYTES
                     || (entry.getMethod() != ZipEntry.DEFLATED && entry.getMethod() != ZipEntry.STORED)
                     || entries.putIfAbsent(entry.getName(), entry) != null) throw bad("Invalid experiment ZIP entry");
             expanded += entry.getSize();
@@ -161,6 +162,7 @@ class MeasurementBundles {
 
     private static String entryName(String step, Asset a) {
         if ("result".equals(step) && "application/json".equals(a.mediaType())) return "results/result.json";
+        if ("video".equals(step) && "video/mp4".equals(a.mediaType())) return "assets/" + a.sha256() + ".mp4";
         if ("image/png".equals(a.mediaType())) return "assets/" + a.sha256() + ".png";
         if ("image/jpeg".equals(a.mediaType())) return "assets/" + a.sha256() + ".jpg";
         throw bad("Unsupported archive media type");

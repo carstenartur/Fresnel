@@ -13,6 +13,7 @@ interface Props {
   steps: readonly string[];
   files: Files;
   result?: Blob | null;
+  acceptsSteps?: (steps: readonly string[]) => boolean;
   onRestore: (parameters: Record<string, unknown>, files: Record<string, File>) => void | Promise<void>;
 }
 
@@ -33,7 +34,7 @@ async function request(auth: string, path = '', options: RequestInit = {}) {
   throw new Error(errors[response.status] ?? ('Fresnel returned HTTP ' + response.status + '.'));
 }
 
-export function MeasurementArchive({pluginId, parameters, steps, files, result, onRestore}: Props) {
+export function MeasurementArchive({pluginId, parameters, steps, files, result, onRestore, acceptsSteps}: Props) {
   const [auth, setAuth] = useState('');
   const [saved, setSaved] = useState<Saved[]>([]);
   const [selected, select] = useState('');
@@ -50,7 +51,7 @@ export function MeasurementArchive({pluginId, parameters, steps, files, result, 
 
   async function refresh(authorization: string) {
     const all: Saved[] = await (await request(authorization)).json();
-    const matches = all.filter(s => s.pluginId === pluginId);
+    const matches = all.filter(s => s.pluginId === pluginId && (!acceptsSteps || acceptsSteps(s.steps)));
     setSaved(matches);
     return matches;
   }
@@ -71,6 +72,11 @@ export function MeasurementArchive({pluginId, parameters, steps, files, result, 
     for (const step of steps) {
       const file = files[step];
       if (!file) continue;
+      if (step === 'video') {
+        if (file.size > 64 * 1024 * 1024) throw new Error('Each MP4 must be 64 MiB or smaller.');
+        items.push({step, file, type:'video/mp4', hash:await sha256(file)});
+        continue;
+      }
       if (file.size > 20 * 1024 * 1024) throw new Error('Each source image must be 20 MiB or smaller.');
       const type = file.type || (/\.png$/i.test(file.name) ? 'image/png' : /\.jpe?g$/i.test(file.name) ? 'image/jpeg' : '');
       if (type !== 'image/png' && type !== 'image/jpeg') throw new Error('Choose a PNG or JPEG source image.');
@@ -105,10 +111,10 @@ export function MeasurementArchive({pluginId, parameters, steps, files, result, 
       if (!asset) continue;
       const blob = await (await request(auth, '/' + session.id + '/assets/' + step)).blob();
       if (blob.size !== asset.byteLength || await sha256(blob) !== asset.sha256) throw new Error('Stored image checksum mismatch.');
-      loaded[step] = new File([blob], step + (asset.mediaType === 'image/png' ? '.png' : '.jpg'), {type:asset.mediaType});
+      loaded[step] = new File([blob], step + (asset.mediaType === 'video/mp4' ? '.mp4' : asset.mediaType === 'image/png' ? '.png' : '.jpg'), {type:asset.mediaType});
     }
     await onRestore(session.parameters, loaded);
-    setStatus('Opened ' + Object.keys(loaded).length + ' source images.');
+    setStatus('Opened ' + Object.keys(loaded).length + (loaded.video ? ' source files.' : ' source images.'));
   }
 
   async function download() {
@@ -140,7 +146,7 @@ export function MeasurementArchive({pluginId, parameters, steps, files, result, 
           const session: Saved = await (await request(auth, '/import', {method:'POST',
             headers:{'Content-Type':bundleType}, body:file})).json();
           await refresh(auth);
-          if (session.pluginId !== pluginId) { setStatus('Imported. Open this experiment in the ' + session.pluginId + ' editor.'); return; }
+          if (session.pluginId !== pluginId || (acceptsSteps && !acceptsSteps(session.steps))) { setStatus('Imported. Open it in its matching ' + session.pluginId + ' capture panel.'); return; }
           select(session.id); await restore(session);
         });
       }} /></label>
