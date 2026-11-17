@@ -150,10 +150,11 @@ class PluginControllerTest {
                 .andExpect(jsonPath("$.rendererClass").doesNotExist())
                 .andExpect(jsonPath("$.parameterType").doesNotExist())
                 .andExpect(jsonPath("$.capabilities", hasItems(
-                        "GENERATE_CAPTURE_TARGET", "PREVIEW_PNG", "EXPORT_PNG")))
+                        "GENERATE_CAPTURE_TARGET", "PREVIEW_PNG", "EXPORT_PNG",
+                        "IMPORT_CAPTURE_SET", "ANALYZE_CAPTURE_SET", "EXPORT_EXPERIMENT_BUNDLE")))
                 .andExpect(jsonPath("$.capabilities",
                         org.hamcrest.Matchers.not(hasItems(
-                                "IMPORT_CAPTURE_SET", "REMOTE_CAPTURE", "ANALYZE_CAPTURE_SET"))))
+                                "REMOTE_CAPTURE"))))
                 .andExpect(jsonPath("$.propagationModes", empty()))
                 .andExpect(jsonPath("$.schemaUrl")
                         .value("/api/plugins/background-oriented-schlieren/schema"));
@@ -200,7 +201,8 @@ class PluginControllerTest {
                 .andExpect(jsonPath("$.uiSchema.groups[0].id").value("target-size"))
                 .andExpect(jsonPath("$.defaults.patternSeed").value(20260823))
                 .andExpect(jsonPath("$.capabilities", hasItems(
-                        "GENERATE_CAPTURE_TARGET", "PREVIEW_PNG", "EXPORT_PNG")));
+                        "GENERATE_CAPTURE_TARGET", "PREVIEW_PNG", "EXPORT_PNG",
+                        "IMPORT_CAPTURE_SET", "ANALYZE_CAPTURE_SET", "EXPORT_EXPERIMENT_BUNDLE")));
     }
 
     @Test

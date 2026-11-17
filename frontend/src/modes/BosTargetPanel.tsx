@@ -16,6 +16,7 @@ import { PluginActionBar } from '../schema/PluginActionBar';
 import { PluginEditorShell } from '../schema/PluginEditorShell';
 import { PreviewPane, useBlobUrl } from './shared';
 import './BosTargetPanel.css';
+import { BosStillPairPanel } from '../measurement/BosStillPairPanel';
 
 const DEFAULT: BosTargetRequest = {
   widthPx: 1600,
@@ -201,6 +202,7 @@ export function BosTargetPanel({ initialJob }: JobPanelProps) {
           );
         }}
       </PluginEditorShell>
+      <BosStillPairPanel target={currentManifest} />
     </>
   );
 }
