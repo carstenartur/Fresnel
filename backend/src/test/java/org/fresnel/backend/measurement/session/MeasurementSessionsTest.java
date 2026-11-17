@@ -1,0 +1,97 @@
+package org.fresnel.backend.measurement.session;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.json.JsonMapper;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+import java.util.zip.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class MeasurementSessionsTest {
+    @TempDir Path directory;
+    final JsonMapper json = JsonMapper.builder().build();
+    final MeasurementSessions.Plan plan = new MeasurementSessions.Plan("background-oriented-schlieren",
+            json.createObjectNode().put("patternSeed", 42), List.of("reference", "disturbed"));
+
+    private MeasurementSessions service() { return new MeasurementSessions(json, directory.toString()); }
+
+    private static byte[] picture(int value) throws IOException {
+        var image = new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB);
+        image.setRGB(0, 0, value);
+        var out = new ByteArrayOutputStream();
+        ImageIO.write(image, "PNG", out);
+        return out.toByteArray();
+    }
+
+    private static MeasurementSessions.View put(MeasurementSessions s, UUID id, String step, byte[] bytes) throws IOException {
+        return s.put("alice", id, step, "image/png", MeasurementSessions.hash(bytes), new ByteArrayInputStream(bytes));
+    }
+
+    @Test void inputSurvivesRestartAndRetryIsImmutableAndPrivate() throws IOException {
+        var s = service();
+        var id = s.create("alice", plan).id();
+        byte[] bytes = picture(128);
+        var first = put(s, id, "reference", bytes);
+        assertEquals(first, put(service(), id, "reference", bytes));
+        assertEquals("CAPTURING", first.state());
+        assertEquals(409, assertThrows(ResponseStatusException.class,
+                () -> put(s, id, "reference", picture(255))).getStatusCode().value());
+        assertEquals(404, assertThrows(ResponseStatusException.class, () -> s.get("bob", id)).getStatusCode().value());
+        assertTrue(s.list("bob").isEmpty());
+        assertEquals("READY_TO_ANALYZE", put(s, id, "disturbed", bytes).state());
+        assertEquals(List.of(id), service().list("alice").stream().map(MeasurementSessions.View::id).toList());
+        s.delete("alice", id);
+        assertTrue(s.list("alice").isEmpty());
+    }
+
+    @Test void checksumTypeAndPlanValidatedBeforeCommit() throws IOException {
+        var s = service();
+        var id = s.create("alice", plan).id();
+        byte[] bytes = picture(1);
+        assertThrows(ResponseStatusException.class, () -> s.put("alice", id, "reference", "image/png",
+                "0".repeat(64), new ByteArrayInputStream(bytes)));
+        assertThrows(ResponseStatusException.class, () -> s.put("alice", id, "reference", "image/jpeg",
+                MeasurementSessions.hash(bytes), new ByteArrayInputStream(bytes)));
+        assertThrows(ResponseStatusException.class, () -> put(s, id, "light-01", bytes));
+        assertThrows(ResponseStatusException.class, () -> s.create("alice",
+                new MeasurementSessions.Plan(plan.pluginId(), plan.parameters(), List.of("reference", "../disturbed"))));
+        assertTrue(s.get("alice", id).assets().isEmpty());
+    }
+
+    @Test void bundleRoundTripRetainsIdenticalBytesAndLocalOwner() throws IOException {
+        var s = service();
+        var id = s.create("alice", plan).id();
+        byte[] reference = picture(2), disturbed = picture(3);
+        put(s, id, "reference", reference);
+        put(s, id, "disturbed", disturbed);
+        byte[] result = "{\"unit\":\"px\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        s.put("alice", id, "result", "application/json", MeasurementSessions.hash(result), new ByteArrayInputStream(result));
+        var out = new ByteArrayOutputStream();
+        new MeasurementBundles(s).export("alice", id, out);
+        var imported = new MeasurementBundles(service()).read("bob", new ByteArrayInputStream(out.toByteArray()));
+        assertNotEquals(id, imported.id());
+        assertEquals("COMPLETED", imported.state());
+        assertEquals(s.get("alice", id).assets(), imported.assets());
+        assertArrayEquals(reference, Files.readAllBytes(s.source("bob", imported.id(), "reference").path()));
+        assertArrayEquals(result, Files.readAllBytes(s.source("bob", imported.id(), "result").path()));
+    }
+
+    @Test void invalidArchiveRollsBack() throws IOException {
+        var s = service();
+        var out = new ByteArrayOutputStream();
+        try (var zip = new ZipOutputStream(out)) {
+            zip.putNextEntry(new ZipEntry("../image.png"));
+            zip.write(picture(1));
+        }
+        assertThrows(ResponseStatusException.class, () -> new MeasurementBundles(s).read("alice",
+                new ByteArrayInputStream(out.toByteArray())));
+        assertTrue(s.list("alice").isEmpty());
+    }
+}
