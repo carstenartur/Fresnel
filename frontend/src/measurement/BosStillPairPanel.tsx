@@ -1,3 +1,4 @@
+import { restoreTarget, type TargetEvidence } from './bosTargetEvidence';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MeasurementArchive } from './MeasurementArchive';
 import type { WorkerOutput } from './bosStillPair.worker';
@@ -12,20 +13,6 @@ const modes: Record<MapMode, string> = {
   vertical: 'Signed vertical displacement',
   confidence: 'Correlation confidence',
 };
-type TargetIdentity = { targetId: string; semanticSha256: string };
-function readTarget(value: unknown): TargetIdentity | null {
-  if (typeof value !== 'object' || value === null || !('targetId' in value) || !('semanticSha256' in value))
-    return null;
-  if (
-    typeof value.targetId !== 'string' ||
-    !/^bos-[0-9a-f]{12}$/.test(value.targetId) ||
-    typeof value.semanticSha256 !== 'string' ||
-    !/^[0-9a-f]{64}$/.test(value.semanticSha256)
-  )
-    return null;
-  return { targetId: value.targetId, semanticSha256: value.semanticSha256 };
-}
-
 function useObjectUrl(blob?: Blob) {
   const [url, setUrl] = useState('');
   useEffect(() => {
@@ -40,9 +27,9 @@ function useObjectUrl(blob?: Blob) {
   return url;
 }
 
-export function BosStillPairPanel({ target }: { target: TargetIdentity | null }) {
-  const [restoredTarget, setRestoredTarget] = useState<TargetIdentity | null | undefined>(undefined);
-  const [analyzedTarget, setAnalyzedTarget] = useState<TargetIdentity | null>(null);
+export function BosStillPairPanel({ target }: { target: TargetEvidence }) {
+  const [restoredTarget, setRestoredTarget] = useState<TargetEvidence>();
+  const [analyzedTarget, setAnalyzedTarget] = useState<TargetEvidence>({configuredTarget:null});
   const [files, setFiles] = useState<Images>({});
   const [output, setOutput] = useState<WorkerOutput>();
   const [status, setStatus] = useState('');
@@ -64,7 +51,7 @@ export function BosStillPairPanel({ target }: { target: TargetIdentity | null })
         [
           JSON.stringify({
             ...output.result,
-            configuredTarget: analyzedTarget,
+            ...analyzedTarget,
             visualization: mode,
             amplification: gain,
             displayedLimitPx: mode === 'confidence' ? null : output.result.autoLimitPx / gain,
@@ -92,7 +79,7 @@ export function BosStillPairPanel({ target }: { target: TargetIdentity | null })
   }
   function restore(params: Record<string, unknown>, restored: Partial<Record<string, File>>) {
     changeFiles({ reference: restored.reference, disturbed: restored.disturbed });
-    setRestoredTarget(readTarget(params.configuredTarget));
+    setRestoredTarget(restoreTarget(params));
     setInputGeneration((n) => n + 1);
     setMode(
       typeof params.visualization === 'string' &&
@@ -108,7 +95,7 @@ export function BosStillPairPanel({ target }: { target: TargetIdentity | null })
   }
   function analyze() {
     if (!files.reference || !files.disturbed) return;
-    setAnalyzedTarget(restoredTarget === undefined ? readTarget(target) : restoredTarget);
+    setAnalyzedTarget(restoredTarget ?? target);
     stop();
     setOutput(undefined);
     setError('');
@@ -272,15 +259,12 @@ export function BosStillPairPanel({ target }: { target: TargetIdentity | null })
       <MeasurementArchive
         pluginId="background-oriented-schlieren"
         steps={imageRoles}
+        acceptsSteps={steps=>steps.length===2 && steps[0]==='reference' && steps[1]==='disturbed'}
         files={files}
         parameters={{
           visualization: mode,
           amplification: gain,
-          configuredTarget: output
-            ? analyzedTarget
-            : restoredTarget === undefined
-              ? readTarget(target)
-              : restoredTarget,
+          ...(output ? analyzedTarget : restoredTarget ?? target),
         }}
         result={report}
         onRestore={restore}

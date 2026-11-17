@@ -1,3 +1,4 @@
+import {targetEvidence} from '../measurement/bosTargetEvidence';
 import { useRef, useState } from 'react';
 import type { FresnelProductionOutput } from '../jobApi';
 import {
@@ -19,6 +20,7 @@ import { PluginActionBar } from '../schema/PluginActionBar';
 import { PluginEditorShell } from '../schema/PluginEditorShell';
 import { PreviewPane, useBlobUrl } from './shared';
 import './BosTargetPanel.css';
+import { BosSequencePanel } from '../measurement/BosSequencePanel';
 import { BosStillPairPanel } from '../measurement/BosStillPairPanel';
 
 const DEFAULT: BosTargetRequest = {
@@ -249,7 +251,8 @@ export function BosTargetPanel({ initialJob }: JobPanelProps) {
           );
         }}
       </PluginEditorShell>
-      <BosStillPairPanel target={currentManifest} />
+      <BosStillPairPanel target={targetEvidence(currentManifest, request)} />
+      <BosSequencePanel target={targetEvidence(currentManifest, request)} />
     </>
   );
 }

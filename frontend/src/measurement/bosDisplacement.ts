@@ -106,7 +106,7 @@ function match(
   };
 }
 
-function register(reference: GrayFrame, disturbed: GrayFrame) {
+export function register(reference: GrayFrame, disturbed: GrayFrame) {
   const anchors = [];
   const fractions = [0.18, 0.39, 0.61, 0.82];
   for (const fy of fractions)
