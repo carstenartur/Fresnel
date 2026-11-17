@@ -1,5 +1,5 @@
 import { stabilize, type CameraModel } from './bosCameraModel';
-import { analyzePair, register, type GrayFrame, type PairResult } from './bosDisplacement';
+import { analyzePair, register, type LocalSearch, type GrayFrame, type PairResult } from './bosDisplacement';
 import { decodeFrame } from './bosImage';
 
 export interface FrameInput {
@@ -7,13 +7,14 @@ export interface FrameInput {
   sourceWidth?: number;
   sourceHeight?: number;
 }
-export type Request = { kind: 'reference'; inputs: FrameInput[]; cameraModel: CameraModel } | { kind: 'frame'; input: FrameInput };
+export type Request = { kind: 'reference'; inputs: FrameInput[]; cameraModel: CameraModel; localSearch: LocalSearch } | { kind: 'frame'; input: FrameInput };
 export type Reply =
   | { kind: 'ready' }
   | { kind: 'result'; result: PairResult | null; reason?: string; sha256: string; sourceWidth:number; sourceHeight:number }
   | { kind: 'error'; message: string };
 let reference: GrayFrame | undefined;
 let cameraModel: CameraModel = 'translation';
+let localSearch: LocalSearch = 'pyramid';
 let width = 0,
   height = 0;
 
@@ -60,6 +61,7 @@ async function process(message: Request): Promise<Reply> {
     if (!message.inputs.length || message.inputs.length > 5)
       throw new Error('Choose 1–5 reference samples.');
     cameraModel = message.cameraModel;
+    localSearch = message.localSearch;
     const frames: GrayFrame[] = [];
     for (const item of message.inputs) {
       const frame = (await read(item)).frame;
@@ -82,7 +84,7 @@ async function process(message: Request): Promise<Reply> {
   if (!reference) throw new Error('Missing registered reference.');
   const { frame, ...source } = await read(message.input);
   try {
-    return { kind: 'result', result: analyzePair(reference, frame, cameraModel), ...source };
+    return { kind: 'result', result: analyzePair(reference, frame, cameraModel, localSearch), ...source };
   } catch (error) {
     return {
       kind: 'result',
