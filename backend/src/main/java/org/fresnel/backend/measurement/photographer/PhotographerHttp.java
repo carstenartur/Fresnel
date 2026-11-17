@@ -92,11 +92,12 @@ final class PhotographerHttp {
             case "CAMERA_UNAVAILABLE", "CAMERA_NOT_FOUND" -> FailureCode.DEVICE_UNAVAILABLE;
             case "SESSION_NOT_FOUND" -> FailureCode.SESSION_NOT_FOUND;
             case "ASSET_NOT_FOUND" -> FailureCode.ASSET_NOT_FOUND;
+            case "STEP_NOT_FOUND", "UNSUPPORTED_SETTINGS" -> FailureCode.INVALID_PLAN;
             case "INCOMPATIBLE" -> FailureCode.INCOMPATIBLE;
             case "INTEGRITY_MISMATCH" -> FailureCode.INTEGRITY_MISMATCH;
             default -> switch (status) {
                 case 401, 403 -> FailureCode.AUTHENTICATION_FAILED;
-                case 400, 422 -> FailureCode.INVALID_PLAN;
+                case 400, 413, 415, 422 -> FailureCode.INVALID_PLAN;
                 case 409 -> FailureCode.CONFLICT;
                 case 408, 429, 502, 503, 504 -> FailureCode.TRANSIENT_IO;
                 case 404 -> FailureCode.UNAVAILABLE;
@@ -104,7 +105,7 @@ final class PhotographerHttp {
             };
         };
         String detail = Set.of("RECOVERY_REQUIRED", "IDEMPOTENCY_CONFLICT", "STEP_ALREADY_TRIGGERED",
-                "SESSION_CONFLICT", "CAMERA_BUSY", "PATTERN_MISMATCH", "INSUFFICIENT_SCOPE").contains(remote)
+                "LEASE_CONFLICT", "STEP_NOT_READY", "UNSUPPORTED_SETTINGS", "PATTERN_MISMATCH", "INSUFFICIENT_SCOPE").contains(remote)
                 ? remote : code.name();
         return new CaptureProviderException(code, code == FailureCode.TRANSIENT_IO, detail);
     }

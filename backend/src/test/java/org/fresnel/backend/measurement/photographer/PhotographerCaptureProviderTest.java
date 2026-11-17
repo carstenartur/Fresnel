@@ -2,6 +2,7 @@ package org.fresnel.backend.measurement.photographer;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.fresnel.measurement.CapturePlan;
 import org.fresnel.measurement.CaptureProvider;
 import org.fresnel.measurement.CaptureProviderException;
 import org.junit.jupiter.api.AfterEach;
@@ -62,6 +63,21 @@ class PhotographerCaptureProviderTest {
         server.stop(0);
         if (serverFailure != null) throw new AssertionError("Fixture HTTP exchange failed", serverFailure);
         assertTrue(replies.isEmpty(), "Expected every HTTP exchange");
+    }
+
+    @Test
+    void pinsTheProtocolAndFixturesSharedWithPhotographer() throws IOException {
+        var docs = Path.of("../docs/integrations");
+        assertEquals("6cf3676511ea4ba4ddcbc5805bf5052c4e41390df0e0af59ce9f6ae948464afa",
+                digest(docs.resolve("photographer-capture-v1.openapi.yaml")));
+        assertEquals("0c674f2e61ed79c4f3ce2c09559a726fe740afef2463b4ea73a6b79d062d6692",
+                digest(docs.resolve("photographer-capture-v1.fixtures.json")));
+        assertEquals("5b1a77d460fdb900cd375a9c96dd9d204913aae1f51b813640ec56139908b973",
+                digest(docs.resolve("photographer-capture-v1.md")));
+    }
+
+    private static String digest(Path file) throws IOException {
+        return HexFormat.of().formatHex(PhotographerJournal.sha256().digest(Files.readAllBytes(file)));
     }
 
     @Test
@@ -142,9 +158,29 @@ class PhotographerCaptureProviderTest {
         });
         assertEquals(CaptureProvider.FailureCode.INTEGRITY_MISMATCH, assertThrows(CaptureProviderException.class,
                 () -> client().openAsset(session, "asset-reference", CaptureProvider.FullAsset.INSTANCE)).code());
-        metadata(cases.get("media").get(1).get("metadata"));
+        var replacement = (tools.jackson.databind.node.ObjectNode) item.get("metadata").deepCopy();
+        replacement.put("sha256", cases.at("/media/1/metadata/sha256").asText());
+        metadata(replacement);
         assertEquals(CaptureProvider.FailureCode.INTEGRITY_MISMATCH, assertThrows(CaptureProviderException.class,
                 () -> client().getAssetMetadata(session, "asset-reference")).code());
+    }
+
+    @Test
+    void bindsCreateKeyToOriginalSessionAndValidatesNegotiatedSettings() {
+        var bos = PhotographerInteropTest.bos("profile-mock-1");
+        var locked = new CapturePlan(bos.workflowType(), bos.deviceId(),
+                new CapturePlan.Requirements(true, false, bos.requirements().preferredImageFormat()),
+                bos.steps());
+        assertEquals("UNSUPPORTED_SETTINGS", assertThrows(CaptureProviderException.class,
+                () -> provider.createSession(locked, "fixture-bos-1", "create-key")).messageCode());
+        create();
+        var other = (tools.jackson.databind.node.ObjectNode) value("sessionRef").deepCopy();
+        other.put("sessionId", "unexpected-session");
+        reply("/capture-sessions", 201, other);
+        assertEquals(CaptureProvider.FailureCode.INTEGRITY_MISMATCH, assertThrows(CaptureProviderException.class,
+                () -> client().createSession(bos, "fixture-bos-1", "create-key")).code());
+        assertEquals("LOCAL_SESSION_NOT_FOUND", assertThrows(CaptureProviderException.class,
+                () -> client().getSession("unexpected-session")).messageCode());
     }
 
     @Test

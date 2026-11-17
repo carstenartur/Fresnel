@@ -74,6 +74,11 @@ public final class PhotographerPairing {
         return Optional.ofNullable(stored).map(Stored::connection).filter(c -> origin.equals(c.origin()));
     }
 
+    /** Keep the selected origin and grant stable through a provider operation. */
+    synchronized <T> T withConnection(java.util.function.Function<Connection, T> action) {
+        return locked(() -> action.apply(current().orElseThrow(() -> new Failure(409, "PHOTOGRAPHER_NOT_PAIRED"))));
+    }
+
     public Status status() {
         Stored stored = read();
         if (stored == null || stored.connection() == null) return new Status(false, true, null, null, List.of());
@@ -83,7 +88,7 @@ public final class PhotographerPairing {
 
     public synchronized void pair(String code) {
         if (code == null || code.isBlank() || code.length() > 512) throw new Failure(400, "INVALID_PAIRING_CODE");
-        change(() -> {
+        locked(() -> {
             Stored stored = read();
             if (stored != null && stored.connection() != null) throw new Failure(409, "ALREADY_PAIRED");
             if (stored == null) {
@@ -92,14 +97,16 @@ public final class PhotographerPairing {
             }
             JsonNode grant = exchange(code, stored.fresnelInstanceId());
             save(new Stored(stored.fresnelInstanceId(), connection(grant)));
+            return null;
         });
     }
 
     /** Remove the local token. The authenticated Photographer administrator controls remote revocation. */
     public synchronized void forget() {
-        change(() -> {
+        locked(() -> {
             Stored stored = read();
             if (stored != null) save(new Stored(stored.fresnelInstanceId(), null));
+            return null;
         });
     }
 
@@ -173,14 +180,14 @@ public final class PhotographerPairing {
         } catch (IOException | tools.jackson.core.JacksonException e) { throw new Failure(500, "PAIRING_STORE_UNAVAILABLE"); }
     }
 
-    private void change(Runnable action) {
+    private <T> T locked(java.util.function.Supplier<T> action) {
         try {
             if (directory.getFileSystem().supportedFileAttributeViews().contains("posix"))
                 Files.createDirectories(directory, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
             else Files.createDirectories(directory);
             try (var channel = FileChannel.open(directory.resolve("pairing.lock"), StandardOpenOption.CREATE,
                     StandardOpenOption.WRITE); var lock = channel.lock()) {
-                action.run();
+                return action.get();
             }
         } catch (IOException e) { throw new Failure(500, "PAIRING_STORE_UNAVAILABLE"); }
     }

@@ -1,6 +1,7 @@
 package org.fresnel.backend.measurement.photographer;
 
 import org.fresnel.backend.security.SecurityConfig;
+import org.fresnel.backend.security.MockMvcSecurityConfig;
 import org.fresnel.backend.security.SecurityCredentials;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +9,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.boot.test.context.TestConfiguration;
 
 import java.util.List;
 
@@ -20,8 +23,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "fresnel.capture.photographer.enabled=true",
         "fresnel.security.admin.password=pair-admin-test", "fresnel.security.user.password=pair-user-test"
 })
-@Import({SecurityConfig.class, SecurityCredentials.class})
+@Import({SecurityConfig.class, SecurityCredentials.class, MockMvcSecurityConfig.class, PhotographerPairingAuthorizationTest.TestSecurity.class})
 class PhotographerPairingAuthorizationTest {
+    @TestConfiguration(proxyBeanMethods = false)
+    @EnableWebSecurity
+    static class TestSecurity {}
+
     private static final String PATH = "/api/admin/capture-providers/photographer/pairing";
     @Autowired MockMvc mvc;
     @MockitoBean PhotographerPairing pairing;

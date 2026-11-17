@@ -1,5 +1,6 @@
 package org.fresnel.backend.measurement.photographer;
 
+import org.fresnel.backend.desktop.DesktopDataDirectory;
 import org.fresnel.measurement.CapturePlan;
 import org.fresnel.measurement.CaptureProvider;
 import org.fresnel.measurement.CaptureProviderException;
@@ -36,8 +37,9 @@ public final class PhotographerCaptureProvider implements CaptureProvider {
 
     @Autowired
     public PhotographerCaptureProvider(PhotographerPairing pairing,
-            @Value("${fresnel.capture.photographer.journal-directory:./data/photographer-captures}") Path directory) {
-        this(pairing::current, directory);
+            @Value("${fresnel.capture.photographer.journal-directory:}") String directory) {
+        this(pairing::current, directory.isBlank() ? DesktopDataDirectory.resolve().resolve("photographer-captures")
+                : Path.of(directory));
     }
 
     PhotographerCaptureProvider(Supplier<Optional<PhotographerPairing.Connection>> pairing, Path directory) {
@@ -109,20 +111,29 @@ public final class PhotographerCaptureProvider implements CaptureProvider {
         wire.put("externalExperimentId", id(externalExperimentId)).put("cameraProfileId", plan.deviceId())
                 .put("workflowType", plan.workflowType().name());
         var req = plan.requirements();
+        var capabilities = conn.descriptor();
+        if (!capabilities.supportedFormats().contains(req.preferredImageFormat())
+                || (req.lockExposure() && !capabilities.supports(Capability.EXPOSURE_LOCK))
+                || (req.lockFocus() && !capabilities.supports(Capability.FOCUS_LOCK))) {
+            throw new CaptureProviderException(FailureCode.INVALID_PLAN, false, "UNSUPPORTED_SETTINGS");
+        }
         wire.putObject("requestedSettings").put("lockExposure", req.lockExposure()).put("lockFocus", req.lockFocus())
                 .put("preferredFormat", req.preferredImageFormat().name());
         var steps = wire.putArray("steps");
+        long totalMillis = 0;
         for (var step : plan.steps()) {
             long millis = step.settleDelay().toMillis();
             if (!Duration.ofMillis(millis).equals(step.settleDelay()) || step.triggerMode() != CapturePlan.TriggerMode.EXTERNAL) {
                 throw new CaptureProviderException(FailureCode.INVALID_PLAN, false, "UNSUPPORTED_CAPTURE_STEP");
             }
+            totalMillis += millis;
             var s = steps.addObject().put("id", step.id()).put("sequenceIndex", step.sequenceIndex())
                     .put("role", step.role().name()).put("triggerMode", step.triggerMode().name()).put("settleDelayMs", millis);
             pattern(s, step.externalPatternId(), step.externalPatternSha256());
         }
         byte[] body = JSON.writeValueAsBytes(wire);
-        if (body.length > 131072 || plan.steps().size() > conn.descriptor().limits().maximumSteps()) {
+        if (body.length > 131072 || plan.steps().size() > capabilities.limits().maximumSteps()
+                || Duration.ofMillis(totalMillis).compareTo(capabilities.limits().maximumSessionDuration()) > 0) {
             throw new CaptureProviderException(FailureCode.INVALID_PLAN, false, "PLAN_LIMIT_EXCEEDED");
         }
         body = journal.pin(conn, List.of("create", key), body, FailureCode.CONFLICT, true);
@@ -132,6 +143,8 @@ public final class PhotographerCaptureProvider implements CaptureProvider {
                 effective.required("lockFocus").booleanValue(), enumValue(effective, "format", CapturePlan.ImageFormat.class));
         if (!plan.deviceId().equals(text(result, "cameraProfileId")) || !req.equals(settings)) throw incompatible();
         String session = id(text(result, "sessionId"));
+        journal.pin(conn, List.of("create-result", key), JSON.writeValueAsBytes(List.of(session, text(result, "createdAt"))),
+                FailureCode.INTEGRITY_MISMATCH, false);
         journal.pin(conn, List.of("session", session), body, FailureCode.INTEGRITY_MISMATCH, false);
         return new SessionRef(session, plan, instant(result, "createdAt"));
     }
@@ -201,7 +214,8 @@ public final class PhotographerCaptureProvider implements CaptureProvider {
                 throw new CaptureProviderException(failure.code(), failure.retryable(), failure.messageCode());
             }
             if (state.state().isTerminal() || state.state() == SessionState.RECOVERY_REQUIRED || state.state() == SessionState.PAUSED) {
-                throw new CaptureProviderException(FailureCode.CONFLICT, false, "STEP_RESULT_UNAVAILABLE");
+                throw new CaptureProviderException(FailureCode.CONFLICT, false, state.state() == SessionState.RECOVERY_REQUIRED
+                        ? "RECOVERY_REQUIRED" : "STEP_RESULT_UNAVAILABLE");
             }
             if (System.nanoTime() - started >= budget) throw transport();
             try {
@@ -247,7 +261,10 @@ public final class PhotographerCaptureProvider implements CaptureProvider {
             events.add(new Event(w.get("eventId").longValue(), session, step, enumValue(w, "state", SessionState.class),
                     text(w, "messageCode"), instant(w, "timestamp"), asset));
         }
-        return new EventPage(events, page.required("lastEventId").longValue(), page.required("hasMore").booleanValue());
+        boolean hasMore = page.required("hasMore").booleanValue();
+        long cursor = events.isEmpty() ? after : events.getLast().eventId();
+        if ((hasMore && events.isEmpty()) || page.required("lastEventId").longValue() < cursor) throw incompatible();
+        return new EventPage(events, cursor, hasMore);
     }
 
     @Override

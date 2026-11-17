@@ -146,3 +146,19 @@ On Windows, grant access only to that account using the directory ACL. Keep this
 of shared diagnostics and protect any backups. A changed origin requires an administrator
 to forget the saved pairing and enter a new code. **Forget local pairing** deletes the token in
 Fresnel. To invalidate the grant at its source and stop its captures, revoke it in Photographer.
+
+### Capturing a BOS reference and disturbed image
+
+In **Camera service → Background-oriented schlieren capture**, sign in with a Fresnel
+operator account, choose an available PNG-capable camera and select **Start BOS capture**.
+Set up the undisturbed scene, check its acknowledgement and select **Capture reference**.
+Prepare the disturbed scene and use the second acknowledgement to capture it. The completed
+experiment shows both images and provides each verified PNG for download. The operator
+can reopen their saved experiments after signing in again or cancel an unfinished sequence.
+Photographer retains the camera lease across both steps.
+
+The Fresnel server stores the operator-owned experiments and original PNGs in the
+`bos-captures` subdirectory of its data directory. Override this with
+`FRESNEL_CAPTURE_PHOTOGRAPHER_EXPERIMENTS_DIRECTORY`. Set
+`FRESNEL_CAPTURE_PHOTOGRAPHER_JOURNAL_DIRECTORY` to a persistent location for the
+adapter's replay records when using a container. Back up all three directories together.

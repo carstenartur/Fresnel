@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { PhotographerPairingPanel } from './PhotographerPairingPanel';
+import { BosCapturePanel } from './BosCapturePanel';
 import {
   fetchCaptureProviderOverview,
   type CaptureProviderHealthState,
@@ -125,7 +126,10 @@ export function CaptureProviderStatus() {
       )}
 
       {overview?.providers.some(provider => provider.id === 'photographer-rest') && (
-        <PhotographerPairingPanel onChanged={() => setPairingRevision(value => value + 1)} />
+        <>
+          <PhotographerPairingPanel onChanged={() => setPairingRevision(value => value + 1)} />
+          <BosCapturePanel />
+        </>
       )}
 
       {overview && (
