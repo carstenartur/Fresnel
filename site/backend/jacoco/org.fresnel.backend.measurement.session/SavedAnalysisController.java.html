@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SavedAnalysisController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.session</a> &gt; <span class="el_source">SavedAnalysisController.java</span></div><h1>SavedAnalysisController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.session;
+
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.bind.annotation.*;
+import java.io.IOException;
+import java.security.Principal;
+import java.util.UUID;
+
+@RestController
+@RequestMapping(&quot;/api/measurement-sessions/{id}/analysis/{attempt}&quot;)
+class SavedAnalysisController {
+    private final MeasurementSessions sessions;
+<span class="fc" id="L13">    SavedAnalysisController(MeasurementSessions sessions) { this.sessions = sessions; }</span>
+
+    @PutMapping
+    MeasurementSessions.View start(Principal user, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;attempt&quot;) UUID attempt,
+            @RequestHeader(value=&quot;X-Previous-Analysis&quot;,required=false) UUID previous) throws IOException {
+<span class="nc" id="L18">        return sessions.startAnalysis(user.getName(),id,attempt,previous);</span>
+    }
+
+    @DeleteMapping
+    MeasurementSessions.View stop(Principal user, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;attempt&quot;) UUID attempt,
+            @RequestParam(value=&quot;failed&quot;,defaultValue=&quot;false&quot;) boolean failed) throws IOException {
+<span class="nc" id="L24">        return sessions.stopAnalysis(user.getName(),id,attempt,failed);</span>
+    }
+
+    @PutMapping(value=&quot;/result&quot;,consumes=&quot;application/json&quot;)
+    MeasurementSessions.View result(Principal user, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;attempt&quot;) UUID attempt,
+            @RequestHeader(&quot;X-Content-SHA256&quot;) String sha, HttpServletRequest request) throws IOException {
+<span class="nc" id="L30">        return sessions.analysisResult(user.getName(),id,attempt,request.getContentType().split(&quot;;&quot;)[0],sha,request.getInputStream());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

@@ -15,126 +15,165 @@ import static org.fresnel.backend.measurement.session.MeasurementSessions.*;
 @Service
 class MeasurementBundles {
     static final String TYPE = &quot;application/vnd.carstenartur.fresnel.experiment+zip&quot;;
+    private static final int MAX_ENTRIES = MAX_BOS_FRAMES + 5;
     private static final int MANIFEST_MAX = 96 &lt;&lt; 10;
     private final MeasurementSessions sessions;
-<span class="fc" id="L20">    MeasurementBundles(MeasurementSessions sessions) { this.sessions = sessions; }</span>
-<span class="fc" id="L21">    record Manifest(int version, Plan plan, Map&lt;String,Asset&gt; assets) {}</span>
+    private final ExperimentDocuments documents;
+<span class="fc" id="L22">    MeasurementBundles(MeasurementSessions sessions, ExperimentDocuments documents) {</span>
+<span class="fc" id="L23">        this.sessions = sessions; this.documents = documents;</span>
+<span class="fc" id="L24">    }</span>
+<span class="fc" id="L25">    record Manifest(int version, Plan plan, Map&lt;String,Asset&gt; assets, String jobSha256, String reportSha256, CaptureEvidence capture) {}</span>
 
     void export(String owner, UUID id, OutputStream output) throws IOException {
-<span class="fc" id="L24">        var lock = sessions.lock(owner); lock.lock();</span>
+<span class="fc" id="L28">        var lock = sessions.lock(owner); lock.lock();</span>
         try {
-<span class="fc" id="L26">            View view = sessions.get(owner, id);</span>
-<span class="fc" id="L27">            try (var zip = new ZipOutputStream(output)) {</span>
-<span class="fc" id="L28">                byte[] manifest = sessions.json.writeValueAsBytes(new Manifest(1, view.plan(), new TreeMap&lt;&gt;(view.assets())));</span>
-<span class="fc" id="L29">                add(zip, &quot;manifest.json&quot;, new ByteArrayInputStream(manifest));</span>
-<span class="fc" id="L30">                Set&lt;String&gt; names = new HashSet&lt;&gt;();</span>
-<span class="fc bfc" id="L31" title="All 2 branches covered.">                for (var item : new TreeMap&lt;&gt;(view.assets()).entrySet()) {</span>
-<span class="fc" id="L32">                    String path = entryName(item.getKey(), item.getValue());</span>
-<span class="pc bpc" id="L33" title="1 of 2 branches missed.">                    if (names.add(path)) try (var source = Files.newInputStream(sessions.source(owner, id, item.getKey()).path())) {</span>
-<span class="fc" id="L34">                        add(zip, path, source);</span>
+<span class="fc" id="L30">            View view = sessions.get(owner, id);</span>
+<span class="fc" id="L31">            try (var zip = new ZipOutputStream(output)) {</span>
+<span class="fc" id="L32">                byte[] job = documents.job(view.plan());</span>
+<span class="fc" id="L33">                var capture = CaptureEvidence.read(sessions.dir(owner,id),sessions.json);</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">                if (capture != null) capture.verify(view.plan(), view.assets());</span>
+<span class="fc bfc" id="L35" title="All 2 branches covered.">                byte[] report = documents.report(view.plan(), view.assets(), job != null, capture);</span>
+<span class="fc" id="L36">                byte[] manifest = sessions.json.writeValueAsBytes(new Manifest(1, view.plan(), new TreeMap&lt;&gt;(view.assets()),</span>
+<span class="fc bfc" id="L37" title="All 2 branches covered.">                        job == null ? null : hash(job), hash(report), capture));</span>
+<span class="fc" id="L38">                add(zip, &quot;manifest.json&quot;, new ByteArrayInputStream(manifest));</span>
+<span class="fc" id="L39">                add(zip, &quot;reports/summary.md&quot;, new ByteArrayInputStream(report));</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">                if (job != null) add(zip, &quot;job.fresnel&quot;, new ByteArrayInputStream(job));</span>
+<span class="fc" id="L41">                Set&lt;String&gt; names = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">                for (var item : new TreeMap&lt;&gt;(view.assets()).entrySet()) {</span>
+<span class="fc" id="L43">                    String path = entryName(item.getKey(), item.getValue());</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">                    if (names.add(path)) try (var source = Files.newInputStream(sessions.source(owner, id, item.getKey()).path())) {</span>
+<span class="fc" id="L45">                        add(zip, path, source);</span>
                     }
-<span class="fc" id="L36">                }</span>
+<span class="fc" id="L47">                }</span>
             }
-<span class="fc" id="L38">        } finally { lock.unlock(); }</span>
-<span class="fc" id="L39">    }</span>
+<span class="fc" id="L49">        } finally { lock.unlock(); }</span>
+<span class="fc" id="L50">    }</span>
     private static void add(ZipOutputStream zip, String path, InputStream data) throws IOException {
-<span class="fc" id="L41">        var entry = new ZipEntry(path);</span>
-<span class="fc" id="L42">        entry.setTimeLocal(java.time.LocalDateTime.of(2000,1,1,0,0));</span>
-<span class="fc" id="L43">        zip.putNextEntry(entry);</span>
-<span class="fc" id="L44">        data.transferTo(zip);</span>
-<span class="fc" id="L45">        zip.closeEntry();</span>
-<span class="fc" id="L46">    }</span>
+<span class="fc" id="L52">        var entry = new ZipEntry(path);</span>
+<span class="fc" id="L53">        entry.setTimeLocal(java.time.LocalDateTime.of(2000,1,1,0,0));</span>
+<span class="fc" id="L54">        zip.putNextEntry(entry);</span>
+<span class="fc" id="L55">        data.transferTo(zip);</span>
+<span class="fc" id="L56">        zip.closeEntry();</span>
+<span class="fc" id="L57">    }</span>
 
     View read(String owner, InputStream input) throws IOException {
-<span class="fc" id="L49">        Path stage = Files.createTempFile(&quot;fresnel-experiment-&quot;, &quot;.zip&quot;);</span>
+<span class="fc" id="L60">        Path stage = Files.createTempFile(&quot;fresnel-experiment-&quot;, &quot;.zip&quot;);</span>
         try {
-<span class="fc" id="L51">            try (var out = Files.newOutputStream(stage)) { copy(input, out, SESSION_BYTES + (2L &lt;&lt; 20)); }</span>
-<span class="fc" id="L52">            checkDirectory(stage);</span>
-<span class="fc" id="L53">            try (var zip = ZipFile.builder().setPath(stage).get()) { return importEntries(owner, zip); }</span>
-<span class="nc" id="L54">            catch (java.util.zip.ZipException e) { throw bad(&quot;Invalid experiment ZIP&quot;); }</span>
-<span class="fc" id="L55">        } finally { Files.deleteIfExists(stage); }</span>
+<span class="fc" id="L62">            try (var out = Files.newOutputStream(stage)) { copy(input, out, SESSION_BYTES + (2L &lt;&lt; 20)); }</span>
+<span class="fc" id="L63">            checkDirectory(stage);</span>
+<span class="fc" id="L64">            try (var zip = ZipFile.builder().setPath(stage).get()) { return importEntries(owner, zip); }</span>
+<span class="nc" id="L65">            catch (java.util.zip.ZipException e) { throw bad(&quot;Invalid experiment ZIP&quot;); }</span>
+<span class="fc" id="L66">        } finally { Files.deleteIfExists(stage); }</span>
     }
 
     // Writers produce a single-volume classic ZIP. Bound the central directory before opening it.
     private static void checkDirectory(Path stage) throws IOException {
-<span class="fc" id="L60">        try (var file = new RandomAccessFile(stage.toFile(), &quot;r&quot;)) {</span>
-<span class="pc bpc" id="L61" title="1 of 2 branches missed.">            if (file.length() &lt; 22) throw bad(&quot;Incomplete ZIP&quot;);</span>
-<span class="fc" id="L62">            file.seek(file.length() - 22);</span>
-<span class="fc" id="L63">            byte[] end = new byte[22]; file.readFully(end);</span>
-<span class="fc" id="L64">            var header = java.nio.ByteBuffer.wrap(end).order(java.nio.ByteOrder.LITTLE_ENDIAN);</span>
-<span class="fc" id="L65">            int entries = Short.toUnsignedInt(header.getShort(10));</span>
-<span class="fc" id="L66">            long directorySize = Integer.toUnsignedLong(header.getInt(12));</span>
-<span class="fc" id="L67">            long directoryOffset = Integer.toUnsignedLong(header.getInt(16));</span>
-<span class="pc bpc" id="L68" title="3 of 6 branches missed.">            if (header.getInt(0) != 0x06054b50 || header.getInt(4) != 0 || header.getShort(20) != 0</span>
-<span class="pc bpc" id="L69" title="4 of 8 branches missed.">                    || entries != Short.toUnsignedInt(header.getShort(8)) || entries == 0 || entries &gt; 20</span>
-<span class="pc bpc" id="L70" title="1 of 2 branches missed.">                    || directorySize &gt; 8192 || directoryOffset + directorySize != file.length() - 22) throw bad(&quot;Unsupported ZIP layout&quot;);</span>
+<span class="fc" id="L71">        try (var file = new RandomAccessFile(stage.toFile(), &quot;r&quot;)) {</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">            if (file.length() &lt; 22) throw bad(&quot;Incomplete ZIP&quot;);</span>
+<span class="fc" id="L73">            file.seek(file.length() - 22);</span>
+<span class="fc" id="L74">            byte[] end = new byte[22]; file.readFully(end);</span>
+<span class="fc" id="L75">            var header = java.nio.ByteBuffer.wrap(end).order(java.nio.ByteOrder.LITTLE_ENDIAN);</span>
+<span class="fc" id="L76">            int entries = Short.toUnsignedInt(header.getShort(10));</span>
+<span class="fc" id="L77">            long directorySize = Integer.toUnsignedLong(header.getInt(12));</span>
+<span class="fc" id="L78">            long directoryOffset = Integer.toUnsignedLong(header.getInt(16));</span>
+<span class="pc bpc" id="L79" title="3 of 6 branches missed.">            if (header.getInt(0) != 0x06054b50 || header.getInt(4) != 0 || header.getShort(20) != 0</span>
+<span class="pc bpc" id="L80" title="4 of 8 branches missed.">                    || entries != Short.toUnsignedInt(header.getShort(8)) || entries == 0 || entries &gt; MAX_ENTRIES</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">                    || directorySize &gt; 8192 || directoryOffset + directorySize != file.length() - 22) throw bad(&quot;Unsupported ZIP layout&quot;);</span>
         }
-<span class="fc" id="L72">    }</span>
+<span class="fc" id="L83">    }</span>
 
     private View importEntries(String owner, ZipFile zip) throws IOException {
-<span class="fc" id="L75">        var entries = new HashMap&lt;String,ZipArchiveEntry&gt;();</span>
-<span class="fc" id="L76">        long expanded = 0;</span>
-<span class="fc bfc" id="L77" title="All 2 branches covered.">        for (var iterator = zip.getEntries(); iterator.hasMoreElements();) {</span>
-<span class="fc" id="L78">            var entry = iterator.nextElement();</span>
-<span class="pc bpc" id="L79" title="3 of 6 branches missed.">            if (entries.size() &gt;= 20 || entry.isDirectory() || entry.isUnixSymlink()</span>
-<span class="pc bpc" id="L80" title="3 of 6 branches missed.">                    || !zip.canReadEntryData(entry) || entry.getSize() &lt; 0 || entry.getSize() &gt; RESULT_BYTES</span>
-<span class="pc bpc" id="L81" title="3 of 4 branches missed.">                    || (entry.getMethod() != ZipEntry.DEFLATED &amp;&amp; entry.getMethod() != ZipEntry.STORED)</span>
-<span class="pc bpc" id="L82" title="1 of 2 branches missed.">                    || entries.putIfAbsent(entry.getName(), entry) != null) throw bad(&quot;Invalid experiment ZIP entry&quot;);</span>
-<span class="fc" id="L83">            expanded += entry.getSize();</span>
-<span class="pc bpc" id="L84" title="1 of 2 branches missed.">            if (expanded &gt; SESSION_BYTES + MANIFEST_MAX) throw bad(&quot;Experiment exceeds size limit&quot;);</span>
-<span class="fc" id="L85">        }</span>
-<span class="fc" id="L86">        var metadata = entries.get(&quot;manifest.json&quot;);</span>
-<span class="pc bpc" id="L87" title="1 of 4 branches missed.">        if (metadata == null || metadata.getSize() &gt; MANIFEST_MAX) throw bad(&quot;Missing or oversized manifest&quot;);</span>
+<span class="fc" id="L86">        var entries = new HashMap&lt;String,ZipArchiveEntry&gt;();</span>
+<span class="fc" id="L87">        long expanded = 0;</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        for (var iterator = zip.getEntries(); iterator.hasMoreElements();) {</span>
+<span class="fc" id="L89">            var entry = iterator.nextElement();</span>
+<span class="pc bpc" id="L90" title="3 of 6 branches missed.">            if (entries.size() &gt;= MAX_ENTRIES || entry.isDirectory() || entry.isUnixSymlink()</span>
+<span class="pc bpc" id="L91" title="3 of 6 branches missed.">                    || !zip.canReadEntryData(entry) || entry.getSize() &lt; 0 || entry.getSize() &gt; VIDEO_BYTES</span>
+<span class="pc bpc" id="L92" title="3 of 4 branches missed.">                    || (entry.getMethod() != ZipEntry.DEFLATED &amp;&amp; entry.getMethod() != ZipEntry.STORED)</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">                    || entries.putIfAbsent(entry.getName(), entry) != null) throw bad(&quot;Invalid experiment ZIP entry&quot;);</span>
+<span class="fc" id="L94">            expanded += entry.getSize();</span>
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">            if (expanded &gt; SESSION_BYTES + 3L * MANIFEST_MAX) throw bad(&quot;Experiment exceeds size limit&quot;);</span>
+<span class="fc" id="L96">        }</span>
+<span class="fc" id="L97">        var metadata = entries.get(&quot;manifest.json&quot;);</span>
+<span class="pc bpc" id="L98" title="1 of 4 branches missed.">        if (metadata == null || metadata.getSize() &gt; MANIFEST_MAX) throw bad(&quot;Missing or oversized manifest&quot;);</span>
         Manifest m;
-<span class="fc" id="L89">        try (var in = zip.getInputStream(metadata)) {</span>
-<span class="fc" id="L90">            var bytes = new ByteArrayOutputStream();</span>
-<span class="fc" id="L91">            copy(in, bytes, MANIFEST_MAX);</span>
-<span class="fc" id="L92">            m = sessions.json.readValue(bytes.toByteArray(), Manifest.class);</span>
-<span class="pc" id="L93">        } catch (tools.jackson.core.JacksonException e) { throw bad(&quot;Invalid experiment manifest&quot;); }</span>
-<span class="pc bpc" id="L94" title="3 of 6 branches missed.">        if (m == null || m.version != 1 || m.assets == null) throw bad(&quot;Unsupported experiment manifest&quot;);</span>
-<span class="fc" id="L95">        sessions.validate(m.plan);</span>
-<span class="fc" id="L96">        Set&lt;String&gt; expected = new HashSet&lt;&gt;(Set.of(&quot;manifest.json&quot;));</span>
-<span class="fc bfc" id="L97" title="All 2 branches covered.">        for (var item : m.assets.entrySet()) {</span>
-<span class="fc" id="L98">            Asset a = item.getValue();</span>
-<span class="pc bpc" id="L99" title="2 of 6 branches missed.">            if ((!m.plan.steps().contains(item.getKey()) &amp;&amp; !&quot;result&quot;.equals(item.getKey())) || a == null ||</span>
-<span class="pc bpc" id="L100" title="2 of 4 branches missed.">                    a.sha256() == null || !a.sha256().matches(&quot;[0-9a-f]{64}&quot;)) throw bad(&quot;Invalid asset declaration&quot;);</span>
-<span class="fc" id="L101">            String name = entryName(item.getKey(), a);</span>
-<span class="fc" id="L102">            expected.add(name);</span>
-<span class="pc bpc" id="L103" title="2 of 4 branches missed.">            if (!entries.containsKey(name) || entries.get(name).getSize() != a.byteLength()) throw bad(&quot;Asset size mismatch&quot;);</span>
-<span class="fc" id="L104">        }</span>
-<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        if (!expected.equals(entries.keySet())) throw bad(&quot;Unexpected file in experiment&quot;);</span>
+<span class="fc" id="L100">        try (var in = zip.getInputStream(metadata)) {</span>
+<span class="fc" id="L101">            var bytes = new ByteArrayOutputStream();</span>
+<span class="fc" id="L102">            copy(in, bytes, MANIFEST_MAX);</span>
+<span class="fc" id="L103">            m = sessions.json.readValue(bytes.toByteArray(), Manifest.class);</span>
+<span class="pc" id="L104">        } catch (tools.jackson.core.JacksonException e) { throw bad(&quot;Invalid experiment manifest&quot;); }</span>
+<span class="pc bpc" id="L105" title="3 of 6 branches missed.">        if (m == null || m.version != 1 || m.assets == null) throw bad(&quot;Unsupported experiment manifest&quot;);</span>
+<span class="fc" id="L106">        sessions.validate(m.plan);</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">        if (m.capture != null) {</span>
+<span class="fc" id="L108">            m.capture.verify(m.plan, m.assets);</span>
+<span class="fc" id="L109">            m.capture.verifyIllumination(m.plan, sessions.json);</span>
+        }
+<span class="fc" id="L111">        Set&lt;String&gt; expected = new HashSet&lt;&gt;(Set.of(&quot;manifest.json&quot;));</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">        if (m.reportSha256 != null) {</span>
+<span class="fc" id="L113">            checkedDocument(zip, entries, &quot;reports/summary.md&quot;, m.reportSha256);</span>
+<span class="fc" id="L114">            expected.add(&quot;reports/summary.md&quot;);</span>
+        }
+<span class="fc bfc" id="L116" title="All 2 branches covered.">        if (m.jobSha256 != null) {</span>
+<span class="fc" id="L117">            byte[] job = checkedDocument(zip, entries, &quot;job.fresnel&quot;, m.jobSha256);</span>
+<span class="fc" id="L118">            documents.checkJob(job, m.plan);</span>
+<span class="fc" id="L119">            expected.add(&quot;job.fresnel&quot;);</span>
+        }
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        for (var item : m.assets.entrySet()) {</span>
+<span class="fc" id="L122">            Asset a = item.getValue();</span>
+<span class="pc bpc" id="L123" title="2 of 6 branches missed.">            if ((!m.plan.steps().contains(item.getKey()) &amp;&amp; !&quot;result&quot;.equals(item.getKey())) || a == null ||</span>
+<span class="pc bpc" id="L124" title="2 of 4 branches missed.">                    a.sha256() == null || !a.sha256().matches(&quot;[0-9a-f]{64}&quot;)) throw bad(&quot;Invalid asset declaration&quot;);</span>
+<span class="fc" id="L125">            String name = entryName(item.getKey(), a);</span>
+<span class="fc" id="L126">            expected.add(name);</span>
+<span class="pc bpc" id="L127" title="2 of 4 branches missed.">            if (!entries.containsKey(name) || entries.get(name).getSize() != a.byteLength()) throw bad(&quot;Asset size mismatch&quot;);</span>
+<span class="fc" id="L128">        }</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">        if (!expected.equals(entries.keySet())) throw bad(&quot;Unexpected file in experiment&quot;);</span>
         // Hold the owner lock until all inputs pass normal upload validation, including their digest.
-<span class="fc" id="L107">        var lock = sessions.lock(owner); lock.lock();</span>
+<span class="fc" id="L131">        var lock = sessions.lock(owner); lock.lock();</span>
         try {
-<span class="pc bpc" id="L109" title="1 of 2 branches missed.">            if (sessions.list(owner).size() &gt;= MAX_SESSIONS) throw conflict(&quot;Delete an older measurement before importing another&quot;);</span>
-<span class="fc" id="L110">            Path ownerDirectory = sessions.ownerDir(owner);</span>
-<span class="fc" id="L111">            Files.createDirectories(ownerDirectory);</span>
-<span class="fc" id="L112">            Path stagingDirectory = Files.createTempDirectory(ownerDirectory, &quot;.import-&quot;);</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">            if (sessions.list(owner).size() &gt;= MAX_SESSIONS) throw conflict(&quot;Delete an older measurement before importing another&quot;);</span>
+<span class="fc" id="L134">            Path ownerDirectory = sessions.ownerDir(owner);</span>
+<span class="fc" id="L135">            Files.createDirectories(ownerDirectory);</span>
+<span class="fc" id="L136">            Path stagingDirectory = Files.createTempDirectory(ownerDirectory, &quot;.import-&quot;);</span>
             try {
                 // A restart must never expose a half-imported experiment as a saved session.
-<span class="fc" id="L115">                var staging = new MeasurementSessions(sessions.json, stagingDirectory.toString());</span>
-<span class="fc" id="L116">                View v = staging.create(owner, m.plan);</span>
-<span class="fc" id="L117">                List&lt;String&gt; order = new ArrayList&lt;&gt;(m.plan.steps());</span>
-<span class="fc" id="L118">                order.add(&quot;result&quot;);</span>
-<span class="fc bfc" id="L119" title="All 2 branches covered.">                for (String step : order) {</span>
-<span class="fc" id="L120">                    Asset a = m.assets.get(step);</span>
-<span class="pc bpc" id="L121" title="1 of 2 branches missed.">                    if (a == null) continue;</span>
-<span class="fc" id="L122">                    try (var in = zip.getInputStream(entries.get(entryName(step, a)))) {</span>
-<span class="fc" id="L123">                        v = staging.put(owner, v.id(), step, a.mediaType(), a.sha256(), in);</span>
+<span class="fc" id="L139">                var staging = new MeasurementSessions(sessions.json, stagingDirectory.toString());</span>
+<span class="fc" id="L140">                View v = staging.create(owner, m.plan);</span>
+<span class="fc" id="L141">                List&lt;String&gt; order = new ArrayList&lt;&gt;(m.plan.steps());</span>
+<span class="fc" id="L142">                order.add(&quot;result&quot;);</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">                for (String step : order) {</span>
+<span class="fc" id="L144">                    Asset a = m.assets.get(step);</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">                    if (a == null) continue;</span>
+<span class="fc" id="L146">                    try (var in = zip.getInputStream(entries.get(entryName(step, a)))) {</span>
+<span class="fc" id="L147">                        v = staging.put(owner, v.id(), step, a.mediaType(), a.sha256(), in);</span>
                     }
-<span class="pc bpc" id="L125" title="1 of 2 branches missed.">                    if (!v.assets().get(step).equals(a)) throw bad(&quot;Asset metadata mismatch&quot;);</span>
-<span class="fc" id="L126">                }</span>
-<span class="fc" id="L127">                Files.move(staging.dir(owner, v.id()), sessions.dir(owner, v.id()), StandardCopyOption.ATOMIC_MOVE);</span>
-<span class="fc" id="L128">                return v;</span>
-<span class="fc" id="L129">            } finally { MeasurementSessions.remove(stagingDirectory); }</span>
-<span class="fc" id="L130">        } finally { lock.unlock(); }</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">                    if (!v.assets().get(step).equals(a)) throw bad(&quot;Asset metadata mismatch&quot;);</span>
+<span class="fc" id="L150">                }</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">                if (m.capture != null) Files.write(staging.dir(owner,v.id()).resolve(CaptureEvidence.FILE),</span>
+<span class="fc" id="L152">                        sessions.json.writeValueAsBytes(m.capture), StandardOpenOption.CREATE_NEW);</span>
+<span class="fc" id="L153">                Files.move(staging.dir(owner, v.id()), sessions.dir(owner, v.id()), StandardCopyOption.ATOMIC_MOVE);</span>
+<span class="fc" id="L154">                return v;</span>
+<span class="fc" id="L155">            } finally { MeasurementSessions.remove(stagingDirectory); }</span>
+<span class="fc" id="L156">        } finally { lock.unlock(); }</span>
+    }
+
+    private static byte[] checkedDocument(ZipFile zip, Map&lt;String,ZipArchiveEntry&gt; entries, String name, String digest) throws IOException {
+<span class="fc" id="L160">        var entry = entries.get(name);</span>
+<span class="pc bpc" id="L161" title="2 of 4 branches missed.">        if (entry == null || entry.getSize() &gt; MANIFEST_MAX) throw bad(&quot;Missing or oversized experiment document&quot;);</span>
+<span class="fc" id="L162">        try (var stream = zip.getInputStream(entry)) {</span>
+<span class="fc" id="L163">            var bytes = new ByteArrayOutputStream();</span>
+<span class="fc" id="L164">            copy(stream, bytes, MANIFEST_MAX);</span>
+<span class="fc" id="L165">            byte[] data = bytes.toByteArray();</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">            if (!hash(data).equals(digest)) throw bad(&quot;Experiment document checksum mismatch&quot;);</span>
+<span class="fc" id="L167">            return data;</span>
+        }
     }
 
     private static String entryName(String step, Asset a) {
-<span class="pc bpc" id="L134" title="1 of 4 branches missed.">        if (&quot;result&quot;.equals(step) &amp;&amp; &quot;application/json&quot;.equals(a.mediaType())) return &quot;results/result.json&quot;;</span>
-<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        if (&quot;image/png&quot;.equals(a.mediaType())) return &quot;assets/&quot; + a.sha256() + &quot;.png&quot;;</span>
-<span class="nc bnc" id="L136" title="All 2 branches missed.">        if (&quot;image/jpeg&quot;.equals(a.mediaType())) return &quot;assets/&quot; + a.sha256() + &quot;.jpg&quot;;</span>
-<span class="nc" id="L137">        throw bad(&quot;Unsupported archive media type&quot;);</span>
+<span class="pc bpc" id="L172" title="1 of 4 branches missed.">        if (&quot;result&quot;.equals(step) &amp;&amp; &quot;application/json&quot;.equals(a.mediaType())) return &quot;results/result.json&quot;;</span>
+<span class="pc bpc" id="L173" title="1 of 4 branches missed.">        if (&quot;video&quot;.equals(step) &amp;&amp; &quot;video/mp4&quot;.equals(a.mediaType())) return &quot;assets/&quot; + a.sha256() + &quot;.mp4&quot;;</span>
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (&quot;image/png&quot;.equals(a.mediaType())) return &quot;assets/&quot; + a.sha256() + &quot;.png&quot;;</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">        if (&quot;image/jpeg&quot;.equals(a.mediaType())) return &quot;assets/&quot; + a.sha256() + &quot;.jpg&quot;;</span>
+<span class="nc" id="L176">        throw bad(&quot;Unsupported archive media type&quot;);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

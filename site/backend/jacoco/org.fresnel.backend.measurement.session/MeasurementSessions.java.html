@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MeasurementSessions.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.session</a> &gt; <span class="el_source">MeasurementSessions.java</span></div><h1>MeasurementSessions.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.session;
 
 import org.fresnel.backend.desktop.DesktopDataDirectory;
+import org.fresnel.measurement.CaptureSource;
+import org.fresnel.measurement.UploadCaptureSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -20,194 +22,349 @@ import java.util.concurrent.locks.ReentrantLock;
 import static java.nio.file.StandardCopyOption.*;
 
 @Service
-public class MeasurementSessions {
+public class MeasurementSessions implements UploadCaptureSource&lt;MeasurementSessions.Plan, MeasurementSessions.View&gt; {
+
+    @Override public CaptureSource.Info source() {
+<span class="fc" id="L28">        return new CaptureSource.Info(&quot;manual-upload&quot;, &quot;Upload camera files&quot;,</span>
+                CaptureSource.Kind.FILE_UPLOAD);
+    }
+
+    @Override public View create(String owner, UUID id, Plan plan) throws IOException {
+<span class="fc" id="L33">        return create(owner, id, plan, &quot;manual-upload&quot;);</span>
+    }
     static final long IMAGE_BYTES = 20L &lt;&lt; 20, RESULT_BYTES = 24L &lt;&lt; 20, SESSION_BYTES = 160L &lt;&lt; 20;
+    static final long VIDEO_BYTES = 64L &lt;&lt; 20;
+    static final int MAX_BOS_FRAMES = 24;
     static final int PLAN_BYTES = 64 &lt;&lt; 10, MAX_SESSIONS = 32;
     private final Path root;
     final ObjectMapper json;
-<span class="fc" id="L28">    private final ReentrantLock[] locks = new ReentrantLock[64];</span>
+<span class="fc" id="L41">    private final ReentrantLock[] locks = new ReentrantLock[64];</span>
 
-<span class="fc" id="L30">    MeasurementSessions(ObjectMapper json, @Value(&quot;${fresnel.measurements.directory:}&quot;) String directory) {</span>
-<span class="fc" id="L31">        this.json = json;</span>
-<span class="fc bfc" id="L32" title="All 2 branches covered.">        root = (directory.isBlank() ? DesktopDataDirectory.resolve().resolve(&quot;measurements&quot;) : Path.of(directory)).toAbsolutePath();</span>
-<span class="fc" id="L33">        Arrays.setAll(locks, i -&gt; new ReentrantLock());</span>
-<span class="fc" id="L34">    }</span>
+<span class="fc" id="L43">    MeasurementSessions(ObjectMapper json, @Value(&quot;${fresnel.measurements.directory:}&quot;) String directory) {</span>
+<span class="fc" id="L44">        this.json = json;</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        root = (directory.isBlank() ? DesktopDataDirectory.resolve().resolve(&quot;measurements&quot;) : Path.of(directory)).toAbsolutePath();</span>
+<span class="fc" id="L46">        Arrays.setAll(locks, i -&gt; new ReentrantLock());</span>
+<span class="fc" id="L47">    }</span>
 
-<span class="fc" id="L36">    public record Plan(String pluginId, JsonNode parameters, List&lt;String&gt; steps) {}</span>
-<span class="fc" id="L37">    public record Asset(String sha256, long byteLength, String mediaType, int width, int height) {}</span>
-<span class="fc" id="L38">    public record View(UUID id, Instant created, String pluginId, JsonNode parameters, List&lt;String&gt; steps,</span>
-                       Map&lt;String,Asset&gt; assets, String state) {
-<span class="fc" id="L40">        Plan plan() { return new Plan(pluginId, parameters, steps); }</span>
+<span class="fc" id="L49">    public record Plan(String pluginId, JsonNode parameters, List&lt;String&gt; steps) {}</span>
+<span class="fc" id="L50">    public record Asset(String sha256, long byteLength, String mediaType, int width, int height) {}</span>
+    public record View(UUID id, Instant created, String pluginId, JsonNode parameters, List&lt;String&gt; steps,
+                       Map&lt;String,Asset&gt; assets, String state, String captureProvider, UUID analysisAttempt) {
+        View(UUID id, Instant created, String pluginId, JsonNode parameters, List&lt;String&gt; steps,
+             Map&lt;String,Asset&gt; assets, String state, String captureProvider) {
+<span class="fc" id="L55">            this(id, created, pluginId, parameters, steps, assets, state, captureProvider, null);</span>
+<span class="fc" id="L56">        }</span>
+        View attempt(String state, UUID attempt) {
+<span class="fc" id="L58">            return new View(id, created, pluginId, parameters, steps, assets, state, captureProvider, attempt);</span>
+        }
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        public View { if (captureProvider == null) captureProvider = &quot;manual-upload&quot;; }</span>
+<span class="fc" id="L61">        Plan plan() { return new Plan(pluginId, parameters, steps); }</span>
     }
-<span class="fc" id="L42">    record Source(Asset asset, Path path) {}</span>
+<span class="fc" id="L63">    record Source(Asset asset, Path path) {}</span>
 
     // Sessions of one owner share a lock so deletion/quotas and bundle snapshots are atomic within the service.
-<span class="fc" id="L45">    ReentrantLock lock(String owner) { return locks[Math.floorMod(owner.hashCode(), locks.length)]; }</span>
-<span class="fc" id="L46">    Path ownerDir(String owner) { return root.resolve(hash(owner.getBytes(StandardCharsets.UTF_8))); }</span>
-<span class="fc" id="L47">    Path dir(String owner, UUID id) { return ownerDir(owner).resolve(id.toString()); }</span>
+<span class="fc" id="L66">    ReentrantLock lock(String owner) { return locks[Math.floorMod(owner.hashCode(), locks.length)]; }</span>
+<span class="fc" id="L67">    Path ownerDir(String owner) { return root.resolve(hash(owner.getBytes(StandardCharsets.UTF_8))); }</span>
+<span class="fc" id="L68">    Path dir(String owner, UUID id) { return ownerDir(owner).resolve(id.toString()); }</span>
 
     void validate(Plan plan) {
-<span class="pc bpc" id="L50" title="5 of 10 branches missed.">        if (plan == null || plan.pluginId == null || plan.steps == null || plan.steps.size() &gt; 18 || plan.parameters == null</span>
-<span class="pc bpc" id="L51" title="2 of 4 branches missed.">                || !plan.parameters.isObject() || json.writeValueAsBytes(plan.parameters).length &gt; PLAN_BYTES)</span>
-<span class="nc" id="L52">            throw bad(&quot;Invalid measurement plan or parameter size&quot;);</span>
-<span class="pc bpc" id="L53" title="2 of 3 branches missed.">        boolean ok = switch (plan.pluginId) {</span>
-<span class="fc" id="L54">            case &quot;background-oriented-schlieren&quot; -&gt; plan.steps.equals(List.of(&quot;reference&quot;, &quot;disturbed&quot;));</span>
+<span class="pc bpc" id="L71" title="5 of 10 branches missed.">        if (plan == null || plan.pluginId == null || plan.steps == null || plan.steps.size() &gt; MAX_BOS_FRAMES + 1 || plan.parameters == null</span>
+<span class="pc bpc" id="L72" title="2 of 4 branches missed.">                || !plan.parameters.isObject() || json.writeValueAsBytes(plan.parameters).length &gt; PLAN_BYTES)</span>
+<span class="nc" id="L73">            throw bad(&quot;Invalid measurement plan or parameter size&quot;);</span>
+<span class="pc bpc" id="L74" title="1 of 3 branches missed.">        boolean ok = switch (plan.pluginId) {</span>
+<span class="fc" id="L75">            case &quot;background-oriented-schlieren&quot; -&gt; validBosSteps(plan.steps);</span>
             case &quot;display-photometric-stereo&quot; -&gt; {
-<span class="nc" id="L56">                var lights = new ArrayList&lt;&gt;(plan.steps);</span>
-<span class="nc" id="L57">                lights.remove(&quot;dark&quot;);</span>
-<span class="nc" id="L58">                lights.remove(&quot;flat&quot;);</span>
-<span class="nc" id="L59">                boolean valid = Set.of(4,8,12,16).contains(lights.size());</span>
-<span class="nc bnc" id="L60" title="All 4 branches missed.">                for (int i = 0; valid &amp;&amp; i &lt; lights.size(); i++)</span>
-<span class="nc" id="L61">                    valid = String.format(Locale.ROOT, &quot;light-%02d&quot;, i + 1).equals(lights.get(i));</span>
-<span class="nc" id="L62">                yield valid;</span>
+<span class="fc" id="L77">                var lights = new ArrayList&lt;&gt;(plan.steps);</span>
+<span class="fc" id="L78">                lights.remove(&quot;dark&quot;);</span>
+<span class="fc" id="L79">                lights.remove(&quot;flat&quot;);</span>
+<span class="fc" id="L80">                boolean valid = Set.of(4,8,12,16).contains(lights.size());</span>
+<span class="pc bpc" id="L81" title="1 of 4 branches missed.">                for (int i = 0; valid &amp;&amp; i &lt; lights.size(); i++)</span>
+<span class="fc" id="L82">                    valid = String.format(Locale.ROOT, &quot;light-%02d&quot;, i + 1).equals(lights.get(i));</span>
+<span class="fc" id="L83">                yield valid;</span>
             }
-<span class="pc" id="L64">            default -&gt; false;</span>
+<span class="pc" id="L85">            default -&gt; false;</span>
         };
-<span class="fc bfc" id="L66" title="All 2 branches covered.">        if (!ok) throw bad(&quot;Unsupported plugin or capture steps&quot;);</span>
-<span class="fc" id="L67">    }</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        if (!ok) throw bad(&quot;Unsupported plugin or capture steps&quot;);</span>
+<span class="fc" id="L88">    }</span>
+
+    private static boolean validBosSteps(List&lt;String&gt; steps) {
+<span class="fc bfc" id="L91" title="All 4 branches covered.">        if (steps.equals(List.of(&quot;reference&quot;, &quot;disturbed&quot;)) || steps.equals(List.of(&quot;video&quot;))</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">                || steps.equals(List.of(&quot;reference&quot;,&quot;video&quot;))) return true;</span>
+<span class="pc bpc" id="L93" title="1 of 4 branches missed.">        int start = !steps.isEmpty() &amp;&amp; &quot;reference&quot;.equals(steps.getFirst()) ? 1 : 0;</span>
+<span class="fc" id="L94">        int frames = steps.size() - start;</span>
+<span class="pc bpc" id="L95" title="1 of 4 branches missed.">        if (frames &lt; 2 || frames &gt; MAX_BOS_FRAMES) return false;</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        for (int i=0; i&lt;frames; i++) {</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">            if (!String.format(Locale.ROOT, &quot;frame-%02d&quot;, i+1).equals(steps.get(start+i))) return false;</span>
+        }
+<span class="fc" id="L99">        return true;</span>
+    }
 
     List&lt;View&gt; list(String owner) throws IOException {
-<span class="fc" id="L70">        Path parent = ownerDir(owner);</span>
-<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (!Files.isDirectory(parent)) return List.of();</span>
-<span class="fc" id="L72">        var lock = lock(owner); lock.lock();</span>
-<span class="fc" id="L73">        try (var paths = Files.list(parent)) {</span>
-<span class="fc" id="L74">            var result = new ArrayList&lt;View&gt;();</span>
-<span class="fc bfc" id="L75" title="All 2 branches covered.">            for (Path p : paths.filter(p -&gt; p.getFileName().toString().matches(&quot;[a-f0-9-]{36}&quot;)).toList()) {</span>
-<span class="pc bpc" id="L76" title="1 of 2 branches missed.">                if (Files.isRegularFile(p.resolve(&quot;session.json&quot;))) result.add(load(p));</span>
-<span class="fc" id="L77">            }</span>
-<span class="fc" id="L78">            result.sort(Comparator.comparing(View::created).reversed());</span>
-<span class="fc" id="L79">            return result;</span>
-<span class="fc" id="L80">        } finally { lock.unlock(); }</span>
+<span class="fc" id="L103">        Path parent = ownerDir(owner);</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">        if (!Files.isDirectory(parent)) return List.of();</span>
+<span class="fc" id="L105">        var lock = lock(owner); lock.lock();</span>
+<span class="fc" id="L106">        try (var paths = Files.list(parent)) {</span>
+<span class="fc" id="L107">            var result = new ArrayList&lt;View&gt;();</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">            for (Path p : paths.filter(p -&gt; p.getFileName().toString().matches(&quot;[a-f0-9-]{36}&quot;)).toList()) {</span>
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">                if (Files.isRegularFile(p.resolve(&quot;session.json&quot;))) result.add(load(p));</span>
+<span class="fc" id="L110">            }</span>
+<span class="fc" id="L111">            result.sort(Comparator.comparing(View::created).reversed());</span>
+<span class="fc" id="L112">            return result;</span>
+<span class="fc" id="L113">        } finally { lock.unlock(); }</span>
     }
 
     View create(String owner, Plan plan) throws IOException {
-<span class="fc" id="L84">        validate(plan);</span>
-<span class="fc" id="L85">        var lock = lock(owner); lock.lock();</span>
-        try {
-<span class="pc bpc" id="L87" title="1 of 2 branches missed.">            if (list(owner).size() &gt;= MAX_SESSIONS) throw new ResponseStatusException(HttpStatus.CONFLICT, &quot;Delete an older measurement before creating another&quot;);</span>
-<span class="fc" id="L88">            var view = new View(UUID.randomUUID(), Instant.now(), plan.pluginId, plan.parameters, List.copyOf(plan.steps), Map.of(), &quot;READY_TO_CAPTURE&quot;);</span>
-<span class="fc" id="L89">            Path directory = dir(owner, view.id);</span>
-<span class="fc" id="L90">            Files.createDirectories(directory);</span>
-<span class="fc" id="L91">            try { save(directory, view); }</span>
-<span class="pc" id="L92">            catch (IOException | RuntimeException error) { remove(directory); throw error; }</span>
-<span class="fc" id="L93">            return view;</span>
-<span class="fc" id="L94">        } finally { lock.unlock(); }</span>
+<span class="fc" id="L117">        return create(owner, UUID.randomUUID(), plan, &quot;manual-upload&quot;);</span>
     }
 
-<span class="fc" id="L97">    View get(String owner, UUID id) throws IOException { return load(dir(owner, id)); }</span>
+    View create(String owner, UUID id, Plan plan, String provider) throws IOException {
+<span class="fc" id="L121">        validate(plan);</span>
+<span class="fc" id="L122">        var lock = lock(owner); lock.lock();</span>
+        try {
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">            if (Files.isRegularFile(dir(owner,id).resolve(&quot;session.json&quot;))) {</span>
+<span class="nc" id="L125">                var previous = get(owner,id);</span>
+<span class="nc bnc" id="L126" title="All 4 branches missed.">                if (previous.plan().equals(plan) &amp;&amp; previous.captureProvider().equals(provider)) return previous;</span>
+<span class="nc" id="L127">                throw conflict(&quot;Session already exists with different capture settings&quot;);</span>
+            }
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">            if (list(owner).size() &gt;= MAX_SESSIONS) throw new ResponseStatusException(HttpStatus.CONFLICT, &quot;Delete an older measurement before creating another&quot;);</span>
+<span class="fc" id="L130">            var view = new View(id, Instant.now(), plan.pluginId, plan.parameters, List.copyOf(plan.steps), Map.of(), &quot;READY_TO_CAPTURE&quot;, provider);</span>
+<span class="fc" id="L131">            Path directory = dir(owner, view.id);</span>
+<span class="fc" id="L132">            Files.createDirectories(directory);</span>
+<span class="fc" id="L133">            try { save(directory, view); }</span>
+<span class="pc" id="L134">            catch (IOException | RuntimeException error) { remove(directory); throw error; }</span>
+<span class="fc" id="L135">            return view;</span>
+<span class="fc" id="L136">        } finally { lock.unlock(); }</span>
+    }
+
+<span class="fc" id="L139">    record Derivation(Plan plan, Map&lt;String,String&gt; sourceHashes) {}</span>
+
+    View derive(String owner, UUID id, UUID sourceId, Derivation request) throws IOException {
+<span class="pc bpc" id="L142" title="3 of 6 branches missed.">        if (id.equals(sourceId) || request == null || request.sourceHashes() == null)</span>
+<span class="nc" id="L143">            throw bad(&quot;Choose a distinct destination and the verified source files&quot;);</span>
+<span class="fc" id="L144">        Plan plan = request.plan();</span>
+<span class="fc" id="L145">        validate(plan);</span>
+<span class="fc" id="L146">        var guard = lock(owner);</span>
+<span class="fc" id="L147">        guard.lock();</span>
+        try {
+<span class="fc" id="L149">            View source = get(owner, sourceId);</span>
+<span class="pc bpc" id="L150" title="2 of 4 branches missed.">            if (!PhotometryCapture.PLUGIN.equals(plan.pluginId()) || !source.pluginId().equals(plan.pluginId())</span>
+<span class="pc bpc" id="L151" title="1 of 4 branches missed.">                    || !plan.steps().equals(source.steps()) || !sameGeometry(plan.parameters(), source.parameters())</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">                    || !request.sourceHashes().keySet().equals(Set.copyOf(source.steps())))</span>
+<span class="fc" id="L153">                throw conflict(&quot;Capture geometry or step mapping has changed&quot;);</span>
+<span class="fc" id="L154">            var assets = new TreeMap&lt;String,Asset&gt;();</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">            for (String step : source.steps()) {</span>
+<span class="fc" id="L156">                Asset asset = source.assets().get(step);</span>
+<span class="pc bpc" id="L157" title="1 of 4 branches missed.">                if (asset == null || !asset.sha256().equals(request.sourceHashes().get(step)))</span>
+<span class="fc" id="L158">                    throw conflict(&quot;Source checksum differs from the acquisition&quot;);</span>
+<span class="fc" id="L159">                assets.put(step, asset);</span>
+<span class="fc" id="L160">            }</span>
+<span class="fc" id="L161">            Path target = dir(owner, id);</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">            if (Files.exists(target)) {</span>
+<span class="fc" id="L163">                var previous = get(owner, id);</span>
+<span class="fc" id="L164">                Path origin = target.resolve(&quot;derived-from&quot;);</span>
+<span class="pc bpc" id="L165" title="2 of 4 branches missed.">                if (previous.plan().equals(plan) &amp;&amp; Files.isRegularFile(origin)</span>
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">                        &amp;&amp; sourceId.toString().equals(Files.readString(origin))) return previous;</span>
+<span class="nc" id="L167">                throw conflict(&quot;Destination already belongs to another experiment&quot;);</span>
+            }
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">            if (list(owner).size() &gt;= MAX_SESSIONS) throw conflict(&quot;Delete an older measurement before creating another&quot;);</span>
+<span class="fc" id="L170">            var evidence = CaptureEvidence.read(dir(owner, sourceId), json);</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">            if (evidence != null) evidence.verify(plan, assets);</span>
+<span class="fc" id="L172">            Path stage = ownerDir(owner).resolve(&quot;.deriving-&quot; + id);</span>
+<span class="fc" id="L173">            remove(stage);</span>
+<span class="fc" id="L174">            Files.createDirectory(stage);</span>
+            try {
+<span class="fc bfc" id="L176" title="All 2 branches covered.">                for (Asset asset : new HashSet&lt;&gt;(assets.values())) {</span>
+<span class="fc" id="L177">                    var checksum = digest();</span>
+<span class="fc" id="L178">                    try (var in = Files.newInputStream(dir(owner, sourceId).resolve(asset.sha256()));</span>
+<span class="fc" id="L179">                         var out = new DigestOutputStream(Files.newOutputStream(stage.resolve(asset.sha256())), checksum)) {</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">                        if (copy(in, out, asset.byteLength()) != asset.byteLength()</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">                                || !asset.sha256().equals(HexFormat.of().formatHex(checksum.digest())))</span>
+<span class="nc" id="L182">                            throw conflict(&quot;Stored acquisition failed checksum verification&quot;);</span>
+                    }
+<span class="fc" id="L184">                }</span>
+<span class="pc bpc" id="L185" title="1 of 2 branches missed.">                if (evidence != null) Files.write(stage.resolve(CaptureEvidence.FILE), json.writeValueAsBytes(evidence));</span>
+<span class="fc" id="L186">                Files.writeString(stage.resolve(&quot;derived-from&quot;), sourceId.toString());</span>
+<span class="fc" id="L187">                var view = new View(id, Instant.now(), plan.pluginId(), plan.parameters(), source.steps(),</span>
+                        assets, &quot;READY_TO_ANALYZE&quot;, &quot;manual-upload&quot;);
+<span class="fc" id="L189">                save(stage, view);</span>
+<span class="fc" id="L190">                Files.move(stage, target, ATOMIC_MOVE);</span>
+<span class="fc" id="L191">                return view;</span>
+<span class="fc" id="L192">            } finally { remove(stage); }</span>
+<span class="fc" id="L193">        } finally { guard.unlock(); }</span>
+    }
+
+    private boolean sameGeometry(JsonNode first, JsonNode second) {
+        try {
+<span class="fc" id="L198">            var type = org.fresnel.measurement.photometry.DisplayGeometry.class;</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">            return json.treeToValue(first.has(&quot;geometry&quot;) ? first.get(&quot;geometry&quot;) : first, type)</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">                    .equals(json.treeToValue(second.has(&quot;geometry&quot;) ? second.get(&quot;geometry&quot;) : second, type));</span>
+<span class="nc" id="L201">        } catch (IllegalArgumentException | tools.jackson.core.JacksonException e) { throw bad(&quot;Invalid acquisition geometry&quot;); }</span>
+    }
+
+<span class="fc" id="L204">    View get(String owner, UUID id) throws IOException { return load(dir(owner, id)); }</span>
     private View load(Path directory) throws IOException {
-<span class="fc" id="L99">        try { return json.readValue(Files.readAllBytes(directory.resolve(&quot;session.json&quot;)), View.class); }</span>
-<span class="fc" id="L100">        catch (NoSuchFileException e) { throw missing(); }</span>
+<span class="fc" id="L206">        try { return json.readValue(Files.readAllBytes(directory.resolve(&quot;session.json&quot;)), View.class); }</span>
+<span class="fc" id="L207">        catch (NoSuchFileException e) { throw missing(); }</span>
     }
 
     Source source(String owner, UUID id, String step) throws IOException {
-<span class="fc" id="L104">        var asset = get(owner, id).assets.get(step);</span>
-<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        if (asset == null) throw missing();</span>
-<span class="fc" id="L106">        return new Source(asset, dir(owner, id).resolve(asset.sha256));</span>
+<span class="fc" id="L211">        var asset = get(owner, id).assets.get(step);</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">        if (asset == null) throw missing();</span>
+<span class="fc" id="L213">        return new Source(asset, dir(owner, id).resolve(asset.sha256));</span>
     }
 
-    View put(String owner, UUID id, String step, String type, String expected, InputStream input) throws IOException {
-<span class="fc" id="L110">        var lock = lock(owner); lock.lock();</span>
+    @Override public View put(String owner, UUID id, String step, String type, String expected, InputStream input) throws IOException {
+<span class="fc" id="L217">        return put(owner, id, step, type, expected, input, &quot;manual-upload&quot;);</span>
+    }
+
+    View put(String owner, UUID id, String step, String type, String expected, InputStream input, String provider) throws IOException {
+<span class="fc" id="L221">        var lock = lock(owner); lock.lock();</span>
         try {
-<span class="fc" id="L112">            View v = get(owner, id);</span>
-<span class="fc" id="L113">            boolean result = &quot;result&quot;.equals(step);</span>
-<span class="fc bfc" id="L114" title="All 4 branches covered.">            if (!v.steps.contains(step) &amp;&amp; !result) throw bad(&quot;Unknown capture step&quot;);</span>
-<span class="pc bpc" id="L115" title="1 of 4 branches missed.">            if (result &amp;&amp; !v.assets.keySet().containsAll(v.steps)) throw conflict(&quot;Upload every source before saving a result&quot;);</span>
-<span class="pc bpc" id="L116" title="2 of 4 branches missed.">            if (expected == null || !expected.matches(&quot;[0-9a-f]{64}&quot;)) throw bad(&quot;A lowercase SHA-256 is required&quot;);</span>
-<span class="pc bpc" id="L117" title="2 of 6 branches missed.">            if (result ? !&quot;application/json&quot;.equals(type) : !Set.of(&quot;image/png&quot;, &quot;image/jpeg&quot;).contains(type))</span>
-<span class="nc" id="L118">                throw bad(&quot;Unsupported media type&quot;);</span>
-<span class="fc" id="L119">            Path directory = dir(owner, id), stage = Files.createTempFile(directory, &quot;.upload-&quot;, &quot;.part&quot;);</span>
+<span class="fc" id="L223">            View v = get(owner, id);</span>
+<span class="fc" id="L224">            boolean result = &quot;result&quot;.equals(step);</span>
+<span class="fc bfc" id="L225" title="All 6 branches covered.">            if (result &amp;&amp; v.analysisAttempt() != null &amp;&amp; !&quot;saved-analysis&quot;.equals(provider))</span>
+<span class="fc" id="L226">                throw conflict(&quot;Save the result through the current analysis attempt&quot;);</span>
+<span class="fc bfc" id="L227" title="All 4 branches covered.">            if (!result &amp;&amp; !v.captureProvider.equals(provider)) throw conflict(&quot;Source belongs to another capture provider&quot;);</span>
+<span class="fc bfc" id="L228" title="All 4 branches covered.">            if (!v.steps.contains(step) &amp;&amp; !result) throw bad(&quot;Unknown capture step&quot;);</span>
+<span class="pc bpc" id="L229" title="1 of 4 branches missed.">            if (result &amp;&amp; !v.assets.keySet().containsAll(v.steps)) throw conflict(&quot;Upload every source before saving a result&quot;);</span>
+<span class="pc bpc" id="L230" title="2 of 4 branches missed.">            if (expected == null || !expected.matches(&quot;[0-9a-f]{64}&quot;)) throw bad(&quot;A lowercase SHA-256 is required&quot;);</span>
+<span class="fc" id="L231">            boolean video = &quot;video&quot;.equals(step);</span>
+<span class="pc bpc" id="L232" title="3 of 10 branches missed.">            if (result ? !&quot;application/json&quot;.equals(type) : video ? !&quot;video/mp4&quot;.equals(type) : !Set.of(&quot;image/png&quot;, &quot;image/jpeg&quot;).contains(type))</span>
+<span class="nc" id="L233">                throw bad(&quot;Unsupported media type&quot;);</span>
+<span class="fc" id="L234">            Path directory = dir(owner, id), stage = Files.createTempFile(directory, &quot;.upload-&quot;, &quot;.part&quot;);</span>
             try {
-<span class="fc" id="L121">                var digest = digest();</span>
+<span class="fc" id="L236">                var digest = digest();</span>
                 long size;
-<span class="fc" id="L123">                try (var out = new DigestOutputStream(Files.newOutputStream(stage), digest)) {</span>
-<span class="fc bfc" id="L124" title="All 2 branches covered.">                    size = copy(input, out, result ? RESULT_BYTES : IMAGE_BYTES);</span>
+<span class="fc" id="L238">                try (var out = new DigestOutputStream(Files.newOutputStream(stage), digest)) {</span>
+<span class="fc bfc" id="L239" title="All 4 branches covered.">                    size = copy(input, out, result ? RESULT_BYTES : video ? VIDEO_BYTES : IMAGE_BYTES);</span>
                 }
-<span class="fc bfc" id="L126" title="All 2 branches covered.">                if (!expected.equals(HexFormat.of().formatHex(digest.digest()))) throw bad(&quot;Checksum mismatch&quot;);</span>
-<span class="fc" id="L127">                var existing = v.assets.get(step);</span>
-<span class="fc bfc" id="L128" title="All 2 branches covered.">                if (existing != null) {</span>
-<span class="pc bpc" id="L129" title="1 of 4 branches missed.">                    if (existing.sha256.equals(expected) &amp;&amp; existing.mediaType.equals(type)) return v;</span>
-<span class="fc" id="L130">                    throw conflict(&quot;The step already has a different asset&quot;);</span>
+<span class="fc bfc" id="L241" title="All 2 branches covered.">                if (!expected.equals(HexFormat.of().formatHex(digest.digest()))) throw bad(&quot;Checksum mismatch&quot;);</span>
+<span class="fc" id="L242">                var existing = v.assets.get(step);</span>
+<span class="fc bfc" id="L243" title="All 2 branches covered.">                if (existing != null) {</span>
+<span class="pc bpc" id="L244" title="1 of 4 branches missed.">                    if (existing.sha256.equals(expected) &amp;&amp; existing.mediaType.equals(type)) return v;</span>
+<span class="fc" id="L245">                    throw conflict(&quot;The step already has a different asset&quot;);</span>
                 }
-<span class="pc bpc" id="L132" title="1 of 2 branches missed.">                if (v.assets.values().stream().mapToLong(Asset::byteLength).sum() + size &gt; SESSION_BYTES)</span>
-<span class="nc" id="L133">                    throw bad(&quot;Experiment exceeds its byte limit&quot;);</span>
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">                if (v.assets.values().stream().mapToLong(Asset::byteLength).sum() + size &gt; SESSION_BYTES)</span>
+<span class="nc" id="L248">                    throw bad(&quot;Experiment exceeds its byte limit&quot;);</span>
                 Asset asset;
-<span class="fc bfc" id="L135" title="All 2 branches covered.">                if (result) {</span>
-<span class="fc" id="L136">                    var data = json.readTree(Files.readAllBytes(stage));</span>
-<span class="pc bpc" id="L137" title="2 of 4 branches missed.">                    if (data == null || !data.isObject()) throw bad(&quot;Expected a result JSON object&quot;);</span>
-<span class="fc" id="L138">                    asset = new Asset(expected, size, type, 0, 0);</span>
-<span class="fc" id="L139">                } else {</span>
-<span class="fc" id="L140">                    asset = inspectImage(stage, expected, size, type);</span>
-<span class="pc bpc" id="L141" title="3 of 6 branches missed.">                    if (v.assets.values().stream().anyMatch(a -&gt; a.width != asset.width || a.height != asset.height))</span>
-<span class="nc" id="L142">                        throw bad(&quot;Capture dimensions differ&quot;);</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">                if (result) {</span>
+<span class="fc" id="L251">                    var data = json.readTree(Files.readAllBytes(stage));</span>
+<span class="pc bpc" id="L252" title="2 of 4 branches missed.">                    if (data == null || !data.isObject()) throw bad(&quot;Expected a result JSON object&quot;);</span>
+<span class="fc" id="L253">                    asset = new Asset(expected, size, type, 0, 0);</span>
+<span class="fc" id="L254">                } else {</span>
+<span class="fc bfc" id="L255" title="All 2 branches covered.">                    asset = video ? BoundedMp4.inspect(stage, expected, size) : inspectImage(stage, expected, size, type);</span>
+<span class="pc bpc" id="L256" title="3 of 6 branches missed.">                    if (v.assets.values().stream().anyMatch(a -&gt; (a.width != asset.width || a.height != asset.height) &amp;&amp;</span>
+<span class="pc bnc" id="L257" title="All 6 branches missed.">                            !(v.steps.contains(&quot;video&quot;) &amp;&amp; a.width == asset.height &amp;&amp; a.height == asset.width)))</span>
+<span class="nc" id="L258">                        throw bad(&quot;Capture dimensions differ&quot;);</span>
                 }
-<span class="fc" id="L144">                var assets = new TreeMap&lt;&gt;(v.assets);</span>
-<span class="fc" id="L145">                assets.put(step, asset);</span>
-<span class="fc bfc" id="L146" title="All 4 branches covered.">                String state = result ? &quot;COMPLETED&quot; : assets.keySet().containsAll(v.steps) ? &quot;READY_TO_ANALYZE&quot; : &quot;CAPTURING&quot;;</span>
-<span class="fc" id="L147">                var next = new View(v.id, v.created, v.pluginId, v.parameters, v.steps, assets, state);</span>
-<span class="fc" id="L148">                Files.move(stage, directory.resolve(expected), ATOMIC_MOVE, REPLACE_EXISTING);</span>
-<span class="fc" id="L149">                save(directory, next);</span>
-<span class="fc" id="L150">                return next;</span>
-<span class="nc" id="L151">            } catch (tools.jackson.core.JacksonException e) { throw bad(&quot;Invalid result JSON&quot;); }</span>
-<span class="fc" id="L152">            finally { Files.deleteIfExists(stage); }</span>
-<span class="fc" id="L153">        } finally { lock.unlock(); }</span>
+<span class="fc" id="L260">                var assets = new TreeMap&lt;&gt;(v.assets);</span>
+<span class="fc" id="L261">                assets.put(step, asset);</span>
+<span class="fc bfc" id="L262" title="All 4 branches covered.">                String state = result ? &quot;COMPLETED&quot; : assets.keySet().containsAll(v.steps) ? &quot;READY_TO_ANALYZE&quot; : &quot;CAPTURING&quot;;</span>
+<span class="fc" id="L263">                var next = new View(v.id, v.created, v.pluginId, v.parameters, v.steps, assets, state, v.captureProvider, v.analysisAttempt);</span>
+<span class="fc" id="L264">                Files.move(stage, directory.resolve(expected), ATOMIC_MOVE, REPLACE_EXISTING);</span>
+<span class="fc" id="L265">                save(directory, next);</span>
+<span class="fc" id="L266">                return next;</span>
+<span class="nc" id="L267">            } catch (tools.jackson.core.JacksonException e) { throw bad(&quot;Invalid result JSON&quot;); }</span>
+<span class="fc" id="L268">            finally { Files.deleteIfExists(stage); }</span>
+<span class="fc" id="L269">        } finally { lock.unlock(); }</span>
+    }
+
+    View startAnalysis(String owner, UUID id, UUID attempt, UUID previous) throws IOException {
+<span class="fc" id="L273">        var guard = lock(owner); guard.lock();</span>
+        try {
+<span class="fc" id="L275">            var view = get(owner,id);</span>
+<span class="fc bfc" id="L276" title="All 2 branches covered.">            if (attempt.equals(view.analysisAttempt())) return view;</span>
+<span class="fc bfc" id="L277" title="All 4 branches covered.">            if (!Objects.equals(view.analysisAttempt(), previous) || !view.assets().keySet().containsAll(view.steps())</span>
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">                    || view.assets().containsKey(&quot;result&quot;)) throw conflict(&quot;Saved analysis or source set has changed&quot;);</span>
+<span class="fc" id="L279">            var started = view.attempt(&quot;ANALYZING&quot;,attempt);</span>
+<span class="fc" id="L280">            save(dir(owner,id),started);</span>
+<span class="fc" id="L281">            return started;</span>
+<span class="fc" id="L282">        } finally { guard.unlock(); }</span>
+    }
+
+    View stopAnalysis(String owner, UUID id, UUID attempt, boolean failed) throws IOException {
+<span class="fc" id="L286">        var guard = lock(owner); guard.lock();</span>
+        try {
+<span class="fc" id="L288">            var view = get(owner,id);</span>
+<span class="pc bpc" id="L289" title="1 of 2 branches missed.">            if (!attempt.equals(view.analysisAttempt())) throw conflict(&quot;Another analysis is current&quot;);</span>
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">            if (!&quot;ANALYZING&quot;.equals(view.state())) return view;</span>
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">            var stopped = view.attempt(failed ? &quot;FAILED&quot; : &quot;CANCELLED&quot;,attempt);</span>
+<span class="fc" id="L292">            save(dir(owner,id),stopped);</span>
+<span class="fc" id="L293">            return stopped;</span>
+<span class="fc" id="L294">        } finally { guard.unlock(); }</span>
+    }
+
+    View analysisResult(String owner, UUID id, UUID attempt, String type, String sha, InputStream data) throws IOException {
+<span class="fc" id="L298">        var guard = lock(owner); guard.lock();</span>
+        try {
+<span class="fc" id="L300">            var view = get(owner,id);</span>
+<span class="pc bpc" id="L301" title="1 of 4 branches missed.">            if (!attempt.equals(view.analysisAttempt()) || !Set.of(&quot;ANALYZING&quot;,&quot;COMPLETED&quot;).contains(view.state()))</span>
+<span class="fc" id="L302">                throw conflict(&quot;This analysis is no longer current&quot;);</span>
+<span class="fc" id="L303">            return put(owner,id,&quot;result&quot;,type,sha,data,&quot;saved-analysis&quot;);</span>
+<span class="fc" id="L304">        } finally { guard.unlock(); }</span>
     }
 
     private static Asset inspectImage(Path path, String sha, long size, String type) throws IOException {
-<span class="fc" id="L157">        try (var input = ImageIO.createImageInputStream(path.toFile())) {</span>
-<span class="fc" id="L158">            var readers = ImageIO.getImageReaders(input);</span>
-<span class="pc bpc" id="L159" title="1 of 2 branches missed.">            if (!readers.hasNext()) throw bad(&quot;Unknown image format&quot;);</span>
-<span class="fc" id="L160">            var reader = readers.next();</span>
+<span class="fc" id="L308">        try (var input = ImageIO.createImageInputStream(path.toFile())) {</span>
+<span class="fc" id="L309">            var readers = ImageIO.getImageReaders(input);</span>
+<span class="pc bpc" id="L310" title="1 of 2 branches missed.">            if (!readers.hasNext()) throw bad(&quot;Unknown image format&quot;);</span>
+<span class="fc" id="L311">            var reader = readers.next();</span>
             try {
-<span class="fc" id="L162">                String actual = reader.getFormatName().toLowerCase(Locale.ROOT);</span>
-<span class="fc bfc" id="L163" title="All 2 branches covered.">                if (!type.equals(&quot;image/&quot; + actual)) throw bad(&quot;Image format disagrees with its declared type&quot;);</span>
-<span class="fc" id="L164">                reader.setInput(input, true, true);</span>
-<span class="fc" id="L165">                int w = reader.getWidth(0), h = reader.getHeight(0);</span>
-<span class="pc bpc" id="L166" title="5 of 10 branches missed.">                if (w &lt;= 0 || h &lt;= 0 || w &gt; 16384 || h &gt; 16384 || (long) w * h &gt; 24_000_000) throw bad(&quot;Image dimensions exceed limits&quot;);</span>
-<span class="fc" id="L167">                var sample = reader.getDefaultReadParam();</span>
-<span class="fc" id="L168">                sample.setSourceSubsampling(Math.max(1, w / 256), Math.max(1, h / 256), 0, 0);</span>
-<span class="fc" id="L169">                reader.read(0, sample);</span>
-<span class="fc" id="L170">                return new Asset(sha, size, type, w, h);</span>
-<span class="nc" id="L171">            } catch (javax.imageio.IIOException e) { throw bad(&quot;Invalid image header&quot;); }</span>
-<span class="fc" id="L172">            finally { reader.dispose(); }</span>
+<span class="fc" id="L313">                String actual = reader.getFormatName().toLowerCase(Locale.ROOT);</span>
+<span class="fc bfc" id="L314" title="All 2 branches covered.">                if (!type.equals(&quot;image/&quot; + actual)) throw bad(&quot;Image format disagrees with its declared type&quot;);</span>
+<span class="fc" id="L315">                reader.setInput(input, true, true);</span>
+<span class="fc" id="L316">                int w = reader.getWidth(0), h = reader.getHeight(0);</span>
+<span class="pc bpc" id="L317" title="5 of 10 branches missed.">                if (w &lt;= 0 || h &lt;= 0 || w &gt; 16384 || h &gt; 16384 || (long) w * h &gt; 24_000_000) throw bad(&quot;Image dimensions exceed limits&quot;);</span>
+<span class="fc" id="L318">                var sample = reader.getDefaultReadParam();</span>
+<span class="fc" id="L319">                sample.setSourceSubsampling(Math.max(1, w / 256), Math.max(1, h / 256), 0, 0);</span>
+<span class="fc" id="L320">                reader.read(0, sample);</span>
+<span class="fc" id="L321">                return new Asset(sha, size, type, w, h);</span>
+<span class="nc" id="L322">            } catch (javax.imageio.IIOException e) { throw bad(&quot;Invalid image header&quot;); }</span>
+<span class="fc" id="L323">            finally { reader.dispose(); }</span>
         }
     }
 
     void delete(String owner, UUID id) throws IOException {
-<span class="fc" id="L177">        var lock = lock(owner); lock.lock();</span>
-<span class="fc" id="L178">        try { get(owner,id); remove(dir(owner,id)); } finally { lock.unlock(); }</span>
-<span class="fc" id="L179">    }</span>
-    static void remove(Path directory) throws IOException {
-<span class="pc bpc" id="L181" title="1 of 2 branches missed.">        if (!Files.exists(directory)) return;</span>
-<span class="fc" id="L182">        try (var paths = Files.walk(directory)) {</span>
-<span class="fc bfc" id="L183" title="All 2 branches covered.">            for (Path p : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(p);</span>
-        }
-<span class="fc" id="L185">    }</span>
-    private void save(Path directory, View view) throws IOException {
-<span class="fc" id="L187">        Path tmp = Files.createTempFile(directory, &quot;.session-&quot;, &quot;.tmp&quot;);</span>
+<span class="fc" id="L328">        var lock = lock(owner); lock.lock();</span>
         try {
-<span class="fc" id="L189">            Files.write(tmp, json.writeValueAsBytes(view), StandardOpenOption.WRITE, StandardOpenOption.SYNC);</span>
-<span class="fc" id="L190">            Files.move(tmp, directory.resolve(&quot;session.json&quot;), ATOMIC_MOVE, REPLACE_EXISTING);</span>
-<span class="fc" id="L191">        } finally { Files.deleteIfExists(tmp); }</span>
-<span class="fc" id="L192">    }</span>
-    static long copy(InputStream in, OutputStream out, long max) throws IOException {
-<span class="fc" id="L194">        long count = 0;</span>
-<span class="fc" id="L195">        byte[] buffer = new byte[16384];</span>
-        int n;
-<span class="fc bfc" id="L197" title="All 2 branches covered.">        while ((n = in.read(buffer)) != -1) {</span>
-<span class="fc" id="L198">            count += n;</span>
-<span class="pc bpc" id="L199" title="1 of 2 branches missed.">            if (count &gt; max) throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, &quot;Byte limit exceeded&quot;);</span>
-<span class="fc" id="L200">            out.write(buffer, 0, n);</span>
+<span class="fc" id="L330">            var view = get(owner,id);</span>
+<span class="pc bpc" id="L331" title="1 of 4 branches missed.">            if (&quot;photographer-rest&quot;.equals(view.captureProvider()) &amp;&amp; Files.exists(dir(owner,id).resolve(&quot;photometry-capture.json&quot;))</span>
+<span class="fc bfc" id="L332" title="All 2 branches covered.">                    &amp;&amp; !Files.isRegularFile(dir(owner,id).resolve(&quot;camera-closed&quot;)))</span>
+<span class="fc" id="L333">                throw conflict(&quot;Cancel or finish the active camera session before deleting it&quot;);</span>
+<span class="fc" id="L334">            remove(dir(owner,id));</span>
+<span class="fc" id="L335">        } finally { lock.unlock(); }</span>
+<span class="fc" id="L336">    }</span>
+    static void remove(Path directory) throws IOException {
+<span class="fc bfc" id="L338" title="All 2 branches covered.">        if (!Files.exists(directory)) return;</span>
+<span class="fc" id="L339">        try (var paths = Files.walk(directory)) {</span>
+<span class="fc bfc" id="L340" title="All 2 branches covered.">            for (Path p : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(p);</span>
         }
-<span class="fc" id="L202">        return count;</span>
+<span class="fc" id="L342">    }</span>
+    private void save(Path directory, View view) throws IOException {
+<span class="fc" id="L344">        Path tmp = Files.createTempFile(directory, &quot;.session-&quot;, &quot;.tmp&quot;);</span>
+        try {
+<span class="fc" id="L346">            Files.write(tmp, json.writeValueAsBytes(view), StandardOpenOption.WRITE, StandardOpenOption.SYNC);</span>
+<span class="fc" id="L347">            Files.move(tmp, directory.resolve(&quot;session.json&quot;), ATOMIC_MOVE, REPLACE_EXISTING);</span>
+<span class="fc" id="L348">        } finally { Files.deleteIfExists(tmp); }</span>
+<span class="fc" id="L349">    }</span>
+    static long copy(InputStream in, OutputStream out, long max) throws IOException {
+<span class="fc" id="L351">        long count = 0;</span>
+<span class="fc" id="L352">        byte[] buffer = new byte[16384];</span>
+        int n;
+<span class="fc bfc" id="L354" title="All 2 branches covered.">        while ((n = in.read(buffer)) != -1) {</span>
+<span class="fc" id="L355">            count += n;</span>
+<span class="pc bpc" id="L356" title="1 of 2 branches missed.">            if (count &gt; max) throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, &quot;Byte limit exceeded&quot;);</span>
+<span class="fc" id="L357">            out.write(buffer, 0, n);</span>
+        }
+<span class="fc" id="L359">        return count;</span>
     }
-<span class="fc" id="L204">    static String hash(byte[] bytes) { return HexFormat.of().formatHex(digest().digest(bytes)); }</span>
+<span class="fc" id="L361">    static String hash(byte[] bytes) { return HexFormat.of().formatHex(digest().digest(bytes)); }</span>
     private static MessageDigest digest() {
-<span class="fc" id="L206">        try { return MessageDigest.getInstance(&quot;SHA-256&quot;); }</span>
-<span class="nc" id="L207">        catch (NoSuchAlgorithmException e) { throw new AssertionError(e); }</span>
+<span class="fc" id="L363">        try { return MessageDigest.getInstance(&quot;SHA-256&quot;); }</span>
+<span class="nc" id="L364">        catch (NoSuchAlgorithmException e) { throw new AssertionError(e); }</span>
     }
-<span class="fc" id="L209">    static ResponseStatusException bad(String why) { return new ResponseStatusException(HttpStatus.BAD_REQUEST, why); }</span>
-<span class="fc" id="L210">    static ResponseStatusException missing() { return new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Measurement or asset unavailable&quot;); }</span>
-<span class="fc" id="L211">    static ResponseStatusException conflict(String why) { return new ResponseStatusException(HttpStatus.CONFLICT, why); }</span>
+<span class="fc" id="L366">    static ResponseStatusException bad(String why) { return new ResponseStatusException(HttpStatus.BAD_REQUEST, why); }</span>
+<span class="fc" id="L367">    static ResponseStatusException missing() { return new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Measurement or asset unavailable&quot;); }</span>
+<span class="fc" id="L368">    static ResponseStatusException conflict(String why) { return new ResponseStatusException(HttpStatus.CONFLICT, why); }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PhotographerDiscovery.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.photographer</a> &gt; <span class="el_source">PhotographerDiscovery.java</span></div><h1>PhotographerDiscovery.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.photographer;
+
+import org.fresnel.measurement.CaptureProvider.FailureCode;
+import org.fresnel.measurement.CaptureProviderException;
+
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+
+/** Back off public discovery traffic during outages. Operator capture and cancellation remain available. */
+final class PhotographerDiscovery {
+    private final LongSupplier clock;
+    private String grant;
+    private long generation;
+    private int failures;
+    private long nextProbe;
+    private boolean probing;
+
+<span class="fc" id="L20">    PhotographerDiscovery(LongSupplier clock) { this.clock = clock; }</span>
+
+    &lt;T&gt; T read(String pairingId, Supplier&lt;T&gt; operation) {
+<span class="fc" id="L23">        long ticket = enter(pairingId);</span>
+<span class="fc" id="L24">        boolean unavailable = false;</span>
+        try {
+<span class="fc" id="L26">            return operation.get();</span>
+<span class="fc" id="L27">        } catch (CaptureProviderException failure) {</span>
+<span class="fc bfc" id="L28" title="All 2 branches covered.">            unavailable = failure.code() == FailureCode.TRANSIENT_IO;</span>
+<span class="fc" id="L29">            throw failure;</span>
+        } finally {
+<span class="fc" id="L31">            record(ticket, unavailable);</span>
+        }
+    }
+
+    private synchronized long enter(String pairingId) {
+<span class="fc bfc" id="L36" title="All 2 branches covered.">        if (!pairingId.equals(grant)) {</span>
+<span class="fc" id="L37">            grant = pairingId;</span>
+<span class="fc" id="L38">            failures = 0;</span>
+<span class="fc" id="L39">            probing = false;</span>
+<span class="fc" id="L40">            generation++;</span>
+        }
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        if (failures &gt;= 3) {</span>
+<span class="fc bfc" id="L43" title="All 4 branches covered.">            if (probing || clock.getAsLong() - nextProbe &lt; 0)</span>
+<span class="fc" id="L44">                throw new CaptureProviderException(FailureCode.TRANSIENT_IO, true, &quot;PHOTOGRAPHER_DISCOVERY_BACKOFF&quot;);</span>
+<span class="fc" id="L45">            probing = true;</span>
+        }
+<span class="fc" id="L47">        return generation;</span>
+    }
+
+    private synchronized void record(long ticket, boolean unavailable) {
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">        if (ticket != generation) return;</span>
+<span class="fc" id="L52">        probing = false;</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">        if (!unavailable) {</span>
+<span class="fc" id="L54">            failures = 0;</span>
+<span class="fc" id="L55">            return;</span>
+        }
+<span class="fc" id="L57">        failures = Math.min(7, failures + 1);</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        if (failures &gt;= 3) {</span>
+<span class="fc" id="L59">            long delayMillis = Math.min(30_000L, 2_000L &lt;&lt; (failures - 3));</span>
+<span class="fc" id="L60">            nextProbe = clock.getAsLong() + TimeUnit.MILLISECONDS.toNanos(</span>
+<span class="fc" id="L61">                    ThreadLocalRandom.current().nextLong(delayMillis / 2, delayMillis + 1));</span>
+<span class="fc" id="L62">            generation++;</span>
+        }
+<span class="fc" id="L64">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

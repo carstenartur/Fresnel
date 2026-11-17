@@ -1,14 +1,21 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+Fresnel Measurement Core,org.fresnel.measurement.photometry,DisplayIlluminationSequenceGenerator.Vector,0,12,0,0,0,1,0,1,0,1
+Fresnel Measurement Core,org.fresnel.measurement.photometry,DisplayIlluminationSequenceGenerator,12,643,0,30,3,75,0,24,0,9
+Fresnel Measurement Core,org.fresnel.measurement.photometry,DisplayGeometry,10,163,7,13,2,22,7,5,0,2
+Fresnel Measurement Core,org.fresnel.measurement.photometry,DisplayIlluminationSequenceGenerator.Manifest,0,21,0,0,0,1,0,1,0,1
+Fresnel Measurement Core,org.fresnel.measurement.photometry,DisplayIlluminationSequenceGenerator.Role,0,21,0,0,0,1,0,1,0,1
+Fresnel Measurement Core,org.fresnel.measurement.photometry,DisplayIlluminationSequenceGenerator.Pattern,0,27,0,0,0,1,0,1,0,1
 Fresnel Measurement Core,org.fresnel.measurement,CapturePlan.Step,0,92,0,16,0,15,0,9,0,1
 Fresnel Measurement Core,org.fresnel.measurement,BosTarget,28,209,10,14,4,44,10,15,0,13
 Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.Device,0,45,0,0,0,8,0,2,0,2
-Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider,47,76,12,14,7,18,13,7,1,6
+Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider,59,76,12,14,9,18,14,7,2,6
 Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.SessionStatus,5,90,3,15,1,15,3,8,0,2
 Fresnel Measurement Core,org.fresnel.measurement,CaptureProviderException,12,68,3,5,3,15,4,8,1,7
 Fresnel Measurement Core,org.fresnel.measurement,CapturePlan.ImageFormat,0,21,0,0,0,4,0,1,0,1
+Fresnel Measurement Core,org.fresnel.measurement,CaptureSource.Info,39,0,14,0,5,0,8,0,1,0
 Fresnel Measurement Core,org.fresnel.measurement,BosTarget.Manifest,0,85,0,0,0,7,0,1,0,1
-Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.StepTrigger,0,43,0,8,0,8,0,5,0,1
 Fresnel Measurement Core,org.fresnel.measurement,CapturePlan.WorkflowType,0,15,0,0,0,3,0,1,0,1
+Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.StepTrigger,0,43,0,8,0,8,0,5,0,1
 Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.Event,0,60,0,4,0,11,0,3,0,1
 Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.Capability,0,57,0,0,0,10,0,1,0,1
 Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.SessionRef,0,25,0,0,0,5,0,1,0,1
@@ -29,10 +36,11 @@ Fresnel Measurement Core,org.fresnel.measurement,CapturePlan,12,338,7,52,2,72,7,
 Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.StepResult,0,53,0,4,0,10,0,3,0,1
 Fresnel Measurement Core,org.fresnel.measurement,CapturePlan.Requirements,0,16,0,0,0,3,0,1,0,1
 Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.Descriptor,0,70,1,5,0,12,1,4,0,2
-Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.DeviceState,0,27,0,0,0,5,0,1,0,1
 Fresnel Measurement Core,org.fresnel.measurement,MeasurementSessionState,0,76,0,6,0,12,0,5,0,2
+Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.DeviceState,0,27,0,0,0,5,0,1,0,1
 Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.FullAsset,0,9,0,0,0,2,0,1,0,1
 Fresnel Measurement Core,org.fresnel.measurement,BosTarget.Fiducial,5,26,2,2,1,5,2,1,0,1
+Fresnel Measurement Core,org.fresnel.measurement,CaptureSource.Kind,15,0,0,0,1,0,1,0,1,0
 Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.HealthState,0,51,0,0,0,9,0,1,0,1
 Fresnel Measurement Core,org.fresnel.measurement,CaptureProvider.Health,0,39,0,4,0,7,0,4,0,2
 Fresnel Measurement Core,org.fresnel.measurement,BosTarget.FiducialShape,0,27,0,0,0,5,0,1,0,1

@@ -2,6 +2,7 @@
 
 import org.fresnel.backend.measurement.CaptureProviderRegistry;
 import org.fresnel.measurement.CapturePlan;
+import org.fresnel.measurement.CaptureSource;
 import org.fresnel.measurement.CaptureProvider;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -28,74 +29,77 @@ public class CaptureProviderStatusController {
 
     private final CaptureProviderRegistry registry;
 
-<span class="fc" id="L31">    public CaptureProviderStatusController(CaptureProviderRegistry registry) {</span>
-<span class="fc" id="L32">        this.registry = registry;</span>
-<span class="fc" id="L33">    }</span>
+<span class="fc" id="L32">    public CaptureProviderStatusController(CaptureProviderRegistry registry) {</span>
+<span class="fc" id="L33">        this.registry = registry;</span>
+<span class="fc" id="L34">    }</span>
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public Overview overview() {
-<span class="fc" id="L37">        List&lt;ProviderStatus&gt; providers = registry.all().stream()</span>
-<span class="fc" id="L38">                .map(CaptureProviderStatusController::snapshot)</span>
-<span class="fc" id="L39">                .toList();</span>
-<span class="fc" id="L40">        return Overview.from(providers);</span>
+<span class="fc" id="L38">        List&lt;ProviderStatus&gt; providers = registry.all().stream()</span>
+<span class="fc" id="L39">                .map(CaptureProviderStatusController::snapshot)</span>
+<span class="fc" id="L40">                .toList();</span>
+<span class="fc" id="L41">        return Overview.from(providers);</span>
     }
+
+    @GetMapping(value = &quot;/sources&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+<span class="nc" id="L45">    public List&lt;CaptureSource.Info&gt; sources() { return registry.sources(); }</span>
 
     @GetMapping(value = &quot;/{id}&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity&lt;ProviderStatus&gt; provider(@PathVariable(&quot;id&quot;) String id) {
-<span class="fc" id="L45">        return registry.find(id)</span>
-<span class="fc" id="L46">                .map(CaptureProviderStatusController::snapshot)</span>
-<span class="fc" id="L47">                .map(ResponseEntity::ok)</span>
-<span class="fc" id="L48">                .orElse(ResponseEntity.notFound().build());</span>
+<span class="fc" id="L49">        return registry.find(id)</span>
+<span class="fc" id="L50">                .map(CaptureProviderStatusController::snapshot)</span>
+<span class="fc" id="L51">                .map(ResponseEntity::ok)</span>
+<span class="fc" id="L52">                .orElse(ResponseEntity.notFound().build());</span>
     }
 
     private static ProviderStatus snapshot(CaptureProvider provider) {
-<span class="fc" id="L52">        CaptureProvider.Descriptor descriptor = Objects.requireNonNull(</span>
-<span class="fc" id="L53">                provider.descriptor(), &quot;capture provider descriptor&quot;);</span>
+<span class="fc" id="L56">        CaptureProvider.Descriptor descriptor = Objects.requireNonNull(</span>
+<span class="fc" id="L57">                provider.descriptor(), &quot;capture provider descriptor&quot;);</span>
         CaptureProvider.Health health;
         try {
-<span class="fc" id="L56">            health = Objects.requireNonNull(provider.health(), &quot;capture provider health&quot;);</span>
-<span class="fc" id="L57">        } catch (RuntimeException exception) {</span>
-<span class="fc" id="L58">            health = new CaptureProvider.Health(</span>
+<span class="fc" id="L60">            health = Objects.requireNonNull(provider.health(), &quot;capture provider health&quot;);</span>
+<span class="fc" id="L61">        } catch (RuntimeException exception) {</span>
+<span class="fc" id="L62">            health = new CaptureProvider.Health(</span>
                     CaptureProvider.HealthState.DISCONNECTED,
-<span class="fc" id="L60">                    Instant.now(),</span>
+<span class="fc" id="L64">                    Instant.now(),</span>
                     &quot;PROVIDER_HEALTH_UNAVAILABLE&quot;);
-<span class="fc" id="L62">        }</span>
+<span class="fc" id="L66">        }</span>
 
         List&lt;DeviceStatus&gt; devices;
         try {
-<span class="fc" id="L66">            devices = provider.listDevices().stream()</span>
-<span class="fc" id="L67">                    .map(DeviceStatus::from)</span>
-<span class="fc" id="L68">                    .sorted(Comparator.comparing(DeviceStatus::displayName)</span>
-<span class="fc" id="L69">                            .thenComparing(DeviceStatus::id))</span>
-<span class="fc" id="L70">                    .toList();</span>
-<span class="fc" id="L71">        } catch (RuntimeException exception) {</span>
-<span class="fc" id="L72">            devices = List.of();</span>
-<span class="pc bpc" id="L73" title="1 of 2 branches missed.">            if (health.usable()) {</span>
-<span class="fc" id="L74">                health = new CaptureProvider.Health(</span>
+<span class="fc" id="L70">            devices = provider.listDevices().stream()</span>
+<span class="fc" id="L71">                    .map(DeviceStatus::from)</span>
+<span class="fc" id="L72">                    .sorted(Comparator.comparing(DeviceStatus::displayName)</span>
+<span class="fc" id="L73">                            .thenComparing(DeviceStatus::id))</span>
+<span class="fc" id="L74">                    .toList();</span>
+<span class="fc" id="L75">        } catch (RuntimeException exception) {</span>
+<span class="fc" id="L76">            devices = List.of();</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">            if (health.usable()) {</span>
+<span class="fc" id="L78">                health = new CaptureProvider.Health(</span>
                         CaptureProvider.HealthState.DEGRADED,
-<span class="fc" id="L76">                        Instant.now(),</span>
+<span class="fc" id="L80">                        Instant.now(),</span>
                         &quot;DEVICE_DISCOVERY_UNAVAILABLE&quot;);
             }
-<span class="fc" id="L79">        }</span>
+<span class="fc" id="L83">        }</span>
 
-<span class="fc" id="L81">        return new ProviderStatus(</span>
-<span class="fc" id="L82">                descriptor.id(),</span>
-<span class="fc" id="L83">                descriptor.displayName(),</span>
-<span class="fc" id="L84">                health.state(),</span>
-<span class="fc" id="L85">                health.checkedAt(),</span>
-<span class="fc" id="L86">                health.messageCode(),</span>
-<span class="fc" id="L87">                descriptor.protocolVersion(),</span>
-<span class="fc" id="L88">                descriptor.minimumSupportedProtocolVersion(),</span>
-<span class="fc" id="L89">                descriptor.capabilities().stream()</span>
-<span class="fc" id="L90">                        .sorted(Comparator.comparing(Enum::name))</span>
-<span class="fc" id="L91">                        .toList(),</span>
-<span class="fc" id="L92">                descriptor.supportedFormats().stream()</span>
-<span class="fc" id="L93">                        .sorted(Comparator.comparing(Enum::name))</span>
-<span class="fc" id="L94">                        .toList(),</span>
+<span class="fc" id="L85">        return new ProviderStatus(</span>
+<span class="fc" id="L86">                descriptor.id(),</span>
+<span class="fc" id="L87">                descriptor.displayName(),</span>
+<span class="fc" id="L88">                health.state(),</span>
+<span class="fc" id="L89">                health.checkedAt(),</span>
+<span class="fc" id="L90">                health.messageCode(),</span>
+<span class="fc" id="L91">                descriptor.protocolVersion(),</span>
+<span class="fc" id="L92">                descriptor.minimumSupportedProtocolVersion(),</span>
+<span class="fc" id="L93">                descriptor.capabilities().stream()</span>
+<span class="fc" id="L94">                        .sorted(Comparator.comparing(Enum::name))</span>
+<span class="fc" id="L95">                        .toList(),</span>
+<span class="fc" id="L96">                descriptor.supportedFormats().stream()</span>
+<span class="fc" id="L97">                        .sorted(Comparator.comparing(Enum::name))</span>
+<span class="fc" id="L98">                        .toList(),</span>
                 new ProviderLimits(
-<span class="fc" id="L96">                        descriptor.limits().maximumSteps(),</span>
-<span class="fc" id="L97">                        descriptor.limits().maximumAssetBytes(),</span>
-<span class="fc" id="L98">                        descriptor.limits().maximumSessionDuration().toSeconds()),</span>
+<span class="fc" id="L100">                        descriptor.limits().maximumSteps(),</span>
+<span class="fc" id="L101">                        descriptor.limits().maximumAssetBytes(),</span>
+<span class="fc" id="L102">                        descriptor.limits().maximumSessionDuration().toSeconds()),</span>
                 devices);
     }
 
@@ -105,55 +109,55 @@ public class CaptureProviderStatusController {
             String messageCode,
             List&lt;ProviderStatus&gt; providers) {
 
-<span class="fc" id="L108">        public Overview {</span>
-<span class="fc" id="L109">            Objects.requireNonNull(state, &quot;state&quot;);</span>
-<span class="fc" id="L110">            Objects.requireNonNull(checkedAt, &quot;checkedAt&quot;);</span>
-<span class="fc" id="L111">            Objects.requireNonNull(messageCode, &quot;messageCode&quot;);</span>
-<span class="fc" id="L112">            providers = List.copyOf(providers);</span>
-<span class="fc" id="L113">        }</span>
+<span class="fc" id="L112">        public Overview {</span>
+<span class="fc" id="L113">            Objects.requireNonNull(state, &quot;state&quot;);</span>
+<span class="fc" id="L114">            Objects.requireNonNull(checkedAt, &quot;checkedAt&quot;);</span>
+<span class="fc" id="L115">            Objects.requireNonNull(messageCode, &quot;messageCode&quot;);</span>
+<span class="fc" id="L116">            providers = List.copyOf(providers);</span>
+<span class="fc" id="L117">        }</span>
 
         static Overview from(List&lt;ProviderStatus&gt; source) {
-<span class="fc" id="L116">            List&lt;ProviderStatus&gt; providers = List.copyOf(source);</span>
-<span class="fc bfc" id="L117" title="All 2 branches covered.">            if (providers.isEmpty()) {</span>
-<span class="fc" id="L118">                return new Overview(</span>
+<span class="fc" id="L120">            List&lt;ProviderStatus&gt; providers = List.copyOf(source);</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">            if (providers.isEmpty()) {</span>
+<span class="fc" id="L122">                return new Overview(</span>
                         CaptureProvider.HealthState.NOT_CONFIGURED,
-<span class="fc" id="L120">                        Instant.now(),</span>
+<span class="fc" id="L124">                        Instant.now(),</span>
                         &quot;NO_CAPTURE_PROVIDER_CONFIGURED&quot;,
                         providers);
             }
 
-<span class="fc" id="L125">            Instant checkedAt = providers.stream()</span>
-<span class="fc" id="L126">                    .map(ProviderStatus::checkedAt)</span>
-<span class="fc" id="L127">                    .max(Comparator.naturalOrder())</span>
-<span class="fc" id="L128">                    .orElseGet(Instant::now);</span>
-<span class="fc" id="L129">            long connected = providers.stream()</span>
-<span class="fc bfc" id="L130" title="All 2 branches covered.">                    .filter(provider -&gt; provider.state() == CaptureProvider.HealthState.CONNECTED)</span>
-<span class="fc" id="L131">                    .count();</span>
-<span class="fc" id="L132">            boolean usable = providers.stream().anyMatch(provider -&gt;</span>
-<span class="fc bfc" id="L133" title="All 2 branches covered.">                    provider.state() == CaptureProvider.HealthState.CONNECTED</span>
-<span class="fc bfc" id="L134" title="All 2 branches covered.">                            || provider.state() == CaptureProvider.HealthState.DEGRADED);</span>
+<span class="fc" id="L129">            Instant checkedAt = providers.stream()</span>
+<span class="fc" id="L130">                    .map(ProviderStatus::checkedAt)</span>
+<span class="fc" id="L131">                    .max(Comparator.naturalOrder())</span>
+<span class="fc" id="L132">                    .orElseGet(Instant::now);</span>
+<span class="fc" id="L133">            long connected = providers.stream()</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">                    .filter(provider -&gt; provider.state() == CaptureProvider.HealthState.CONNECTED)</span>
+<span class="fc" id="L135">                    .count();</span>
+<span class="fc" id="L136">            boolean usable = providers.stream().anyMatch(provider -&gt;</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">                    provider.state() == CaptureProvider.HealthState.CONNECTED</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">                            || provider.state() == CaptureProvider.HealthState.DEGRADED);</span>
 
-<span class="fc bfc" id="L136" title="All 2 branches covered.">            if (connected == providers.size()) {</span>
-<span class="fc" id="L137">                return new Overview(</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">            if (connected == providers.size()) {</span>
+<span class="fc" id="L141">                return new Overview(</span>
                         CaptureProvider.HealthState.CONNECTED,
                         checkedAt,
                         &quot;ALL_CAPTURE_PROVIDERS_CONNECTED&quot;,
                         providers);
             }
-<span class="fc bfc" id="L143" title="All 2 branches covered.">            if (usable) {</span>
-<span class="fc" id="L144">                return new Overview(</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">            if (usable) {</span>
+<span class="fc" id="L148">                return new Overview(</span>
                         CaptureProvider.HealthState.DEGRADED,
                         checkedAt,
                         &quot;CAPTURE_PROVIDER_SET_DEGRADED&quot;,
                         providers);
             }
 
-<span class="fc" id="L151">            CaptureProvider.HealthState state = priorityState(providers);</span>
-<span class="fc" id="L152">            return new Overview(state, checkedAt, aggregateMessage(state), providers);</span>
+<span class="fc" id="L155">            CaptureProvider.HealthState state = priorityState(providers);</span>
+<span class="fc" id="L156">            return new Overview(state, checkedAt, aggregateMessage(state), providers);</span>
         }
 
         private static CaptureProvider.HealthState priorityState(List&lt;ProviderStatus&gt; providers) {
-<span class="fc" id="L156">            CaptureProvider.HealthState[] priority = {</span>
+<span class="fc" id="L160">            CaptureProvider.HealthState[] priority = {</span>
                     CaptureProvider.HealthState.PAIRING,
                     CaptureProvider.HealthState.AUTHENTICATION_FAILED,
                     CaptureProvider.HealthState.INCOMPATIBLE,
@@ -161,24 +165,24 @@ public class CaptureProviderStatusController {
                     CaptureProvider.HealthState.REVOKED,
                     CaptureProvider.HealthState.NOT_CONFIGURED
             };
-<span class="pc bpc" id="L164" title="1 of 2 branches missed.">            for (CaptureProvider.HealthState candidate : priority) {</span>
-<span class="fc bfc" id="L165" title="All 4 branches covered.">                if (providers.stream().anyMatch(provider -&gt; provider.state() == candidate)) {</span>
-<span class="fc" id="L166">                    return candidate;</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">            for (CaptureProvider.HealthState candidate : priority) {</span>
+<span class="fc bfc" id="L169" title="All 4 branches covered.">                if (providers.stream().anyMatch(provider -&gt; provider.state() == candidate)) {</span>
+<span class="fc" id="L170">                    return candidate;</span>
                 }
             }
-<span class="nc" id="L169">            return CaptureProvider.HealthState.DISCONNECTED;</span>
+<span class="nc" id="L173">            return CaptureProvider.HealthState.DISCONNECTED;</span>
         }
 
         private static String aggregateMessage(CaptureProvider.HealthState state) {
-<span class="pc bpc" id="L173" title="6 of 8 branches missed.">            return switch (state) {</span>
-<span class="nc" id="L174">                case NOT_CONFIGURED -&gt; &quot;NO_CAPTURE_PROVIDER_CONFIGURED&quot;;</span>
-<span class="nc" id="L175">                case PAIRING -&gt; &quot;CAPTURE_PROVIDER_PAIRING&quot;;</span>
-<span class="nc" id="L176">                case CONNECTED -&gt; &quot;ALL_CAPTURE_PROVIDERS_CONNECTED&quot;;</span>
-<span class="nc" id="L177">                case DEGRADED -&gt; &quot;CAPTURE_PROVIDER_SET_DEGRADED&quot;;</span>
-<span class="fc" id="L178">                case DISCONNECTED -&gt; &quot;CAPTURE_PROVIDERS_DISCONNECTED&quot;;</span>
-<span class="nc" id="L179">                case INCOMPATIBLE -&gt; &quot;CAPTURE_PROVIDER_INCOMPATIBLE&quot;;</span>
-<span class="fc" id="L180">                case AUTHENTICATION_FAILED -&gt; &quot;CAPTURE_PROVIDER_AUTHENTICATION_FAILED&quot;;</span>
-<span class="nc" id="L181">                case REVOKED -&gt; &quot;CAPTURE_PROVIDER_REVOKED&quot;;</span>
+<span class="pc bpc" id="L177" title="6 of 8 branches missed.">            return switch (state) {</span>
+<span class="nc" id="L178">                case NOT_CONFIGURED -&gt; &quot;NO_CAPTURE_PROVIDER_CONFIGURED&quot;;</span>
+<span class="nc" id="L179">                case PAIRING -&gt; &quot;CAPTURE_PROVIDER_PAIRING&quot;;</span>
+<span class="nc" id="L180">                case CONNECTED -&gt; &quot;ALL_CAPTURE_PROVIDERS_CONNECTED&quot;;</span>
+<span class="nc" id="L181">                case DEGRADED -&gt; &quot;CAPTURE_PROVIDER_SET_DEGRADED&quot;;</span>
+<span class="fc" id="L182">                case DISCONNECTED -&gt; &quot;CAPTURE_PROVIDERS_DISCONNECTED&quot;;</span>
+<span class="nc" id="L183">                case INCOMPATIBLE -&gt; &quot;CAPTURE_PROVIDER_INCOMPATIBLE&quot;;</span>
+<span class="fc" id="L184">                case AUTHENTICATION_FAILED -&gt; &quot;CAPTURE_PROVIDER_AUTHENTICATION_FAILED&quot;;</span>
+<span class="nc" id="L185">                case REVOKED -&gt; &quot;CAPTURE_PROVIDER_REVOKED&quot;;</span>
             };
         }
     }
@@ -196,14 +200,14 @@ public class CaptureProviderStatusController {
             ProviderLimits limits,
             List&lt;DeviceStatus&gt; devices) {
 
-<span class="fc" id="L199">        public ProviderStatus {</span>
-<span class="fc" id="L200">            capabilities = List.copyOf(capabilities);</span>
-<span class="fc" id="L201">            supportedFormats = List.copyOf(supportedFormats);</span>
-<span class="fc" id="L202">            devices = List.copyOf(devices);</span>
-<span class="fc" id="L203">        }</span>
+<span class="fc" id="L203">        public ProviderStatus {</span>
+<span class="fc" id="L204">            capabilities = List.copyOf(capabilities);</span>
+<span class="fc" id="L205">            supportedFormats = List.copyOf(supportedFormats);</span>
+<span class="fc" id="L206">            devices = List.copyOf(devices);</span>
+<span class="fc" id="L207">        }</span>
     }
 
-<span class="fc" id="L206">    public record ProviderLimits(</span>
+<span class="fc" id="L210">    public record ProviderLimits(</span>
             int maximumSteps,
             long maximumAssetBytes,
             long maximumSessionDurationSeconds) {}
@@ -215,22 +219,22 @@ public class CaptureProviderStatusController {
             List&lt;CaptureProvider.Capability&gt; capabilities,
             List&lt;CapturePlan.ImageFormat&gt; supportedFormats) {
 
-<span class="fc" id="L218">        public DeviceStatus {</span>
-<span class="fc" id="L219">            capabilities = List.copyOf(capabilities);</span>
-<span class="fc" id="L220">            supportedFormats = List.copyOf(supportedFormats);</span>
-<span class="fc" id="L221">        }</span>
+<span class="fc" id="L222">        public DeviceStatus {</span>
+<span class="fc" id="L223">            capabilities = List.copyOf(capabilities);</span>
+<span class="fc" id="L224">            supportedFormats = List.copyOf(supportedFormats);</span>
+<span class="fc" id="L225">        }</span>
 
         static DeviceStatus from(CaptureProvider.Device device) {
-<span class="fc" id="L224">            return new DeviceStatus(</span>
-<span class="fc" id="L225">                    device.id(),</span>
-<span class="fc" id="L226">                    device.displayName(),</span>
-<span class="fc" id="L227">                    device.state(),</span>
-<span class="fc" id="L228">                    device.capabilities().stream()</span>
-<span class="fc" id="L229">                            .sorted(Comparator.comparing(Enum::name))</span>
-<span class="fc" id="L230">                            .toList(),</span>
-<span class="fc" id="L231">                    device.supportedFormats().stream()</span>
-<span class="fc" id="L232">                            .sorted(Comparator.comparing(Enum::name))</span>
-<span class="fc" id="L233">                            .toList());</span>
+<span class="fc" id="L228">            return new DeviceStatus(</span>
+<span class="fc" id="L229">                    device.id(),</span>
+<span class="fc" id="L230">                    device.displayName(),</span>
+<span class="fc" id="L231">                    device.state(),</span>
+<span class="fc" id="L232">                    device.capabilities().stream()</span>
+<span class="fc" id="L233">                            .sorted(Comparator.comparing(Enum::name))</span>
+<span class="fc" id="L234">                            .toList(),</span>
+<span class="fc" id="L235">                    device.supportedFormats().stream()</span>
+<span class="fc" id="L236">                            .sorted(Comparator.comparing(Enum::name))</span>
+<span class="fc" id="L237">                            .toList());</span>
         }
     }
 }

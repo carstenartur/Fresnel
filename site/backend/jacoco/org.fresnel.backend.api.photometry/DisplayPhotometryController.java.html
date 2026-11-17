@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DisplayPhotometryController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api.photometry</a> &gt; <span class="el_source">DisplayPhotometryController.java</span></div><h1>DisplayPhotometryController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api.photometry;
+
+import org.fresnel.measurement.photometry.DisplayGeometry;
+import org.fresnel.measurement.photometry.DisplayIlluminationSequenceGenerator;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+import java.util.Arrays;
+import java.util.Set;
+import java.util.concurrent.Semaphore;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+/** Stateless pattern generation; user images remain in the operator's browser. */
+@RestController
+@RequestMapping(&quot;/api/measurements/display-photometric-stereo&quot;)
+public class DisplayPhotometryController {
+<span class="fc" id="L23">    public static final Set&lt;String&gt; FIELDS = Arrays.stream(DisplayGeometry.class.getRecordComponents())</span>
+<span class="fc" id="L24">            .map(java.lang.reflect.RecordComponent::getName).collect(Collectors.toUnmodifiableSet());</span>
+    private final ObjectMapper mapper;
+<span class="fc" id="L26">    private final Semaphore permits = new Semaphore(2);</span>
+<span class="fc" id="L27">    public DisplayPhotometryController(ObjectMapper mapper) { this.mapper = mapper; }</span>
+
+    @PostMapping(&quot;/sequence&quot;)
+    public DisplayIlluminationSequenceGenerator.Manifest sequence(@RequestBody JsonNode supplied) {
+<span class="nc" id="L31">        var settings = geometry(supplied);</span>
+<span class="nc" id="L32">        return bounded(() -&gt; DisplayIlluminationSequenceGenerator.generate(settings));</span>
+    }
+
+    @PostMapping(value = &quot;/patterns/{id}&quot;, produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity&lt;byte[]&gt; pattern(@PathVariable(&quot;id&quot;) String id, @RequestBody JsonNode supplied) {
+<span class="nc" id="L37">        var settings = geometry(supplied);</span>
+<span class="nc" id="L38">        return bounded(() -&gt; ResponseEntity.ok().contentType(MediaType.IMAGE_PNG)</span>
+<span class="nc" id="L39">                .body(DisplayIlluminationSequenceGenerator.png(settings, id)));</span>
+    }
+
+    private DisplayGeometry geometry(JsonNode input) {
+<span class="nc bnc" id="L43" title="All 4 branches missed.">        if (!input.isObject() || input.size() != FIELDS.size())</span>
+<span class="nc" id="L44">            throw new IllegalArgumentException(&quot;Supply exactly the display geometry fields from the plugin schema&quot;);</span>
+<span class="nc bnc" id="L45" title="All 4 branches missed.">        for (var key : FIELDS) if (!input.path(key).isNumber())</span>
+<span class="nc" id="L46">            throw new IllegalArgumentException(&quot;Geometry fields must be numbers&quot;);</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        for (var key : Set.of(&quot;widthPx&quot;, &quot;heightPx&quot;, &quot;lightCount&quot;, &quot;settleDelayMs&quot;))</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">            if (!input.get(key).isIntegralNumber()) throw new IllegalArgumentException(key + &quot; must be an integer&quot;);</span>
+<span class="nc" id="L49">        return mapper.convertValue(input, DisplayGeometry.class);</span>
+    }
+    private &lt;T&gt; T bounded(Supplier&lt;T&gt; action) {
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        if (!permits.tryAcquire()) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, &quot;Display generator busy&quot;);</span>
+<span class="nc" id="L53">        try { return action.get(); }</span>
+<span class="nc" id="L54">        finally { permits.release(); }</span>
+    }
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity&lt;String&gt; invalid(IllegalArgumentException error) {
+<span class="nc" id="L58">        return ResponseEntity.badRequest().contentType(MediaType.TEXT_PLAIN).body(error.getMessage());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

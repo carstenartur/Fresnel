@@ -2,8 +2,10 @@
 
 import jakarta.validation.Valid;
 import org.fresnel.backend.measurement.BosTargetPngEncoder;
+import org.fresnel.backend.measurement.BosTargetPrintExporter;
 import org.fresnel.measurement.BosTarget;
 import org.fresnel.measurement.BosTargetGenerator;
+import org.fresnel.optics.PdfExporter.SheetSize;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -15,10 +17,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+
 /** Public, deterministic target-generation endpoints for the BOS measurement plugin. */
 @RestController
 @RequestMapping(&quot;/api/measurements/background-oriented-schlieren&quot;)
-<span class="fc" id="L21">public class BosTargetController {</span>
+<span class="fc" id="L25">public class BosTargetController {</span>
 
     private static final int THUMBNAIL_SIDE_PX = 1600;
 
@@ -31,7 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
     public BosTarget.Manifest manifest(@Valid @RequestBody BosTargetRequest request) {
-<span class="fc" id="L34">        return generate(request).manifest();</span>
+<span class="fc" id="L38">        return generate(request).manifest();</span>
     }
 
     @PostMapping(
@@ -41,8 +45,8 @@ import org.springframework.web.bind.annotation.RestController;
     public ResponseEntity&lt;byte[]&gt; preview(
             @Valid @RequestBody BosTargetRequest request,
             @RequestParam(value = &quot;thumbnail&quot;, defaultValue = &quot;false&quot;) boolean thumbnail) {
-<span class="fc" id="L44">        BosTarget target = generate(request);</span>
-<span class="fc" id="L45">        return imageResponse(target, false, thumbnail);</span>
+<span class="fc" id="L48">        BosTarget target = generate(request);</span>
+<span class="fc" id="L49">        return imageResponse(target, false, thumbnail);</span>
     }
 
     @PostMapping(
@@ -50,37 +54,59 @@ import org.springframework.web.bind.annotation.RestController;
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity&lt;byte[]&gt; export(@Valid @RequestBody BosTargetRequest request) {
-<span class="fc" id="L53">        BosTarget target = generate(request);</span>
-<span class="fc" id="L54">        return imageResponse(target, true, false);</span>
+<span class="fc" id="L57">        BosTarget target = generate(request);</span>
+<span class="fc" id="L58">        return imageResponse(target, true, false);</span>
+    }
+
+    @PostMapping(value = &quot;/target/export.svg&quot;, consumes = MediaType.APPLICATION_JSON_VALUE, produces = &quot;image/svg+xml&quot;)
+    public ResponseEntity&lt;byte[]&gt; exportSvg(@Valid @RequestBody BosTargetRequest request,
+            @RequestParam(value = &quot;calibrationStrip&quot;, defaultValue = &quot;true&quot;) boolean strip) {
+<span class="fc" id="L64">        BosTarget target = generate(request);</span>
+<span class="fc" id="L65">        return output(target, BosTargetPrintExporter.svg(target, strip), MediaType.valueOf(&quot;image/svg+xml&quot;),</span>
+                &quot;.svg&quot;, true, &quot;-svg-&quot; + strip);
+    }
+
+    @PostMapping(value = &quot;/target/export.pdf&quot;, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity&lt;byte[]&gt; exportPdf(@Valid @RequestBody BosTargetRequest request,
+            @RequestParam(value = &quot;calibrationStrip&quot;, defaultValue = &quot;true&quot;) boolean strip,
+            @RequestParam(value = &quot;sheet&quot;, defaultValue = &quot;FIT&quot;) SheetSize sheet) throws IOException {
+<span class="fc" id="L73">        BosTarget target = generate(request);</span>
+<span class="fc" id="L74">        return output(target, BosTargetPrintExporter.pdf(target, strip, sheet), MediaType.APPLICATION_PDF,</span>
+                &quot;.pdf&quot;, true, &quot;-pdf-&quot; + strip + &quot;-&quot; + sheet);
     }
 
     private static BosTarget generate(BosTargetRequest request) {
-<span class="fc" id="L58">        return BosTargetGenerator.generate(request.toParameters());</span>
+<span class="fc" id="L79">        return BosTargetGenerator.generate(request.toParameters());</span>
     }
 
     private static ResponseEntity&lt;byte[]&gt; imageResponse(
             BosTarget target, boolean attachment, boolean thumbnail) {
-<span class="fc bfc" id="L63" title="All 2 branches covered.">        byte[] png = thumbnail</span>
-<span class="fc" id="L64">                ? BosTargetPngEncoder.thumbnail(target, THUMBNAIL_SIDE_PX)</span>
-<span class="fc" id="L65">                : BosTargetPngEncoder.encode(target);</span>
-<span class="fc" id="L66">        BosTarget.Region active = target.activeRegion();</span>
-<span class="fc" id="L67">        HttpHeaders headers = new HttpHeaders();</span>
-<span class="fc" id="L68">        headers.setContentType(MediaType.IMAGE_PNG);</span>
-<span class="fc" id="L69">        headers.setCacheControl(CacheControl.noStore());</span>
-<span class="fc bfc" id="L70" title="All 2 branches covered.">        headers.setETag('&quot;' + target.semanticSha256() + (thumbnail ? &quot;-thumbnail&quot; : &quot;&quot;) + '&quot;');</span>
-<span class="fc" id="L71">        headers.set(TARGET_SHA256_HEADER, target.semanticSha256());</span>
-<span class="fc" id="L72">        headers.set(TARGET_ID_HEADER, target.targetId());</span>
-<span class="fc" id="L73">        headers.set(&quot;X-Fresnel-Pattern-Seed&quot;, Long.toString(target.parameters().patternSeed()));</span>
-<span class="fc" id="L74">        headers.set(&quot;X-Fresnel-Dot-Count&quot;, Integer.toString(target.dotCount()));</span>
-<span class="fc" id="L75">        headers.set(&quot;X-Fresnel-Achieved-Fill-Ratio&quot;, Double.toString(target.actualFillRatio()));</span>
-<span class="fc" id="L76">        headers.set(ACTIVE_REGION_HEADER,</span>
-<span class="fc" id="L77">                active.x() + &quot;,&quot; + active.y() + &quot;,&quot; + active.width() + &quot;,&quot; + active.height());</span>
-<span class="fc" id="L78">        headers.add(&quot;X-Content-Type-Options&quot;, &quot;nosniff&quot;);</span>
-<span class="fc bfc" id="L79" title="All 2 branches covered.">        ContentDisposition disposition = attachment</span>
-<span class="fc" id="L80">                ? ContentDisposition.attachment().filename(target.targetId() + &quot;.png&quot;).build()</span>
-<span class="fc" id="L81">                : ContentDisposition.inline().filename(target.targetId() + &quot;.png&quot;).build();</span>
-<span class="fc" id="L82">        headers.setContentDisposition(disposition);</span>
-<span class="fc" id="L83">        return ResponseEntity.ok().headers(headers).contentLength(png.length).body(png);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        byte[] png = thumbnail</span>
+<span class="fc" id="L85">                ? BosTargetPngEncoder.thumbnail(target, THUMBNAIL_SIDE_PX)</span>
+<span class="fc" id="L86">                : BosTargetPngEncoder.encode(target);</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        return output(target, png, MediaType.IMAGE_PNG, &quot;.png&quot;, attachment, thumbnail ? &quot;-thumbnail&quot; : &quot;&quot;);</span>
+    }
+
+    private static ResponseEntity&lt;byte[]&gt; output(BosTarget target, byte[] bytes, MediaType type,
+            String extension, boolean attachment, String variant) {
+<span class="fc" id="L92">        BosTarget.Region active = target.activeRegion();</span>
+<span class="fc" id="L93">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="fc" id="L94">        headers.setContentType(type);</span>
+<span class="fc" id="L95">        headers.setCacheControl(CacheControl.noStore());</span>
+<span class="fc" id="L96">        headers.setETag('&quot;' + target.semanticSha256() + variant + '&quot;');</span>
+<span class="fc" id="L97">        headers.set(TARGET_SHA256_HEADER, target.semanticSha256());</span>
+<span class="fc" id="L98">        headers.set(TARGET_ID_HEADER, target.targetId());</span>
+<span class="fc" id="L99">        headers.set(&quot;X-Fresnel-Pattern-Seed&quot;, Long.toString(target.parameters().patternSeed()));</span>
+<span class="fc" id="L100">        headers.set(&quot;X-Fresnel-Dot-Count&quot;, Integer.toString(target.dotCount()));</span>
+<span class="fc" id="L101">        headers.set(&quot;X-Fresnel-Achieved-Fill-Ratio&quot;, Double.toString(target.actualFillRatio()));</span>
+<span class="fc" id="L102">        headers.set(ACTIVE_REGION_HEADER,</span>
+<span class="fc" id="L103">                active.x() + &quot;,&quot; + active.y() + &quot;,&quot; + active.width() + &quot;,&quot; + active.height());</span>
+<span class="fc" id="L104">        headers.add(&quot;X-Content-Type-Options&quot;, &quot;nosniff&quot;);</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        ContentDisposition disposition = attachment</span>
+<span class="fc" id="L106">                ? ContentDisposition.attachment().filename(target.targetId() + extension).build()</span>
+<span class="fc" id="L107">                : ContentDisposition.inline().filename(target.targetId() + extension).build();</span>
+<span class="fc" id="L108">        headers.setContentDisposition(disposition);</span>
+<span class="fc" id="L109">        return ResponseEntity.ok().headers(headers).contentLength(bytes.length).body(bytes);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

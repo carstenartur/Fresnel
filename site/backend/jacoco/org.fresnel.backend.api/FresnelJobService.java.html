@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FresnelJobService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">FresnelJobService.java</span></div><h1>FresnelJobService.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
 
+import org.fresnel.backend.api.photometry.DisplayPhotometryController;
+import org.fresnel.measurement.photometry.DisplayGeometry;
+
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.fresnel.optics.HologramParameters;
@@ -30,7 +33,7 @@ import java.util.stream.Collectors;
 @Service
 public class FresnelJobService {
 
-<span class="fc" id="L33">    private static final Map&lt;String, String&gt; LEGACY_KIND_TO_PLUGIN = Map.of(</span>
+<span class="fc" id="L36">    private static final Map&lt;String, String&gt; LEGACY_KIND_TO_PLUGIN = Map.of(</span>
             DesignDocument.KIND_SINGLE, &quot;zone-plate&quot;,
             DesignDocument.KIND_HEX, &quot;hex-macro-cell&quot;,
             DesignDocument.KIND_FOIL, &quot;window-foil&quot;,
@@ -38,543 +41,549 @@ public class FresnelJobService {
             DesignDocument.KIND_RGB, &quot;rgb-zone-plate&quot;,
             DesignDocument.KIND_HOLOGRAM, &quot;hologram&quot;);
 
-<span class="fc" id="L41">    private static final Set&lt;String&gt; JOB_FIELDS = Set.of(</span>
+<span class="fc" id="L44">    private static final Set&lt;String&gt; JOB_FIELDS = Set.of(</span>
             &quot;$schema&quot;, &quot;format&quot;, &quot;formatVersion&quot;, &quot;plugin&quot;, &quot;parameters&quot;, &quot;production&quot;, &quot;provenance&quot;);
-<span class="fc" id="L43">    private static final Set&lt;String&gt; LEGACY_JOB_FIELDS = Set.of(&quot;kind&quot;, &quot;version&quot;, &quot;payload&quot;);</span>
-<span class="fc" id="L44">    private static final Set&lt;String&gt; PLUGIN_FIELDS = Set.of(</span>
+<span class="fc" id="L46">    private static final Set&lt;String&gt; LEGACY_JOB_FIELDS = Set.of(&quot;kind&quot;, &quot;version&quot;, &quot;payload&quot;);</span>
+<span class="fc" id="L47">    private static final Set&lt;String&gt; PLUGIN_FIELDS = Set.of(</span>
             &quot;id&quot;, &quot;parameterSchemaVersion&quot;, &quot;algorithmVersion&quot;);
-<span class="fc" id="L46">    private static final Set&lt;String&gt; PRODUCTION_FIELDS = Set.of(&quot;outputs&quot;);</span>
-<span class="fc" id="L47">    private static final Set&lt;String&gt; OUTPUT_FIELDS = Set.of(</span>
+<span class="fc" id="L49">    private static final Set&lt;String&gt; PRODUCTION_FIELDS = Set.of(&quot;outputs&quot;);</span>
+<span class="fc" id="L50">    private static final Set&lt;String&gt; OUTPUT_FIELDS = Set.of(</span>
             &quot;id&quot;, &quot;format&quot;, &quot;filename&quot;, &quot;sheet&quot;, &quot;printScale&quot;, &quot;options&quot;);
-<span class="fc" id="L49">    private static final Set&lt;String&gt; PROVENANCE_FIELDS = Set.of(</span>
+<span class="fc" id="L52">    private static final Set&lt;String&gt; PROVENANCE_FIELDS = Set.of(</span>
             &quot;createdWith&quot;, &quot;applicationVersion&quot;, &quot;parameterSha256&quot;);
 
-<span class="fc" id="L52">    private static final Set&lt;String&gt; SINGLE_PARAMETER_FIELDS = Set.of(</span>
+<span class="fc" id="L55">    private static final Set&lt;String&gt; SINGLE_PARAMETER_FIELDS = Set.of(</span>
             &quot;apertureDiameterMm&quot;, &quot;focalLengthMm&quot;, &quot;wavelengthNm&quot;, &quot;dpi&quot;,
             &quot;targetOffsetXmm&quot;, &quot;targetOffsetYmm&quot;, &quot;maskType&quot;, &quot;polarity&quot;);
-<span class="fc" id="L55">    private static final Set&lt;String&gt; HEX_PARAMETER_FIELDS = Set.of(</span>
+<span class="fc" id="L58">    private static final Set&lt;String&gt; HEX_PARAMETER_FIELDS = Set.of(</span>
             &quot;macroRadiusMm&quot;, &quot;subDiameterMm&quot;, &quot;subPitchMm&quot;, &quot;focalLengthMm&quot;,
             &quot;targetOffsetXmm&quot;, &quot;targetOffsetYmm&quot;, &quot;wavelengthNm&quot;, &quot;dpi&quot;,
             &quot;maskType&quot;, &quot;polarity&quot;);
-<span class="fc" id="L59">    private static final Set&lt;String&gt; FOIL_PARAMETER_FIELDS = Set.of(</span>
+<span class="fc" id="L62">    private static final Set&lt;String&gt; FOIL_PARAMETER_FIELDS = Set.of(</span>
             &quot;sheetWidthMm&quot;, &quot;sheetHeightMm&quot;, &quot;macroRadiusMm&quot;, &quot;subDiameterMm&quot;,
             &quot;subPitchMm&quot;, &quot;wavelengthNm&quot;, &quot;dpi&quot;, &quot;maskType&quot;, &quot;polarity&quot;,
             &quot;cellSpecs&quot;, &quot;drawCropMarks&quot;);
-<span class="fc" id="L63">    private static final Set&lt;String&gt; MULTI_PARAMETER_FIELDS = Set.of(</span>
+<span class="fc" id="L66">    private static final Set&lt;String&gt; MULTI_PARAMETER_FIELDS = Set.of(</span>
             &quot;apertureDiameterMm&quot;, &quot;focusPoints&quot;, &quot;wavelengthNm&quot;, &quot;dpi&quot;, &quot;maskType&quot;, &quot;polarity&quot;);
-<span class="fc" id="L65">    private static final Set&lt;String&gt; RGB_PARAMETER_FIELDS = Set.of(</span>
+<span class="fc" id="L68">    private static final Set&lt;String&gt; RGB_PARAMETER_FIELDS = Set.of(</span>
             &quot;base&quot;, &quot;redNm&quot;, &quot;greenNm&quot;, &quot;blueNm&quot;);
-<span class="fc" id="L67">    private static final Set&lt;String&gt; HOLOGRAM_PARAMETER_FIELDS = Set.of(</span>
+<span class="fc" id="L70">    private static final Set&lt;String&gt; HOLOGRAM_PARAMETER_FIELDS = Set.of(</span>
             &quot;targetImageBase64&quot;, &quot;sidePx&quot;, &quot;iterations&quot;, &quot;outputType&quot;, &quot;dpi&quot;,
             &quot;wavelengthNm&quot;, &quot;refractiveIndexDelta&quot;, &quot;maxPhaseShiftRad&quot;);
-<span class="fc" id="L70">    private static final Set&lt;String&gt; GRATING_PARAMETER_FIELDS = Set.of(</span>
+<span class="fc" id="L73">    private static final Set&lt;String&gt; GRATING_PARAMETER_FIELDS = Set.of(</span>
             &quot;widthMm&quot;, &quot;heightMm&quot;, &quot;lineOrientation&quot;, &quot;startPitchUm&quot;, &quot;endPitchUm&quot;,
             &quot;progression&quot;, &quot;progressionDirection&quot;, &quot;dutyCycle&quot;, &quot;phaseOffsetCycles&quot;,
             &quot;polarity&quot;, &quot;marginMm&quot;, &quot;annotationSizeMm&quot;, &quot;showAxis&quot;, &quot;axisQuantity&quot;,
             &quot;tickCount&quot;, &quot;showReferenceBands&quot;, &quot;referenceBandSizeMm&quot;, &quot;dpi&quot;);
-<span class="fc" id="L75">    private static final Set&lt;String&gt; BOS_PARAMETER_FIELDS = Set.of(</span>
+<span class="fc" id="L78">    private static final Set&lt;String&gt; BOS_PARAMETER_FIELDS = Set.of(</span>
             &quot;widthPx&quot;, &quot;heightPx&quot;, &quot;intendedDpi&quot;, &quot;patternSeed&quot;, &quot;dotDiameterPx&quot;,
             &quot;targetFillRatio&quot;, &quot;minimumDotSpacingPx&quot;, &quot;borderPx&quot;,
             &quot;fiducialsEnabled&quot;, &quot;invertPattern&quot;);
-<span class="fc" id="L79">    private static final Set&lt;String&gt; FOCUS_POINT_FIELDS = Set.of(&quot;xMm&quot;, &quot;yMm&quot;, &quot;zMm&quot;);</span>
-<span class="fc" id="L80">    private static final Set&lt;String&gt; CELL_SPEC_FIELDS = Set.of(</span>
+<span class="fc" id="L82">    private static final Set&lt;String&gt; FOCUS_POINT_FIELDS = Set.of(&quot;xMm&quot;, &quot;yMm&quot;, &quot;zMm&quot;);</span>
+<span class="fc" id="L83">    private static final Set&lt;String&gt; CELL_SPEC_FIELDS = Set.of(</span>
             &quot;focalLengthMm&quot;, &quot;targetOffsetXmm&quot;, &quot;targetOffsetYmm&quot;);
-<span class="fc" id="L82">    private static final Set&lt;String&gt; PDF_SHEETS = Set.of(&quot;FIT&quot;, &quot;A4&quot;, &quot;A3&quot;, &quot;A2&quot;, &quot;A1&quot;, &quot;A0&quot;);</span>
+<span class="fc" id="L85">    private static final Set&lt;String&gt; PDF_SHEETS = Set.of(&quot;FIT&quot;, &quot;A4&quot;, &quot;A3&quot;, &quot;A2&quot;, &quot;A1&quot;, &quot;A0&quot;);</span>
 
     private final ObjectMapper mapper;
     private final Validator validator;
 
-<span class="fc" id="L87">    public FresnelJobService(ObjectMapper mapper, Validator validator) {</span>
-<span class="fc" id="L88">        this.mapper = mapper;</span>
-<span class="fc" id="L89">        this.validator = validator;</span>
-<span class="fc" id="L90">    }</span>
+<span class="fc" id="L90">    public FresnelJobService(ObjectMapper mapper, Validator validator) {</span>
+<span class="fc" id="L91">        this.mapper = mapper;</span>
+<span class="fc" id="L92">        this.validator = validator;</span>
+<span class="fc" id="L93">    }</span>
 
     /** Parse either a v1 Fresnel job or a legacy {@link DesignDocument}. */
     public FresnelJobDocument parseAndNormalize(byte[] body) {
-<span class="pc bpc" id="L94" title="2 of 4 branches missed.">        if (body == null || body.length == 0) {</span>
-<span class="nc" id="L95">            throw new IllegalArgumentException(&quot;Fresnel job must not be empty&quot;);</span>
+<span class="pc bpc" id="L97" title="2 of 4 branches missed.">        if (body == null || body.length == 0) {</span>
+<span class="nc" id="L98">            throw new IllegalArgumentException(&quot;Fresnel job must not be empty&quot;);</span>
         }
-<span class="fc bfc" id="L97" title="All 2 branches covered.">        if (body.length &gt; FresnelJobDocument.MAX_FILE_BYTES) {</span>
-<span class="fc" id="L98">            throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        if (body.length &gt; FresnelJobDocument.MAX_FILE_BYTES) {</span>
+<span class="fc" id="L101">            throw new IllegalArgumentException(</span>
                     &quot;Fresnel job exceeds the maximum size of &quot; + FresnelJobDocument.MAX_FILE_BYTES + &quot; bytes&quot;);
         }
         final JsonNode root;
         try {
-<span class="fc" id="L103">            root = mapper.readTree(body);</span>
-<span class="fc" id="L104">        } catch (Exception e) {</span>
-<span class="fc" id="L105">            throw new IllegalArgumentException(&quot;Invalid Fresnel job JSON: &quot; + conciseMessage(e), e);</span>
-<span class="fc" id="L106">        }</span>
-<span class="pc bpc" id="L107" title="2 of 4 branches missed.">        if (root == null || !root.isObject()) {</span>
-<span class="nc" id="L108">            throw new IllegalArgumentException(&quot;Fresnel job root must be a JSON object&quot;);</span>
+<span class="fc" id="L106">            root = mapper.readTree(body);</span>
+<span class="fc" id="L107">        } catch (Exception e) {</span>
+<span class="fc" id="L108">            throw new IllegalArgumentException(&quot;Invalid Fresnel job JSON: &quot; + conciseMessage(e), e);</span>
+<span class="fc" id="L109">        }</span>
+<span class="pc bpc" id="L110" title="2 of 4 branches missed.">        if (root == null || !root.isObject()) {</span>
+<span class="nc" id="L111">            throw new IllegalArgumentException(&quot;Fresnel job root must be a JSON object&quot;);</span>
         }
-<span class="pc bpc" id="L110" title="1 of 4 branches missed.">        boolean legacy = root.has(&quot;kind&quot;) &amp;&amp; !root.has(&quot;format&quot;);</span>
-<span class="fc" id="L111">        validateEnvelopeShape(root, legacy);</span>
+<span class="pc bpc" id="L113" title="1 of 4 branches missed.">        boolean legacy = root.has(&quot;kind&quot;) &amp;&amp; !root.has(&quot;format&quot;);</span>
+<span class="fc" id="L114">        validateEnvelopeShape(root, legacy);</span>
         try {
-<span class="fc bfc" id="L113" title="All 2 branches covered.">            return legacy</span>
-<span class="fc" id="L114">                    ? migrateLegacy(mapper.convertValue(root, DesignDocument.class))</span>
-<span class="fc" id="L115">                    : normalize(mapper.convertValue(root, FresnelJobDocument.class));</span>
-<span class="fc" id="L116">        } catch (IllegalArgumentException e) {</span>
-<span class="fc" id="L117">            throw e;</span>
-<span class="fc" id="L118">        } catch (Exception e) {</span>
-<span class="fc" id="L119">            throw new IllegalArgumentException(&quot;Invalid Fresnel job: &quot; + conciseMessage(e), e);</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">            return legacy</span>
+<span class="fc" id="L117">                    ? migrateLegacy(mapper.convertValue(root, DesignDocument.class))</span>
+<span class="fc" id="L118">                    : normalize(mapper.convertValue(root, FresnelJobDocument.class));</span>
+<span class="fc" id="L119">        } catch (IllegalArgumentException e) {</span>
+<span class="fc" id="L120">            throw e;</span>
+<span class="fc" id="L121">        } catch (Exception e) {</span>
+<span class="fc" id="L122">            throw new IllegalArgumentException(&quot;Invalid Fresnel job: &quot; + conciseMessage(e), e);</span>
         }
     }
 
     /** Serialize a normalized job with stable pretty printing. */
     public byte[] write(FresnelJobDocument job) {
-<span class="fc" id="L125">        FresnelJobDocument normalized = normalize(job);</span>
+<span class="fc" id="L128">        FresnelJobDocument normalized = normalize(job);</span>
         try {
-<span class="fc" id="L127">            return mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(normalized);</span>
-<span class="nc" id="L128">        } catch (Exception e) {</span>
-<span class="nc" id="L129">            throw new IllegalArgumentException(&quot;Could not serialize Fresnel job: &quot; + conciseMessage(e), e);</span>
+<span class="fc" id="L130">            return mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(normalized);</span>
+<span class="nc" id="L131">        } catch (Exception e) {</span>
+<span class="nc" id="L132">            throw new IllegalArgumentException(&quot;Could not serialize Fresnel job: &quot; + conciseMessage(e), e);</span>
         }
     }
 
     /** Convert the former kind/version/payload envelope into the public job format. */
     public FresnelJobDocument migrateLegacy(DesignDocument legacy) {
-<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        if (legacy == null) throw new IllegalArgumentException(&quot;Legacy design document must not be null&quot;);</span>
-<span class="pc bpc" id="L136" title="1 of 2 branches missed.">        if (legacy.version() &gt; DesignDocument.SCHEMA_VERSION) {</span>
-<span class="nc" id="L137">            throw new IllegalArgumentException(</span>
-<span class="nc" id="L138">                    &quot;Legacy design schema version &quot; + legacy.version() + &quot; is newer than supported (&quot;</span>
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">        if (legacy == null) throw new IllegalArgumentException(&quot;Legacy design document must not be null&quot;);</span>
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">        if (legacy.version() &gt; DesignDocument.SCHEMA_VERSION) {</span>
+<span class="nc" id="L140">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L141">                    &quot;Legacy design schema version &quot; + legacy.version() + &quot; is newer than supported (&quot;</span>
                             + DesignDocument.SCHEMA_VERSION + &quot;)&quot;);
         }
-<span class="fc" id="L141">        String pluginId = LEGACY_KIND_TO_PLUGIN.get(legacy.kind());</span>
-<span class="pc bpc" id="L142" title="1 of 2 branches missed.">        if (pluginId == null) throw new IllegalArgumentException(&quot;Unknown legacy design kind: &quot; + legacy.kind());</span>
-<span class="pc bpc" id="L143" title="2 of 4 branches missed.">        if (legacy.payload() == null || !legacy.payload().isObject()) {</span>
-<span class="nc" id="L144">            throw new IllegalArgumentException(&quot;Legacy design payload must be a JSON object&quot;);</span>
+<span class="fc" id="L144">        String pluginId = LEGACY_KIND_TO_PLUGIN.get(legacy.kind());</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">        if (pluginId == null) throw new IllegalArgumentException(&quot;Unknown legacy design kind: &quot; + legacy.kind());</span>
+<span class="pc bpc" id="L146" title="2 of 4 branches missed.">        if (legacy.payload() == null || !legacy.payload().isObject()) {</span>
+<span class="nc" id="L147">            throw new IllegalArgumentException(&quot;Legacy design payload must be a JSON object&quot;);</span>
         }
-<span class="fc" id="L146">        return normalize(new FresnelJobDocument(</span>
+<span class="fc" id="L149">        return normalize(new FresnelJobDocument(</span>
                 FresnelJobDocument.SCHEMA_URL,
                 FresnelJobDocument.FORMAT_IDENTIFIER,
                 FresnelJobDocument.CURRENT_FORMAT_VERSION,
                 new FresnelJobDocument.PluginRef(
                         pluginId,
-<span class="fc" id="L152">                        FresnelJobDocument.CURRENT_PARAMETER_SCHEMA_VERSION,</span>
+<span class="fc" id="L155">                        FresnelJobDocument.CURRENT_PARAMETER_SCHEMA_VERSION,</span>
                         pluginId + &quot;/1&quot;),
-<span class="fc" id="L154">                legacy.payload(),</span>
+<span class="fc" id="L157">                legacy.payload(),</span>
                 null,
-<span class="fc" id="L156">                new FresnelJobDocument.Provenance(&quot;Fresnel&quot;, applicationVersion(), null)));</span>
+<span class="fc" id="L159">                new FresnelJobDocument.Provenance(&quot;Fresnel&quot;, applicationVersion(), null)));</span>
     }
 
     /** Validate and canonicalize a job without changing its design semantics. */
     public FresnelJobDocument normalize(FresnelJobDocument job) {
-<span class="pc bpc" id="L161" title="1 of 2 branches missed.">        if (job == null) throw new IllegalArgumentException(&quot;Fresnel job must not be null&quot;);</span>
-<span class="pc bpc" id="L162" title="1 of 2 branches missed.">        if (!FresnelJobDocument.FORMAT_IDENTIFIER.equals(job.format())) {</span>
-<span class="nc" id="L163">            throw new IllegalArgumentException(</span>
-<span class="nc bnc" id="L164" title="All 2 branches missed.">                    &quot;Unsupported Fresnel job format: &quot; + (job.format() == null ? &quot;&lt;missing&gt;&quot; : job.format()));</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">        if (job == null) throw new IllegalArgumentException(&quot;Fresnel job must not be null&quot;);</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">        if (!FresnelJobDocument.FORMAT_IDENTIFIER.equals(job.format())) {</span>
+<span class="nc" id="L166">            throw new IllegalArgumentException(</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">                    &quot;Unsupported Fresnel job format: &quot; + (job.format() == null ? &quot;&lt;missing&gt;&quot; : job.format()));</span>
         }
-<span class="pc bpc" id="L166" title="1 of 2 branches missed.">        if (job.formatVersion() &lt; 1) {</span>
-<span class="nc" id="L167">            throw new IllegalArgumentException(&quot;Fresnel job formatVersion must be at least 1&quot;);</span>
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">        if (job.formatVersion() &lt; 1) {</span>
+<span class="nc" id="L170">            throw new IllegalArgumentException(&quot;Fresnel job formatVersion must be at least 1&quot;);</span>
         }
-<span class="fc bfc" id="L169" title="All 2 branches covered.">        if (job.formatVersion() &gt; FresnelJobDocument.CURRENT_FORMAT_VERSION) {</span>
-<span class="fc" id="L170">            throw new IllegalArgumentException(</span>
-<span class="fc" id="L171">                    &quot;Fresnel job format version &quot; + job.formatVersion() + &quot; is newer than supported (&quot;</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">        if (job.formatVersion() &gt; FresnelJobDocument.CURRENT_FORMAT_VERSION) {</span>
+<span class="fc" id="L173">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L174">                    &quot;Fresnel job format version &quot; + job.formatVersion() + &quot; is newer than supported (&quot;</span>
                             + FresnelJobDocument.CURRENT_FORMAT_VERSION + &quot;). Please upgrade Fresnel.&quot;);
         }
-<span class="pc bpc" id="L174" title="2 of 4 branches missed.">        if (job.plugin() == null || isBlank(job.plugin().id())) {</span>
-<span class="nc" id="L175">            throw new IllegalArgumentException(&quot;Fresnel job plugin.id must not be empty&quot;);</span>
+<span class="pc bpc" id="L177" title="2 of 4 branches missed.">        if (job.plugin() == null || isBlank(job.plugin().id())) {</span>
+<span class="nc" id="L178">            throw new IllegalArgumentException(&quot;Fresnel job plugin.id must not be empty&quot;);</span>
         }
 
-<span class="fc" id="L178">        String pluginId = job.plugin().id().trim();</span>
-<span class="fc" id="L179">        PluginDescriptor descriptor = PluginRegistry.requireById(pluginId);</span>
+<span class="fc" id="L181">        String pluginId = job.plugin().id().trim();</span>
+<span class="fc" id="L182">        PluginDescriptor descriptor = PluginRegistry.requireById(pluginId);</span>
         // Measurement jobs identify a versioned numerical pipeline. Existing design
         // jobs preserve their source algorithm metadata when opened and edited.
-<span class="fc bfc" id="L182" title="All 2 branches covered.">        if (descriptor.kind() == PluginKind.MEASUREMENT</span>
-<span class="pc bpc" id="L183" title="1 of 2 branches missed.">                &amp;&amp; !descriptor.algorithmVersion().equals(job.plugin().algorithmVersion())) {</span>
-<span class="nc" id="L184">            throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L185" title="All 2 branches covered.">        if (descriptor.kind() == PluginKind.MEASUREMENT</span>
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">                &amp;&amp; !descriptor.algorithmVersion().equals(job.plugin().algorithmVersion())) {</span>
+<span class="nc" id="L187">            throw new IllegalArgumentException(</span>
                     &quot;Unsupported algorithmVersion for plugin &quot; + pluginId + &quot;: &quot;
-<span class="nc" id="L186">                            + job.plugin().algorithmVersion());</span>
+<span class="nc" id="L189">                            + job.plugin().algorithmVersion());</span>
         }
-<span class="pc bpc" id="L188" title="1 of 2 branches missed.">        int parameterSchemaVersion = job.plugin().parameterSchemaVersion() &lt;= 0</span>
-<span class="nc" id="L189">                ? FresnelJobDocument.CURRENT_PARAMETER_SCHEMA_VERSION</span>
-<span class="fc" id="L190">                : job.plugin().parameterSchemaVersion();</span>
-<span class="fc bfc" id="L191" title="All 2 branches covered.">        if (parameterSchemaVersion &gt; FresnelJobDocument.CURRENT_PARAMETER_SCHEMA_VERSION) {</span>
-<span class="fc" id="L192">            throw new IllegalArgumentException(</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">        int parameterSchemaVersion = job.plugin().parameterSchemaVersion() &lt;= 0</span>
+<span class="nc" id="L192">                ? FresnelJobDocument.CURRENT_PARAMETER_SCHEMA_VERSION</span>
+<span class="fc" id="L193">                : job.plugin().parameterSchemaVersion();</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">        if (parameterSchemaVersion &gt; FresnelJobDocument.CURRENT_PARAMETER_SCHEMA_VERSION) {</span>
+<span class="fc" id="L195">            throw new IllegalArgumentException(</span>
                     &quot;Parameter schema version &quot; + parameterSchemaVersion + &quot; for plugin &quot; + pluginId
                             + &quot; is newer than supported (&quot;
                             + FresnelJobDocument.CURRENT_PARAMETER_SCHEMA_VERSION + &quot;)&quot;);
         }
 
-<span class="fc" id="L198">        JsonNode parameters = validateAndNormalizeParameters(pluginId, job.parameters());</span>
-<span class="fc" id="L199">        FresnelJobDocument.ProductionPlan production = normalizeProduction(descriptor, job.production());</span>
-<span class="fc" id="L200">        String parameterHash = parameterSha256(parameters);</span>
-<span class="fc" id="L201">        FresnelJobDocument.Provenance supplied = job.provenance();</span>
-<span class="fc" id="L202">        FresnelJobDocument.Provenance provenance = new FresnelJobDocument.Provenance(</span>
-<span class="pc bpc" id="L203" title="1 of 4 branches missed.">                supplied == null || isBlank(supplied.createdWith()) ? &quot;Fresnel&quot; : supplied.createdWith().trim(),</span>
-<span class="fc bfc" id="L204" title="All 4 branches covered.">                supplied == null || isBlank(supplied.applicationVersion())</span>
-<span class="fc" id="L205">                        ? applicationVersion()</span>
-<span class="fc" id="L206">                        : supplied.applicationVersion().trim(),</span>
+<span class="fc" id="L201">        JsonNode parameters = validateAndNormalizeParameters(pluginId, job.parameters());</span>
+<span class="fc" id="L202">        FresnelJobDocument.ProductionPlan production = normalizeProduction(descriptor, job.production());</span>
+<span class="fc" id="L203">        String parameterHash = parameterSha256(parameters);</span>
+<span class="fc" id="L204">        FresnelJobDocument.Provenance supplied = job.provenance();</span>
+<span class="fc" id="L205">        FresnelJobDocument.Provenance provenance = new FresnelJobDocument.Provenance(</span>
+<span class="pc bpc" id="L206" title="1 of 4 branches missed.">                supplied == null || isBlank(supplied.createdWith()) ? &quot;Fresnel&quot; : supplied.createdWith().trim(),</span>
+<span class="fc bfc" id="L207" title="All 4 branches covered.">                supplied == null || isBlank(supplied.applicationVersion())</span>
+<span class="fc" id="L208">                        ? applicationVersion()</span>
+<span class="fc" id="L209">                        : supplied.applicationVersion().trim(),</span>
                 parameterHash);
-<span class="pc bpc" id="L208" title="1 of 2 branches missed.">        String algorithmVersion = isBlank(job.plugin().algorithmVersion())</span>
-<span class="nc" id="L209">                ? pluginId + &quot;/1&quot;</span>
-<span class="fc" id="L210">                : job.plugin().algorithmVersion().trim();</span>
-<span class="fc" id="L211">        return new FresnelJobDocument(</span>
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">        String algorithmVersion = isBlank(job.plugin().algorithmVersion())</span>
+<span class="nc" id="L212">                ? pluginId + &quot;/1&quot;</span>
+<span class="fc" id="L213">                : job.plugin().algorithmVersion().trim();</span>
+<span class="fc" id="L214">        return new FresnelJobDocument(</span>
                 FresnelJobDocument.SCHEMA_URL,
                 FresnelJobDocument.FORMAT_IDENTIFIER,
                 FresnelJobDocument.CURRENT_FORMAT_VERSION,
-<span class="fc" id="L215">                new FresnelJobDocument.PluginRef(pluginId, parameterSchemaVersion, algorithmVersion),</span>
+<span class="fc" id="L218">                new FresnelJobDocument.PluginRef(pluginId, parameterSchemaVersion, algorithmVersion),</span>
                 parameters,
                 production,
                 provenance);
     }
 
     private JsonNode validateAndNormalizeParameters(String pluginId, JsonNode parameters) {
-<span class="pc bpc" id="L222" title="2 of 4 branches missed.">        if (parameters == null || !parameters.isObject()) {</span>
-<span class="nc" id="L223">            throw new IllegalArgumentException(&quot;Fresnel job parameters must be a JSON object&quot;);</span>
+<span class="pc bpc" id="L225" title="2 of 4 branches missed.">        if (parameters == null || !parameters.isObject()) {</span>
+<span class="nc" id="L226">            throw new IllegalArgumentException(&quot;Fresnel job parameters must be a JSON object&quot;);</span>
         }
-<span class="fc" id="L225">        validateParameterShape(pluginId, parameters);</span>
-<span class="pc bpc" id="L226" title="1 of 9 branches missed.">        Class&lt;?&gt; requestType = switch (pluginId) {</span>
-<span class="fc" id="L227">            case &quot;zone-plate&quot; -&gt; SingleZonePlateRequest.class;</span>
-<span class="fc" id="L228">            case &quot;rgb-zone-plate&quot; -&gt; RgbZonePlateRequest.class;</span>
-<span class="fc" id="L229">            case &quot;multi-focus&quot; -&gt; MultiFocusRequest.class;</span>
-<span class="fc" id="L230">            case &quot;hex-macro-cell&quot; -&gt; HexMacroCellRequest.class;</span>
-<span class="fc" id="L231">            case &quot;window-foil&quot; -&gt; WindowFoilRequest.class;</span>
-<span class="fc" id="L232">            case &quot;hologram&quot; -&gt; HologramRequest.class;</span>
-<span class="fc" id="L233">            case &quot;variable-line-grating&quot; -&gt; VariableLineGratingRequest.class;</span>
-<span class="fc" id="L234">            case &quot;background-oriented-schlieren&quot; -&gt; BosTargetRequest.class;</span>
-<span class="pc" id="L235">            default -&gt; throw new IllegalArgumentException(&quot;Unknown plugin id: &quot; + pluginId);</span>
+<span class="fc" id="L228">        validateParameterShape(pluginId, parameters);</span>
+<span class="pc bpc" id="L229" title="1 of 10 branches missed.">        Class&lt;?&gt; requestType = switch (pluginId) {</span>
+<span class="fc" id="L230">            case &quot;zone-plate&quot; -&gt; SingleZonePlateRequest.class;</span>
+<span class="fc" id="L231">            case &quot;rgb-zone-plate&quot; -&gt; RgbZonePlateRequest.class;</span>
+<span class="fc" id="L232">            case &quot;multi-focus&quot; -&gt; MultiFocusRequest.class;</span>
+<span class="fc" id="L233">            case &quot;hex-macro-cell&quot; -&gt; HexMacroCellRequest.class;</span>
+<span class="fc" id="L234">            case &quot;window-foil&quot; -&gt; WindowFoilRequest.class;</span>
+<span class="fc" id="L235">            case &quot;hologram&quot; -&gt; HologramRequest.class;</span>
+<span class="fc" id="L236">            case &quot;variable-line-grating&quot; -&gt; VariableLineGratingRequest.class;</span>
+<span class="fc" id="L237">            case &quot;background-oriented-schlieren&quot; -&gt; BosTargetRequest.class;</span>
+<span class="fc" id="L238">            case &quot;display-photometric-stereo&quot; -&gt; DisplayGeometry.class;</span>
+<span class="pc" id="L239">            default -&gt; throw new IllegalArgumentException(&quot;Unknown plugin id: &quot; + pluginId);</span>
         };
 
         Object request;
         try {
-<span class="fc" id="L240">            request = mapper.convertValue(parameters, requestType);</span>
-<span class="nc" id="L241">        } catch (IllegalArgumentException e) {</span>
-<span class="nc" id="L242">            throw new IllegalArgumentException(</span>
-<span class="nc" id="L243">                    &quot;Invalid parameters for plugin &quot; + pluginId + &quot;: &quot; + conciseMessage(e), e);</span>
-<span class="fc" id="L244">        }</span>
-<span class="fc bfc" id="L245" title="All 2 branches covered.">        if (request instanceof VariableLineGratingRequest grating) request = grating.normalized();</span>
-<span class="fc bfc" id="L246" title="All 2 branches covered.">        if (request instanceof BosTargetRequest bos) request = bos.normalized();</span>
-<span class="fc" id="L247">        validateBean(pluginId, request);</span>
-<span class="fc" id="L248">        validateNestedBeans(pluginId, request);</span>
+<span class="fc" id="L244">            request = mapper.convertValue(parameters, requestType);</span>
+<span class="nc" id="L245">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L246">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L247">                    &quot;Invalid parameters for plugin &quot; + pluginId + &quot;: &quot; + conciseMessage(e), e);</span>
+<span class="fc" id="L248">        }</span>
+<span class="fc bfc" id="L249" title="All 2 branches covered.">        if (request instanceof VariableLineGratingRequest grating) request = grating.normalized();</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">        if (request instanceof BosTargetRequest bos) request = bos.normalized();</span>
+<span class="fc" id="L251">        validateBean(pluginId, request);</span>
+<span class="fc" id="L252">        validateNestedBeans(pluginId, request);</span>
 
         Object normalizedRequest;
-<span class="fc bfc" id="L251" title="All 2 branches covered.">        if (request instanceof SingleZonePlateRequest r) {</span>
-<span class="fc" id="L252">            normalizedRequest = normalizeSingle(r);</span>
-<span class="fc bfc" id="L253" title="All 2 branches covered.">        } else if (request instanceof RgbZonePlateRequest r) {</span>
-<span class="fc" id="L254">            normalizedRequest = new RgbZonePlateRequest(</span>
-<span class="fc" id="L255">                    normalizeSingle(r.base()), r.redNm(), r.greenNm(), r.blueNm());</span>
-<span class="fc bfc" id="L256" title="All 2 branches covered.">        } else if (request instanceof HexMacroCellRequest r) {</span>
-<span class="fc" id="L257">            normalizedRequest = new HexMacroCellRequest(</span>
-<span class="fc" id="L258">                    r.macroRadiusMm(), r.subDiameterMm(), r.subPitchMm(), r.focalLengthMm(),</span>
-<span class="fc bfc" id="L259" title="All 2 branches covered.">                    r.targetOffsetXmm() == null ? 0.0 : r.targetOffsetXmm(),</span>
-<span class="fc bfc" id="L260" title="All 2 branches covered.">                    r.targetOffsetYmm() == null ? 0.0 : r.targetOffsetYmm(),</span>
-<span class="fc" id="L261">                    r.wavelengthNm(), r.dpi(),</span>
-<span class="fc bfc" id="L262" title="All 2 branches covered.">                    r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),</span>
-<span class="fc bfc" id="L263" title="All 2 branches covered.">                    r.polarity() == null ? Polarity.POSITIVE : r.polarity());</span>
-<span class="fc bfc" id="L264" title="All 2 branches covered.">        } else if (request instanceof MultiFocusRequest r) {</span>
-<span class="fc" id="L265">            normalizedRequest = new MultiFocusRequest(</span>
-<span class="fc" id="L266">                    r.apertureDiameterMm(), List.copyOf(r.focusPoints()), r.wavelengthNm(), r.dpi(),</span>
-<span class="fc bfc" id="L267" title="All 2 branches covered.">                    r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),</span>
-<span class="fc bfc" id="L268" title="All 2 branches covered.">                    r.polarity() == null ? Polarity.POSITIVE : r.polarity());</span>
-<span class="fc bfc" id="L269" title="All 2 branches covered.">        } else if (request instanceof WindowFoilRequest r) {</span>
-<span class="fc bfc" id="L270" title="All 2 branches covered.">            List&lt;WindowFoilRequest.CellSpecDto&gt; specs = r.cellSpecs() == null</span>
-<span class="fc" id="L271">                    ? List.of()</span>
-<span class="fc" id="L272">                    : r.cellSpecs().stream()</span>
-<span class="fc" id="L273">                    .map(spec -&gt; new WindowFoilRequest.CellSpecDto(</span>
-<span class="fc" id="L274">                            spec.focalLengthMm(),</span>
-<span class="pc bpc" id="L275" title="1 of 2 branches missed.">                            spec.targetOffsetXmm() == null ? 0.0 : spec.targetOffsetXmm(),</span>
-<span class="pc bpc" id="L276" title="1 of 2 branches missed.">                            spec.targetOffsetYmm() == null ? 0.0 : spec.targetOffsetYmm()))</span>
-<span class="fc" id="L277">                    .toList();</span>
-<span class="fc" id="L278">            normalizedRequest = new WindowFoilRequest(</span>
-<span class="fc" id="L279">                    r.sheetWidthMm(), r.sheetHeightMm(), r.macroRadiusMm(),</span>
-<span class="fc" id="L280">                    r.subDiameterMm(), r.subPitchMm(), r.wavelengthNm(), r.dpi(),</span>
-<span class="fc bfc" id="L281" title="All 2 branches covered.">                    r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),</span>
-<span class="fc bfc" id="L282" title="All 2 branches covered.">                    r.polarity() == null ? Polarity.POSITIVE : r.polarity(),</span>
-<span class="fc" id="L283">                    specs, Boolean.TRUE.equals(r.drawCropMarks()));</span>
-<span class="fc bfc" id="L284" title="All 2 branches covered.">        } else if (request instanceof HologramRequest r) {</span>
-<span class="fc" id="L285">            normalizedRequest = new HologramRequest(</span>
-<span class="fc" id="L286">                    r.targetImageBase64(), r.sidePx(), r.iterations(),</span>
-<span class="fc bfc" id="L287" title="All 2 branches covered.">                    r.outputType() == null</span>
-<span class="fc" id="L288">                            ? HologramParameters.OutputType.GREYSCALE_PHASE</span>
-<span class="fc" id="L289">                            : r.outputType(),</span>
-<span class="fc" id="L290">                    r.dpi(),</span>
-<span class="fc" id="L291">                    r.resolvedWavelengthNm(),</span>
-<span class="fc" id="L292">                    r.resolvedRefractiveIndexDelta(),</span>
-<span class="fc" id="L293">                    r.resolvedMaxPhaseShiftRad());</span>
-<span class="fc bfc" id="L294" title="All 2 branches covered.">        } else if (request instanceof VariableLineGratingRequest r) {</span>
+<span class="fc bfc" id="L255" title="All 2 branches covered.">        if (request instanceof SingleZonePlateRequest r) {</span>
+<span class="fc" id="L256">            normalizedRequest = normalizeSingle(r);</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">        } else if (request instanceof RgbZonePlateRequest r) {</span>
+<span class="fc" id="L258">            normalizedRequest = new RgbZonePlateRequest(</span>
+<span class="fc" id="L259">                    normalizeSingle(r.base()), r.redNm(), r.greenNm(), r.blueNm());</span>
+<span class="fc bfc" id="L260" title="All 2 branches covered.">        } else if (request instanceof HexMacroCellRequest r) {</span>
+<span class="fc" id="L261">            normalizedRequest = new HexMacroCellRequest(</span>
+<span class="fc" id="L262">                    r.macroRadiusMm(), r.subDiameterMm(), r.subPitchMm(), r.focalLengthMm(),</span>
+<span class="fc bfc" id="L263" title="All 2 branches covered.">                    r.targetOffsetXmm() == null ? 0.0 : r.targetOffsetXmm(),</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">                    r.targetOffsetYmm() == null ? 0.0 : r.targetOffsetYmm(),</span>
+<span class="fc" id="L265">                    r.wavelengthNm(), r.dpi(),</span>
+<span class="fc bfc" id="L266" title="All 2 branches covered.">                    r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),</span>
+<span class="fc bfc" id="L267" title="All 2 branches covered.">                    r.polarity() == null ? Polarity.POSITIVE : r.polarity());</span>
+<span class="fc bfc" id="L268" title="All 2 branches covered.">        } else if (request instanceof MultiFocusRequest r) {</span>
+<span class="fc" id="L269">            normalizedRequest = new MultiFocusRequest(</span>
+<span class="fc" id="L270">                    r.apertureDiameterMm(), List.copyOf(r.focusPoints()), r.wavelengthNm(), r.dpi(),</span>
+<span class="fc bfc" id="L271" title="All 2 branches covered.">                    r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),</span>
+<span class="fc bfc" id="L272" title="All 2 branches covered.">                    r.polarity() == null ? Polarity.POSITIVE : r.polarity());</span>
+<span class="fc bfc" id="L273" title="All 2 branches covered.">        } else if (request instanceof WindowFoilRequest r) {</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">            List&lt;WindowFoilRequest.CellSpecDto&gt; specs = r.cellSpecs() == null</span>
+<span class="fc" id="L275">                    ? List.of()</span>
+<span class="fc" id="L276">                    : r.cellSpecs().stream()</span>
+<span class="fc" id="L277">                    .map(spec -&gt; new WindowFoilRequest.CellSpecDto(</span>
+<span class="fc" id="L278">                            spec.focalLengthMm(),</span>
+<span class="pc bpc" id="L279" title="1 of 2 branches missed.">                            spec.targetOffsetXmm() == null ? 0.0 : spec.targetOffsetXmm(),</span>
+<span class="pc bpc" id="L280" title="1 of 2 branches missed.">                            spec.targetOffsetYmm() == null ? 0.0 : spec.targetOffsetYmm()))</span>
+<span class="fc" id="L281">                    .toList();</span>
+<span class="fc" id="L282">            normalizedRequest = new WindowFoilRequest(</span>
+<span class="fc" id="L283">                    r.sheetWidthMm(), r.sheetHeightMm(), r.macroRadiusMm(),</span>
+<span class="fc" id="L284">                    r.subDiameterMm(), r.subPitchMm(), r.wavelengthNm(), r.dpi(),</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">                    r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),</span>
+<span class="fc bfc" id="L286" title="All 2 branches covered.">                    r.polarity() == null ? Polarity.POSITIVE : r.polarity(),</span>
+<span class="fc" id="L287">                    specs, Boolean.TRUE.equals(r.drawCropMarks()));</span>
+<span class="fc bfc" id="L288" title="All 2 branches covered.">        } else if (request instanceof HologramRequest r) {</span>
+<span class="fc" id="L289">            normalizedRequest = new HologramRequest(</span>
+<span class="fc" id="L290">                    r.targetImageBase64(), r.sidePx(), r.iterations(),</span>
+<span class="fc bfc" id="L291" title="All 2 branches covered.">                    r.outputType() == null</span>
+<span class="fc" id="L292">                            ? HologramParameters.OutputType.GREYSCALE_PHASE</span>
+<span class="fc" id="L293">                            : r.outputType(),</span>
+<span class="fc" id="L294">                    r.dpi(),</span>
+<span class="fc" id="L295">                    r.resolvedWavelengthNm(),</span>
+<span class="fc" id="L296">                    r.resolvedRefractiveIndexDelta(),</span>
+<span class="fc" id="L297">                    r.resolvedMaxPhaseShiftRad());</span>
+<span class="fc bfc" id="L298" title="All 2 branches covered.">        } else if (request instanceof VariableLineGratingRequest r) {</span>
             try {
-<span class="fc" id="L296">                r.toParameters();</span>
-<span class="fc" id="L297">            } catch (IllegalArgumentException e) {</span>
-<span class="fc" id="L298">                throw new IllegalArgumentException(</span>
-<span class="fc" id="L299">                        &quot;Invalid parameters for plugin &quot; + pluginId + &quot;: &quot; + conciseMessage(e), e);</span>
-<span class="fc" id="L300">            }</span>
-<span class="fc" id="L301">            normalizedRequest = r;</span>
-<span class="pc bpc" id="L302" title="1 of 2 branches missed.">        } else if (request instanceof BosTargetRequest r) {</span>
+<span class="fc" id="L300">                r.toParameters();</span>
+<span class="fc" id="L301">            } catch (IllegalArgumentException e) {</span>
+<span class="fc" id="L302">                throw new IllegalArgumentException(</span>
+<span class="fc" id="L303">                        &quot;Invalid parameters for plugin &quot; + pluginId + &quot;: &quot; + conciseMessage(e), e);</span>
+<span class="fc" id="L304">            }</span>
+<span class="fc" id="L305">            normalizedRequest = r;</span>
+<span class="fc bfc" id="L306" title="All 2 branches covered.">        } else if (request instanceof DisplayGeometry r) {</span>
+<span class="fc" id="L307">            normalizedRequest = r;</span>
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">        } else if (request instanceof BosTargetRequest r) {</span>
             try {
-<span class="fc" id="L304">                r.toParameters();</span>
-<span class="nc" id="L305">            } catch (IllegalArgumentException e) {</span>
-<span class="nc" id="L306">                throw new IllegalArgumentException(</span>
-<span class="nc" id="L307">                        &quot;Invalid parameters for plugin &quot; + pluginId + &quot;: &quot; + conciseMessage(e), e);</span>
-<span class="fc" id="L308">            }</span>
-<span class="fc" id="L309">            normalizedRequest = r;</span>
+<span class="fc" id="L310">                r.toParameters();</span>
+<span class="nc" id="L311">            } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L312">                throw new IllegalArgumentException(</span>
+<span class="nc" id="L313">                        &quot;Invalid parameters for plugin &quot; + pluginId + &quot;: &quot; + conciseMessage(e), e);</span>
+<span class="fc" id="L314">            }</span>
+<span class="fc" id="L315">            normalizedRequest = r;</span>
         } else {
-<span class="nc" id="L311">            throw new IllegalArgumentException(&quot;No parameter normalizer for plugin &quot; + pluginId);</span>
+<span class="nc" id="L317">            throw new IllegalArgumentException(&quot;No parameter normalizer for plugin &quot; + pluginId);</span>
         }
-<span class="fc" id="L313">        return mapper.valueToTree(normalizedRequest);</span>
+<span class="fc" id="L319">        return mapper.valueToTree(normalizedRequest);</span>
     }
 
     private static SingleZonePlateRequest normalizeSingle(SingleZonePlateRequest r) {
-<span class="fc" id="L317">        return new SingleZonePlateRequest(</span>
-<span class="fc" id="L318">                r.apertureDiameterMm(),</span>
-<span class="fc" id="L319">                r.focalLengthMm(),</span>
-<span class="fc" id="L320">                r.wavelengthNm(),</span>
-<span class="fc" id="L321">                r.dpi(),</span>
-<span class="fc bfc" id="L322" title="All 2 branches covered.">                r.targetOffsetXmm() == null ? 0.0 : r.targetOffsetXmm(),</span>
-<span class="fc bfc" id="L323" title="All 2 branches covered.">                r.targetOffsetYmm() == null ? 0.0 : r.targetOffsetYmm(),</span>
-<span class="fc bfc" id="L324" title="All 2 branches covered.">                r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),</span>
-<span class="fc bfc" id="L325" title="All 2 branches covered.">                r.polarity() == null ? Polarity.POSITIVE : r.polarity());</span>
+<span class="fc" id="L323">        return new SingleZonePlateRequest(</span>
+<span class="fc" id="L324">                r.apertureDiameterMm(),</span>
+<span class="fc" id="L325">                r.focalLengthMm(),</span>
+<span class="fc" id="L326">                r.wavelengthNm(),</span>
+<span class="fc" id="L327">                r.dpi(),</span>
+<span class="fc bfc" id="L328" title="All 2 branches covered.">                r.targetOffsetXmm() == null ? 0.0 : r.targetOffsetXmm(),</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">                r.targetOffsetYmm() == null ? 0.0 : r.targetOffsetYmm(),</span>
+<span class="fc bfc" id="L330" title="All 2 branches covered.">                r.maskType() == null ? MaskType.BINARY_AMPLITUDE : r.maskType(),</span>
+<span class="fc bfc" id="L331" title="All 2 branches covered.">                r.polarity() == null ? Polarity.POSITIVE : r.polarity());</span>
     }
 
     private void validateBean(String pluginId, Object request) {
-<span class="fc" id="L329">        Set&lt;ConstraintViolation&lt;Object&gt;&gt; violations = validator.validate(request);</span>
-<span class="fc bfc" id="L330" title="All 2 branches covered.">        if (violations.isEmpty()) return;</span>
-<span class="fc" id="L331">        String details = violations.stream()</span>
-<span class="pc" id="L332">                .sorted(Comparator.comparing(v -&gt; v.getPropertyPath().toString()))</span>
-<span class="fc" id="L333">                .map(v -&gt; v.getPropertyPath() + &quot;: &quot; + v.getMessage())</span>
-<span class="fc" id="L334">                .collect(Collectors.joining(&quot;; &quot;));</span>
-<span class="fc" id="L335">        throw new IllegalArgumentException(&quot;Invalid parameters for plugin &quot; + pluginId + &quot;: &quot; + details);</span>
+<span class="fc" id="L335">        Set&lt;ConstraintViolation&lt;Object&gt;&gt; violations = validator.validate(request);</span>
+<span class="fc bfc" id="L336" title="All 2 branches covered.">        if (violations.isEmpty()) return;</span>
+<span class="fc" id="L337">        String details = violations.stream()</span>
+<span class="pc" id="L338">                .sorted(Comparator.comparing(v -&gt; v.getPropertyPath().toString()))</span>
+<span class="fc" id="L339">                .map(v -&gt; v.getPropertyPath() + &quot;: &quot; + v.getMessage())</span>
+<span class="fc" id="L340">                .collect(Collectors.joining(&quot;; &quot;));</span>
+<span class="fc" id="L341">        throw new IllegalArgumentException(&quot;Invalid parameters for plugin &quot; + pluginId + &quot;: &quot; + details);</span>
     }
 
     private void validateNestedBeans(String pluginId, Object request) {
-<span class="pc bpc" id="L339" title="1 of 4 branches missed.">        if (request instanceof MultiFocusRequest multi &amp;&amp; multi.focusPoints() != null) {</span>
-<span class="fc bfc" id="L340" title="All 2 branches covered.">            for (int i = 0; i &lt; multi.focusPoints().size(); i++) {</span>
-<span class="fc" id="L341">                validateBean(pluginId + &quot;.focusPoints[&quot; + i + &quot;]&quot;, multi.focusPoints().get(i));</span>
+<span class="pc bpc" id="L345" title="1 of 4 branches missed.">        if (request instanceof MultiFocusRequest multi &amp;&amp; multi.focusPoints() != null) {</span>
+<span class="fc bfc" id="L346" title="All 2 branches covered.">            for (int i = 0; i &lt; multi.focusPoints().size(); i++) {</span>
+<span class="fc" id="L347">                validateBean(pluginId + &quot;.focusPoints[&quot; + i + &quot;]&quot;, multi.focusPoints().get(i));</span>
             }
         }
-<span class="fc bfc" id="L344" title="All 4 branches covered.">        if (request instanceof WindowFoilRequest foil &amp;&amp; foil.cellSpecs() != null) {</span>
-<span class="fc bfc" id="L345" title="All 2 branches covered.">            for (int i = 0; i &lt; foil.cellSpecs().size(); i++) {</span>
-<span class="fc" id="L346">                validateBean(pluginId + &quot;.cellSpecs[&quot; + i + &quot;]&quot;, foil.cellSpecs().get(i));</span>
+<span class="fc bfc" id="L350" title="All 4 branches covered.">        if (request instanceof WindowFoilRequest foil &amp;&amp; foil.cellSpecs() != null) {</span>
+<span class="fc bfc" id="L351" title="All 2 branches covered.">            for (int i = 0; i &lt; foil.cellSpecs().size(); i++) {</span>
+<span class="fc" id="L352">                validateBean(pluginId + &quot;.cellSpecs[&quot; + i + &quot;]&quot;, foil.cellSpecs().get(i));</span>
             }
         }
-<span class="fc" id="L349">    }</span>
+<span class="fc" id="L355">    }</span>
 
     private void validateEnvelopeShape(JsonNode root, boolean legacy) {
-<span class="fc bfc" id="L352" title="All 2 branches covered.">        if (legacy) {</span>
-<span class="fc" id="L353">            rejectUnknownFields(root, LEGACY_JOB_FIELDS, &quot;legacy job&quot;);</span>
-<span class="fc" id="L354">            return;</span>
+<span class="fc bfc" id="L358" title="All 2 branches covered.">        if (legacy) {</span>
+<span class="fc" id="L359">            rejectUnknownFields(root, LEGACY_JOB_FIELDS, &quot;legacy job&quot;);</span>
+<span class="fc" id="L360">            return;</span>
         }
-<span class="fc" id="L356">        rejectUnknownFields(root, JOB_FIELDS, &quot;job&quot;);</span>
-<span class="fc" id="L357">        rejectUnknownFields(root.get(&quot;plugin&quot;), PLUGIN_FIELDS, &quot;plugin&quot;);</span>
-<span class="fc" id="L358">        rejectUnknownFields(root.get(&quot;provenance&quot;), PROVENANCE_FIELDS, &quot;provenance&quot;);</span>
-<span class="fc" id="L359">        JsonNode production = root.get(&quot;production&quot;);</span>
-<span class="pc bpc" id="L360" title="1 of 4 branches missed.">        if (production == null || production.isNull()) return;</span>
-<span class="fc" id="L361">        rejectUnknownFields(production, PRODUCTION_FIELDS, &quot;production&quot;);</span>
-<span class="fc" id="L362">        JsonNode outputs = production.get(&quot;outputs&quot;);</span>
-<span class="pc bpc" id="L363" title="1 of 4 branches missed.">        if (outputs != null &amp;&amp; !outputs.isNull()) {</span>
-<span class="pc bpc" id="L364" title="1 of 2 branches missed.">            if (!outputs.isArray()) {</span>
-<span class="nc" id="L365">                throw new IllegalArgumentException(&quot;production.outputs must be a JSON array&quot;);</span>
+<span class="fc" id="L362">        rejectUnknownFields(root, JOB_FIELDS, &quot;job&quot;);</span>
+<span class="fc" id="L363">        rejectUnknownFields(root.get(&quot;plugin&quot;), PLUGIN_FIELDS, &quot;plugin&quot;);</span>
+<span class="fc" id="L364">        rejectUnknownFields(root.get(&quot;provenance&quot;), PROVENANCE_FIELDS, &quot;provenance&quot;);</span>
+<span class="fc" id="L365">        JsonNode production = root.get(&quot;production&quot;);</span>
+<span class="pc bpc" id="L366" title="1 of 4 branches missed.">        if (production == null || production.isNull()) return;</span>
+<span class="fc" id="L367">        rejectUnknownFields(production, PRODUCTION_FIELDS, &quot;production&quot;);</span>
+<span class="fc" id="L368">        JsonNode outputs = production.get(&quot;outputs&quot;);</span>
+<span class="pc bpc" id="L369" title="1 of 4 branches missed.">        if (outputs != null &amp;&amp; !outputs.isNull()) {</span>
+<span class="pc bpc" id="L370" title="1 of 2 branches missed.">            if (!outputs.isArray()) {</span>
+<span class="nc" id="L371">                throw new IllegalArgumentException(&quot;production.outputs must be a JSON array&quot;);</span>
             }
-<span class="fc bfc" id="L367" title="All 2 branches covered.">            for (int i = 0; i &lt; outputs.size(); i++) {</span>
-<span class="fc" id="L368">                rejectUnknownFields(outputs.get(i), OUTPUT_FIELDS, &quot;production.outputs[&quot; + i + &quot;]&quot;);</span>
+<span class="fc bfc" id="L373" title="All 2 branches covered.">            for (int i = 0; i &lt; outputs.size(); i++) {</span>
+<span class="fc" id="L374">                rejectUnknownFields(outputs.get(i), OUTPUT_FIELDS, &quot;production.outputs[&quot; + i + &quot;]&quot;);</span>
             }
         }
-<span class="fc" id="L371">    }</span>
+<span class="fc" id="L377">    }</span>
 
     private void validateParameterShape(String pluginId, JsonNode parameters) {
-<span class="pc bpc" id="L374" title="1 of 9 branches missed.">        Set&lt;String&gt; fields = switch (pluginId) {</span>
-<span class="fc" id="L375">            case &quot;zone-plate&quot; -&gt; SINGLE_PARAMETER_FIELDS;</span>
-<span class="fc" id="L376">            case &quot;hex-macro-cell&quot; -&gt; HEX_PARAMETER_FIELDS;</span>
-<span class="fc" id="L377">            case &quot;window-foil&quot; -&gt; FOIL_PARAMETER_FIELDS;</span>
-<span class="fc" id="L378">            case &quot;multi-focus&quot; -&gt; MULTI_PARAMETER_FIELDS;</span>
-<span class="fc" id="L379">            case &quot;rgb-zone-plate&quot; -&gt; RGB_PARAMETER_FIELDS;</span>
-<span class="fc" id="L380">            case &quot;hologram&quot; -&gt; HOLOGRAM_PARAMETER_FIELDS;</span>
-<span class="fc" id="L381">            case &quot;variable-line-grating&quot; -&gt; GRATING_PARAMETER_FIELDS;</span>
-<span class="fc" id="L382">            case &quot;background-oriented-schlieren&quot; -&gt; BOS_PARAMETER_FIELDS;</span>
-<span class="pc" id="L383">            default -&gt; throw new IllegalArgumentException(&quot;Unknown plugin id: &quot; + pluginId);</span>
+<span class="pc bpc" id="L380" title="1 of 10 branches missed.">        Set&lt;String&gt; fields = switch (pluginId) {</span>
+<span class="fc" id="L381">            case &quot;zone-plate&quot; -&gt; SINGLE_PARAMETER_FIELDS;</span>
+<span class="fc" id="L382">            case &quot;hex-macro-cell&quot; -&gt; HEX_PARAMETER_FIELDS;</span>
+<span class="fc" id="L383">            case &quot;window-foil&quot; -&gt; FOIL_PARAMETER_FIELDS;</span>
+<span class="fc" id="L384">            case &quot;multi-focus&quot; -&gt; MULTI_PARAMETER_FIELDS;</span>
+<span class="fc" id="L385">            case &quot;rgb-zone-plate&quot; -&gt; RGB_PARAMETER_FIELDS;</span>
+<span class="fc" id="L386">            case &quot;hologram&quot; -&gt; HOLOGRAM_PARAMETER_FIELDS;</span>
+<span class="fc" id="L387">            case &quot;variable-line-grating&quot; -&gt; GRATING_PARAMETER_FIELDS;</span>
+<span class="fc" id="L388">            case &quot;background-oriented-schlieren&quot; -&gt; BOS_PARAMETER_FIELDS;</span>
+<span class="fc" id="L389">            case &quot;display-photometric-stereo&quot; -&gt; DisplayPhotometryController.FIELDS;</span>
+<span class="pc" id="L390">            default -&gt; throw new IllegalArgumentException(&quot;Unknown plugin id: &quot; + pluginId);</span>
         };
-<span class="fc" id="L385">        rejectUnknownFields(parameters, fields, &quot;parameters&quot;);</span>
-<span class="fc bfc" id="L386" title="All 4 branches covered.">        switch (pluginId) {</span>
+<span class="fc" id="L392">        rejectUnknownFields(parameters, fields, &quot;parameters&quot;);</span>
+<span class="fc bfc" id="L393" title="All 4 branches covered.">        switch (pluginId) {</span>
             case &quot;rgb-zone-plate&quot; -&gt;
-<span class="fc" id="L388">                    rejectUnknownFields(parameters.get(&quot;base&quot;), SINGLE_PARAMETER_FIELDS, &quot;parameters.base&quot;);</span>
+<span class="fc" id="L395">                    rejectUnknownFields(parameters.get(&quot;base&quot;), SINGLE_PARAMETER_FIELDS, &quot;parameters.base&quot;);</span>
             case &quot;multi-focus&quot; -&gt;
-<span class="fc" id="L390">                    rejectArrayObjectFields(parameters.get(&quot;focusPoints&quot;), FOCUS_POINT_FIELDS, &quot;parameters.focusPoints&quot;);</span>
+<span class="fc" id="L397">                    rejectArrayObjectFields(parameters.get(&quot;focusPoints&quot;), FOCUS_POINT_FIELDS, &quot;parameters.focusPoints&quot;);</span>
             case &quot;window-foil&quot; -&gt;
-<span class="fc" id="L392">                    rejectArrayObjectFields(parameters.get(&quot;cellSpecs&quot;), CELL_SPEC_FIELDS, &quot;parameters.cellSpecs&quot;);</span>
+<span class="fc" id="L399">                    rejectArrayObjectFields(parameters.get(&quot;cellSpecs&quot;), CELL_SPEC_FIELDS, &quot;parameters.cellSpecs&quot;);</span>
             default -&gt; { }
         }
-<span class="fc" id="L395">    }</span>
+<span class="fc" id="L402">    }</span>
 
     private static void rejectArrayObjectFields(JsonNode array, Set&lt;String&gt; fields, String path) {
-<span class="pc bpc" id="L398" title="1 of 4 branches missed.">        if (array == null || array.isNull()) return;</span>
-<span class="pc bpc" id="L399" title="1 of 2 branches missed.">        if (!array.isArray()) throw new IllegalArgumentException(path + &quot; must be a JSON array&quot;);</span>
-<span class="fc bfc" id="L400" title="All 2 branches covered.">        for (int i = 0; i &lt; array.size(); i++) {</span>
-<span class="fc" id="L401">            rejectUnknownFields(array.get(i), fields, path + &quot;[&quot; + i + &quot;]&quot;);</span>
+<span class="pc bpc" id="L405" title="1 of 4 branches missed.">        if (array == null || array.isNull()) return;</span>
+<span class="pc bpc" id="L406" title="1 of 2 branches missed.">        if (!array.isArray()) throw new IllegalArgumentException(path + &quot; must be a JSON array&quot;);</span>
+<span class="fc bfc" id="L407" title="All 2 branches covered.">        for (int i = 0; i &lt; array.size(); i++) {</span>
+<span class="fc" id="L408">            rejectUnknownFields(array.get(i), fields, path + &quot;[&quot; + i + &quot;]&quot;);</span>
         }
-<span class="fc" id="L403">    }</span>
+<span class="fc" id="L410">    }</span>
 
     private static void rejectUnknownFields(JsonNode object, Set&lt;String&gt; allowed, String path) {
-<span class="fc bfc" id="L406" title="All 4 branches covered.">        if (object == null || object.isNull()) return;</span>
-<span class="pc bpc" id="L407" title="1 of 2 branches missed.">        if (!object.isObject()) throw new IllegalArgumentException(path + &quot; must be a JSON object&quot;);</span>
-<span class="fc bfc" id="L408" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; property : object.properties()) {</span>
-<span class="fc bfc" id="L409" title="All 2 branches covered.">            if (!allowed.contains(property.getKey())) {</span>
-<span class="fc" id="L410">                throw new IllegalArgumentException(</span>
-<span class="fc" id="L411">                        &quot;Unknown field &quot; + path + &quot;.&quot; + property.getKey() + &quot; for Fresnel job v1&quot;);</span>
+<span class="fc bfc" id="L413" title="All 4 branches covered.">        if (object == null || object.isNull()) return;</span>
+<span class="pc bpc" id="L414" title="1 of 2 branches missed.">        if (!object.isObject()) throw new IllegalArgumentException(path + &quot; must be a JSON object&quot;);</span>
+<span class="fc bfc" id="L415" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; property : object.properties()) {</span>
+<span class="fc bfc" id="L416" title="All 2 branches covered.">            if (!allowed.contains(property.getKey())) {</span>
+<span class="fc" id="L417">                throw new IllegalArgumentException(</span>
+<span class="fc" id="L418">                        &quot;Unknown field &quot; + path + &quot;.&quot; + property.getKey() + &quot; for Fresnel job v1&quot;);</span>
             }
-<span class="fc" id="L413">        }</span>
-<span class="fc" id="L414">    }</span>
+<span class="fc" id="L420">        }</span>
+<span class="fc" id="L421">    }</span>
 
     private FresnelJobDocument.ProductionPlan normalizeProduction(
             PluginDescriptor descriptor,
             FresnelJobDocument.ProductionPlan production) {
-<span class="fc bfc" id="L419" title="All 2 branches covered.">        if (production == null) return null;</span>
-<span class="fc bfc" id="L420" title="All 4 branches covered.">        if (production.outputs() == null || production.outputs().isEmpty()) {</span>
-<span class="fc" id="L421">            throw new IllegalArgumentException(&quot;production.outputs must contain at least one output&quot;);</span>
+<span class="fc bfc" id="L426" title="All 2 branches covered.">        if (production == null) return null;</span>
+<span class="fc bfc" id="L427" title="All 4 branches covered.">        if (production.outputs() == null || production.outputs().isEmpty()) {</span>
+<span class="fc" id="L428">            throw new IllegalArgumentException(&quot;production.outputs must contain at least one output&quot;);</span>
         }
-<span class="fc" id="L423">        List&lt;FresnelJobDocument.ProductionOutput&gt; normalized = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L424">        Set&lt;String&gt; ids = new HashSet&lt;&gt;();</span>
-<span class="fc" id="L425">        Set&lt;String&gt; filenames = new HashSet&lt;&gt;();</span>
-<span class="fc bfc" id="L426" title="All 2 branches covered.">        for (int i = 0; i &lt; production.outputs().size(); i++) {</span>
-<span class="fc" id="L427">            FresnelJobDocument.ProductionOutput output = production.outputs().get(i);</span>
-<span class="fc bfc" id="L428" title="All 2 branches covered.">            if (output == null) {</span>
-<span class="fc" id="L429">                throw new IllegalArgumentException(&quot;production.outputs[&quot; + i + &quot;] must not be null&quot;);</span>
+<span class="fc" id="L430">        List&lt;FresnelJobDocument.ProductionOutput&gt; normalized = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L431">        Set&lt;String&gt; ids = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L432">        Set&lt;String&gt; filenames = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L433" title="All 2 branches covered.">        for (int i = 0; i &lt; production.outputs().size(); i++) {</span>
+<span class="fc" id="L434">            FresnelJobDocument.ProductionOutput output = production.outputs().get(i);</span>
+<span class="fc bfc" id="L435" title="All 2 branches covered.">            if (output == null) {</span>
+<span class="fc" id="L436">                throw new IllegalArgumentException(&quot;production.outputs[&quot; + i + &quot;] must not be null&quot;);</span>
             }
-<span class="fc" id="L431">            String format = normalizeFormat(output.format());</span>
-<span class="fc" id="L432">            PluginCapability capability = capabilityFor(format);</span>
-<span class="fc bfc" id="L433" title="All 2 branches covered.">            if (!descriptor.supportsExport(capability)) {</span>
-<span class="fc" id="L434">                throw new IllegalArgumentException(</span>
-<span class="fc" id="L435">                        &quot;Plugin &quot; + descriptor.id() + &quot; does not support &quot; + format + &quot; export&quot;);</span>
+<span class="fc" id="L438">            String format = normalizeFormat(output.format());</span>
+<span class="pc bpc" id="L439" title="3 of 4 branches missed.">            if (descriptor == PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO &amp;&amp; &quot;stl&quot;.equals(format))</span>
+<span class="nc" id="L440">                throw new IllegalArgumentException(&quot;Relative STL requires a completed surface solve and explicit export scale&quot;);</span>
+<span class="fc" id="L441">            PluginCapability capability = capabilityFor(format);</span>
+<span class="fc bfc" id="L442" title="All 2 branches covered.">            if (!descriptor.supportsExport(capability)) {</span>
+<span class="fc" id="L443">                throw new IllegalArgumentException(</span>
+<span class="fc" id="L444">                        &quot;Plugin &quot; + descriptor.id() + &quot; does not support &quot; + format + &quot; export&quot;);</span>
             }
-<span class="fc bfc" id="L437" title="All 2 branches covered.">            String id = isBlank(output.id()) ? &quot;output-&quot; + (i + 1) : output.id().trim();</span>
-<span class="pc bpc" id="L438" title="1 of 2 branches missed.">            if (!ids.add(id)) throw new IllegalArgumentException(&quot;Duplicate production output id: &quot; + id);</span>
-<span class="fc bfc" id="L439" title="All 2 branches covered.">            String filename = isBlank(output.filename())</span>
-<span class="fc" id="L440">                    ? descriptor.id() + &quot;-&quot; + id + &quot;.&quot; + extensionFor(format)</span>
-<span class="fc" id="L441">                    : output.filename().trim();</span>
-<span class="fc" id="L442">            validatePortableFilename(filename);</span>
-<span class="fc bfc" id="L443" title="All 2 branches covered.">            if (!filenames.add(filename.toLowerCase(Locale.ROOT))) {</span>
-<span class="fc" id="L444">                throw new IllegalArgumentException(&quot;Duplicate production output filename: &quot; + filename);</span>
+<span class="fc bfc" id="L446" title="All 2 branches covered.">            String id = isBlank(output.id()) ? &quot;output-&quot; + (i + 1) : output.id().trim();</span>
+<span class="pc bpc" id="L447" title="1 of 2 branches missed.">            if (!ids.add(id)) throw new IllegalArgumentException(&quot;Duplicate production output id: &quot; + id);</span>
+<span class="fc bfc" id="L448" title="All 2 branches covered.">            String filename = isBlank(output.filename())</span>
+<span class="fc" id="L449">                    ? descriptor.id() + &quot;-&quot; + id + &quot;.&quot; + extensionFor(format)</span>
+<span class="fc" id="L450">                    : output.filename().trim();</span>
+<span class="fc" id="L451">            validatePortableFilename(filename);</span>
+<span class="fc bfc" id="L452" title="All 2 branches covered.">            if (!filenames.add(filename.toLowerCase(Locale.ROOT))) {</span>
+<span class="fc" id="L453">                throw new IllegalArgumentException(&quot;Duplicate production output filename: &quot; + filename);</span>
             }
 
-<span class="fc" id="L447">            String sheet = output.sheet();</span>
-<span class="fc bfc" id="L448" title="All 2 branches covered.">            if (sheet != null) {</span>
-<span class="fc" id="L449">                sheet = sheet.trim().toUpperCase(Locale.ROOT);</span>
-<span class="pc bpc" id="L450" title="1 of 2 branches missed.">                if (!&quot;pdf&quot;.equals(format)) {</span>
-<span class="nc" id="L451">                    throw new IllegalArgumentException(&quot;PDF sheet option is only valid for PDF outputs&quot;);</span>
+<span class="fc" id="L456">            String sheet = output.sheet();</span>
+<span class="fc bfc" id="L457" title="All 2 branches covered.">            if (sheet != null) {</span>
+<span class="fc" id="L458">                sheet = sheet.trim().toUpperCase(Locale.ROOT);</span>
+<span class="pc bpc" id="L459" title="1 of 2 branches missed.">                if (!&quot;pdf&quot;.equals(format)) {</span>
+<span class="nc" id="L460">                    throw new IllegalArgumentException(&quot;PDF sheet option is only valid for PDF outputs&quot;);</span>
                 }
-<span class="pc bpc" id="L453" title="1 of 2 branches missed.">                if (!PDF_SHEETS.contains(sheet)) {</span>
-<span class="nc" id="L454">                    throw new IllegalArgumentException(&quot;Unsupported PDF sheet size: &quot; + sheet);</span>
+<span class="pc bpc" id="L462" title="1 of 2 branches missed.">                if (!PDF_SHEETS.contains(sheet)) {</span>
+<span class="nc" id="L463">                    throw new IllegalArgumentException(&quot;Unsupported PDF sheet size: &quot; + sheet);</span>
                 }
-<span class="fc bfc" id="L456" title="All 2 branches covered.">            } else if (&quot;pdf&quot;.equals(format)) {</span>
-<span class="fc" id="L457">                sheet = &quot;FIT&quot;;</span>
+<span class="fc bfc" id="L465" title="All 2 branches covered.">            } else if (&quot;pdf&quot;.equals(format)) {</span>
+<span class="fc" id="L466">                sheet = &quot;FIT&quot;;</span>
             }
-<span class="fc" id="L459">            Double printScale = output.printScale();</span>
-<span class="pc bpc" id="L460" title="2 of 6 branches missed.">            if (printScale != null &amp;&amp; (!Double.isFinite(printScale) || printScale &lt;= 0.0)) {</span>
-<span class="nc" id="L461">                throw new IllegalArgumentException(&quot;production output printScale must be finite and positive&quot;);</span>
+<span class="fc" id="L468">            Double printScale = output.printScale();</span>
+<span class="pc bpc" id="L469" title="2 of 6 branches missed.">            if (printScale != null &amp;&amp; (!Double.isFinite(printScale) || printScale &lt;= 0.0)) {</span>
+<span class="nc" id="L470">                throw new IllegalArgumentException(&quot;production output printScale must be finite and positive&quot;);</span>
             }
-<span class="fc bfc" id="L463" title="All 4 branches covered.">            if (printScale == null &amp;&amp; &quot;pdf&quot;.equals(format)) printScale = 1.0;</span>
-<span class="pc bpc" id="L464" title="1 of 4 branches missed.">            if (output.options() != null &amp;&amp; !output.options().isObject()) {</span>
-<span class="nc" id="L465">                throw new IllegalArgumentException(&quot;production output options must be a JSON object&quot;);</span>
+<span class="fc bfc" id="L472" title="All 4 branches covered.">            if (printScale == null &amp;&amp; &quot;pdf&quot;.equals(format)) printScale = 1.0;</span>
+<span class="pc bpc" id="L473" title="1 of 4 branches missed.">            if (output.options() != null &amp;&amp; !output.options().isObject()) {</span>
+<span class="nc" id="L474">                throw new IllegalArgumentException(&quot;production output options must be a JSON object&quot;);</span>
             }
-<span class="fc" id="L467">            normalized.add(new FresnelJobDocument.ProductionOutput(</span>
-<span class="fc" id="L468">                    id, format, filename, sheet, printScale, output.options()));</span>
+<span class="fc" id="L476">            normalized.add(new FresnelJobDocument.ProductionOutput(</span>
+<span class="fc" id="L477">                    id, format, filename, sheet, printScale, output.options()));</span>
         }
-<span class="fc" id="L470">        return new FresnelJobDocument.ProductionPlan(normalized);</span>
+<span class="fc" id="L479">        return new FresnelJobDocument.ProductionPlan(normalized);</span>
     }
 
     private static String normalizeFormat(String raw) {
-<span class="pc bpc" id="L474" title="1 of 2 branches missed.">        if (isBlank(raw)) throw new IllegalArgumentException(&quot;production output format must not be empty&quot;);</span>
-<span class="fc" id="L475">        String format = raw.trim().toLowerCase(Locale.ROOT);</span>
-<span class="pc bpc" id="L476" title="1 of 2 branches missed.">        return &quot;gbr&quot;.equals(format) ? &quot;gerber&quot; : format;</span>
+<span class="pc bpc" id="L483" title="1 of 2 branches missed.">        if (isBlank(raw)) throw new IllegalArgumentException(&quot;production output format must not be empty&quot;);</span>
+<span class="fc" id="L484">        String format = raw.trim().toLowerCase(Locale.ROOT);</span>
+<span class="pc bpc" id="L485" title="1 of 2 branches missed.">        return &quot;gbr&quot;.equals(format) ? &quot;gerber&quot; : format;</span>
     }
 
     private static PluginCapability capabilityFor(String format) {
-<span class="pc bpc" id="L480" title="1 of 8 branches missed.">        return switch (format) {</span>
-<span class="fc" id="L481">            case &quot;png&quot; -&gt; PluginCapability.EXPORT_PNG;</span>
-<span class="fc" id="L482">            case &quot;svg&quot; -&gt; PluginCapability.EXPORT_SVG;</span>
-<span class="fc" id="L483">            case &quot;pdf&quot; -&gt; PluginCapability.EXPORT_PDF;</span>
-<span class="fc" id="L484">            case &quot;pcl&quot; -&gt; PluginCapability.EXPORT_PCL;</span>
-<span class="fc" id="L485">            case &quot;dxf&quot; -&gt; PluginCapability.EXPORT_DXF;</span>
-<span class="fc" id="L486">            case &quot;gerber&quot; -&gt; PluginCapability.EXPORT_GERBER;</span>
-<span class="fc" id="L487">            case &quot;stl&quot; -&gt; PluginCapability.EXPORT_STL;</span>
-<span class="nc" id="L488">            default -&gt; throw new IllegalArgumentException(&quot;Unsupported production output format: &quot; + format);</span>
+<span class="pc bpc" id="L489" title="1 of 8 branches missed.">        return switch (format) {</span>
+<span class="fc" id="L490">            case &quot;png&quot; -&gt; PluginCapability.EXPORT_PNG;</span>
+<span class="fc" id="L491">            case &quot;svg&quot; -&gt; PluginCapability.EXPORT_SVG;</span>
+<span class="fc" id="L492">            case &quot;pdf&quot; -&gt; PluginCapability.EXPORT_PDF;</span>
+<span class="fc" id="L493">            case &quot;pcl&quot; -&gt; PluginCapability.EXPORT_PCL;</span>
+<span class="fc" id="L494">            case &quot;dxf&quot; -&gt; PluginCapability.EXPORT_DXF;</span>
+<span class="fc" id="L495">            case &quot;gerber&quot; -&gt; PluginCapability.EXPORT_GERBER;</span>
+<span class="fc" id="L496">            case &quot;stl&quot; -&gt; PluginCapability.EXPORT_STL;</span>
+<span class="nc" id="L497">            default -&gt; throw new IllegalArgumentException(&quot;Unsupported production output format: &quot; + format);</span>
         };
     }
 
     private static String extensionFor(String format) {
-<span class="pc bpc" id="L493" title="1 of 2 branches missed.">        return &quot;gerber&quot;.equals(format) ? &quot;gbr&quot; : format;</span>
+<span class="pc bpc" id="L502" title="1 of 2 branches missed.">        return &quot;gerber&quot;.equals(format) ? &quot;gbr&quot; : format;</span>
     }
 
     private static void validatePortableFilename(String filename) {
-<span class="pc bpc" id="L497" title="1 of 2 branches missed.">        if (filename.length() &gt; 255) throw new IllegalArgumentException(&quot;Production output filename is too long&quot;);</span>
-<span class="pc bpc" id="L498" title="2 of 4 branches missed.">        if (filename.equals(&quot;.&quot;) || filename.equals(&quot;..&quot;)</span>
-<span class="fc bfc" id="L499" title="All 2 branches covered.">                || filename.indexOf('/') &gt;= 0</span>
-<span class="pc bpc" id="L500" title="1 of 2 branches missed.">                || filename.indexOf('\\') &gt;= 0</span>
-<span class="pc bpc" id="L501" title="1 of 2 branches missed.">                || filename.indexOf(':') &gt;= 0</span>
-<span class="pc bpc" id="L502" title="1 of 2 branches missed.">                || filename.indexOf('\0') &gt;= 0) {</span>
-<span class="fc" id="L503">            throw new IllegalArgumentException(</span>
+<span class="pc bpc" id="L506" title="1 of 2 branches missed.">        if (filename.length() &gt; 255) throw new IllegalArgumentException(&quot;Production output filename is too long&quot;);</span>
+<span class="pc bpc" id="L507" title="2 of 4 branches missed.">        if (filename.equals(&quot;.&quot;) || filename.equals(&quot;..&quot;)</span>
+<span class="fc bfc" id="L508" title="All 2 branches covered.">                || filename.indexOf('/') &gt;= 0</span>
+<span class="pc bpc" id="L509" title="1 of 2 branches missed.">                || filename.indexOf('\\') &gt;= 0</span>
+<span class="pc bpc" id="L510" title="1 of 2 branches missed.">                || filename.indexOf(':') &gt;= 0</span>
+<span class="pc bpc" id="L511" title="1 of 2 branches missed.">                || filename.indexOf('\0') &gt;= 0) {</span>
+<span class="fc" id="L512">            throw new IllegalArgumentException(</span>
                     &quot;Production output filename must be a portable basename without path components: &quot; + filename);
         }
-<span class="fc" id="L506">    }</span>
+<span class="fc" id="L515">    }</span>
 
     /** Stable hash of normalized JSON values, independent of object key order and 1 vs 1.0 spelling. */
     public String parameterSha256(JsonNode parameters) {
-<span class="fc" id="L510">        StringBuilder canonical = new StringBuilder();</span>
-<span class="fc" id="L511">        appendCanonical(parameters, canonical);</span>
+<span class="fc" id="L519">        StringBuilder canonical = new StringBuilder();</span>
+<span class="fc" id="L520">        appendCanonical(parameters, canonical);</span>
         try {
-<span class="fc" id="L513">            MessageDigest digest = MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
-<span class="fc" id="L514">            return HexFormat.of().formatHex(digest.digest(canonical.toString().getBytes(StandardCharsets.UTF_8)));</span>
-<span class="nc" id="L515">        } catch (Exception e) {</span>
-<span class="nc" id="L516">            throw new IllegalStateException(&quot;SHA-256 is not available&quot;, e);</span>
+<span class="fc" id="L522">            MessageDigest digest = MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
+<span class="fc" id="L523">            return HexFormat.of().formatHex(digest.digest(canonical.toString().getBytes(StandardCharsets.UTF_8)));</span>
+<span class="nc" id="L524">        } catch (Exception e) {</span>
+<span class="nc" id="L525">            throw new IllegalStateException(&quot;SHA-256 is not available&quot;, e);</span>
         }
     }
 
     private void appendCanonical(JsonNode node, StringBuilder target) {
-<span class="pc bpc" id="L521" title="2 of 4 branches missed.">        if (node == null || node.isNull()) {</span>
-<span class="nc" id="L522">            target.append(&quot;null&quot;);</span>
-<span class="fc bfc" id="L523" title="All 2 branches covered.">        } else if (node.isObject()) {</span>
-<span class="fc" id="L524">            target.append('{');</span>
-<span class="fc" id="L525">            List&lt;Map.Entry&lt;String, JsonNode&gt;&gt; entries = new ArrayList&lt;&gt;(node.properties());</span>
-<span class="fc" id="L526">            entries.sort(Map.Entry.comparingByKey());</span>
-<span class="fc bfc" id="L527" title="All 2 branches covered.">            for (int i = 0; i &lt; entries.size(); i++) {</span>
-<span class="fc bfc" id="L528" title="All 2 branches covered.">                if (i &gt; 0) target.append(',');</span>
-<span class="fc" id="L529">                appendQuoted(entries.get(i).getKey(), target);</span>
-<span class="fc" id="L530">                target.append(':');</span>
-<span class="fc" id="L531">                appendCanonical(entries.get(i).getValue(), target);</span>
+<span class="pc bpc" id="L530" title="2 of 4 branches missed.">        if (node == null || node.isNull()) {</span>
+<span class="nc" id="L531">            target.append(&quot;null&quot;);</span>
+<span class="fc bfc" id="L532" title="All 2 branches covered.">        } else if (node.isObject()) {</span>
+<span class="fc" id="L533">            target.append('{');</span>
+<span class="fc" id="L534">            List&lt;Map.Entry&lt;String, JsonNode&gt;&gt; entries = new ArrayList&lt;&gt;(node.properties());</span>
+<span class="fc" id="L535">            entries.sort(Map.Entry.comparingByKey());</span>
+<span class="fc bfc" id="L536" title="All 2 branches covered.">            for (int i = 0; i &lt; entries.size(); i++) {</span>
+<span class="fc bfc" id="L537" title="All 2 branches covered.">                if (i &gt; 0) target.append(',');</span>
+<span class="fc" id="L538">                appendQuoted(entries.get(i).getKey(), target);</span>
+<span class="fc" id="L539">                target.append(':');</span>
+<span class="fc" id="L540">                appendCanonical(entries.get(i).getValue(), target);</span>
             }
-<span class="fc" id="L533">            target.append('}');</span>
-<span class="fc bfc" id="L534" title="All 2 branches covered.">        } else if (node.isArray()) {</span>
-<span class="fc" id="L535">            target.append('[');</span>
-<span class="fc" id="L536">            int index = 0;</span>
-<span class="fc bfc" id="L537" title="All 2 branches covered.">            for (JsonNode value : node) {</span>
-<span class="fc bfc" id="L538" title="All 2 branches covered.">                if (index++ &gt; 0) target.append(',');</span>
-<span class="fc" id="L539">                appendCanonical(value, target);</span>
-<span class="fc" id="L540">            }</span>
-<span class="fc" id="L541">            target.append(']');</span>
-<span class="fc bfc" id="L542" title="All 2 branches covered.">        } else if (node.isNumber()) {</span>
-<span class="fc" id="L543">            BigDecimal value = node.decimalValue();</span>
-<span class="fc bfc" id="L544" title="All 2 branches covered.">            target.append(value.compareTo(BigDecimal.ZERO) == 0</span>
-<span class="fc" id="L545">                    ? &quot;0&quot;</span>
-<span class="fc" id="L546">                    : value.stripTrailingZeros().toPlainString());</span>
-<span class="fc bfc" id="L547" title="All 2 branches covered.">        } else if (node.isTextual()) {</span>
-<span class="fc" id="L548">            appendQuoted(node.textValue(), target);</span>
-<span class="pc bpc" id="L549" title="1 of 2 branches missed.">        } else if (node.isBoolean()) {</span>
-<span class="fc bfc" id="L550" title="All 2 branches covered.">            target.append(node.booleanValue() ? &quot;true&quot; : &quot;false&quot;);</span>
+<span class="fc" id="L542">            target.append('}');</span>
+<span class="fc bfc" id="L543" title="All 2 branches covered.">        } else if (node.isArray()) {</span>
+<span class="fc" id="L544">            target.append('[');</span>
+<span class="fc" id="L545">            int index = 0;</span>
+<span class="fc bfc" id="L546" title="All 2 branches covered.">            for (JsonNode value : node) {</span>
+<span class="fc bfc" id="L547" title="All 2 branches covered.">                if (index++ &gt; 0) target.append(',');</span>
+<span class="fc" id="L548">                appendCanonical(value, target);</span>
+<span class="fc" id="L549">            }</span>
+<span class="fc" id="L550">            target.append(']');</span>
+<span class="fc bfc" id="L551" title="All 2 branches covered.">        } else if (node.isNumber()) {</span>
+<span class="fc" id="L552">            BigDecimal value = node.decimalValue();</span>
+<span class="fc bfc" id="L553" title="All 2 branches covered.">            target.append(value.compareTo(BigDecimal.ZERO) == 0</span>
+<span class="fc" id="L554">                    ? &quot;0&quot;</span>
+<span class="fc" id="L555">                    : value.stripTrailingZeros().toPlainString());</span>
+<span class="fc bfc" id="L556" title="All 2 branches covered.">        } else if (node.isTextual()) {</span>
+<span class="fc" id="L557">            appendQuoted(node.textValue(), target);</span>
+<span class="pc bpc" id="L558" title="1 of 2 branches missed.">        } else if (node.isBoolean()) {</span>
+<span class="fc bfc" id="L559" title="All 2 branches covered.">            target.append(node.booleanValue() ? &quot;true&quot; : &quot;false&quot;);</span>
         } else {
-<span class="nc" id="L552">            throw new IllegalArgumentException(&quot;Unsupported JSON value in parameters: &quot; + node.getNodeType());</span>
+<span class="nc" id="L561">            throw new IllegalArgumentException(&quot;Unsupported JSON value in parameters: &quot; + node.getNodeType());</span>
         }
-<span class="fc" id="L554">    }</span>
+<span class="fc" id="L563">    }</span>
 
     private void appendQuoted(String value, StringBuilder target) {
         try {
-<span class="fc" id="L558">            target.append(mapper.writeValueAsString(value));</span>
-<span class="nc" id="L559">        } catch (Exception e) {</span>
-<span class="nc" id="L560">            throw new IllegalArgumentException(&quot;Could not canonicalize JSON string&quot;, e);</span>
-<span class="fc" id="L561">        }</span>
-<span class="fc" id="L562">    }</span>
+<span class="fc" id="L567">            target.append(mapper.writeValueAsString(value));</span>
+<span class="nc" id="L568">        } catch (Exception e) {</span>
+<span class="nc" id="L569">            throw new IllegalArgumentException(&quot;Could not canonicalize JSON string&quot;, e);</span>
+<span class="fc" id="L570">        }</span>
+<span class="fc" id="L571">    }</span>
 
     private static boolean isBlank(String value) {
-<span class="pc bpc" id="L565" title="1 of 4 branches missed.">        return value == null || value.isBlank();</span>
+<span class="pc bpc" id="L574" title="1 of 4 branches missed.">        return value == null || value.isBlank();</span>
     }
 
     private static String applicationVersion() {
-<span class="fc" id="L569">        String version = FresnelJobService.class.getPackage().getImplementationVersion();</span>
-<span class="pc bpc" id="L570" title="3 of 4 branches missed.">        return version == null || version.isBlank() ? &quot;development&quot; : version;</span>
+<span class="fc" id="L578">        String version = FresnelJobService.class.getPackage().getImplementationVersion();</span>
+<span class="pc bpc" id="L579" title="3 of 4 branches missed.">        return version == null || version.isBlank() ? &quot;development&quot; : version;</span>
     }
 
     private static String conciseMessage(Exception e) {
-<span class="fc" id="L574">        String message = e.getMessage();</span>
-<span class="pc bpc" id="L575" title="2 of 4 branches missed.">        if (message == null || message.isBlank()) return e.getClass().getSimpleName();</span>
-<span class="fc" id="L576">        int newline = message.indexOf('\n');</span>
-<span class="fc bfc" id="L577" title="All 2 branches covered.">        return newline &gt;= 0 ? message.substring(0, newline) : message;</span>
+<span class="fc" id="L583">        String message = e.getMessage();</span>
+<span class="pc bpc" id="L584" title="2 of 4 branches missed.">        if (message == null || message.isBlank()) return e.getClass().getSimpleName();</span>
+<span class="fc" id="L585">        int newline = message.indexOf('\n');</span>
+<span class="fc bfc" id="L586" title="All 2 branches covered.">        return newline &gt;= 0 ? message.substring(0, newline) : message;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PhotometerCameras.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.photographer</a> &gt; <span class="el_source">PhotometerCameras.java</span></div><h1>PhotometerCameras.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.photographer;
+
+import org.fresnel.measurement.CaptureProvider;
+import org.fresnel.backend.measurement.CaptureProviderRegistry;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
+import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.function.Function;
+import static org.fresnel.measurement.CapturePlan.ImageFormat.PNG;
+import static org.fresnel.measurement.CaptureProvider.Capability.*;
+
+/** Keep camera identities scoped to the grant, even when switching Photographer instances. */
+@Component
+@ConditionalOnProperty(name=&quot;fresnel.capture.photographer.enabled&quot;, havingValue=&quot;true&quot;)
+public class PhotometerCameras {
+    private final PhotographerPairing pairing;
+    private final CaptureProviderRegistry providers;
+<span class="nc" id="L21">    PhotometerCameras(PhotographerPairing pairing, CaptureProviderRegistry providers) {</span>
+<span class="nc" id="L22">        this.pairing = pairing; this.providers = providers;</span>
+<span class="nc" id="L23">    }</span>
+<span class="fc" id="L24">    public record Grant(String binding, CaptureProvider.Descriptor descriptor, CaptureProvider provider) {</span>
+        public List&lt;CaptureProvider.Device&gt; devices() {
+<span class="pc bpc" id="L26" title="1 of 2 branches missed.">            return provider.listDevices().stream().filter(d -&gt; d.state() == CaptureProvider.DeviceState.CONNECTED</span>
+<span class="pc bpc" id="L27" title="3 of 6 branches missed.">                    &amp;&amp; d.supportedFormats().contains(PNG) &amp;&amp; d.supports(EXTERNAL_STEP_TRIGGER) &amp;&amp; d.supports(STILL_CAPTURE)).toList();</span>
+        }
+<span class="fc" id="L29">        public String selection(String device) { return hash(binding + &quot;\n&quot; + device); }</span>
+    }
+    public &lt;T&gt; T use(Function&lt;Grant,T&gt; operation) {
+<span class="nc" id="L32">        return pairing.withConnection(c -&gt; operation.apply(new Grant(hash(c.origin()+&quot;\n&quot;+c.instanceId()+&quot;\n&quot;+c.pairingId()),</span>
+<span class="nc" id="L33">                c.descriptor(), providers.require(PhotographerCaptureProvider.ID))));</span>
+    }
+    private static String hash(String text) {
+<span class="fc" id="L36">        return HexFormat.of().formatHex(PhotographerJournal.sha256().digest(text.getBytes(StandardCharsets.UTF_8)));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

@@ -34,321 +34,324 @@ public final class PhotographerCaptureProvider implements CaptureProvider {
 <span class="fc" id="L34">            new Limits(1, 1, Duration.ofSeconds(1)));</span>
     private final Supplier&lt;Optional&lt;PhotographerPairing.Connection&gt;&gt; pairing;
     private final PhotographerJournal journal;
+<span class="fc" id="L37">    private final PhotographerDiscovery discovery = new PhotographerDiscovery(System::nanoTime);</span>
 
     @Autowired
     public PhotographerCaptureProvider(PhotographerPairing pairing,
             @Value(&quot;${fresnel.capture.photographer.journal-directory:}&quot;) String directory) {
-<span class="nc bnc" id="L41" title="All 2 branches missed.">        this(pairing::current, directory.isBlank() ? DesktopDataDirectory.resolve().resolve(&quot;photographer-captures&quot;)</span>
-<span class="nc" id="L42">                : Path.of(directory));</span>
-<span class="nc" id="L43">    }</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">        this(pairing::current, directory.isBlank() ? DesktopDataDirectory.resolve().resolve(&quot;photographer-captures&quot;)</span>
+<span class="nc" id="L43">                : Path.of(directory));</span>
+<span class="nc" id="L44">    }</span>
 
-<span class="fc" id="L45">    PhotographerCaptureProvider(Supplier&lt;Optional&lt;PhotographerPairing.Connection&gt;&gt; pairing, Path directory) {</span>
-<span class="fc" id="L46">        this.pairing = pairing;</span>
-<span class="fc" id="L47">        this.journal = new PhotographerJournal(directory);</span>
-<span class="fc" id="L48">    }</span>
+<span class="fc" id="L46">    PhotographerCaptureProvider(Supplier&lt;Optional&lt;PhotographerPairing.Connection&gt;&gt; pairing, Path directory) {</span>
+<span class="fc" id="L47">        this.pairing = pairing;</span>
+<span class="fc" id="L48">        this.journal = new PhotographerJournal(directory);</span>
+<span class="fc" id="L49">    }</span>
 
     @Override
     public Descriptor descriptor() {
-<span class="fc" id="L52">        return pairing.get().map(PhotographerPairing.Connection::descriptor).orElse(UNPAIRED);</span>
+<span class="fc" id="L53">        return pairing.get().map(PhotographerPairing.Connection::descriptor).orElse(UNPAIRED);</span>
     }
 
     public static Descriptor descriptor(JsonNode wire) {
-<span class="fc" id="L56">        int major = wire.required(&quot;protocolVersion&quot;).intValue();</span>
-<span class="fc" id="L57">        int minimum = wire.required(&quot;minimumSupportedProtocolVersion&quot;).intValue();</span>
-<span class="fc" id="L58">        boolean polls = wire.required(&quot;eventTransports&quot;).valueStream().anyMatch(n -&gt; &quot;POLLING&quot;.equals(n.asText()));</span>
-<span class="fc" id="L59">        JsonNode limits = wire.required(&quot;limits&quot;);</span>
-<span class="pc bpc" id="L60" title="4 of 8 branches missed.">        if (major &lt; 1 || minimum != 1 || !polls || limits.required(&quot;idempotencyRetentionSeconds&quot;).longValue() &lt; 86_400) {</span>
-<span class="nc" id="L61">            throw incompatible();</span>
+<span class="fc" id="L57">        int major = wire.required(&quot;protocolVersion&quot;).intValue();</span>
+<span class="fc" id="L58">        int minimum = wire.required(&quot;minimumSupportedProtocolVersion&quot;).intValue();</span>
+<span class="fc" id="L59">        boolean polls = wire.required(&quot;eventTransports&quot;).valueStream().anyMatch(n -&gt; &quot;POLLING&quot;.equals(n.asText()));</span>
+<span class="fc" id="L60">        JsonNode limits = wire.required(&quot;limits&quot;);</span>
+<span class="pc bpc" id="L61" title="4 of 8 branches missed.">        if (major &lt; 1 || minimum != 1 || !polls || limits.required(&quot;idempotencyRetentionSeconds&quot;).longValue() &lt; 86_400) {</span>
+<span class="nc" id="L62">            throw incompatible();</span>
         }
-<span class="fc" id="L63">        return new Descriptor(ID, text(wire, &quot;displayName&quot;), major, minimum, known(wire, &quot;capabilities&quot;, Capability.class),</span>
-<span class="fc" id="L64">                known(wire, &quot;supportedFormats&quot;, CapturePlan.ImageFormat.class),</span>
-<span class="fc" id="L65">                new Limits(limits.required(&quot;maximumSteps&quot;).intValue(), limits.required(&quot;maximumAssetBytes&quot;).longValue(),</span>
-<span class="fc" id="L66">                        Duration.ofMillis(limits.required(&quot;maximumSessionDurationMs&quot;).longValue())));</span>
+<span class="fc" id="L64">        return new Descriptor(ID, text(wire, &quot;displayName&quot;), major, minimum, known(wire, &quot;capabilities&quot;, Capability.class),</span>
+<span class="fc" id="L65">                known(wire, &quot;supportedFormats&quot;, CapturePlan.ImageFormat.class),</span>
+<span class="fc" id="L66">                new Limits(limits.required(&quot;maximumSteps&quot;).intValue(), limits.required(&quot;maximumAssetBytes&quot;).longValue(),</span>
+<span class="fc" id="L67">                        Duration.ofMillis(limits.required(&quot;maximumSessionDurationMs&quot;).longValue())));</span>
     }
 
     @Override
     public Health health() {
-<span class="fc" id="L71">        var configured = pairing.get();</span>
-<span class="pc bpc" id="L72" title="1 of 2 branches missed.">        if (configured.isEmpty()) return new Health(HealthState.NOT_CONFIGURED, Instant.now(), &quot;PHOTOGRAPHER_NOT_PAIRED&quot;);</span>
+<span class="fc" id="L72">        var configured = pairing.get();</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">        if (configured.isEmpty()) return new Health(HealthState.NOT_CONFIGURED, Instant.now(), &quot;PHOTOGRAPHER_NOT_PAIRED&quot;);</span>
         try {
-<span class="fc" id="L74">            var wire = json(configured.get(), &quot;/health&quot;, null, null, 200).body();</span>
-<span class="fc" id="L75">            return new Health(HealthState.valueOf(text(wire, &quot;state&quot;)), Instant.now(), text(wire, &quot;messageCode&quot;));</span>
-<span class="fc" id="L76">        } catch (CaptureProviderException ex) {</span>
-<span class="pc bpc" id="L77" title="2 of 3 branches missed.">            var state = switch (ex.code()) {</span>
-<span class="fc" id="L78">                case AUTHENTICATION_FAILED -&gt; HealthState.AUTHENTICATION_FAILED;</span>
-<span class="nc" id="L79">                case INCOMPATIBLE -&gt; HealthState.INCOMPATIBLE;</span>
-<span class="pc" id="L80">                default -&gt; HealthState.DISCONNECTED;</span>
+<span class="fc" id="L75">            var conn = configured.get();</span>
+<span class="fc" id="L76">            var wire = discovery.read(conn.pairingId(), () -&gt; json(conn, &quot;/health&quot;, null, null, 200).body());</span>
+<span class="fc" id="L77">            return new Health(HealthState.valueOf(text(wire, &quot;state&quot;)), Instant.now(), text(wire, &quot;messageCode&quot;));</span>
+<span class="fc" id="L78">        } catch (CaptureProviderException ex) {</span>
+<span class="pc bpc" id="L79" title="2 of 3 branches missed.">            var state = switch (ex.code()) {</span>
+<span class="fc" id="L80">                case AUTHENTICATION_FAILED -&gt; HealthState.AUTHENTICATION_FAILED;</span>
+<span class="nc" id="L81">                case INCOMPATIBLE -&gt; HealthState.INCOMPATIBLE;</span>
+<span class="pc" id="L82">                default -&gt; HealthState.DISCONNECTED;</span>
             };
-<span class="fc" id="L82">            return new Health(state, Instant.now(), ex.messageCode());</span>
-<span class="nc" id="L83">        } catch (IllegalArgumentException ex) {</span>
-<span class="nc" id="L84">            return new Health(HealthState.INCOMPATIBLE, Instant.now(), &quot;PHOTOGRAPHER_PROTOCOL_MISMATCH&quot;);</span>
+<span class="fc" id="L84">            return new Health(state, Instant.now(), ex.messageCode());</span>
+<span class="nc" id="L85">        } catch (IllegalArgumentException ex) {</span>
+<span class="nc" id="L86">            return new Health(HealthState.INCOMPATIBLE, Instant.now(), &quot;PHOTOGRAPHER_PROTOCOL_MISMATCH&quot;);</span>
         }
     }
 
     @Override
     public List&lt;Device&gt; listDevices() {
-<span class="fc" id="L90">        var configured = pairing.get();</span>
-<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        if (configured.isEmpty()) return List.of();</span>
-<span class="fc" id="L92">        var list = json(configured.get(), &quot;/cameras&quot;, null, null, 200).body();</span>
-<span class="pc bpc" id="L93" title="1 of 2 branches missed.">        if (!list.isArray()) throw incompatible();</span>
-<span class="fc" id="L94">        return list.valueStream().map(w -&gt; new Device(text(w, &quot;cameraProfileId&quot;), text(w, &quot;displayName&quot;),</span>
-<span class="fc" id="L95">                enumValue(w, &quot;state&quot;, DeviceState.class), known(w, &quot;capabilities&quot;, Capability.class),</span>
-<span class="fc" id="L96">                known(w, &quot;supportedFormats&quot;, CapturePlan.ImageFormat.class))).toList();</span>
+<span class="fc" id="L92">        var configured = pairing.get();</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">        if (configured.isEmpty()) return List.of();</span>
+<span class="fc" id="L94">        var conn = configured.get();</span>
+<span class="fc" id="L95">        var list = discovery.read(conn.pairingId(), () -&gt; json(conn, &quot;/cameras&quot;, null, null, 200).body());</span>
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">        if (!list.isArray()) throw incompatible();</span>
+<span class="fc" id="L97">        return list.valueStream().map(w -&gt; new Device(text(w, &quot;cameraProfileId&quot;), text(w, &quot;displayName&quot;),</span>
+<span class="fc" id="L98">                enumValue(w, &quot;state&quot;, DeviceState.class), known(w, &quot;capabilities&quot;, Capability.class),</span>
+<span class="fc" id="L99">                known(w, &quot;supportedFormats&quot;, CapturePlan.ImageFormat.class))).toList();</span>
     }
 
     @Override
     public SessionRef createSession(CapturePlan plan, String key) {
         // Older callers carry one durable operation key, which also identifies this acquisition.
-<span class="nc" id="L102">        return createSession(plan, key, key);</span>
+<span class="nc" id="L105">        return createSession(plan, key, key);</span>
     }
 
     /** Uses the durable local experiment ID for correlation when supplied by a measurement workflow. */
     @Override
     public SessionRef createSession(CapturePlan plan, String externalExperimentId, String key) {
-<span class="fc" id="L108">        var conn = requirePair();</span>
-<span class="fc" id="L109">        id(key);</span>
-<span class="fc" id="L110">        ObjectNode wire = JSON.createObjectNode();</span>
-<span class="fc" id="L111">        wire.put(&quot;externalExperimentId&quot;, id(externalExperimentId)).put(&quot;cameraProfileId&quot;, plan.deviceId())</span>
-<span class="fc" id="L112">                .put(&quot;workflowType&quot;, plan.workflowType().name());</span>
-<span class="fc" id="L113">        var req = plan.requirements();</span>
-<span class="fc" id="L114">        var capabilities = conn.descriptor();</span>
-<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        if (!capabilities.supportedFormats().contains(req.preferredImageFormat())</span>
-<span class="pc bpc" id="L116" title="1 of 4 branches missed.">                || (req.lockExposure() &amp;&amp; !capabilities.supports(Capability.EXPOSURE_LOCK))</span>
-<span class="pc bpc" id="L117" title="3 of 4 branches missed.">                || (req.lockFocus() &amp;&amp; !capabilities.supports(Capability.FOCUS_LOCK))) {</span>
-<span class="fc" id="L118">            throw new CaptureProviderException(FailureCode.INVALID_PLAN, false, &quot;UNSUPPORTED_SETTINGS&quot;);</span>
+<span class="fc" id="L111">        var conn = requirePair();</span>
+<span class="fc" id="L112">        id(key);</span>
+<span class="fc" id="L113">        ObjectNode wire = JSON.createObjectNode();</span>
+<span class="fc" id="L114">        wire.put(&quot;externalExperimentId&quot;, id(externalExperimentId)).put(&quot;cameraProfileId&quot;, plan.deviceId())</span>
+<span class="fc" id="L115">                .put(&quot;workflowType&quot;, plan.workflowType().name());</span>
+<span class="fc" id="L116">        var req = plan.requirements();</span>
+<span class="fc" id="L117">        var capabilities = conn.descriptor();</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        if (!capabilities.supportedFormats().contains(req.preferredImageFormat())</span>
+<span class="pc bpc" id="L119" title="1 of 4 branches missed.">                || (req.lockExposure() &amp;&amp; !capabilities.supports(Capability.EXPOSURE_LOCK))</span>
+<span class="pc bpc" id="L120" title="3 of 4 branches missed.">                || (req.lockFocus() &amp;&amp; !capabilities.supports(Capability.FOCUS_LOCK))) {</span>
+<span class="fc" id="L121">            throw new CaptureProviderException(FailureCode.INVALID_PLAN, false, &quot;UNSUPPORTED_SETTINGS&quot;);</span>
         }
-<span class="fc" id="L120">        wire.putObject(&quot;requestedSettings&quot;).put(&quot;lockExposure&quot;, req.lockExposure()).put(&quot;lockFocus&quot;, req.lockFocus())</span>
-<span class="fc" id="L121">                .put(&quot;preferredFormat&quot;, req.preferredImageFormat().name());</span>
-<span class="fc" id="L122">        var steps = wire.putArray(&quot;steps&quot;);</span>
-<span class="fc" id="L123">        long totalMillis = 0;</span>
-<span class="fc bfc" id="L124" title="All 2 branches covered.">        for (var step : plan.steps()) {</span>
-<span class="fc" id="L125">            long millis = step.settleDelay().toMillis();</span>
-<span class="pc bpc" id="L126" title="2 of 4 branches missed.">            if (!Duration.ofMillis(millis).equals(step.settleDelay()) || step.triggerMode() != CapturePlan.TriggerMode.EXTERNAL) {</span>
-<span class="nc" id="L127">                throw new CaptureProviderException(FailureCode.INVALID_PLAN, false, &quot;UNSUPPORTED_CAPTURE_STEP&quot;);</span>
+<span class="fc" id="L123">        wire.putObject(&quot;requestedSettings&quot;).put(&quot;lockExposure&quot;, req.lockExposure()).put(&quot;lockFocus&quot;, req.lockFocus())</span>
+<span class="fc" id="L124">                .put(&quot;preferredFormat&quot;, req.preferredImageFormat().name());</span>
+<span class="fc" id="L125">        var steps = wire.putArray(&quot;steps&quot;);</span>
+<span class="fc" id="L126">        long totalMillis = 0;</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        for (var step : plan.steps()) {</span>
+<span class="fc" id="L128">            long millis = step.settleDelay().toMillis();</span>
+<span class="pc bpc" id="L129" title="2 of 4 branches missed.">            if (!Duration.ofMillis(millis).equals(step.settleDelay()) || step.triggerMode() != CapturePlan.TriggerMode.EXTERNAL) {</span>
+<span class="nc" id="L130">                throw new CaptureProviderException(FailureCode.INVALID_PLAN, false, &quot;UNSUPPORTED_CAPTURE_STEP&quot;);</span>
             }
-<span class="fc" id="L129">            totalMillis += millis;</span>
-<span class="fc" id="L130">            var s = steps.addObject().put(&quot;id&quot;, step.id()).put(&quot;sequenceIndex&quot;, step.sequenceIndex())</span>
-<span class="fc" id="L131">                    .put(&quot;role&quot;, step.role().name()).put(&quot;triggerMode&quot;, step.triggerMode().name()).put(&quot;settleDelayMs&quot;, millis);</span>
-<span class="fc" id="L132">            pattern(s, step.externalPatternId(), step.externalPatternSha256());</span>
-<span class="fc" id="L133">        }</span>
-<span class="fc" id="L134">        byte[] body = JSON.writeValueAsBytes(wire);</span>
-<span class="pc bpc" id="L135" title="2 of 4 branches missed.">        if (body.length &gt; 131072 || plan.steps().size() &gt; capabilities.limits().maximumSteps()</span>
-<span class="pc bpc" id="L136" title="1 of 2 branches missed.">                || Duration.ofMillis(totalMillis).compareTo(capabilities.limits().maximumSessionDuration()) &gt; 0) {</span>
-<span class="nc" id="L137">            throw new CaptureProviderException(FailureCode.INVALID_PLAN, false, &quot;PLAN_LIMIT_EXCEEDED&quot;);</span>
+<span class="fc" id="L132">            totalMillis += millis;</span>
+<span class="fc" id="L133">            var s = steps.addObject().put(&quot;id&quot;, step.id()).put(&quot;sequenceIndex&quot;, step.sequenceIndex())</span>
+<span class="fc" id="L134">                    .put(&quot;role&quot;, step.role().name()).put(&quot;triggerMode&quot;, step.triggerMode().name()).put(&quot;settleDelayMs&quot;, millis);</span>
+<span class="fc" id="L135">            pattern(s, step.externalPatternId(), step.externalPatternSha256());</span>
+<span class="fc" id="L136">        }</span>
+<span class="fc" id="L137">        byte[] body = JSON.writeValueAsBytes(wire);</span>
+<span class="pc bpc" id="L138" title="2 of 4 branches missed.">        if (body.length &gt; 131072 || plan.steps().size() &gt; capabilities.limits().maximumSteps()</span>
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">                || Duration.ofMillis(totalMillis).compareTo(capabilities.limits().maximumSessionDuration()) &gt; 0) {</span>
+<span class="nc" id="L140">            throw new CaptureProviderException(FailureCode.INVALID_PLAN, false, &quot;PLAN_LIMIT_EXCEEDED&quot;);</span>
         }
-<span class="fc" id="L139">        body = journal.pin(conn, List.of(&quot;create&quot;, key), body, FailureCode.CONFLICT, true);</span>
-<span class="fc" id="L140">        var result = json(conn, &quot;/capture-sessions&quot;, key, body, 200, 201).body();</span>
-<span class="fc" id="L141">        var effective = result.required(&quot;effectiveSettings&quot;);</span>
-<span class="fc" id="L142">        var settings = new CapturePlan.Requirements(effective.required(&quot;lockExposure&quot;).booleanValue(),</span>
-<span class="fc" id="L143">                effective.required(&quot;lockFocus&quot;).booleanValue(), enumValue(effective, &quot;format&quot;, CapturePlan.ImageFormat.class));</span>
-<span class="pc bpc" id="L144" title="2 of 4 branches missed.">        if (!plan.deviceId().equals(text(result, &quot;cameraProfileId&quot;)) || !req.equals(settings)) throw incompatible();</span>
-<span class="fc" id="L145">        String session = id(text(result, &quot;sessionId&quot;));</span>
-<span class="fc" id="L146">        journal.pin(conn, List.of(&quot;create-result&quot;, key), JSON.writeValueAsBytes(List.of(session, text(result, &quot;createdAt&quot;))),</span>
+<span class="fc" id="L142">        body = journal.pin(conn, List.of(&quot;create&quot;, key), body, FailureCode.CONFLICT, true);</span>
+<span class="fc" id="L143">        var result = json(conn, &quot;/capture-sessions&quot;, key, body, 200, 201).body();</span>
+<span class="fc" id="L144">        var effective = result.required(&quot;effectiveSettings&quot;);</span>
+<span class="fc" id="L145">        var settings = new CapturePlan.Requirements(effective.required(&quot;lockExposure&quot;).booleanValue(),</span>
+<span class="fc" id="L146">                effective.required(&quot;lockFocus&quot;).booleanValue(), enumValue(effective, &quot;format&quot;, CapturePlan.ImageFormat.class));</span>
+<span class="pc bpc" id="L147" title="2 of 4 branches missed.">        if (!plan.deviceId().equals(text(result, &quot;cameraProfileId&quot;)) || !req.equals(settings)) throw incompatible();</span>
+<span class="fc" id="L148">        String session = id(text(result, &quot;sessionId&quot;));</span>
+<span class="fc" id="L149">        journal.pin(conn, List.of(&quot;create-result&quot;, key), JSON.writeValueAsBytes(List.of(session, text(result, &quot;createdAt&quot;))),</span>
                 FailureCode.INTEGRITY_MISMATCH, false);
-<span class="fc" id="L148">        journal.pin(conn, List.of(&quot;session&quot;, session), body, FailureCode.INTEGRITY_MISMATCH, false);</span>
-<span class="fc" id="L149">        return new SessionRef(session, plan, instant(result, &quot;createdAt&quot;));</span>
+<span class="fc" id="L151">        journal.pin(conn, List.of(&quot;session&quot;, session), body, FailureCode.INTEGRITY_MISMATCH, false);</span>
+<span class="fc" id="L152">        return new SessionRef(session, plan, instant(result, &quot;createdAt&quot;));</span>
     }
 
     private PhotographerPairing.Connection requirePair() {
-<span class="pc" id="L153">        return pairing.get().orElseThrow(() -&gt; new CaptureProviderException(</span>
+<span class="pc" id="L156">        return pairing.get().orElseThrow(() -&gt; new CaptureProviderException(</span>
                 FailureCode.UNAVAILABLE, false, &quot;PHOTOGRAPHER_NOT_PAIRED&quot;));
     }
 
     private JsonNode plan(PhotographerPairing.Connection conn, String session) {
-<span class="fc" id="L158">        return JSON.readTree(journal.read(conn, List.of(&quot;session&quot;, id(session))));</span>
+<span class="fc" id="L161">        return JSON.readTree(journal.read(conn, List.of(&quot;session&quot;, id(session))));</span>
     }
 
     private static String sessionPath(String session) {
-<span class="fc" id="L162">        return &quot;/capture-sessions/&quot; + id(session);</span>
+<span class="fc" id="L165">        return &quot;/capture-sessions/&quot; + id(session);</span>
     }
 
     @Override
     public SessionStatus getSession(String session) {
-<span class="fc" id="L167">        var conn = requirePair();</span>
-<span class="fc" id="L168">        plan(conn, session);</span>
-<span class="fc" id="L169">        return status(session, json(conn, sessionPath(session), null, null, 200).body());</span>
+<span class="fc" id="L170">        var conn = requirePair();</span>
+<span class="fc" id="L171">        plan(conn, session);</span>
+<span class="fc" id="L172">        return status(session, json(conn, sessionPath(session), null, null, 200).body());</span>
     }
 
     private static SessionStatus status(String session, JsonNode w) {
-<span class="pc bpc" id="L173" title="1 of 2 branches missed.">        if (!session.equals(text(w, &quot;sessionId&quot;))) throw incompatible();</span>
-<span class="fc" id="L174">        Failure failure = null;</span>
-<span class="fc bfc" id="L175" title="All 2 branches covered.">        if (w.hasNonNull(&quot;failure&quot;)) {</span>
-<span class="fc" id="L176">            var f = w.get(&quot;failure&quot;);</span>
-<span class="fc" id="L177">            failure = new Failure(enumValue(f, &quot;code&quot;, FailureCode.class),</span>
-<span class="fc" id="L178">                    f.required(&quot;retryable&quot;).booleanValue(), text(f, &quot;messageCode&quot;));</span>
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">        if (!session.equals(text(w, &quot;sessionId&quot;))) throw incompatible();</span>
+<span class="fc" id="L177">        Failure failure = null;</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">        if (w.hasNonNull(&quot;failure&quot;)) {</span>
+<span class="fc" id="L179">            var f = w.get(&quot;failure&quot;);</span>
+<span class="fc" id="L180">            failure = new Failure(enumValue(f, &quot;code&quot;, FailureCode.class),</span>
+<span class="fc" id="L181">                    f.required(&quot;retryable&quot;).booleanValue(), text(f, &quot;messageCode&quot;));</span>
         }
-<span class="fc" id="L180">        return new SessionStatus(session, enumValue(w, &quot;state&quot;, SessionState.class),</span>
-<span class="fc" id="L181">                w.required(&quot;completedSteps&quot;).intValue(), w.required(&quot;totalSteps&quot;).intValue(),</span>
-<span class="fc" id="L182">                w.required(&quot;lastEventId&quot;).longValue(), instant(w, &quot;updatedAt&quot;), failure);</span>
+<span class="fc" id="L183">        return new SessionStatus(session, enumValue(w, &quot;state&quot;, SessionState.class),</span>
+<span class="fc" id="L184">                w.required(&quot;completedSteps&quot;).intValue(), w.required(&quot;totalSteps&quot;).intValue(),</span>
+<span class="fc" id="L185">                w.required(&quot;lastEventId&quot;).longValue(), instant(w, &quot;updatedAt&quot;), failure);</span>
     }
 
     @Override
     public StepResult triggerStep(String session, String stepId, StepTrigger trigger, String key) {
-<span class="fc" id="L187">        id(key);</span>
-<span class="fc" id="L188">        var conn = requirePair();</span>
-<span class="fc" id="L189">        var plan = plan(conn, session);</span>
-<span class="fc" id="L190">        JsonNode step = plan.required(&quot;steps&quot;).valueStream().filter(s -&gt; stepId.equals(text(s, &quot;id&quot;))).findFirst()</span>
-<span class="pc" id="L191">                .orElseThrow(() -&gt; new CaptureProviderException(FailureCode.INVALID_PLAN, false, &quot;UNKNOWN_PLAN_STEP&quot;));</span>
-<span class="fc" id="L192">        var payload = JSON.createObjectNode();</span>
-<span class="fc" id="L193">        pattern(payload, trigger.externalPatternId(), trigger.externalPatternSha256());</span>
-<span class="fc" id="L194">        payload.put(&quot;presentedAt&quot;, trigger.presentedAt().toString());</span>
-<span class="fc" id="L195">        byte[] body = JSON.writeValueAsBytes(payload);</span>
-<span class="fc" id="L196">        journal.pin(conn, List.of(&quot;trigger-step&quot;, session, key), JSON.writeValueAsBytes(stepId), FailureCode.CONFLICT, false);</span>
-<span class="fc" id="L197">        body = journal.pin(conn, List.of(&quot;trigger-body&quot;, session, key), body, FailureCode.CONFLICT, false);</span>
-<span class="fc" id="L198">        var response = json(conn, sessionPath(session) + &quot;/steps/&quot; + id(stepId) + &quot;/trigger&quot;, key, body, 200, 202);</span>
-<span class="fc" id="L199">        var role = enumValue(step, &quot;role&quot;, CapturePlan.Role.class);</span>
-<span class="fc bfc" id="L200" title="All 2 branches covered.">        if (response.status() == 200) return result(conn, response.body(), session, stepId, role);</span>
-<span class="fc" id="L201">        long budget = TimeUnit.SECONDS.toNanos(45);</span>
-<span class="fc" id="L202">        long started = System.nanoTime();</span>
-<span class="fc" id="L203">        long backoff = 50;</span>
-<span class="fc" id="L204">        JsonNode current = response.body();</span>
+<span class="fc" id="L190">        id(key);</span>
+<span class="fc" id="L191">        var conn = requirePair();</span>
+<span class="fc" id="L192">        var plan = plan(conn, session);</span>
+<span class="fc" id="L193">        JsonNode step = plan.required(&quot;steps&quot;).valueStream().filter(s -&gt; stepId.equals(text(s, &quot;id&quot;))).findFirst()</span>
+<span class="pc" id="L194">                .orElseThrow(() -&gt; new CaptureProviderException(FailureCode.INVALID_PLAN, false, &quot;UNKNOWN_PLAN_STEP&quot;));</span>
+<span class="fc" id="L195">        var payload = JSON.createObjectNode();</span>
+<span class="fc" id="L196">        pattern(payload, trigger.externalPatternId(), trigger.externalPatternSha256());</span>
+<span class="fc" id="L197">        payload.put(&quot;presentedAt&quot;, trigger.presentedAt().toString());</span>
+<span class="fc" id="L198">        byte[] body = JSON.writeValueAsBytes(payload);</span>
+<span class="fc" id="L199">        journal.pin(conn, List.of(&quot;trigger-step&quot;, session, key), JSON.writeValueAsBytes(stepId), FailureCode.CONFLICT, false);</span>
+<span class="fc" id="L200">        body = journal.pin(conn, List.of(&quot;trigger-body&quot;, session, key), body, FailureCode.CONFLICT, false);</span>
+<span class="fc" id="L201">        var response = json(conn, sessionPath(session) + &quot;/steps/&quot; + id(stepId) + &quot;/trigger&quot;, key, body, 200, 202);</span>
+<span class="fc" id="L202">        var role = enumValue(step, &quot;role&quot;, CapturePlan.Role.class);</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">        if (response.status() == 200) return result(conn, response.body(), session, stepId, role);</span>
+<span class="fc" id="L204">        long budget = TimeUnit.SECONDS.toNanos(45);</span>
+<span class="fc" id="L205">        long started = System.nanoTime();</span>
+<span class="fc" id="L206">        long backoff = 50;</span>
+<span class="fc" id="L207">        JsonNode current = response.body();</span>
         while (true) {
-<span class="fc" id="L206">            var state = status(session, current);</span>
-<span class="fc bfc" id="L207" title="All 2 branches covered.">            for (var entry : current.required(&quot;steps&quot;)) {</span>
-<span class="fc bfc" id="L208" title="All 4 branches covered.">                if (stepId.equals(text(entry, &quot;stepId&quot;)) &amp;&amp; entry.hasNonNull(&quot;result&quot;)) {</span>
-<span class="fc" id="L209">                    return result(conn, entry.get(&quot;result&quot;), session, stepId, role);</span>
+<span class="fc" id="L209">            var state = status(session, current);</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">            for (var entry : current.required(&quot;steps&quot;)) {</span>
+<span class="fc bfc" id="L211" title="All 4 branches covered.">                if (stepId.equals(text(entry, &quot;stepId&quot;)) &amp;&amp; entry.hasNonNull(&quot;result&quot;)) {</span>
+<span class="fc" id="L212">                    return result(conn, entry.get(&quot;result&quot;), session, stepId, role);</span>
                 }
-<span class="fc" id="L211">            }</span>
-<span class="pc bpc" id="L212" title="1 of 2 branches missed.">            if (state.failure() != null) {</span>
-<span class="nc" id="L213">                var failure = state.failure();</span>
-<span class="nc" id="L214">                throw new CaptureProviderException(failure.code(), failure.retryable(), failure.messageCode());</span>
+<span class="fc" id="L214">            }</span>
+<span class="pc bpc" id="L215" title="1 of 2 branches missed.">            if (state.failure() != null) {</span>
+<span class="nc" id="L216">                var failure = state.failure();</span>
+<span class="nc" id="L217">                throw new CaptureProviderException(failure.code(), failure.retryable(), failure.messageCode());</span>
             }
-<span class="pc bpc" id="L216" title="2 of 6 branches missed.">            if (state.state().isTerminal() || state.state() == SessionState.RECOVERY_REQUIRED || state.state() == SessionState.PAUSED) {</span>
-<span class="pc bpc" id="L217" title="1 of 2 branches missed.">                throw new CaptureProviderException(FailureCode.CONFLICT, false, state.state() == SessionState.RECOVERY_REQUIRED</span>
-<span class="pc" id="L218">                        ? &quot;RECOVERY_REQUIRED&quot; : &quot;STEP_RESULT_UNAVAILABLE&quot;);</span>
+<span class="pc bpc" id="L219" title="2 of 6 branches missed.">            if (state.state().isTerminal() || state.state() == SessionState.RECOVERY_REQUIRED || state.state() == SessionState.PAUSED) {</span>
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">                throw new CaptureProviderException(FailureCode.CONFLICT, false, state.state() == SessionState.RECOVERY_REQUIRED</span>
+<span class="pc" id="L221">                        ? &quot;RECOVERY_REQUIRED&quot; : &quot;STEP_RESULT_UNAVAILABLE&quot;);</span>
             }
-<span class="pc bpc" id="L220" title="1 of 2 branches missed.">            if (System.nanoTime() - started &gt;= budget) throw transport();</span>
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">            if (System.nanoTime() - started &gt;= budget) throw transport();</span>
             try {
-<span class="fc" id="L222">                Thread.sleep(backoff);</span>
-<span class="nc" id="L223">            } catch (InterruptedException ex) {</span>
-<span class="nc" id="L224">                Thread.currentThread().interrupt();</span>
-<span class="nc" id="L225">                throw transport();</span>
-<span class="fc" id="L226">            }</span>
-<span class="fc" id="L227">            backoff = Math.min(1000, backoff * 2);</span>
-<span class="fc" id="L228">            current = json(conn, sessionPath(session), null, null, 200).body();</span>
-<span class="fc" id="L229">        }</span>
+<span class="fc" id="L225">                Thread.sleep(java.util.concurrent.ThreadLocalRandom.current().nextLong(backoff / 2, backoff + 1));</span>
+<span class="nc" id="L226">            } catch (InterruptedException ex) {</span>
+<span class="nc" id="L227">                Thread.currentThread().interrupt();</span>
+<span class="nc" id="L228">                throw transport();</span>
+<span class="fc" id="L229">            }</span>
+<span class="fc" id="L230">            backoff = Math.min(1000, backoff * 2);</span>
+<span class="fc" id="L231">            current = json(conn, sessionPath(session), null, null, 200).body();</span>
+<span class="fc" id="L232">        }</span>
     }
 
     private StepResult result(PhotographerPairing.Connection conn, JsonNode w, String session, String step, CapturePlan.Role role) {
-<span class="fc" id="L233">        AssetMetadata asset = parseAsset(w.required(&quot;asset&quot;));</span>
-<span class="pc bpc" id="L234" title="2 of 6 branches missed.">        if (!session.equals(text(w, &quot;sessionId&quot;)) || !step.equals(text(w, &quot;stepId&quot;)) || !step.equals(asset.stepId())</span>
-<span class="pc bpc" id="L235" title="2 of 4 branches missed.">                || role != asset.role() || !session.equals(asset.sessionId())) throw integrity();</span>
-<span class="fc" id="L236">        pinAsset(conn, asset);</span>
-<span class="fc" id="L237">        return new StepResult(session, step, asset, instant(w, &quot;completedAt&quot;));</span>
+<span class="fc" id="L236">        AssetMetadata asset = parseAsset(w.required(&quot;asset&quot;));</span>
+<span class="pc bpc" id="L237" title="2 of 6 branches missed.">        if (!session.equals(text(w, &quot;sessionId&quot;)) || !step.equals(text(w, &quot;stepId&quot;)) || !step.equals(asset.stepId())</span>
+<span class="pc bpc" id="L238" title="2 of 4 branches missed.">                || role != asset.role() || !session.equals(asset.sessionId())) throw integrity();</span>
+<span class="fc" id="L239">        pinAsset(conn, asset);</span>
+<span class="fc" id="L240">        return new StepResult(session, step, asset, instant(w, &quot;completedAt&quot;));</span>
     }
 
     private static void pattern(ObjectNode node, String pattern, String hash) {
-<span class="pc bpc" id="L241" title="1 of 2 branches missed.">        if (pattern != null) node.put(&quot;externalPatternId&quot;, pattern).put(&quot;externalPatternSha256&quot;, hash);</span>
-<span class="fc" id="L242">    }</span>
+<span class="pc bpc" id="L244" title="1 of 2 branches missed.">        if (pattern != null) node.put(&quot;externalPatternId&quot;, pattern).put(&quot;externalPatternSha256&quot;, hash);</span>
+<span class="fc" id="L245">    }</span>
 
     @Override
     public EventPage events(String session, long after) {
-<span class="pc bpc" id="L246" title="1 of 2 branches missed.">        if (after &lt; 0) throw new IllegalArgumentException(&quot;Event cursor cannot be negative&quot;);</span>
-<span class="fc" id="L247">        var conn = requirePair();</span>
-<span class="fc" id="L248">        var plan = plan(conn, session);</span>
-<span class="fc" id="L249">        var page = json(conn, sessionPath(session) + &quot;/events?afterEventId=&quot; + after, null, null, 200).body();</span>
-<span class="fc" id="L250">        var events = new ArrayList&lt;Event&gt;();</span>
-<span class="fc bfc" id="L251" title="All 2 branches covered.">        for (JsonNode w : page.required(&quot;events&quot;)) {</span>
-<span class="pc bpc" id="L252" title="1 of 2 branches missed.">            var step = w.hasNonNull(&quot;stepId&quot;) ? text(w, &quot;stepId&quot;) : null;</span>
-<span class="fc" id="L253">            AssetMetadata asset = null;</span>
-<span class="pc bpc" id="L254" title="1 of 2 branches missed.">            if (w.hasNonNull(&quot;asset&quot;)) {</span>
-<span class="fc" id="L255">                asset = parseAsset(w.get(&quot;asset&quot;));</span>
-<span class="fc" id="L256">                verifyPlanAsset(plan, session, asset);</span>
-<span class="pc bpc" id="L257" title="1 of 2 branches missed.">                if (!asset.stepId().equals(step)) throw integrity();</span>
-<span class="fc" id="L258">                pinAsset(conn, asset);</span>
+<span class="pc bpc" id="L249" title="1 of 2 branches missed.">        if (after &lt; 0) throw new IllegalArgumentException(&quot;Event cursor cannot be negative&quot;);</span>
+<span class="fc" id="L250">        var conn = requirePair();</span>
+<span class="fc" id="L251">        var plan = plan(conn, session);</span>
+<span class="fc" id="L252">        var page = json(conn, sessionPath(session) + &quot;/events?afterEventId=&quot; + after, null, null, 200).body();</span>
+<span class="fc" id="L253">        var events = new ArrayList&lt;Event&gt;();</span>
+<span class="fc bfc" id="L254" title="All 2 branches covered.">        for (JsonNode w : page.required(&quot;events&quot;)) {</span>
+<span class="pc bpc" id="L255" title="1 of 2 branches missed.">            var step = w.hasNonNull(&quot;stepId&quot;) ? text(w, &quot;stepId&quot;) : null;</span>
+<span class="fc" id="L256">            AssetMetadata asset = null;</span>
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">            if (w.hasNonNull(&quot;asset&quot;)) {</span>
+<span class="fc" id="L258">                asset = parseAsset(w.get(&quot;asset&quot;));</span>
+<span class="fc" id="L259">                verifyPlanAsset(plan, session, asset);</span>
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">                if (!asset.stepId().equals(step)) throw integrity();</span>
+<span class="fc" id="L261">                pinAsset(conn, asset);</span>
             }
-<span class="pc bpc" id="L260" title="2 of 4 branches missed.">            if (!session.equals(text(w, &quot;sessionId&quot;)) || w.required(&quot;eventId&quot;).longValue() &lt;= after) throw incompatible();</span>
-<span class="fc" id="L261">            events.add(new Event(w.get(&quot;eventId&quot;).longValue(), session, step, enumValue(w, &quot;state&quot;, SessionState.class),</span>
-<span class="fc" id="L262">                    text(w, &quot;messageCode&quot;), instant(w, &quot;timestamp&quot;), asset));</span>
-<span class="fc" id="L263">        }</span>
-<span class="fc" id="L264">        boolean hasMore = page.required(&quot;hasMore&quot;).booleanValue();</span>
-<span class="pc bpc" id="L265" title="1 of 2 branches missed.">        long cursor = events.isEmpty() ? after : events.getLast().eventId();</span>
-<span class="pc bpc" id="L266" title="4 of 6 branches missed.">        if ((hasMore &amp;&amp; events.isEmpty()) || page.required(&quot;lastEventId&quot;).longValue() &lt; cursor) throw incompatible();</span>
-<span class="fc" id="L267">        return new EventPage(events, cursor, hasMore);</span>
+<span class="pc bpc" id="L263" title="2 of 4 branches missed.">            if (!session.equals(text(w, &quot;sessionId&quot;)) || w.required(&quot;eventId&quot;).longValue() &lt;= after) throw incompatible();</span>
+<span class="fc" id="L264">            events.add(new Event(w.get(&quot;eventId&quot;).longValue(), session, step, enumValue(w, &quot;state&quot;, SessionState.class),</span>
+<span class="fc" id="L265">                    text(w, &quot;messageCode&quot;), instant(w, &quot;timestamp&quot;), asset));</span>
+<span class="fc" id="L266">        }</span>
+<span class="fc" id="L267">        boolean hasMore = page.required(&quot;hasMore&quot;).booleanValue();</span>
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">        long cursor = events.isEmpty() ? after : events.getLast().eventId();</span>
+<span class="pc bpc" id="L269" title="4 of 6 branches missed.">        if ((hasMore &amp;&amp; events.isEmpty()) || page.required(&quot;lastEventId&quot;).longValue() &lt; cursor) throw incompatible();</span>
+<span class="fc" id="L270">        return new EventPage(events, cursor, hasMore);</span>
     }
 
     @Override
     public AssetMetadata getAssetMetadata(String session, String assetId) {
-<span class="nc" id="L272">        return metadata(requirePair(), session, assetId);</span>
+<span class="nc" id="L275">        return metadata(requirePair(), session, assetId);</span>
     }
 
     private AssetMetadata metadata(PhotographerPairing.Connection conn, String session, String assetId) {
-<span class="fc" id="L276">        var plan = plan(conn, session);</span>
-<span class="fc" id="L277">        var w = json(conn, assetPath(session, assetId) + &quot;/metadata&quot;, null, null, 200).body();</span>
-<span class="fc" id="L278">        var asset = parseAsset(w);</span>
-<span class="pc bpc" id="L279" title="1 of 2 branches missed.">        if (!assetId.equals(asset.assetId())) throw integrity();</span>
-<span class="fc" id="L280">        verifyPlanAsset(plan, session, asset);</span>
-<span class="fc" id="L281">        pinAsset(conn, asset);</span>
-<span class="fc" id="L282">        return asset;</span>
+<span class="fc" id="L279">        var plan = plan(conn, session);</span>
+<span class="fc" id="L280">        var w = json(conn, assetPath(session, assetId) + &quot;/metadata&quot;, null, null, 200).body();</span>
+<span class="fc" id="L281">        var asset = parseAsset(w);</span>
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">        if (!assetId.equals(asset.assetId())) throw integrity();</span>
+<span class="fc" id="L283">        verifyPlanAsset(plan, session, asset);</span>
+<span class="fc" id="L284">        pinAsset(conn, asset);</span>
+<span class="fc" id="L285">        return asset;</span>
     }
 
     private static void verifyPlanAsset(JsonNode plan, String session, AssetMetadata asset) {
-<span class="fc bfc" id="L286" title="All 2 branches covered.">        boolean found = plan.required(&quot;steps&quot;).valueStream().anyMatch(s -&gt; asset.stepId().equals(text(s, &quot;id&quot;))</span>
-<span class="pc bpc" id="L287" title="1 of 2 branches missed.">                &amp;&amp; asset.role().name().equals(text(s, &quot;role&quot;)));</span>
-<span class="pc bpc" id="L288" title="2 of 4 branches missed.">        if (!session.equals(asset.sessionId()) || !found) throw integrity();</span>
-<span class="fc" id="L289">    }</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">        boolean found = plan.required(&quot;steps&quot;).valueStream().anyMatch(s -&gt; asset.stepId().equals(text(s, &quot;id&quot;))</span>
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">                &amp;&amp; asset.role().name().equals(text(s, &quot;role&quot;)));</span>
+<span class="pc bpc" id="L291" title="2 of 4 branches missed.">        if (!session.equals(asset.sessionId()) || !found) throw integrity();</span>
+<span class="fc" id="L292">    }</span>
 
     private void pinAsset(PhotographerPairing.Connection conn, AssetMetadata asset) {
-<span class="pc bpc" id="L292" title="1 of 2 branches missed.">        if (asset.byteLength() &gt; conn.descriptor().limits().maximumAssetBytes()) throw integrity();</span>
-<span class="fc" id="L293">        journal.pin(conn, List.of(&quot;asset&quot;, asset.sessionId(), asset.assetId()), JSON.writeValueAsBytes(asset),</span>
+<span class="pc bpc" id="L295" title="1 of 2 branches missed.">        if (asset.byteLength() &gt; conn.descriptor().limits().maximumAssetBytes()) throw integrity();</span>
+<span class="fc" id="L296">        journal.pin(conn, List.of(&quot;asset&quot;, asset.sessionId(), asset.assetId()), JSON.writeValueAsBytes(asset),</span>
                 FailureCode.INTEGRITY_MISMATCH, false);
-<span class="fc" id="L295">    }</span>
+<span class="fc" id="L298">    }</span>
 
     private static AssetMetadata parseAsset(JsonNode w) {
-<span class="fc" id="L298">        return new AssetMetadata(text(w, &quot;sessionId&quot;), text(w, &quot;assetId&quot;), text(w, &quot;stepId&quot;),</span>
-<span class="fc" id="L299">                enumValue(w, &quot;role&quot;, CapturePlan.Role.class), text(w, &quot;originalFileName&quot;), text(w, &quot;mediaType&quot;),</span>
-<span class="fc" id="L300">                w.required(&quot;byteLength&quot;).longValue(), text(w, &quot;sha256&quot;), instant(w, &quot;capturedAt&quot;));</span>
+<span class="fc" id="L301">        return new AssetMetadata(text(w, &quot;sessionId&quot;), text(w, &quot;assetId&quot;), text(w, &quot;stepId&quot;),</span>
+<span class="fc" id="L302">                enumValue(w, &quot;role&quot;, CapturePlan.Role.class), text(w, &quot;originalFileName&quot;), text(w, &quot;mediaType&quot;),</span>
+<span class="fc" id="L303">                w.required(&quot;byteLength&quot;).longValue(), text(w, &quot;sha256&quot;), instant(w, &quot;capturedAt&quot;));</span>
     }
 
     private static String assetPath(String session, String asset) {
-<span class="fc" id="L304">        return sessionPath(session) + &quot;/assets/&quot; + id(asset);</span>
+<span class="fc" id="L307">        return sessionPath(session) + &quot;/assets/&quot; + id(asset);</span>
     }
 
     @Override
     public InputStream openAsset(String session, String assetId, AssetRead read) {
-<span class="fc" id="L309">        var conn = requirePair();</span>
-<span class="fc" id="L310">        var asset = metadata(conn, session, assetId);</span>
-<span class="fc" id="L311">        return PhotographerMedia.open(conn, assetPath(session, assetId), asset, read);</span>
+<span class="fc" id="L312">        var conn = requirePair();</span>
+<span class="fc" id="L313">        var asset = metadata(conn, session, assetId);</span>
+<span class="fc" id="L314">        return PhotographerMedia.open(conn, assetPath(session, assetId), asset, read);</span>
     }
 
     @Override
     public void cancel(String session, String key) {
-<span class="fc" id="L316">        var conn = requirePair();</span>
-<span class="fc" id="L317">        plan(conn, session);</span>
-<span class="fc" id="L318">        journal.pin(conn, List.of(&quot;cancel&quot;, session, id(key)), new byte[0], FailureCode.CONFLICT, false);</span>
-<span class="fc" id="L319">        json(conn, sessionPath(session) + &quot;/cancel&quot;, key, null, 204);</span>
-<span class="fc" id="L320">    }</span>
+<span class="fc" id="L319">        var conn = requirePair();</span>
+<span class="fc" id="L320">        plan(conn, session);</span>
+<span class="fc" id="L321">        journal.pin(conn, List.of(&quot;cancel&quot;, session, id(key)), new byte[0], FailureCode.CONFLICT, false);</span>
+<span class="fc" id="L322">        json(conn, sessionPath(session) + &quot;/cancel&quot;, key, null, 204);</span>
+<span class="fc" id="L323">    }</span>
 
     private static String text(JsonNode wire, String key) {
-<span class="fc" id="L323">        var n = wire.path(key);</span>
-<span class="pc bpc" id="L324" title="1 of 2 branches missed.">        if (!n.isTextual()) throw incompatible();</span>
-<span class="fc" id="L325">        return n.asText();</span>
+<span class="fc" id="L326">        var n = wire.path(key);</span>
+<span class="pc bpc" id="L327" title="1 of 2 branches missed.">        if (!n.isTextual()) throw incompatible();</span>
+<span class="fc" id="L328">        return n.asText();</span>
     }
 
     private static Instant instant(JsonNode wire, String key) {
         try {
-<span class="fc" id="L330">            return Instant.parse(text(wire, key));</span>
-<span class="nc" id="L331">        } catch (java.time.format.DateTimeParseException ex) {</span>
-<span class="nc" id="L332">            throw incompatible();</span>
+<span class="fc" id="L333">            return Instant.parse(text(wire, key));</span>
+<span class="nc" id="L334">        } catch (java.time.format.DateTimeParseException ex) {</span>
+<span class="nc" id="L335">            throw incompatible();</span>
         }
     }
 
     private static &lt;E extends Enum&lt;E&gt;&gt; E enumValue(JsonNode wire, String key, Class&lt;E&gt; type) {
         try {
-<span class="fc" id="L338">            return Enum.valueOf(type, text(wire, key));</span>
-<span class="nc" id="L339">        } catch (IllegalArgumentException ex) {</span>
-<span class="nc" id="L340">            throw incompatible();</span>
+<span class="fc" id="L341">            return Enum.valueOf(type, text(wire, key));</span>
+<span class="nc" id="L342">        } catch (IllegalArgumentException ex) {</span>
+<span class="nc" id="L343">            throw incompatible();</span>
         }
     }
 
     private static &lt;E extends Enum&lt;E&gt;&gt; Set&lt;E&gt; known(JsonNode wire, String field, Class&lt;E&gt; type) {
-<span class="fc" id="L345">        EnumSet&lt;E&gt; found = EnumSet.noneOf(type);</span>
-<span class="fc" id="L346">        var list = wire.required(field);</span>
-<span class="pc bpc" id="L347" title="1 of 2 branches missed.">        if (!list.isArray()) throw incompatible();</span>
-<span class="fc bfc" id="L348" title="All 2 branches covered.">        for (E entry : type.getEnumConstants()) {</span>
-<span class="fc bfc" id="L349" title="All 2 branches covered.">            if (list.valueStream().anyMatch(v -&gt; entry.name().equals(v.asText()))) found.add(entry);</span>
+<span class="fc" id="L348">        EnumSet&lt;E&gt; found = EnumSet.noneOf(type);</span>
+<span class="fc" id="L349">        var list = wire.required(field);</span>
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">        if (!list.isArray()) throw incompatible();</span>
+<span class="fc bfc" id="L351" title="All 2 branches covered.">        for (E entry : type.getEnumConstants()) {</span>
+<span class="fc bfc" id="L352" title="All 2 branches covered.">            if (list.valueStream().anyMatch(v -&gt; entry.name().equals(v.asText()))) found.add(entry);</span>
         }
-<span class="fc" id="L351">        return found;</span>
+<span class="fc" id="L354">        return found;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

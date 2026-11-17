@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PhotometryCaptureController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.session</a> &gt; <span class="el_source">PhotometryCaptureController.java</span></div><h1>PhotometryCaptureController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.session;
+
+import org.fresnel.backend.measurement.photographer.PhotographerPairing;
+import org.fresnel.measurement.CaptureProviderException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.io.IOException;
+import java.security.Principal;
+import java.util.*;
+
+@RestController
+@RequestMapping(&quot;/api/experiments/photometry-captures&quot;)
+@ConditionalOnProperty(name=&quot;fresnel.capture.photographer.enabled&quot;, havingValue=&quot;true&quot;)
+class PhotometryCaptureController {
+    private final PhotometryCapture capture;
+<span class="nc" id="L17">    PhotometryCaptureController(PhotometryCapture capture) { this.capture = capture; }</span>
+
+<span class="nc" id="L19">    @GetMapping(&quot;/cameras&quot;) List&lt;PhotometryCapture.Camera&gt; cameras() { return capture.cameras(); }</span>
+<span class="nc" id="L20">    @GetMapping List&lt;PhotometryCapture.View&gt; list(Principal p) throws IOException { return capture.list(p.getName()); }</span>
+    @GetMapping(&quot;/{id}&quot;) PhotometryCapture.View get(Principal p, @PathVariable(&quot;id&quot;) UUID id) throws IOException {
+<span class="nc" id="L22">        return capture.get(p.getName(), id);</span>
+    }
+    @PutMapping(&quot;/{id}&quot;) PhotometryCapture.View create(Principal p, @PathVariable(&quot;id&quot;) UUID id,
+<span class="nc" id="L25">            @RequestBody PhotometryCapture.Selection selection) { return capture.create(p.getName(),id,selection); }</span>
+
+    @PostMapping(&quot;/{id}/steps/{step}/trigger&quot;)
+    PhotometryCapture.View trigger(Principal p, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;step&quot;) String step,
+<span class="nc" id="L29">            @RequestBody PhotometryCapture.Presentation ack) { return capture.trigger(p.getName(),id,step,ack); }</span>
+
+    @PostMapping(&quot;/{id}/steps/{step}/accept&quot;)
+    PhotometryCapture.View accept(Principal p, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;step&quot;) String step,
+<span class="nc" id="L33">            @RequestBody PhotometryCapture.Presentation ack) { return capture.accept(p.getName(),id,step,ack); }</span>
+
+    @DeleteMapping(&quot;/{id}&quot;) PhotometryCapture.View cancel(Principal p, @PathVariable(&quot;id&quot;) UUID id) {
+<span class="nc" id="L36">        return capture.cancel(p.getName(),id);</span>
+    }
+    @ExceptionHandler(PhotographerPairing.Failure.class)
+    ResponseEntity&lt;?&gt; pairing(PhotographerPairing.Failure e) {
+<span class="nc" id="L40">        return ResponseEntity.status(e.status()).body(Map.of(&quot;code&quot;,e.getMessage()));</span>
+    }
+    @ExceptionHandler(CaptureProviderException.class)
+    ResponseEntity&lt;?&gt; provider(CaptureProviderException e) {
+<span class="nc bnc" id="L44" title="All 3 branches missed.">        int status = switch (e.code()) {</span>
+<span class="nc" id="L45">            case INVALID_PLAN, CONFLICT, DEVICE_UNAVAILABLE -&gt; 409;</span>
+<span class="nc" id="L46">            case TRANSIENT_IO, UNAVAILABLE -&gt; 503;</span>
+<span class="nc" id="L47">            default -&gt; 502;</span>
+        };
+<span class="nc" id="L49">        return ResponseEntity.status(status).body(Map.of(&quot;code&quot;,e.code().name()));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

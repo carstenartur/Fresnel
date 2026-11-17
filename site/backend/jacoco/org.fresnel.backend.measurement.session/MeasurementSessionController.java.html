@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MeasurementSessionController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.session</a> &gt; <span class="el_source">MeasurementSessionController.java</span></div><h1>MeasurementSessionController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.session;
 
+import org.fresnel.measurement.UploadCaptureSource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.core.io.FileSystemResource;
@@ -15,50 +16,73 @@ import java.util.*;
 @RequestMapping(&quot;/api/measurement-sessions&quot;)
 class MeasurementSessionController {
     private final MeasurementSessions sessions;
+    private final UploadCaptureSource&lt;MeasurementSessions.Plan, MeasurementSessions.View&gt; uploads;
     private final MeasurementBundles bundles;
     private final ObjectMapper json;
-<span class="fc" id="L20">    MeasurementSessionController(MeasurementSessions sessions, MeasurementBundles bundles, ObjectMapper json) {</span>
-<span class="fc" id="L21">        this.sessions = sessions; this.bundles = bundles; this.json = json;</span>
-<span class="fc" id="L22">    }</span>
+    MeasurementSessionController(MeasurementSessions sessions, MeasurementBundles bundles, ObjectMapper json,
+<span class="fc" id="L23">            UploadCaptureSource&lt;MeasurementSessions.Plan, MeasurementSessions.View&gt; uploads) {</span>
+<span class="fc" id="L24">        this.uploads = uploads;</span>
+<span class="fc" id="L25">        this.sessions = sessions; this.bundles = bundles; this.json = json;</span>
+<span class="fc" id="L26">    }</span>
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     MeasurementSessions.View create(Principal user, HttpServletRequest request) throws IOException {
-<span class="fc" id="L26">        var bytes = new ByteArrayOutputStream();</span>
-<span class="fc" id="L27">        MeasurementSessions.copy(request.getInputStream(), bytes, MeasurementSessions.PLAN_BYTES);</span>
-<span class="fc" id="L28">        try { return sessions.create(user.getName(), json.readValue(bytes.toByteArray(), MeasurementSessions.Plan.class)); }</span>
-<span class="nc" id="L29">        catch (tools.jackson.core.JacksonException e) { throw MeasurementSessions.bad(&quot;Invalid capture plan&quot;); }</span>
+<span class="fc" id="L30">        return uploads.create(user.getName(), UUID.randomUUID(), plan(request));</span>
     }
-<span class="nc" id="L31">    @GetMapping List&lt;MeasurementSessions.View&gt; list(Principal user) throws IOException { return sessions.list(user.getName()); }</span>
+
+    @PutMapping(value=&quot;/{id}&quot;, consumes = MediaType.APPLICATION_JSON_VALUE)
+    MeasurementSessions.View createAt(Principal user, @PathVariable(&quot;id&quot;) UUID id, HttpServletRequest request) throws IOException {
+<span class="nc" id="L35">        return uploads.create(user.getName(), id, plan(request));</span>
+    }
+
+    @PutMapping(value=&quot;/{id}/derive/{sourceId}&quot;, consumes = MediaType.APPLICATION_JSON_VALUE)
+    MeasurementSessions.View derive(Principal user, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;sourceId&quot;) UUID sourceId,
+                                    HttpServletRequest request) throws IOException {
+<span class="nc" id="L41">        var bytes = new ByteArrayOutputStream();</span>
+<span class="nc" id="L42">        MeasurementSessions.copy(request.getInputStream(), bytes, MeasurementSessions.PLAN_BYTES + 4096);</span>
+        try {
+<span class="nc" id="L44">            var input = json.readValue(bytes.toByteArray(), MeasurementSessions.Derivation.class);</span>
+<span class="nc" id="L45">            return sessions.derive(user.getName(), id, sourceId, input);</span>
+<span class="nc" id="L46">        } catch (tools.jackson.core.JacksonException e) { throw MeasurementSessions.bad(&quot;Invalid source mapping&quot;); }</span>
+    }
+
+    private MeasurementSessions.Plan plan(HttpServletRequest request) throws IOException {
+<span class="fc" id="L50">        var bytes = new ByteArrayOutputStream();</span>
+<span class="fc" id="L51">        MeasurementSessions.copy(request.getInputStream(), bytes, MeasurementSessions.PLAN_BYTES);</span>
+<span class="fc" id="L52">        try { return json.readValue(bytes.toByteArray(), MeasurementSessions.Plan.class); }</span>
+<span class="nc" id="L53">        catch (tools.jackson.core.JacksonException e) { throw MeasurementSessions.bad(&quot;Invalid capture plan&quot;); }</span>
+    }
+<span class="nc" id="L55">    @GetMapping List&lt;MeasurementSessions.View&gt; list(Principal user) throws IOException { return sessions.list(user.getName()); }</span>
     @GetMapping(&quot;/{id}&quot;) MeasurementSessions.View get(Principal user, @PathVariable(&quot;id&quot;) UUID id) throws IOException {
-<span class="nc" id="L33">        return sessions.get(user.getName(), id);</span>
+<span class="nc" id="L57">        return sessions.get(user.getName(), id);</span>
     }
     @DeleteMapping(&quot;/{id}&quot;) @ResponseStatus(HttpStatus.NO_CONTENT)
-<span class="fc" id="L36">    void delete(Principal user, @PathVariable(&quot;id&quot;) UUID id) throws IOException { sessions.delete(user.getName(), id); }</span>
+<span class="fc" id="L60">    void delete(Principal user, @PathVariable(&quot;id&quot;) UUID id) throws IOException { sessions.delete(user.getName(), id); }</span>
 
     @PutMapping(&quot;/{id}/assets/{step}&quot;)
     MeasurementSessions.View put(Principal user, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;step&quot;) String step,
                                  @RequestHeader(&quot;X-Content-SHA256&quot;) String sha, HttpServletRequest request) throws IOException {
-<span class="fc" id="L41">        return sessions.put(user.getName(), id, step, Objects.toString(request.getContentType(), &quot;&quot;), sha, request.getInputStream());</span>
+<span class="fc" id="L65">        return uploads.put(user.getName(), id, step, Objects.toString(request.getContentType(), &quot;&quot;), sha, request.getInputStream());</span>
     }
 
     @GetMapping(&quot;/{id}/assets/{step}&quot;)
     ResponseEntity&lt;FileSystemResource&gt; source(Principal user, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;step&quot;) String step) throws IOException {
-<span class="fc" id="L46">        var s = sessions.source(user.getName(), id, step);</span>
-<span class="fc" id="L47">        return ResponseEntity.ok().cacheControl(CacheControl.noCache().cachePrivate()).eTag(&quot;\&quot;&quot; + s.asset().sha256() + &quot;\&quot;&quot;)</span>
-<span class="fc" id="L48">                .contentType(MediaType.parseMediaType(s.asset().mediaType())).body(new FileSystemResource(s.path()));</span>
+<span class="fc" id="L70">        var s = sessions.source(user.getName(), id, step);</span>
+<span class="fc" id="L71">        return ResponseEntity.ok().cacheControl(CacheControl.noCache().cachePrivate()).eTag(&quot;\&quot;&quot; + s.asset().sha256() + &quot;\&quot;&quot;)</span>
+<span class="fc" id="L72">                .contentType(MediaType.parseMediaType(s.asset().mediaType())).body(new FileSystemResource(s.path()));</span>
     }
 
     @GetMapping(&quot;/{id}/bundle&quot;)
     void export(Principal user, @PathVariable(&quot;id&quot;) UUID id, HttpServletResponse response) throws IOException {
-<span class="fc" id="L53">        sessions.get(user.getName(), id);</span>
-<span class="fc" id="L54">        response.setContentType(MeasurementBundles.TYPE);</span>
-<span class="fc" id="L55">        response.setHeader(&quot;Content-Disposition&quot;, &quot;attachment; filename=\&quot;experiment-&quot; + id + &quot;.fresnel-exp\&quot;&quot;);</span>
-<span class="fc" id="L56">        bundles.export(user.getName(), id, response.getOutputStream());</span>
-<span class="fc" id="L57">    }</span>
+<span class="fc" id="L77">        sessions.get(user.getName(), id);</span>
+<span class="fc" id="L78">        response.setContentType(MeasurementBundles.TYPE);</span>
+<span class="fc" id="L79">        response.setHeader(&quot;Content-Disposition&quot;, &quot;attachment; filename=\&quot;experiment-&quot; + id + &quot;.fresnel-exp\&quot;&quot;);</span>
+<span class="fc" id="L80">        bundles.export(user.getName(), id, response.getOutputStream());</span>
+<span class="fc" id="L81">    }</span>
 
     @PostMapping(value = &quot;/import&quot;, consumes = MeasurementBundles.TYPE)
     MeasurementSessions.View read(Principal user, HttpServletRequest request) throws IOException {
-<span class="nc" id="L61">        return bundles.read(user.getName(), request.getInputStream());</span>
+<span class="nc" id="L85">        return bundles.read(user.getName(), request.getInputStream());</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BosTargetPrintExporter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement</a> &gt; <span class="el_source">BosTargetPrintExporter.java</span></div><h1>BosTargetPrintExporter.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement;
+
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.apache.pdfbox.util.Matrix;
+import org.fresnel.measurement.BosTarget;
+import org.fresnel.optics.PdfExporter.SheetSize;
+
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
+/** Keeps the source pixel pitch fixed in both print formats. Layout measurements are in mm. */
+public final class BosTargetPrintExporter {
+    private static final double STRIP_HEIGHT = 12;
+    private static final int RULER_X = 3;
+    private static final int RULER_LENGTH = 50;
+
+    private BosTargetPrintExporter() {}
+
+<span class="fc" id="L29">    private record Layout(double width, double height, double targetWidth, double targetHeight,</span>
+                          double pixelPitch, double idSize, boolean strip) {
+        static Layout of(BosTarget target, boolean strip) {
+<span class="fc" id="L32">            var p = target.parameters();</span>
+<span class="fc" id="L33">            double pitch = 25.4 / p.intendedDpi();</span>
+<span class="fc" id="L34">            double w = p.intendedWidthMm();</span>
+<span class="fc" id="L35">            double h = p.intendedHeightMm();</span>
+            // Reserve the central top border for the ID and keep both corner markers clear.
+<span class="fc" id="L37">            double idSize = Math.min(3, Math.min(p.borderPx() * pitch / 2,</span>
+<span class="fc" id="L38">                    (w - 2 * p.borderPx() * pitch) / target.targetId().length()));</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">            return new Layout(strip ? Math.max(w, RULER_LENGTH + 2 * RULER_X) : w,</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">                    strip ? h + STRIP_HEIGHT : h, w, h, pitch, idSize, strip);</span>
+        }
+    }
+
+    public static byte[] svg(BosTarget target, boolean strip) {
+<span class="fc" id="L45">        Layout l = Layout.of(target, strip);</span>
+<span class="fc" id="L46">        boolean inverted = target.parameters().invertPattern();</span>
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">        String ink = inverted ? &quot;white&quot; : &quot;black&quot;;</span>
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">        int foreground = inverted ? 255 : 0;</span>
+<span class="fc" id="L49">        int width = target.parameters().widthPx();</span>
+<span class="fc" id="L50">        int height = target.parameters().heightPx();</span>
+<span class="fc" id="L51">        StringBuilder out = new StringBuilder();</span>
+<span class="fc" id="L52">        out.append(&quot;&lt;svg xmlns=\&quot;http://www.w3.org/2000/svg\&quot; width=\&quot;&quot;).append(l.width)</span>
+<span class="fc" id="L53">                .append(&quot;mm\&quot; height=\&quot;&quot;).append(l.height).append(&quot;mm\&quot; viewBox=\&quot;0 0 &quot;)</span>
+<span class="fc" id="L54">                .append(l.width).append(' ').append(l.height).append(&quot;\&quot;&gt;\n&quot;);</span>
+<span class="fc" id="L55">        out.append(&quot;&lt;rect width=\&quot;100%\&quot; height=\&quot;100%\&quot; fill=\&quot;white\&quot;/&gt;\n&quot;);</span>
+<span class="fc" id="L56">        out.append(&quot;&lt;g transform=\&quot;scale(&quot;).append(l.pixelPitch).append(&quot;)\&quot; shape-rendering=\&quot;crispEdges\&quot;&gt;\n&quot;);</span>
+<span class="fc" id="L57">        out.append(&quot;&lt;rect width=\&quot;&quot;).append(width).append(&quot;\&quot; height=\&quot;&quot;).append(height)</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">                .append(&quot;\&quot; fill=\&quot;&quot;).append(inverted ? &quot;black&quot; : &quot;white&quot;).append(&quot;\&quot;/&gt;\n&quot;);</span>
+<span class="fc" id="L59">        out.append(&quot;&lt;g fill=\&quot;none\&quot; stroke=\&quot;&quot;).append(ink).append(&quot;\&quot; stroke-width=\&quot;1\&quot;&gt;\n&quot;);</span>
+        // One horizontal stroke per contiguous run reproduces the exact source pixels,
+        // including the asymmetric fiducials, without generating one XML node per pixel.
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        for (int y = 0; y &lt; height; y++) {</span>
+<span class="fc" id="L63">            StringBuilder row = new StringBuilder();</span>
+<span class="fc" id="L64">            int x = 0;</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">            while (x &lt; width) {</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">                if (target.pixelUnsigned(x, y) != foreground) {</span>
+<span class="fc" id="L67">                    x++;</span>
+<span class="fc" id="L68">                    continue;</span>
+                }
+<span class="fc" id="L70">                int start = x++;</span>
+<span class="pc bpc" id="L71" title="1 of 4 branches missed.">                while (x &lt; width &amp;&amp; target.pixelUnsigned(x, y) == foreground) x++;</span>
+<span class="fc" id="L72">                row.append('M').append(start).append(' ').append(y).append(&quot;.5h&quot;).append(x - start);</span>
+<span class="fc" id="L73">            }</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            if (!row.isEmpty()) out.append(&quot;&lt;path d=\&quot;&quot;).append(row).append(&quot;\&quot;/&gt;\n&quot;);</span>
+        }
+<span class="fc" id="L76">        out.append(&quot;&lt;/g&gt;&lt;/g&gt;\n&quot;);</span>
+<span class="fc" id="L77">        out.append(&quot;&lt;text text-anchor=\&quot;middle\&quot; x=\&quot;&quot;).append(l.targetWidth / 2)</span>
+<span class="fc" id="L78">                .append(&quot;\&quot; y=\&quot;&quot;).append(idBaseline(target, l)).append(&quot;\&quot; font-family=\&quot;sans-serif\&quot; font-size=\&quot;&quot;)</span>
+<span class="fc" id="L79">                .append(l.idSize).append(&quot;\&quot; fill=\&quot;&quot;).append(ink).append(&quot;\&quot;&gt;&quot;).append(target.targetId()).append(&quot;&lt;/text&gt;\n&quot;);</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (strip) {</span>
+<span class="fc" id="L81">            double y = l.targetHeight + 4;</span>
+<span class="fc" id="L82">            out.append(&quot;&lt;g stroke=\&quot;black\&quot; stroke-width=\&quot;0.2\&quot;&gt;\n&quot;);</span>
+<span class="fc" id="L83">            svgLine(out, RULER_X, y, RULER_X + RULER_LENGTH, y);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">            for (int mm = 0; mm &lt;= RULER_LENGTH; mm += 10) svgLine(out, RULER_X + mm, y - 1.5, RULER_X + mm, y + 1.5);</span>
+<span class="fc" id="L85">            out.append(&quot;&lt;/g&gt;&lt;text x=\&quot;&quot;).append(RULER_X).append(&quot;\&quot; y=\&quot;&quot;).append(l.targetHeight + 10)</span>
+<span class="fc" id="L86">                    .append(&quot;\&quot; font-family=\&quot;sans-serif\&quot; font-size=\&quot;2.6\&quot;&gt;50 mm  &quot;).append(target.targetId()).append(&quot;&lt;/text&gt;\n&quot;);</span>
+        }
+<span class="fc" id="L88">        return out.append(&quot;&lt;/svg&gt;\n&quot;).toString().getBytes(StandardCharsets.UTF_8);</span>
+    }
+
+    private static void svgLine(StringBuilder out, double x1, double y1, double x2, double y2) {
+<span class="fc" id="L92">        out.append(&quot;&lt;line x1=\&quot;&quot;).append(x1).append(&quot;\&quot; y1=\&quot;&quot;).append(y1)</span>
+<span class="fc" id="L93">                .append(&quot;\&quot; x2=\&quot;&quot;).append(x2).append(&quot;\&quot; y2=\&quot;&quot;).append(y2).append(&quot;\&quot;/&gt;\n&quot;);</span>
+<span class="fc" id="L94">    }</span>
+
+    public static byte[] pdf(BosTarget target, boolean strip, SheetSize sheet) throws IOException {
+<span class="fc" id="L97">        Layout l = Layout.of(target, strip);</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        boolean fitted = sheet == SheetSize.FIT;</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        double w = fitted ? l.width : sheet.widthMm;</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        double h = fitted ? l.height : sheet.heightMm;</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        double margin = fitted ? 0 : 5;</span>
+<span class="fc" id="L102">        double usableWidth = w - 2 * margin;</span>
+<span class="fc" id="L103">        double usableHeight = h - 2 * margin;</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">        double overlap = fitted ? 0 : 5;</span>
+<span class="fc" id="L105">        int columns = tileCount(l.width, usableWidth, overlap);</span>
+<span class="fc" id="L106">        int rows = tileCount(l.height, usableHeight, overlap);</span>
+<span class="fc" id="L107">        try (PDDocument doc = new PDDocument(); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {</span>
+<span class="fc" id="L108">            doc.setDocumentId(Long.parseUnsignedLong(target.semanticSha256().substring(0, 16), 16));</span>
+<span class="fc" id="L109">            var font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);</span>
+<span class="fc" id="L110">            var image = LosslessFactory.createFromImage(doc, binaryImage(target));</span>
+<span class="fc" id="L111">            image.setInterpolate(false);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            for (int row = 0; row &lt; rows; row++) {</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">                for (int column = 0; column &lt; columns; column++) {</span>
+<span class="fc" id="L114">                    var page = new PDPage(new PDRectangle(pt(w), pt(h)));</span>
+<span class="fc" id="L115">                    doc.addPage(page);</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">                    double left = columns == 1 ? (w - l.width) / 2 : margin - column * (usableWidth - overlap);</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">                    double top = rows == 1 ? (h - l.height) / 2 : margin - row * (usableHeight - overlap);</span>
+<span class="fc" id="L118">                    try (var cs = new PDPageContentStream(doc, page)) {</span>
+<span class="fc" id="L119">                        cs.addRect(pt(margin), pt(margin), pt(usableWidth), pt(usableHeight));</span>
+<span class="fc" id="L120">                        cs.clip();</span>
+<span class="fc" id="L121">                        cs.transform(Matrix.getTranslateInstance(pt(left), pt(h - top - l.height)));</span>
+<span class="fc" id="L122">                        drawPdf(cs, image, font, target, l);</span>
+                    }
+                }
+            }
+<span class="fc" id="L126">            doc.save(bytes);</span>
+<span class="fc" id="L127">            return bytes.toByteArray();</span>
+        }
+    }
+
+    private static int tileCount(double content, double available, double overlap) {
+<span class="fc" id="L132">        return Math.max(1, (int) Math.ceil((content - overlap) / (available - overlap)));</span>
+    }
+
+    private static BufferedImage binaryImage(BosTarget target) {
+<span class="fc" id="L136">        int w = target.parameters().widthPx(), h = target.parameters().heightPx();</span>
+<span class="fc" id="L137">        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_BINARY);</span>
+<span class="fc" id="L138">        byte[] packed = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();</span>
+<span class="fc" id="L139">        int stride = (w + 7) / 8;</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">        for (int y = 0; y &lt; h; y++) {</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">            for (int x = 0; x &lt; w; x++) {</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">                if (target.pixelUnsigned(x, y) == 255) packed[y * stride + x / 8] |= (byte) (0x80 &gt;&gt;&gt; (x % 8));</span>
+            }
+        }
+<span class="fc" id="L145">        return image;</span>
+    }
+
+    private static void drawPdf(PDPageContentStream cs, PDImageXObject image, PDType1Font font,
+                                BosTarget target, Layout l) throws IOException {
+<span class="fc" id="L150">        cs.drawImage(image, 0, pt(l.height - l.targetHeight), pt(l.targetWidth), pt(l.targetHeight));</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        cs.setNonStrokingColor(target.parameters().invertPattern() ? 1f : 0f);</span>
+<span class="fc" id="L152">        double idWidth = font.getStringWidth(target.targetId()) / 1000 * l.idSize;</span>
+<span class="fc" id="L153">        writeText(cs, font, target.targetId(), (l.targetWidth - idWidth) / 2,</span>
+<span class="fc" id="L154">                l.height - idBaseline(target, l), l.idSize);</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        if (l.strip) {</span>
+<span class="fc" id="L156">            double y = STRIP_HEIGHT - 4;</span>
+<span class="fc" id="L157">            cs.setLineWidth(pt(0.2));</span>
+<span class="fc" id="L158">            cs.moveTo(pt(RULER_X), pt(y));</span>
+<span class="fc" id="L159">            cs.lineTo(pt(RULER_X + RULER_LENGTH), pt(y));</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">            for (int mm = 0; mm &lt;= RULER_LENGTH; mm += 10) {</span>
+<span class="fc" id="L161">                cs.moveTo(pt(RULER_X + mm), pt(y - 1.5));</span>
+<span class="fc" id="L162">                cs.lineTo(pt(RULER_X + mm), pt(y + 1.5));</span>
+            }
+<span class="fc" id="L164">            cs.stroke();</span>
+<span class="fc" id="L165">            cs.setNonStrokingColor(0f);</span>
+<span class="fc" id="L166">            writeText(cs, font, &quot;50 mm  &quot; + target.targetId(), RULER_X, STRIP_HEIGHT - 10, 2.6);</span>
+        }
+<span class="fc" id="L168">    }</span>
+
+    private static double idBaseline(BosTarget target, Layout l) {
+<span class="fc" id="L171">        return target.parameters().borderPx() * l.pixelPitch / 2 + l.idSize * 0.33;</span>
+    }
+
+    private static void writeText(PDPageContentStream cs, PDType1Font font, String text,
+                                  double x, double y, double size) throws IOException {
+<span class="fc" id="L176">        cs.beginText();</span>
+<span class="fc" id="L177">        cs.setFont(font, pt(size));</span>
+<span class="fc" id="L178">        cs.newLineAtOffset(pt(x), pt(y));</span>
+<span class="fc" id="L179">        cs.showText(text);</span>
+<span class="fc" id="L180">        cs.endText();</span>
+<span class="fc" id="L181">    }</span>
+
+    private static float pt(double mm) {
+<span class="fc" id="L184">        return (float) (mm * 72 / 25.4);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

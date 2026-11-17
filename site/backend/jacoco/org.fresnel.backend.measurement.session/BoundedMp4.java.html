@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BoundedMp4.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.session</a> &gt; <span class="el_source">BoundedMp4.java</span></div><h1>BoundedMp4.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.session;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.Set;
+
+import static org.fresnel.backend.measurement.session.MeasurementSessions.bad;
+
+/** Inspect finite MP4 movie/track metadata with bounded reads, without expanding encoded media. */
+final class BoundedMp4 {
+    private final RandomAccessFile file;
+    private int boxes;
+<span class="fc" id="L14">    private record Box(String type, long data, long end) {}</span>
+<span class="fc" id="L15">    private record Track(int width, int height, boolean video, double seconds) {}</span>
+
+<span class="fc" id="L17">    private BoundedMp4(RandomAccessFile file) { this.file = file; }</span>
+
+    static MeasurementSessions.Asset inspect(Path path, String sha, long bytes) throws IOException {
+<span class="fc" id="L20">        try (var file = new RandomAccessFile(path.toFile(), &quot;r&quot;)) {</span>
+<span class="fc" id="L21">            return new BoundedMp4(file).inspect(sha, bytes);</span>
+<span class="nc" id="L22">        } catch (EOFException malformed) {</span>
+<span class="nc" id="L23">            throw bad(&quot;Incomplete MP4 metadata&quot;);</span>
+        }
+    }
+    private MeasurementSessions.Asset inspect(String sha, long bytes) throws IOException {
+<span class="fc" id="L27">        boolean fileType = false, media = false;</span>
+<span class="fc" id="L28">        Track track = null;</span>
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        for (long offset=0; offset&lt;bytes;) {</span>
+<span class="fc" id="L30">            Box b = box(offset, bytes);</span>
+<span class="pc bpc" id="L31" title="1 of 4 branches missed.">            if (b.type.equals(&quot;ftyp&quot;)) fileType = b.end - b.data &gt;= 8;</span>
+<span class="pc bpc" id="L32" title="1 of 4 branches missed.">            if (b.type.equals(&quot;mdat&quot;)) media |= b.end &gt; b.data;</span>
+<span class="fc bfc" id="L33" title="All 2 branches covered.">            if (b.type.equals(&quot;moov&quot;)) {</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">                for (long p=b.data; p&lt;b.end;) {</span>
+<span class="fc" id="L35">                    Box item = box(p,b.end);</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">                    if (item.type.equals(&quot;trak&quot;)) {</span>
+<span class="fc" id="L37">                        Track t = track(item);</span>
+<span class="pc bpc" id="L38" title="1 of 2 branches missed.">                        if (t.video) {</span>
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">                            if (track != null) throw bad(&quot;Choose a single-track video&quot;);</span>
+<span class="fc" id="L40">                            track = t;</span>
+                        }
+                    }
+<span class="fc" id="L43">                    p = item.end;</span>
+<span class="fc" id="L44">                }</span>
+            }
+<span class="fc" id="L46">            offset = b.end;</span>
+<span class="fc" id="L47">        }</span>
+<span class="pc bpc" id="L48" title="10 of 20 branches missed.">        if (!fileType || !media || track == null || !(track.seconds &gt; 0 &amp;&amp; track.seconds &lt;= 30)</span>
+                || track.width &lt; 1 || track.height &lt; 1 || track.width &gt; 4096 || track.height &gt; 4096
+<span class="nc" id="L50">                || (long)track.width * track.height &gt; 8_500_000) throw bad(&quot;Invalid or out-of-bounds MP4&quot;);</span>
+<span class="fc" id="L51">        return new MeasurementSessions.Asset(sha, bytes, &quot;video/mp4&quot;, track.width, track.height);</span>
+    }
+    private Track track(Box container) throws IOException {
+<span class="fc" id="L54">        int w = 0, h = 0;</span>
+<span class="fc" id="L55">        boolean video = false;</span>
+<span class="fc" id="L56">        Box mediaInformation = null;</span>
+<span class="fc" id="L57">        double seconds = 0;</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        for (long p=container.data; p&lt;container.end;) {</span>
+<span class="fc" id="L59">            Box b = box(p,container.end);</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">            if (b.type.equals(&quot;tkhd&quot;)) {</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">                if (b.end-b.data &lt; 84) throw bad(&quot;Invalid MP4 track header&quot;);</span>
+<span class="fc" id="L62">                file.seek(b.end-8);</span>
+<span class="fc" id="L63">                w = file.readInt() &gt;&gt;&gt; 16;</span>
+<span class="fc" id="L64">                h = file.readInt() &gt;&gt;&gt; 16;</span>
+            }
+<span class="fc bfc" id="L66" title="All 2 branches covered.">            if (b.type.equals(&quot;mdia&quot;)) {</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">                for (long q=b.data; q&lt;b.end;) {</span>
+<span class="fc" id="L68">                    Box item = box(q,b.end);</span>
+<span class="pc bpc" id="L69" title="1 of 4 branches missed.">                    if (item.type.equals(&quot;hdlr&quot;) &amp;&amp; item.end-item.data &gt;= 12) {</span>
+<span class="fc" id="L70">                        file.seek(item.data+8);</span>
+<span class="fc" id="L71">                        video = fourcc().equals(&quot;vide&quot;);</span>
+                    }
+<span class="fc bfc" id="L73" title="All 2 branches covered.">                    if (item.type.equals(&quot;minf&quot;)) mediaInformation = item;</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">                    if (item.type.equals(&quot;mdhd&quot;)) {</span>
+<span class="fc" id="L75">                        file.seek(item.data);</span>
+<span class="fc" id="L76">                        int version=file.readUnsignedByte();</span>
+<span class="pc bpc" id="L77" title="3 of 6 branches missed.">                        if (version &gt; 1 || item.end-item.data &lt; (version==0 ? 24 : 36)) throw bad(&quot;Invalid MP4 media header&quot;);</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">                        file.seek(item.data + (version==0 ? 12 : 20));</span>
+<span class="fc" id="L79">                        long scale = Integer.toUnsignedLong(file.readInt());</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">                        long ticks = version==0 ? Integer.toUnsignedLong(file.readInt()) : file.readLong();</span>
+<span class="fc" id="L81">                        seconds = (double)ticks/scale;</span>
+                    }
+<span class="fc" id="L83">                    q=item.end;</span>
+<span class="fc" id="L84">                }</span>
+            }
+<span class="fc" id="L86">            p=b.end;</span>
+<span class="fc" id="L87">        }</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        if (video) inspectSampleDescription(mediaInformation);</span>
+<span class="fc" id="L89">        return new Track(w,h,video,seconds);</span>
+    }
+    private void inspectSampleDescription(Box mediaInformation) throws IOException {
+<span class="fc" id="L92">        Box table = child(mediaInformation, &quot;stbl&quot;);</span>
+<span class="fc" id="L93">        Box descriptions = child(table, &quot;stsd&quot;);</span>
+<span class="pc bpc" id="L94" title="2 of 4 branches missed.">        if (descriptions == null || descriptions.end-descriptions.data &lt; 8) throw bad(&quot;Missing MP4 sample descriptions&quot;);</span>
+<span class="fc" id="L95">        file.seek(descriptions.data+4);</span>
+<span class="fc" id="L96">        int count=file.readInt();</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        if (count != 1) throw bad(&quot;Choose an MP4 with a single video format&quot;);</span>
+<span class="fc" id="L98">        Box sample = box(descriptions.data+8,descriptions.end);</span>
+<span class="pc bpc" id="L99" title="2 of 4 branches missed.">        if (sample.end != descriptions.end || sample.end-sample.data &lt; 78</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">                || !Set.of(&quot;avc1&quot;,&quot;avc3&quot;,&quot;hvc1&quot;,&quot;hev1&quot;,&quot;vp09&quot;,&quot;av01&quot;,&quot;mp4v&quot;).contains(sample.type))</span>
+<span class="nc" id="L101">            throw bad(&quot;Unsupported MP4 video sample description&quot;);</span>
+<span class="fc" id="L102">        file.seek(sample.data+24);</span>
+<span class="fc" id="L103">        int width=file.readUnsignedShort(), height=file.readUnsignedShort();</span>
+<span class="pc bpc" id="L104" title="5 of 10 branches missed.">        if (width == 0 || height == 0 || width &gt; 4096 || height &gt; 4096 || (long)width*height &gt; 8_500_000)</span>
+<span class="nc" id="L105">            throw bad(&quot;MP4 coded image dimensions exceed limits&quot;);</span>
+<span class="fc" id="L106">    }</span>
+    private Box child(Box parent, String type) throws IOException {
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">        if (parent == null) return null;</span>
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        for (long p=parent.data; p&lt;parent.end;) {</span>
+<span class="fc" id="L110">            Box b=box(p,parent.end);</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">            if (b.type.equals(type)) return b;</span>
+<span class="fc" id="L112">            p=b.end;</span>
+<span class="fc" id="L113">        }</span>
+<span class="nc" id="L114">        return null;</span>
+    }
+    private Box box(long start, long end) throws IOException {
+<span class="pc bpc" id="L117" title="2 of 4 branches missed.">        if (++boxes &gt; 4096 || end-start &lt; 8) throw bad(&quot;Invalid MP4 box layout&quot;);</span>
+<span class="fc" id="L118">        file.seek(start);</span>
+<span class="fc" id="L119">        long size = Integer.toUnsignedLong(file.readInt());</span>
+<span class="fc" id="L120">        String type = fourcc();</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">        if (size == 1) {</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">            if (end-start &lt; 16) throw bad(&quot;Incomplete extended MP4 box&quot;);</span>
+<span class="nc" id="L123">            size=file.readLong();</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        } else if (size == 0) size=end-start;</span>
+<span class="fc" id="L125">        long data=file.getFilePointer();</span>
+<span class="pc bpc" id="L126" title="1 of 4 branches missed.">        if (size &lt; data-start || size &gt; end-start) throw bad(&quot;Invalid MP4 box size&quot;);</span>
+<span class="fc" id="L127">        return new Box(type,data,start+size);</span>
+    }
+    private String fourcc() throws IOException {
+<span class="fc" id="L130">        byte[] value = new byte[4]; file.readFully(value);</span>
+<span class="fc" id="L131">        return new String(value, StandardCharsets.ISO_8859_1);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

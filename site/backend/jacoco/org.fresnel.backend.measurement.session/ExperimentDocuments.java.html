@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExperimentDocuments.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.session</a> &gt; <span class="el_source">ExperimentDocuments.java</span></div><h1>ExperimentDocuments.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.session;
+
+import org.fresnel.backend.api.FresnelJobDocument;
+import org.fresnel.backend.api.FresnelJobService;
+import org.fresnel.optics.PluginRegistry;
+import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+@Component
+class ExperimentDocuments {
+    private final FresnelJobService jobs;
+<span class="fc" id="L14">    ExperimentDocuments(FresnelJobService jobs) { this.jobs = jobs; }</span>
+
+    byte[] job(MeasurementSessions.Plan plan) {
+<span class="fc" id="L17">        JsonNode parameters = plan.parameters();</span>
+<span class="fc bfc" id="L18" title="All 2 branches covered.">        if (&quot;background-oriented-schlieren&quot;.equals(plan.pluginId())) parameters = parameters.get(&quot;targetParameters&quot;);</span>
+<span class="fc bfc" id="L19" title="All 2 branches covered.">        else if (parameters.has(&quot;geometry&quot;)) parameters = parameters.get(&quot;geometry&quot;);</span>
+        // A manually photographed external or historical target can have no Fresnel generator settings.
+<span class="pc bpc" id="L21" title="2 of 6 branches missed.">        if (parameters == null || !parameters.isObject() || parameters.isEmpty()) return null;</span>
+<span class="fc" id="L22">        var descriptor = PluginRegistry.findById(plan.pluginId());</span>
+<span class="pc bpc" id="L23" title="1 of 2 branches missed.">        if (descriptor.isEmpty()) return null;</span>
+<span class="fc" id="L24">        return jobs.write(new FresnelJobDocument(FresnelJobDocument.SCHEMA_URL, FresnelJobDocument.FORMAT_IDENTIFIER,</span>
+<span class="fc" id="L25">                FresnelJobDocument.CURRENT_FORMAT_VERSION, new FresnelJobDocument.PluginRef(plan.pluginId(),</span>
+<span class="fc" id="L26">                FresnelJobDocument.CURRENT_PARAMETER_SCHEMA_VERSION, descriptor.get().algorithmVersion()), parameters, null, null));</span>
+    }
+
+    void checkJob(byte[] supplied, MeasurementSessions.Plan plan) {
+<span class="fc" id="L30">        var parsed = jobs.parseAndNormalize(supplied);</span>
+<span class="fc" id="L31">        var expected = job(plan);</span>
+<span class="pc bpc" id="L32" title="6 of 8 branches missed.">        if (expected == null || parsed.production() != null &amp;&amp; parsed.production().outputs() != null &amp;&amp; !parsed.production().outputs().isEmpty()</span>
+<span class="pc bpc" id="L33" title="2 of 4 branches missed.">                || !parsed.plugin().id().equals(plan.pluginId()) || !parsed.parameters().equals(jobs.parseAndNormalize(expected).parameters()))</span>
+<span class="nc" id="L34">            throw MeasurementSessions.bad(&quot;Target job and measurement plan differ&quot;);</span>
+<span class="fc" id="L35">    }</span>
+
+    byte[] report(MeasurementSessions.Plan plan, Map&lt;String,MeasurementSessions.Asset&gt; assets, boolean hasJob, CaptureEvidence capture) {
+<span class="fc" id="L38">        boolean bos = &quot;background-oriented-schlieren&quot;.equals(plan.pluginId());</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        var s = new StringBuilder(&quot;# &quot;).append(bos ? &quot;Background-oriented Schlieren&quot; : &quot;Display photometric stereo&quot;)</span>
+<span class="fc" id="L40">                .append(&quot; experiment\n\n&quot;);</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        s.append(bos ? &quot;This experiment estimates apparent image-plane displacement in pixels. Airflow direction, temperature and velocity require independent calibration.\n\n&quot;</span>
+<span class="fc" id="L42">                : &quot;This experiment estimates diffuse surface normals and relative albedo. Relief uses relative units unless an operator assigns a scale.\n\n&quot;);</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        if (capture != null) {</span>
+<span class="fc" id="L44">            s.append(&quot;Capture provider: &quot;).append(capture.provider()).append(&quot;. Sequence: `&quot;)</span>
+<span class="fc" id="L45">                    .append(capture.sequenceId()).append(&quot;`.\n\n&quot;);</span>
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">            s.append(&quot;Exposure lock: &quot;).append(capture.exposureLock() ? &quot;camera&quot; : &quot;operator-confirmed&quot;)</span>
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">                    .append(&quot;. Focus lock: &quot;).append(capture.focusLock() ? &quot;camera&quot; : &quot;operator-confirmed&quot;).append(&quot;.\n\n&quot;);</span>
+        }
+<span class="fc" id="L49">        long sources = plan.steps().stream().filter(assets::containsKey).count();</span>
+<span class="fc" id="L50">        s.append(&quot;Captured steps: &quot;).append(sources).append(&quot; of &quot;).append(plan.steps().size()).append(&quot;.\n\n&quot;);</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (hasJob) s.append(&quot;Open `job.fresnel` to reproduce the target or illumination geometry.\n\n&quot;);</span>
+<span class="fc" id="L52">        s.append(&quot;| Capture step | Dimensions | Format | Bytes | SHA-256 |\n|---|---|---|---:|---|\n&quot;);</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">        for (String step : plan.steps()) {</span>
+<span class="fc" id="L54">            var a = assets.get(step);</span>
+<span class="fc" id="L55">            s.append('|').append(step).append('|');</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">            if (a == null) s.append(&quot;Pending||||\n&quot;);</span>
+<span class="fc" id="L57">            else s.append(a.width()).append(&quot; × &quot;).append(a.height()).append('|').append(a.mediaType()).append('|')</span>
+<span class="fc" id="L58">                    .append(a.byteLength()).append('|').append(a.sha256()).append(&quot;|\n&quot;);</span>
+<span class="fc" id="L59">        }</span>
+<span class="fc" id="L60">        var result = assets.get(&quot;result&quot;);</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if (result != null) s.append(&quot;\nAnalysis data: `results/result.json` (&quot;).append(result.byteLength())</span>
+<span class="fc" id="L62">                .append(&quot; bytes, SHA-256 `&quot;).append(result.sha256()).append(&quot;`).\n&quot;);</span>
+<span class="fc" id="L63">        return s.toString().getBytes(StandardCharsets.UTF_8);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

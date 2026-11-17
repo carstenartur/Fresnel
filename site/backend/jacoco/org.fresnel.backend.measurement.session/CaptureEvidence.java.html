@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CaptureEvidence.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.session</a> &gt; <span class="el_source">CaptureEvidence.java</span></div><h1>CaptureEvidence.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.session;
+
+import tools.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.nio.file.*;
+import java.time.Instant;
+import java.util.*;
+
+/** Public acquisition evidence. The provider grant, host, device IDs and replay keys stay in the private journal. */
+<span class="fc" id="L10">record CaptureEvidence(String provider, String sequenceId, boolean exposureLock, boolean focusLock,</span>
+                       boolean manualLocksConfirmed, List&lt;Exposure&gt; exposures) {
+    static final String FILE = &quot;capture-provenance.json&quot;;
+<span class="fc" id="L13">    record Exposure(String step, String pixelSha256, String sourceSha256, Instant capturedAt) {}</span>
+
+    static CaptureEvidence read(Path directory, ObjectMapper json) throws IOException {
+<span class="fc" id="L16">        Path journal = directory.resolve(&quot;photometry-capture.json&quot;);</span>
+<span class="fc bfc" id="L17" title="All 2 branches covered.">        if (Files.isRegularFile(journal)) {</span>
+<span class="fc" id="L18">            var capture = json.readValue(Files.readAllBytes(journal),PhotometryCapture.Journal.class);</span>
+<span class="fc" id="L19">            var exposures = new ArrayList&lt;Exposure&gt;();</span>
+<span class="fc bfc" id="L20" title="All 2 branches covered.">            for (var step : capture.plan.steps()) {</span>
+<span class="fc" id="L21">                var accepted = capture.accepted.get(step.id());</span>
+<span class="pc bpc" id="L22" title="1 of 2 branches missed.">                if (accepted != null) exposures.add(new Exposure(step.id(), step.externalPatternSha256(),</span>
+<span class="fc" id="L23">                        accepted.asset().sha256(), accepted.asset().capturedAt()));</span>
+<span class="fc" id="L24">            }</span>
+<span class="fc" id="L25">            var settings = capture.plan.requirements();</span>
+<span class="fc" id="L26">            return new CaptureEvidence(PhotometryCapture.PROVIDER, capture.sequenceId, settings.lockExposure(),</span>
+<span class="fc" id="L27">                    settings.lockFocus(), capture.manualLocksConfirmed, List.copyOf(exposures));</span>
+        }
+<span class="fc" id="L29">        Path restored = directory.resolve(FILE);</span>
+<span class="fc bfc" id="L30" title="All 2 branches covered.">        return Files.isRegularFile(restored) ? json.readValue(Files.readAllBytes(restored),CaptureEvidence.class) : null;</span>
+    }
+
+    void verifyIllumination(MeasurementSessions.Plan plan, ObjectMapper json) {
+<span class="fc" id="L34">        var parameters = plan.parameters();</span>
+<span class="fc bfc" id="L35" title="All 2 branches covered.">        var geometry = parameters.has(&quot;geometry&quot;) ? parameters.get(&quot;geometry&quot;) : parameters;</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">        if (!geometry.isObject()) throw MeasurementSessions.bad(&quot;Missing acquisition geometry in capture evidence&quot;);</span>
+        try {
+<span class="fc" id="L38">            var settings = json.treeToValue(geometry, org.fresnel.measurement.photometry.DisplayGeometry.class);</span>
+<span class="fc" id="L39">            var manifest = org.fresnel.measurement.photometry.DisplayIlluminationSequenceGenerator.generate(settings);</span>
+<span class="fc" id="L40">            var patterns = manifest.patterns();</span>
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">            if (!manifest.sequenceId().equals(sequenceId) ||</span>
+<span class="pc bpc" id="L42" title="4 of 8 branches missed.">                    !patterns.stream().map(p -&gt; p.id()).toList().equals(plan.steps()) ||</span>
+                    ((!exposureLock || !focusLock) &amp;&amp; !manualLocksConfirmed))
+<span class="fc" id="L44">                throw MeasurementSessions.bad(&quot;Capture evidence disagrees with the illumination plan or lock settings&quot;);</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">            for (int i = 0; i &lt; exposures.size(); i++) {</span>
+<span class="fc" id="L46">                var exposure = exposures.get(i);</span>
+<span class="fc" id="L47">                var pattern = patterns.get(i);</span>
+<span class="pc bpc" id="L48" title="1 of 4 branches missed.">                if (!pattern.id().equals(exposure.step()) || !pattern.pixelSha256().equals(exposure.pixelSha256()))</span>
+<span class="fc" id="L49">                    throw MeasurementSessions.bad(&quot;Capture evidence disagrees with the expected displayed raster&quot;);</span>
+            }
+<span class="nc" id="L51">        } catch (IllegalArgumentException | tools.jackson.core.JacksonException e) {</span>
+<span class="nc" id="L52">            throw MeasurementSessions.bad(&quot;Invalid acquisition geometry in capture evidence&quot;);</span>
+<span class="fc" id="L53">        }</span>
+<span class="fc" id="L54">    }</span>
+
+    void verify(MeasurementSessions.Plan plan, Map&lt;String,MeasurementSessions.Asset&gt; assets) {
+<span class="pc bpc" id="L57" title="3 of 6 branches missed.">        if (!PhotometryCapture.PLUGIN.equals(plan.pluginId()) || !PhotometryCapture.PROVIDER.equals(provider)</span>
+<span class="pc bpc" id="L58" title="2 of 4 branches missed.">                || sequenceId == null || !sequenceId.matches(&quot;[0-9a-f]{64}&quot;) || exposures == null</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">                || exposures.size() &gt; plan.steps().size()) throw MeasurementSessions.bad(&quot;Invalid capture provenance&quot;);</span>
+<span class="fc" id="L60">        var seen = new HashSet&lt;String&gt;();</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        for (var e : exposures) {</span>
+<span class="pc bpc" id="L62" title="5 of 10 branches missed.">            if (e == null || !plan.steps().contains(e.step) || !seen.add(e.step) || e.capturedAt == null</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">                    || e.pixelSha256 == null || !e.pixelSha256.matches(&quot;[0-9a-f]{64}&quot;)</span>
+<span class="pc bpc" id="L64" title="3 of 6 branches missed.">                    || assets.get(e.step) == null || e.sourceSha256 == null || !e.sourceSha256.equals(assets.get(e.step).sha256()))</span>
+<span class="nc" id="L65">                throw MeasurementSessions.bad(&quot;Capture provenance disagrees with source assets&quot;);</span>
+<span class="fc" id="L66">        }</span>
+<span class="fc" id="L67">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

@@ -1,1 +1,1 @@
-{"coveragePercent":85.3144,"minimumCoveragePercent":75.0,"tests":475,"passed":474,"failed":0,"skipped":1,"modules":["optics-core","measurement-core","backend"]}
+{"coveragePercent":85.6945,"minimumCoveragePercent":75.0,"tests":489,"passed":488,"failed":0,"skipped":1,"modules":["optics-core","measurement-core","backend"]}

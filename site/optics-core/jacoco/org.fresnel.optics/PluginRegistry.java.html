@@ -185,21 +185,36 @@ public final class PluginRegistry {
             PluginStabilityLevel.EXPERIMENTAL,
 <span class="fc" id="L186">            Set.of(</span>
                     PluginCapability.GENERATE_CAPTURE_TARGET,
+                    PluginCapability.REMOTE_CAPTURE,
+                    PluginCapability.LIVE_ANALYSIS_PREVIEW,
                     PluginCapability.IMPORT_CAPTURE_SET,
                     PluginCapability.ANALYZE_CAPTURE_SET,
                     PluginCapability.EXPORT_EXPERIMENT_BUNDLE,
                     PluginCapability.EXPORT_PNG,
+                    PluginCapability.EXPORT_SVG,
+                    PluginCapability.EXPORT_PDF,
                     PluginCapability.PREVIEW_PNG
             ),
-<span class="fc" id="L194">            Set.of(),</span>
-<span class="fc" id="L195">            schema(&quot;background-oriented-schlieren&quot;, PluginEditorMode.SCHEMA_WITH_EXTENSIONS)</span>
+<span class="fc" id="L198">            Set.of(),</span>
+<span class="fc" id="L199">            schema(&quot;background-oriented-schlieren&quot;, PluginEditorMode.SCHEMA_WITH_EXTENSIONS)</span>
+    );
+
+<span class="fc" id="L202">    public static final PluginDescriptor DISPLAY_PHOTOMETRIC_STEREO = new PluginDescriptor(</span>
+            &quot;display-photometric-stereo&quot;, PluginKind.MEASUREMENT, &quot;Display photometric stereo&quot;,
+            &quot;Measure diffuse surface normals and relative albedo with a monitor and a fixed camera&quot;,
+            &quot;DisplayIlluminationSequenceGenerator&quot;, &quot;DisplayGeometry&quot;, &quot;docs/plugins/display-photometric-stereo.md&quot;,
+            &quot;display-photometric-stereo/1&quot;, PluginStabilityLevel.EXPERIMENTAL,
+<span class="fc" id="L207">            Set.of(PluginCapability.GENERATE_CAPTURE_TARGET, PluginCapability.IMPORT_CAPTURE_SET,</span>
+                   PluginCapability.ANALYZE_CAPTURE_SET, PluginCapability.LIVE_ANALYSIS_PREVIEW, PluginCapability.EXPORT_PNG,
+                   PluginCapability.EXPORT_EXPERIMENT_BUNDLE, PluginCapability.EXPORT_STL, PluginCapability.REMOTE_CAPTURE),
+<span class="fc" id="L210">            Set.of(), schema(&quot;display-photometric-stereo&quot;, PluginEditorMode.SCHEMA_WITH_EXTENSIONS)</span>
     );
 
     /**
      * Immutable public plugin order. The frontend consumes this order directly
      * from {@code GET /api/plugins}; no second tab/mode ordering is maintained.
      */
-<span class="fc" id="L202">    public static final List&lt;PluginDescriptor&gt; ALL = List.of(</span>
+<span class="fc" id="L217">    public static final List&lt;PluginDescriptor&gt; ALL = List.of(</span>
             ZONE_PLATE,
             VARIABLE_LINE_GRATING,
             HEX_MACRO_CELL,
@@ -207,18 +222,19 @@ public final class PluginRegistry {
             MULTI_FOCUS,
             RGB_ZONE_PLATE,
             HOLOGRAM,
-            BACKGROUND_ORIENTED_SCHLIEREN
+            BACKGROUND_ORIENTED_SCHLIEREN,
+            DISPLAY_PHOTOMETRIC_STEREO
     );
 
-<span class="fc" id="L213">    private static final Map&lt;String, PluginDescriptor&gt; BY_ID =</span>
-<span class="fc" id="L214">            ALL.stream().collect(Collectors.toUnmodifiableMap(</span>
-<span class="fc" id="L215">                    PluginDescriptor::id, Function.identity()));</span>
+<span class="fc" id="L229">    private static final Map&lt;String, PluginDescriptor&gt; BY_ID =</span>
+<span class="fc" id="L230">            ALL.stream().collect(Collectors.toUnmodifiableMap(</span>
+<span class="fc" id="L231">                    PluginDescriptor::id, Function.identity()));</span>
 
     private PluginRegistry() {}
 
     private static PluginSchemaDescriptor schema(String pluginId, PluginEditorMode editorMode) {
-<span class="fc" id="L220">        String root = &quot;fresnel/plugins/&quot; + pluginId + &quot;/&quot;;</span>
-<span class="fc" id="L221">        return new PluginSchemaDescriptor(</span>
+<span class="fc" id="L236">        String root = &quot;fresnel/plugins/&quot; + pluginId + &quot;/&quot;;</span>
+<span class="fc" id="L237">        return new PluginSchemaDescriptor(</span>
                 1,
                 root + &quot;parameters-v1.schema.json&quot;,
                 root + &quot;ui-v1.json&quot;,
@@ -227,34 +243,34 @@ public final class PluginRegistry {
 
     /** Returns the plugin with the given id, or empty when it is unknown. */
     public static Optional&lt;PluginDescriptor&gt; findById(String id) {
-<span class="fc" id="L230">        return Optional.ofNullable(BY_ID.get(id));</span>
+<span class="fc" id="L246">        return Optional.ofNullable(BY_ID.get(id));</span>
     }
 
     /** Returns the plugin with the given id or throws for an unknown public id. */
     public static PluginDescriptor requireById(String id) {
-<span class="fc" id="L235">        PluginDescriptor descriptor = BY_ID.get(id);</span>
-<span class="pc bpc" id="L236" title="1 of 2 branches missed.">        if (descriptor == null) throw new IllegalArgumentException(&quot;unknown plugin id: &quot; + id);</span>
-<span class="nc" id="L237">        return descriptor;</span>
+<span class="fc" id="L251">        PluginDescriptor descriptor = BY_ID.get(id);</span>
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">        if (descriptor == null) throw new IllegalArgumentException(&quot;unknown plugin id: &quot; + id);</span>
+<span class="nc" id="L253">        return descriptor;</span>
     }
 
     /** Returns {@code true} if a plugin with the given id is registered. */
     public static boolean hasPlugin(String id) {
-<span class="fc" id="L242">        return BY_ID.containsKey(id);</span>
+<span class="fc" id="L258">        return BY_ID.containsKey(id);</span>
     }
 
     /** Returns all plugins advertising the given capability in registry order. */
     public static List&lt;PluginDescriptor&gt; withCapability(PluginCapability capability) {
-<span class="fc" id="L247">        return ALL.stream()</span>
-<span class="fc" id="L248">                .filter(descriptor -&gt; descriptor.supports(capability))</span>
-<span class="fc" id="L249">                .collect(Collectors.toUnmodifiableList());</span>
+<span class="fc" id="L263">        return ALL.stream()</span>
+<span class="fc" id="L264">                .filter(descriptor -&gt; descriptor.supports(capability))</span>
+<span class="fc" id="L265">                .collect(Collectors.toUnmodifiableList());</span>
     }
 
     /** Returns all plugins of one interaction kind in registry order. */
     public static List&lt;PluginDescriptor&gt; ofKind(PluginKind kind) {
-<span class="fc bfc" id="L254" title="All 2 branches covered.">        if (kind == null) throw new IllegalArgumentException(&quot;kind must not be null&quot;);</span>
-<span class="fc" id="L255">        return ALL.stream()</span>
-<span class="fc bfc" id="L256" title="All 2 branches covered.">                .filter(descriptor -&gt; descriptor.kind() == kind)</span>
-<span class="fc" id="L257">                .collect(Collectors.toUnmodifiableList());</span>
+<span class="fc bfc" id="L270" title="All 2 branches covered.">        if (kind == null) throw new IllegalArgumentException(&quot;kind must not be null&quot;);</span>
+<span class="fc" id="L271">        return ALL.stream()</span>
+<span class="fc bfc" id="L272" title="All 2 branches covered.">                .filter(descriptor -&gt; descriptor.kind() == kind)</span>
+<span class="fc" id="L273">                .collect(Collectors.toUnmodifiableList());</span>
     }
 
     /**
@@ -262,33 +278,33 @@ public final class PluginRegistry {
      * turn metadata drift into an immediate build failure.
      */
     static void verifyIntegrity() {
-<span class="fc" id="L265">        long distinctIds = ALL.stream().map(PluginDescriptor::id).distinct().count();</span>
-<span class="pc bpc" id="L266" title="1 of 2 branches missed.">        if (distinctIds != ALL.size()) {</span>
-<span class="nc" id="L267">            throw new IllegalStateException(&quot;Duplicate plugin ids detected in PluginRegistry&quot;);</span>
+<span class="fc" id="L281">        long distinctIds = ALL.stream().map(PluginDescriptor::id).distinct().count();</span>
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">        if (distinctIds != ALL.size()) {</span>
+<span class="nc" id="L283">            throw new IllegalStateException(&quot;Duplicate plugin ids detected in PluginRegistry&quot;);</span>
         }
-<span class="fc" id="L269">        long distinctParameterSchemas = ALL.stream()</span>
-<span class="fc" id="L270">                .map(descriptor -&gt; descriptor.schema().parameterSchemaResource())</span>
-<span class="fc" id="L271">                .distinct().count();</span>
-<span class="pc bpc" id="L272" title="1 of 2 branches missed.">        if (distinctParameterSchemas != ALL.size()) {</span>
-<span class="nc" id="L273">            throw new IllegalStateException(&quot;Duplicate parameter schema resources detected&quot;);</span>
+<span class="fc" id="L285">        long distinctParameterSchemas = ALL.stream()</span>
+<span class="fc" id="L286">                .map(descriptor -&gt; descriptor.schema().parameterSchemaResource())</span>
+<span class="fc" id="L287">                .distinct().count();</span>
+<span class="pc bpc" id="L288" title="1 of 2 branches missed.">        if (distinctParameterSchemas != ALL.size()) {</span>
+<span class="nc" id="L289">            throw new IllegalStateException(&quot;Duplicate parameter schema resources detected&quot;);</span>
         }
-<span class="fc" id="L275">        long distinctUiSchemas = ALL.stream()</span>
-<span class="fc" id="L276">                .map(descriptor -&gt; descriptor.schema().uiSchemaResource())</span>
-<span class="fc" id="L277">                .distinct().count();</span>
-<span class="pc bpc" id="L278" title="1 of 2 branches missed.">        if (distinctUiSchemas != ALL.size()) {</span>
-<span class="nc" id="L279">            throw new IllegalStateException(&quot;Duplicate UI schema resources detected&quot;);</span>
+<span class="fc" id="L291">        long distinctUiSchemas = ALL.stream()</span>
+<span class="fc" id="L292">                .map(descriptor -&gt; descriptor.schema().uiSchemaResource())</span>
+<span class="fc" id="L293">                .distinct().count();</span>
+<span class="pc bpc" id="L294" title="1 of 2 branches missed.">        if (distinctUiSchemas != ALL.size()) {</span>
+<span class="nc" id="L295">            throw new IllegalStateException(&quot;Duplicate UI schema resources detected&quot;);</span>
         }
-<span class="fc bfc" id="L281" title="All 2 branches covered.">        for (PluginDescriptor descriptor : ALL) {</span>
-<span class="pc bpc" id="L282" title="1 of 2 branches missed.">            if (!BY_ID.containsKey(descriptor.id())) {</span>
-<span class="nc" id="L283">                throw new IllegalStateException(</span>
-<span class="nc" id="L284">                        &quot;BY_ID index is out of sync for id: &quot; + descriptor.id());</span>
+<span class="fc bfc" id="L297" title="All 2 branches covered.">        for (PluginDescriptor descriptor : ALL) {</span>
+<span class="pc bpc" id="L298" title="1 of 2 branches missed.">            if (!BY_ID.containsKey(descriptor.id())) {</span>
+<span class="nc" id="L299">                throw new IllegalStateException(</span>
+<span class="nc" id="L300">                        &quot;BY_ID index is out of sync for id: &quot; + descriptor.id());</span>
             }
-<span class="pc bpc" id="L286" title="1 of 2 branches missed.">            if (!descriptor.algorithmVersion().startsWith(descriptor.id())) {</span>
-<span class="nc" id="L287">                throw new IllegalStateException(</span>
+<span class="pc bpc" id="L302" title="1 of 2 branches missed.">            if (!descriptor.algorithmVersion().startsWith(descriptor.id())) {</span>
+<span class="nc" id="L303">                throw new IllegalStateException(</span>
                         &quot;algorithm version must be namespaced by plugin id: &quot;
-<span class="nc" id="L289">                                + descriptor.algorithmVersion());</span>
+<span class="nc" id="L305">                                + descriptor.algorithmVersion());</span>
             }
-<span class="fc" id="L291">        }</span>
-<span class="fc" id="L292">    }</span>
+<span class="fc" id="L307">        }</span>
+<span class="fc" id="L308">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>
