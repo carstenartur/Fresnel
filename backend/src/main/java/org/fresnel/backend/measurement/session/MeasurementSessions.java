@@ -1,6 +1,8 @@
 package org.fresnel.backend.measurement.session;
 
 import org.fresnel.backend.desktop.DesktopDataDirectory;
+import org.fresnel.measurement.CaptureSource;
+import org.fresnel.measurement.UploadCaptureSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -20,7 +22,16 @@ import java.util.concurrent.locks.ReentrantLock;
 import static java.nio.file.StandardCopyOption.*;
 
 @Service
-public class MeasurementSessions {
+public class MeasurementSessions implements UploadCaptureSource<MeasurementSessions.Plan, MeasurementSessions.View> {
+
+    @Override public CaptureSource.Info source() {
+        return new CaptureSource.Info("manual-upload", "Upload camera files",
+                CaptureSource.Kind.FILE_UPLOAD);
+    }
+
+    @Override public View create(String owner, UUID id, Plan plan) throws IOException {
+        return create(owner, id, plan, "manual-upload");
+    }
     static final long IMAGE_BYTES = 20L << 20, RESULT_BYTES = 24L << 20, SESSION_BYTES = 160L << 20;
     static final long VIDEO_BYTES = 64L << 20;
     static final int MAX_BOS_FRAMES = 24;
@@ -195,7 +206,7 @@ public class MeasurementSessions {
         return new Source(asset, dir(owner, id).resolve(asset.sha256));
     }
 
-    View put(String owner, UUID id, String step, String type, String expected, InputStream input) throws IOException {
+    @Override public View put(String owner, UUID id, String step, String type, String expected, InputStream input) throws IOException {
         return put(owner, id, step, type, expected, input, "manual-upload");
     }
 

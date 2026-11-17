@@ -102,12 +102,14 @@ The first workflow-specific invariants are:
 
 ### Capture providers
 
-`CaptureProvider` is the only camera-acquisition boundary visible to future
-measurement orchestration. Implementations may be:
-
-- manual upload;
-- deterministic mock capture for tests;
-- the versioned Photographer REST bridge.
+`CaptureSource` identifies trusted built-in acquisition sources. The source catalog
+at `GET /api/capture-providers/sources` includes the always-available
+`manual-upload` and each configured camera adapter. `UploadCaptureSource` handles
+authenticated creation and streamed, checksummed file intake through the ordinary
+measurement-session API. `CaptureProvider` adds camera discovery, leases and shutter
+operations for the deterministic mock and the versioned Photographer REST bridge.
+The separate camera-service health view continues to report hardware availability
+independently of local uploads.
 
 The SPI exposes provider health and limits, redacted devices, idempotent session
 creation, polling/events, checksummed asset metadata, full/ranged streaming and
