@@ -109,7 +109,7 @@ export function MeasurementArchive({pluginId, parameters, steps, files, result, 
       loaded[step] = new File([blob], step + (asset.mediaType === 'video/mp4' ? '.mp4' : asset.mediaType === 'image/png' ? '.png' : '.jpg'), {type:asset.mediaType});
     }
     await onRestore(session.parameters, loaded);
-    setStatus('Opened ' + Object.keys(loaded).length + ' source files.');
+    setStatus('Opened ' + Object.keys(loaded).length + (loaded.video ? ' source files.' : ' source images.'));
   }
 
   async function download() {
