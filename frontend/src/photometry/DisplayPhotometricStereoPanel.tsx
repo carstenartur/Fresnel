@@ -60,7 +60,7 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
       <h3>Manual capture</h3>
       <p>Light matrix condition number {manifest.conditionNumber.toFixed(2)}. Show each pattern, wait at least {manifest.geometry.settleDelayMs} ms, and take one exposure. Press Esc to return and map the camera file to that pattern.</p>
       <button onClick={() => download(new Blob([JSON.stringify(manifest,null,2)],{type:'application/json'}),'illumination-manifest.json')}>Download sequence manifest</button>
-      <label>Pattern <select disabled={!!busy} value={selected} onChange={e => select(e.target.value)}>
+      <label>Pattern <select aria-label="Pattern" disabled={!!busy} value={selected} onChange={e => select(e.target.value)}>
         {manifest.patterns.map(p => <option key={p.id} value={p.id}>{p.id}{files[p.id] ? ' · mapped' : ''}</option>)}
       </select></label>
       {pattern && <PatternPresenter key={manifest.sequenceId + ':' + selected} manifest={manifest} pattern={pattern}/>}
