@@ -343,6 +343,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
         </>
       )}
       <MeasurementArchive anchorId="bos-pair-archive"
+        analysis={{ready:Boolean(files.reference && files.disturbed && inspection),running:Boolean(status),error,start:analyze,stop}}
         pluginId="background-oriented-schlieren"
         steps={imageRoles}
         acceptsSteps={steps=>steps.length===2 && steps[0]==='reference' && steps[1]==='disturbed'}

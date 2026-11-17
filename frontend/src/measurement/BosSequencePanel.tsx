@@ -415,6 +415,8 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
           </>
         )}
         <MeasurementArchive anchorId="bos-series-archive"
+          analysis={{ready:kind === 'video' ? !!clip : files.length >= 2,running:Boolean(status),error,
+            start:() => void run(false),stop:reset}}
           pluginId="background-oriented-schlieren"
           steps={steps}
           files={sources}

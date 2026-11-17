@@ -1,11 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 const root = '/api/measurement-sessions';
 const bundleType = 'application/vnd.carstenartur.fresnel.experiment+zip';
 type Files = Partial<Record<string, File>>;
 type Asset = { sha256: string; byteLength: number; mediaType: string };
 type Saved = { id: string; created: string; pluginId: string; parameters: Record<string, unknown>;
-  steps: string[]; assets: Record<string, Asset>; state: string; captureProvider?:string };
+  steps: string[]; assets: Record<string, Asset>; state: string; captureProvider?:string; analysisAttempt?:string };
 
 interface Props {
   anchorId?: string;
@@ -16,6 +16,7 @@ interface Props {
   result?: Blob | null;
   acceptsSteps?: (steps: readonly string[]) => boolean;
   sourceSessionId?: string;
+  analysis?: {ready:boolean; running:boolean; error:string; start:()=>void; stop:()=>void};
   onRestore: (parameters: Record<string, unknown>, files: Record<string, File>, sourceId?: string) => void | Promise<void>;
 }
 
@@ -36,7 +37,7 @@ async function request(auth: string, path = '', options: RequestInit = {}) {
   throw new Error(errors[response.status] ?? ('Fresnel returned HTTP ' + response.status + '.'));
 }
 
-export function MeasurementArchive({anchorId, pluginId, parameters, steps, files, result, onRestore, acceptsSteps, sourceSessionId}: Props) {
+export function MeasurementArchive({anchorId, pluginId, parameters, steps, files, result, onRestore, acceptsSteps, sourceSessionId, analysis}: Props) {
   const [auth, setAuth] = useState('');
   const [saved, setSaved] = useState<Saved[]>([]);
   const [selected, select] = useState('');
@@ -44,6 +45,64 @@ export function MeasurementArchive({anchorId, pluginId, parameters, steps, files
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [pending, setPending] = useState<{key:string; id:string} | null>(null);
+
+  const active = useRef<{url:string; files:Record<string,File>; phase:'ready'|'starting'|'running'|'finishing'} | null>(null);
+  const [tracking,setTracking] = useState(false);
+  const current = saved.find(session => session.id === selected);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; active.current = null; }; }, []);
+
+  async function beginAnalysis() {
+    const session: Saved = await (await request(auth,'/' + selected)).json();
+    const loaded = await restore(session);
+    if (!mounted.current) return;
+    const url = '/' + session.id + '/analysis/' + crypto.randomUUID();
+    const started: Saved = await (await request(auth,url,{method:'PUT',
+      headers:session.analysisAttempt ? {'X-Previous-Analysis':session.analysisAttempt} : {}})).json();
+    if (!mounted.current) return;
+    active.current = {url, files:loaded, phase:'ready'};
+    setTracking(true); setSaved(previous => previous.map(s => s.id === started.id ? started : s));
+    setStatus('Preparing the saved sources for analysis…');
+  }
+
+  async function finishAnalysis(outcome:'completed'|'cancelled'|'failed', blob?:Blob, detail?:string) {
+    const job = active.current;
+    if (!job || job.phase === 'finishing') return;
+    job.phase = 'finishing';
+    try {
+      if (outcome === 'completed' && blob) {
+        await request(auth,job.url + '/result',{method:'PUT',
+          headers:{'Content-Type':'application/json','X-Content-SHA256':await sha256(blob)},body:blob});
+      } else {
+        await request(auth,job.url + (outcome === 'failed' ? '?failed=true' : ''),{method:'DELETE'});
+      }
+      if (!mounted.current) return;
+      await refresh(auth);
+      setStatus(outcome === 'completed' ? 'Analysis completed and saved.' : outcome === 'cancelled' ? 'Saved analysis cancelled.' : '');
+      if (outcome === 'failed') setError(detail || 'Saved analysis failed.');
+    } catch (e) {
+      if (mounted.current) setError(e instanceof Error ? e.message : 'Could not update the saved analysis.');
+    } finally {
+      if (mounted.current && active.current === job) { active.current = null; setTracking(false); }
+    }
+  }
+
+  useEffect(() => {
+    const job = active.current;
+    if (!job || !analysis || job.phase === 'finishing') return;
+    if (Object.entries(job.files).some(([step,file]) => files[step] !== file)) {
+      void finishAnalysis('cancelled'); return;
+    }
+    if (analysis.error) { void finishAnalysis('failed',undefined,analysis.error); return; }
+    if (job.phase === 'ready' && analysis.ready) {
+      job.phase = 'starting'; analysis.start(); setStatus('Analyzing the saved sources…');
+    } else if (analysis.running) {
+      job.phase = 'running';
+    } else if (job.phase === 'running' || job.phase === 'starting' && result) {
+      if (result) void finishAnalysis('completed',result);
+      else void finishAnalysis('cancelled');
+    }
+  });
 
   async function action(run: () => Promise<void>) {
     setBusy(true); setStatus(''); setError('');
@@ -92,7 +151,7 @@ export function MeasurementArchive({anchorId, pluginId, parameters, steps, files
       && JSON.stringify(current.parameters) === JSON.stringify(parameters);
     const sameFiles = current && Object.entries(current.assets).every(([step, asset]) =>
       items.some(item => item.step === step && item.hash === asset.sha256));
-    const reusable = samePlan && sameFiles && current?.captureProvider !== 'photographer-rest';
+    const reusable = samePlan && sameFiles && !current?.analysisAttempt && current?.captureProvider !== 'photographer-rest';
     const id = pending?.key === key ? pending.id : !sourceSessionId && reusable && current ? current.id : crypto.randomUUID();
     setPending({key, id});
     const sourceHashes = Object.fromEntries(items.filter(item => item.step !== 'result').map(item => [item.step,item.hash]));
@@ -120,6 +179,7 @@ export function MeasurementArchive({anchorId, pluginId, parameters, steps, files
     }
     await onRestore(session.parameters, loaded, session.steps.every(step => loaded[step]) ? session.id : undefined);
     setStatus('Opened ' + Object.keys(loaded).length + (loaded.video ? ' source files.' : ' source images.'));
+    return loaded;
   }
 
   async function download() {
@@ -136,7 +196,7 @@ export function MeasurementArchive({anchorId, pluginId, parameters, steps, files
       <label>Fresnel username <input name="username" autoComplete="username" required /></label>
       <label>Password <input name="password" type="password" autoComplete="current-password" required /></label>
       <button type="submit">Sign in to saved experiments</button>
-    </fieldset></form> : <fieldset disabled={busy}>
+    </fieldset></form> : <fieldset disabled={busy || tracking}>
       <button type="button" disabled={!steps.some(s => files[s])} onClick={() => void action(save)}>Save current captures</button>
       <label>Saved experiment <select value={selected} onChange={e => select(e.target.value)}>
         <option value="">Choose an experiment</option>
@@ -146,6 +206,12 @@ export function MeasurementArchive({anchorId, pluginId, parameters, steps, files
       <button type="button" disabled={!selected} onClick={() => void action(async () => {
         await restore(await (await request(auth, '/' + selected)).json());
       })}>Open saved captures</button>
+      {analysis && current && !current.assets.result && current.steps.every(step => current.assets[step]) && <>
+        <button type="button" disabled={analysis.running} onClick={() => void action(beginAnalysis)}>
+          {current.analysisAttempt ? 'Resume saved analysis' : 'Analyze saved captures'}
+        </button>
+        <small>Runs in this browser. After an interruption, sign in and resume from the saved inputs.</small>
+      </>}
       <button type="button" disabled={!selected} onClick={() => void action(download)}>Download experiment bundle</button>
       <label>Import experiment bundle <input type="file" accept=".fresnel-exp" onChange={e => {
         const file = e.target.files?.[0]; e.target.value = '';
@@ -164,6 +230,7 @@ export function MeasurementArchive({anchorId, pluginId, parameters, steps, files
       })}>Delete saved experiment</button>
       <button type="button" onClick={() => {setAuth(''); setSaved([]); select(''); setPending(null); setStatus(''); setError('');}}>Sign out</button>
     </fieldset>}
+    {tracking && <button type="button" onClick={() => { analysis?.stop(); void finishAnalysis('cancelled'); }}>Cancel saved analysis</button>}
     {status && <p role="status">{status}</p>}{error && <p role="alert">{error}</p>}
   </details>;
 }

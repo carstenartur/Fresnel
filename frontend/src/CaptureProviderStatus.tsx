@@ -115,6 +115,7 @@ export function CaptureProviderStatus({onBosPair,onAvailability}:{onBosPair:(pai
             {overview.providers.map((provider) => (
               <li key={provider.id}>
                 <strong>{provider.displayName}</strong>: {STATE_LABELS[provider.state]}
+                {provider.protocolVersion > 0 && <p>Negotiated protocol · v{provider.protocolVersion}</p>}
                 {!!provider.capabilities?.length && <p>Service capabilities · {provider.capabilities.join(', ')}</p>}
                 {provider.devices.length > 0 && (
                   <ul>
