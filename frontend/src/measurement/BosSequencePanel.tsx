@@ -5,6 +5,12 @@ import type { LocalSearch } from './bosDisplacement';
 import type { CameraModel } from './bosCameraModel';
 import { CameraModelControl, restoreCameraModel } from './CameraModelControl';
 import { useMeasurementTrack } from './MeasurementWorkflow';
+import {
+  exposureHash,
+  readBosSeriesOrigin,
+  type PairedBosSeries,
+  type BosSeriesOrigin,
+} from './bosPairedCapture';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { restoreTarget, type TargetEvidence } from './bosTargetEvidence';
 import { MeasurementArchive } from './MeasurementArchive';
@@ -73,7 +79,17 @@ async function reviewVideo(result: SequenceResult, mode: MapMode, signal: AbortS
   }
 }
 
-export function BosSequencePanel({ target, stillRegion }: { target: TargetEvidence; stillRegion: Region | null }) {
+export function BosSequencePanel({
+  target,
+  stillRegion,
+  pairedCapture,
+}: {
+  target: TargetEvidence;
+  stillRegion: Region | null;
+  pairedCapture?: PairedBosSeries;
+}) {
+  const [origin, setOrigin] = useState<BosSeriesOrigin>();
+  const disclosure = useRef<HTMLDetailsElement>(null);
   const [region, setRegion] = useState<Region | null>(null);
   const [liveFrame, setLiveFrame] = useState<FrameResult>();
   const liveCanvas = useRef<HTMLCanvasElement>(null);
@@ -103,21 +119,48 @@ export function BosSequencePanel({ target, stillRegion }: { target: TargetEviden
     if (liveFrame?.result && liveCanvas.current)
       paintMap(liveCanvas.current, liveFrame.result, 'magnitude', 1);
   }, [liveFrame]);
+  useEffect(() => {
+    if (!pairedCapture) return;
+    reset();
+    setOrigin(pairedCapture.origin);
+    setFiles(pairedCapture.frames);
+    setExternal(pairedCapture.reference);
+    setClip(undefined);
+    setRestoredTarget(undefined);
+    setPolicy('fixed');
+    setKind('stills');
+    setKey((k) => k + 1);
+    if (disclosure.current) {
+      disclosure.current.open = true;
+      disclosure.current.scrollIntoView({ block: 'start' });
+    }
+  }, [pairedCapture]);
   const report = useMemo(
     () =>
-      result && new Blob([JSON.stringify({ ...result, ...analyzedTarget })], { type: 'application/json' }),
-    [result, analyzedTarget],
+      result &&
+      new Blob(
+        [
+          JSON.stringify({
+            ...result,
+            ...analyzedTarget,
+            captureProvider: origin?.provider ?? 'manual',
+            captureOrigin: origin ?? null,
+          }),
+        ],
+        { type: 'application/json' },
+      ),
+    [result, analyzedTarget, origin],
   );
   const sources = useMemo(() => {
     const items: Record<string, File> = {};
-    if (external && policy === 'fixed') items.reference = external;
+    if (external && (policy === 'fixed' || origin)) items.reference = external;
     if (kind === 'video') {
       if (clip) items.video = clip;
     } else {
       files.forEach((file, i) => { items[stepName(i)] = file; });
     }
     return items;
-  }, [external, policy, kind, clip, files]);
+  }, [external, policy, origin, kind, clip, files]);
   const steps = kind === 'video' && !clip ? [...Object.keys(sources), 'video'] : Object.keys(sources);
   const [cancelled, setCancelled] = useState(false);
   const activateSeries = useMeasurementTrack('bos/series', useMemo(() => ({
@@ -140,8 +183,22 @@ export function BosSequencePanel({ target, stillRegion }: { target: TargetEviden
     setResult(undefined);
     setIndex(0);
   }
-  function restore(params: Record<string, unknown>, sources: Record<string, File>) {
+  async function restore(params: Record<string, unknown>, sources: Record<string, File>) {
+    const metadata = readBosSeriesOrigin(params.captureOrigin);
+    if (params.captureOrigin) {
+      const hashes = metadata && [metadata.reference, ...metadata.frames];
+      const roles = metadata && ['reference', ...metadata.frames.map((_, i) => stepName(i))];
+      if (!metadata || !hashes || !roles || roles.length !== Object.keys(sources).length)
+        throw new Error('Incomplete Photographer capture provenance.');
+      for (let i = 0; i < roles.length; i++) {
+        const file = sources[roles[i]],
+          evidence = hashes[i];
+        if (!file || file.size !== evidence.byteLength || (await exposureHash(file)) !== evidence.sha256)
+          throw new Error('The saved Photographer sequence failed source verification.');
+      }
+    }
     reset();
+    setOrigin(metadata ?? undefined);
     setRestoredTarget(restoreTarget(params));
     setRegion(readRegion(params.manualRegion));
     setKey((k) => k + 1);
@@ -200,7 +257,18 @@ export function BosSequencePanel({ target, stillRegion }: { target: TargetEviden
             if (!controller.signal.aborted) setLiveFrame(f);
           },
         );
-        if (!controller.signal.aborted) setResult(next);
+        if (!controller.signal.aborted) {
+          if (origin) {
+            const start = Date.parse(origin.frames[0].capturedAt);
+            next.timeBasis = 'Elapsed seconds from first disturbed Photographer exposure (recorded UTC)';
+            if (next.reference) next.reference.name = 'reference.png';
+            next.frames.forEach((frame, i) => {
+              frame.timeSeconds = (Date.parse(origin.frames[i].capturedAt) - start) / 1000;
+              frame.name = stepName(i) + '.png';
+            });
+          }
+          setResult(next);
+        }
       }
     } catch (e) {
       if (!controller.signal.aborted)
@@ -215,13 +283,19 @@ export function BosSequencePanel({ target, stillRegion }: { target: TargetEviden
   }
   const frame = result?.frames[index];
   return (
-    <details id="bos-series" tabIndex={-1} onFocusCapture={activateSeries} className="capture-provider-status-details">
+    <details ref={disclosure} id="bos-series" tabIndex={-1} onFocusCapture={activateSeries} className="capture-provider-status-details">
       <summary>Analyze a sequence or video</summary>
       <section aria-label="BOS time series">
         <p>
           Use ordered dot-field exposures or an MP4 up to 30 seconds. The analysis samples at most{' '}
           {MAX_FRAMES} frames and registers each to the same reference.
         </p>
+        {origin && (
+          <p>
+            Photographer capture {origin.captureId} · {origin.frames.length} verified disturbed exposures ·
+            recorded UTC capture times.
+          </p>
+        )}
         <fieldset disabled={Boolean(status)}>
           <label>
             Source type{' '}
@@ -230,6 +304,7 @@ export function BosSequencePanel({ target, stillRegion }: { target: TargetEviden
               value={kind}
               onChange={(e) => {
                 reset();
+                setOrigin(undefined);
                 setRegion(null);
                 setKind(e.target.value as typeof kind);
               }}
@@ -252,6 +327,7 @@ export function BosSequencePanel({ target, stillRegion }: { target: TargetEviden
                     reset();
                     setRegion(null);
                     setRestoredTarget(undefined);
+                    setOrigin(undefined);
                     const chosen = Array.from(e.target.files ?? []);
                     setFiles([]);
                     if (chosen.length > MAX_FRAMES) {
@@ -272,6 +348,7 @@ export function BosSequencePanel({ target, stillRegion }: { target: TargetEviden
                           type="button"
                           onClick={() => {
                             reset();
+                            setOrigin(undefined);
                             const ordered = files.slice();
                             [ordered[i - 1], ordered[i]] = [ordered[i], ordered[i - 1]];
                             setFiles(ordered);
@@ -296,6 +373,7 @@ export function BosSequencePanel({ target, stillRegion }: { target: TargetEviden
                 onChange={(e) => {
                   reset();
                   setRestoredTarget(undefined);
+                  setOrigin(undefined);
                   setRegion(null);
                   setClip(e.target.files?.[0]);
                 }}
@@ -367,6 +445,7 @@ export function BosSequencePanel({ target, stillRegion }: { target: TargetEviden
                 accept="image/png,image/jpeg"
                 onChange={(e) => {
                   reset();
+                  setOrigin(undefined);
                   setRegion(null);
                   setExternal(e.target.files?.[0]);
                 }}
@@ -376,21 +455,23 @@ export function BosSequencePanel({ target, stillRegion }: { target: TargetEviden
           ) : (
             <p>Median of three or five samples spread across the whole sequence.</p>
           )}
-          <label>
-            {kind === 'video' ? 'Requested samples per second' : 'Declared still frames per second'}{' '}
-            <input
-              aria-label="Frames per second"
-              type="number"
-              min="0.25"
-              max="12"
-              step="0.25"
-              value={Number.isNaN(rate) ? '' : rate}
-              onChange={(e) => {
-                reset();
-                setRate(e.target.valueAsNumber);
-              }}
-            />
-          </label>
+          {!origin && (
+            <label>
+              {kind === 'video' ? 'Requested samples per second' : 'Declared still frames per second'}{' '}
+              <input
+                aria-label="Frames per second"
+                type="number"
+                min="0.25"
+                max="12"
+                step="0.25"
+                value={Number.isNaN(rate) ? '' : rate}
+                onChange={(e) => {
+                  reset();
+                  setRate(e.target.valueAsNumber);
+                }}
+              />
+            </label>
+          )}
           <button
             type="button"
             disabled={kind === 'video' ? !clip : files.length < 2}
@@ -495,6 +576,7 @@ export function BosSequencePanel({ target, stillRegion }: { target: TargetEviden
           files={sources}
           parameters={{
             sourceKind: kind,
+            ...(origin ? { captureOrigin: origin } : {}),
             manualRegion: region,
             policy,
             rate,

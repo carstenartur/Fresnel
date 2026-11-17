@@ -18,7 +18,7 @@ class BosCaptureController {
     private final BosExperiments experiments;
     BosCaptureController(BosExperiments experiments) { this.experiments = experiments; }
 
-    record Selection(String cameraId) {}
+    record Selection(String cameraId, Integer disturbedCount, Boolean lockExposure, Boolean lockFocus) {}
     record Acknowledgement(boolean ready, Boolean continuous) {}
 
     @GetMapping("/cameras")
@@ -29,7 +29,8 @@ class BosCaptureController {
 
     @PutMapping("/{id}")
     ResponseEntity<BosExperiments.View> create(Principal caller, @PathVariable("id") UUID id, @RequestBody Selection body) {
-        return ok(experiments.create(caller.getName(), id, body.cameraId()));
+        return ok(experiments.create(caller.getName(), id, body.cameraId(), body.disturbedCount() == null ? 1 : body.disturbedCount(),
+                Boolean.TRUE.equals(body.lockExposure()), Boolean.TRUE.equals(body.lockFocus())));
     }
 
     @GetMapping("/{id}")

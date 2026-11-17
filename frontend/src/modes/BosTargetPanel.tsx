@@ -1,6 +1,6 @@
 import type { Region } from '../measurement/bosReferenceQuality';
 import {targetEvidence} from '../measurement/bosTargetEvidence';
-import type {PairedBosCapture} from '../measurement/bosPairedCapture';
+import type {BosAcquisition} from '../measurement/bosPairedCapture';
 import { useRef, useState } from 'react';
 import type { FresnelProductionOutput } from '../jobApi';
 import {
@@ -49,7 +49,7 @@ interface GeneratedTarget {
 }
 
 export function BosTargetPanel({ initialJob, pairedCapture, photographerAvailable }: JobPanelProps & {
-  pairedCapture?:PairedBosCapture; photographerAvailable?:boolean;
+  pairedCapture?:BosAcquisition; photographerAvailable?:boolean;
 }) {
   const [explicitRegion, setExplicitRegion] = useState<Region | null>(null);
   const [request, setRequest] = useState<BosTargetRequest>(() =>
@@ -268,14 +268,8 @@ export function BosTargetPanel({ initialJob, pairedCapture, photographerAvailabl
         const acquisition=document.getElementById('bos-camera-acquisition') as HTMLDetailsElement|null;
         if(acquisition){acquisition.open=true;acquisition.scrollIntoView({block:'center'});acquisition.querySelector('summary')?.focus();}
       }}>Open paired Photographer capture</button>}
-      <BosStillPairPanel
-        explicitRegion={explicitRegion}
-        onExplicitRegion={setExplicitRegion}
-        pairedCapture={pairedCapture}
-        manifest={currentManifest}
-        target={targetEvidence(currentManifest, request)}
-      />
-      <BosSequencePanel stillRegion={explicitRegion} target={targetEvidence(currentManifest, request)} />
+      <BosStillPairPanel explicitRegion={explicitRegion} onExplicitRegion={setExplicitRegion} pairedCapture={pairedCapture && 'files' in pairedCapture ? pairedCapture : undefined} manifest={currentManifest} target={targetEvidence(currentManifest, request)} />
+      <BosSequencePanel stillRegion={explicitRegion} pairedCapture={pairedCapture && 'frames' in pairedCapture ? pairedCapture : undefined} target={targetEvidence(currentManifest, request)} />
     </>
   );
 }
