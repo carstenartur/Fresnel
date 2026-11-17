@@ -48,7 +48,11 @@ export function register(ref:Reference,image:Float32Array):{transform:Transform;
   }
   if(best<registrationLimits.minCorrelation)
     throw new Error('Camera framing or surface appearance changed too much for reliable registration. Check focus, movement and reflections.');
-  if(best-identity<registrationLimits.minImprovement){dx=0;dy=0;best=identity;}
+  if(best-identity<registrationLimits.minImprovement){
+    if (identity<registrationLimits.minCorrelation)
+      throw new Error('Alignment is ambiguous. Reacquire with stable framing and more visible texture.');
+    dx=0;dy=0;best=identity;
+  }
   if(Math.max(Math.abs(dx),Math.abs(dy))>registrationLimits.maxShift)
     throw new Error('Camera or object movement exceeds three analysis pixels. Reacquire the sequence with fixed framing.');
   // Independent textured quadrants should support the same translation. Reject obvious local
