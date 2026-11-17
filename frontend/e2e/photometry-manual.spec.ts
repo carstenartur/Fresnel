@@ -4,6 +4,13 @@ import type { Manifest } from '../src/photometry/data';
 
 test('manually maps a physical illumination sequence and exports measured relighting', async ({ page }) => {
   await page.goto('/plugins/display-photometric-stereo');
+  await page.getByText('Physical setup and saved screens',{exact:true}).click();
+  await page.getByLabel('Screen profile name').fill('Bench monitor');
+  await page.getByRole('button',{name:'Save display profile'}).click();
+  await page.getByLabel('Active screen width').fill('510');
+  await page.getByLabel('Saved display profile',{exact:true}).selectOption('Bench monitor');
+  await expect(page.getByLabel('Active screen width')).toHaveValue('530');
+  await page.getByLabel('Camera placement',{exact:true}).selectOption('above');
   const response = page.waitForResponse(r => r.url().endsWith('/display-photometric-stereo/sequence'));
   await page.getByRole('button',{ name:'Prepare illumination sequence' }).click();
   const manifest = await (await response).json() as Manifest;
@@ -35,11 +42,19 @@ test('manually maps a physical illumination sequence and exports measured religh
   await expect(page.getByText('336 of 336 pixels passed the solve.',{exact:false})).toBeVisible();
   const canvas = page.locator('canvas[aria-label="Measured surface result"]');
   await expect(canvas).toBeVisible();
+  await page.getByLabel('Result layer').selectOption('Camera exposure');
+  await expect(page.getByAltText('Camera exposure for flat')).toBeVisible();
+  await page.getByLabel('Result layer').selectOption('Relighting');
   const before = await canvas.evaluate((c: HTMLCanvasElement) => c.toDataURL());
   await page.getByLabel('Light horizontal').press('Home');
   await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => c.toDataURL())).not.toBe(before);
   await page.getByRole('button',{name:'Integrate relative height'}).click();
   await expect(page.getByLabel('Relative height map')).toBeVisible();
+  const imageDownload=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Download relighting PNG'}).click();
+  const png=await readFile((await (await imageDownload).path())!);
+  expect(png.includes(Buffer.from('Fresnel\0'))).toBe(true);
+  expect(png.includes(Buffer.from(manifest.sequenceId))).toBe(true);
   const output = page.waitForEvent('download');
   await page.getByRole('button',{name:'Download result grid and provenance'}).click();
   const json = JSON.parse(await readFile((await (await output).path())!, 'utf8'));
@@ -56,6 +71,13 @@ test('manually maps a physical illumination sequence and exports measured religh
   expect(json.relief.method).toBe('masked-poisson/1');
   expect(json.relief.components).toBe(1);
   expect(json.relief.curlRms).toBeLessThan(.00001);
+  await page.getByText('Test exposures and object region',{exact:true}).click();
+  await page.getByRole('button',{name:'Inspect test exposures'}).click();
+  await expect(page.getByAltText('Upright flat camera exposure, drag to select the object')).toBeVisible();
+  await expect(page.getByText(/336 object pixels/)).toBeVisible();
+  await page.getByLabel('Region left').fill('25');
+  await page.getByRole('button',{name:'Reconstruct surface'}).click();
+  await expect(page.getByText('252 of 336 pixels passed the solve.',{exact:false})).toBeVisible();
   await page.getByText('Saved experiments', {exact:true}).click();
   await page.getByLabel('Fresnel username').fill(process.env.E2E_USER ?? 'user');
   await page.getByLabel('Password',{exact:true}).fill(process.env.E2E_PASSWORD ?? 'user');
@@ -68,5 +90,5 @@ test('manually maps a physical illumination sequence and exports measured religh
   await page.getByLabel('Import experiment bundle').setInputFiles((await bundle.path())!);
   await expect(page.getByText('Opened 10 source images.')).toBeVisible();
   await page.getByRole('button',{name:'Reconstruct surface'}).click();
-  await expect(page.getByText('336 of 336 pixels passed the solve.',{exact:false})).toBeVisible();
+  await expect(page.getByText('252 of 336 pixels passed the solve.',{exact:false})).toBeVisible();
 });
