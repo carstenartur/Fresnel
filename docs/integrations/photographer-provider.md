@@ -2,6 +2,8 @@
 
 Enable the `photographer-rest` provider and establish its pairing from **Camera service** as described in the [deployment guide](../security/deployment.md#pairing-a-photographer-capture-service). Fresnel records the negotiated limits when an administrator pairs the service. Its status panel uses an authenticated health request and camera discovery to show current availability.
 
+Discovery backs off after three transient health or camera-list failures on one pairing. During the cooldown the status shows the provider as disconnected. One probe can run when the interval expires. A failed probe increases the jittered interval up to 30 seconds. Changing the pairing starts fresh. Operator capture, cancellation and reconciliation requests remain independent of discovery polling.
+
 ## Run a BOS capture
 
 1. Open **Camera service → Background-oriented schlieren capture** and sign in with your Fresnel account. Choose an available camera and select **Start BOS capture**. Photographer holds the camera lease across both exposures.
