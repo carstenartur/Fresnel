@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react';
+import type { FresnelProductionOutput } from '../jobApi';
 import {
   downloadBosTargetManifest,
+  downloadBosPrintTarget,
+  type BosPrintSheet,
   downloadBosTargetPng,
   fetchBosTargetManifest,
   fetchBosTargetPreviewPng,
@@ -38,6 +41,25 @@ interface GeneratedTarget {
 export function BosTargetPanel({ initialJob }: JobPanelProps) {
   const [request, setRequest] = useState<BosTargetRequest>(() =>
     initialJobParameters(initialJob, 'background-oriented-schlieren', DEFAULT));
+  const outputs: FresnelProductionOutput[] = initialJob?.production?.outputs ?? [
+    { id: 'screen', format: 'png', filename: 'bos-target.png' },
+    { id: 'vector', format: 'svg', filename: 'bos-target.svg' },
+    { id: 'print', format: 'pdf', filename: 'bos-target.pdf' },
+  ];
+  const sourcePdf = outputs.find((output) => output.format === 'pdf');
+  const sourcePrint = sourcePdf ?? outputs.find((output) => output.format === 'svg');
+  const [stripChoice, setStripChoice] = useState<boolean | null>(null);
+  const [sheetChoice, setSheetChoice] = useState<BosPrintSheet | null>(null);
+  const strip = stripChoice ?? (sourcePrint?.options?.calibrationStrip !== false);
+  const sheet = sheetChoice ?? sourcePdf?.sheet ?? 'FIT';
+  const production = { outputs: outputs.map((output) => {
+    if (output.format !== 'svg' && output.format !== 'pdf') return output;
+    return {
+      ...output,
+      ...(stripChoice === null ? {} : { options: { ...output.options, calibrationStrip: stripChoice } }),
+      ...(output.format === 'pdf' && sheetChoice !== null ? { sheet: sheetChoice } : {}),
+    };
+  }) };
   const [generated, setGenerated] = useState<GeneratedTarget | null>(null);
   const [previewFingerprint, setPreviewFingerprint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -127,6 +149,20 @@ export function BosTargetPanel({ initialJob }: JobPanelProps) {
           const structurallyValid = Boolean(normalized);
           return (
             <>
+              <fieldset disabled={busy}>
+                <legend>Print target</legend>
+                <label>
+                  <input type="checkbox" checked={strip} onChange={(event) => setStripChoice(event.target.checked)} />
+                  Include 50 mm calibration strip
+                </label>
+                <label>
+                  PDF paper size
+                  <select value={sheet} onChange={(event) => setSheetChoice(event.target.value as BosPrintSheet)}>
+                    <option value="FIT">Exact target sheet</option>
+                    {(['A4', 'A3', 'A2', 'A1', 'A0'] as const).map((size) => <option key={size}>{size}</option>)}
+                  </select>
+                </label>
+              </fieldset>
               <PluginActionBar
                 capabilities={schema.capabilities}
                 busy={busy}
@@ -136,6 +172,16 @@ export function BosTargetPanel({ initialJob }: JobPanelProps) {
                     primary: true,
                     disabled: !structurallyValid,
                     run: () => normalized && generatePreview(normalized),
+                  },
+                  EXPORT_SVG: {
+                    label: 'Download print SVG',
+                    disabled: !structurallyValid,
+                    run: () => normalized && run(() => downloadBosPrintTarget(normalized, 'svg', strip, sheet)),
+                  },
+                  EXPORT_PDF: {
+                    label: 'Download print PDF',
+                    disabled: !structurallyValid,
+                    run: () => normalized && run(() => downloadBosPrintTarget(normalized, 'pdf', strip, sheet)),
                   },
                   EXPORT_PNG: {
                     label: 'Download target PNG',
@@ -178,6 +224,7 @@ export function BosTargetPanel({ initialJob }: JobPanelProps) {
                 parameters={normalized ?? null}
                 disabled={busy || !structurallyValid}
                 filename="background-oriented-schlieren.fresnel"
+                production={production}
               />
 
               {currentManifest && <TargetManifestView manifest={currentManifest} />}

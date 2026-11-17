@@ -65,6 +65,7 @@ export function createFresnelJob<T>(
   parameterSchemaVersion: number,
   algorithmVersion: string,
   sourceJob?: FresnelJobDocument<unknown> | null,
+  production?: FresnelProductionPlan,
 ): FresnelJobDocument<T> {
   if (!Number.isInteger(parameterSchemaVersion) || parameterSchemaVersion < 1) {
     throw new Error('Plugin parameter schema version must be a positive integer.');
@@ -88,7 +89,7 @@ export function createFresnelJob<T>(
         reusableSource?.plugin.algorithmVersion ?? algorithmVersion.trim(),
     },
     parameters,
-    production: reusableSource?.production,
+    production: production ?? reusableSource?.production,
     provenance: {
       createdWith: sourceProvenance?.createdWith ?? 'Fresnel',
       applicationVersion: sourceProvenance?.applicationVersion,
@@ -106,6 +107,7 @@ export async function saveFresnelJob<T>(
   algorithmVersion: string,
   filename?: string,
   sourceJob?: FresnelJobDocument<unknown> | null,
+  production?: FresnelProductionPlan,
 ): Promise<void>;
 
 /** Compatibility call used by grounded copilot proposals that already contain a canonical job. */
@@ -124,6 +126,7 @@ export async function saveFresnelJob<T>(
   algorithmVersionOrFilename: string,
   filenameOrSourceJob?: string | FresnelJobDocument<unknown> | null,
   sourceJobMaybe?: FresnelJobDocument<unknown> | null,
+  production?: FresnelProductionPlan,
 ): Promise<void> {
   let algorithmVersion: string;
   let filename: string;
@@ -154,6 +157,7 @@ export async function saveFresnelJob<T>(
       parameterSchemaVersion,
       algorithmVersion,
       sourceJob,
+      production,
     )),
   });
   if (!response.ok) {

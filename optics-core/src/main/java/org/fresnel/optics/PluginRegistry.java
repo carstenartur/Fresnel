@@ -186,6 +186,8 @@ public final class PluginRegistry {
             Set.of(
                     PluginCapability.GENERATE_CAPTURE_TARGET,
                     PluginCapability.EXPORT_PNG,
+                    PluginCapability.EXPORT_SVG,
+                    PluginCapability.EXPORT_PDF,
                     PluginCapability.PREVIEW_PNG
             ),
             Set.of(),

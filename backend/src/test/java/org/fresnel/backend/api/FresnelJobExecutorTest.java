@@ -114,7 +114,10 @@ class FresnelJobExecutorTest {
         assertEquals("background-oriented-schlieren", first.job().plugin().id());
         assertEquals("background-oriented-schlieren/1",
                 first.job().plugin().algorithmVersion());
-        assertEquals(1, first.artifacts().size());
+        assertEquals(Set.of("bos-target.png", "bos-target.svg", "bos-target.pdf"), firstBytes.keySet());
+        for (String name : firstBytes.keySet()) {
+            assertArrayEquals(firstBytes.get(name), secondBytes.get(name), name);
+        }
         GeneratedArtifact artifact = first.artifacts().getFirst();
         assertEquals("bos-target.png", artifact.filename());
         assertEquals("image/png", artifact.mediaType());
@@ -124,9 +127,19 @@ class FresnelJobExecutorTest {
         assertTrue(artifact.normalizedSha256().matches("[0-9a-f]{64}"));
         assertEquals(first.job().provenance().parameterSha256(),
                 second.job().provenance().parameterSha256());
-        assertArrayEquals(firstBytes.get("bos-target.png"), secondBytes.get("bos-target.png"));
         assertEquals(artifact.normalizedSha256(),
                 second.artifacts().getFirst().normalizedSha256());
+    }
+
+    @Test
+    void bosPrintJobsRejectScalingAndUnrecognizedPrintOptions() throws Exception {
+        String job = Files.readString(repositoryFile("examples/background-oriented-schlieren/screen-target.fresnel"));
+        String scaled = job.replace("\"sheet\": \"A4\"", "\"sheet\": \"A4\", \"printScale\": 0.75");
+        assertTrue(assertThrows(IllegalArgumentException.class, () -> executor.execute(
+                scaled.getBytes(StandardCharsets.UTF_8), (artifact, content) -> {})).getMessage().contains("printScale"));
+        String unknown = job.replace("calibrationStrip", "unknownPrintOption");
+        assertTrue(assertThrows(IllegalArgumentException.class, () -> executor.execute(
+                unknown.getBytes(StandardCharsets.UTF_8), (artifact, content) -> {})).getMessage().contains("calibrationStrip"));
     }
 
     @Test

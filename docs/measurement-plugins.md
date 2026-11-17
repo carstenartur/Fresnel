@@ -19,7 +19,7 @@ initial target-generation slice is implemented end to end:
 ```text
 schema-backed parameters
         → deterministic BosTargetGenerator
-        → preview / lossless PNG
+        → native PNG or physically sized SVG/PDF
         → versioned manifest + semantic SHA-256
         → portable .fresnel job
 ```
@@ -30,6 +30,8 @@ It deliberately advertises only:
 GENERATE_CAPTURE_TARGET
 PREVIEW_PNG
 EXPORT_PNG
+EXPORT_SVG
+EXPORT_PDF
 ```
 
 It does **not** yet advertise upload, remote capture, image analysis, live

@@ -1,6 +1,7 @@
 package org.fresnel.backend.api;
 
 import org.fresnel.backend.measurement.BosTargetPngEncoder;
+import org.fresnel.backend.measurement.BosTargetPrintExporter;
 import org.fresnel.measurement.BosTarget;
 import org.fresnel.measurement.BosTargetGenerator;
 import org.fresnel.optics.DxfExporter;
@@ -272,15 +273,29 @@ public class FresnelJobExecutor {
 
     private RenderedOutput renderBosTarget(
             FresnelJobDocument job,
-            FresnelJobDocument.ProductionOutput output) {
-        requireNoOptions(output);
-        if (!"png".equals(output.format())) throw unsupported(job.plugin().id(), output.format());
+            FresnelJobDocument.ProductionOutput output) throws IOException {
         BosTargetRequest request = mapper.convertValue(job.parameters(), BosTargetRequest.class);
         BosTarget target = BosTargetGenerator.generate(request.toParameters());
-        return new RenderedOutput(
-                BosTargetPngEncoder.encode(target),
-                PNG,
-                target.parameters().intendedDpi());
+        if ("png".equals(output.format())) {
+            requireNoOptions(output);
+            return new RenderedOutput(BosTargetPngEncoder.encode(target), PNG, target.parameters().intendedDpi());
+        }
+        if (output.printScale() != null && output.printScale() != 1.0) {
+            throw new IllegalArgumentException("BOS print targets must use printScale 1");
+        }
+        boolean strip = true;
+        JsonNode options = output.options();
+        if (options != null && !options.isEmpty()) {
+            if (options.size() != 1 || !options.has("calibrationStrip") || !options.get("calibrationStrip").isBoolean()) {
+                throw new IllegalArgumentException("BOS print options accept only a boolean calibrationStrip");
+            }
+            strip = options.get("calibrationStrip").booleanValue();
+        }
+        return switch (output.format()) {
+            case "svg" -> new RenderedOutput(BosTargetPrintExporter.svg(target, strip), SVG, null);
+            case "pdf" -> new RenderedOutput(BosTargetPrintExporter.pdf(target, strip, sheet(output)), PDF, null);
+            default -> throw unsupported(job.plugin().id(), output.format());
+        };
     }
 
     private RenderedOutput renderHologram(

@@ -233,6 +233,8 @@ class PluginRegistryTest {
         assertTrue(bos.supports(PluginCapability.GENERATE_CAPTURE_TARGET));
         assertTrue(bos.supports(PluginCapability.PREVIEW_PNG));
         assertTrue(bos.supports(PluginCapability.EXPORT_PNG));
+        assertTrue(bos.supports(PluginCapability.EXPORT_PDF));
+        assertTrue(bos.supports(PluginCapability.EXPORT_SVG));
         assertFalse(bos.supports(PluginCapability.IMPORT_CAPTURE_SET));
         assertFalse(bos.supports(PluginCapability.REMOTE_CAPTURE));
         assertFalse(bos.supports(PluginCapability.ANALYZE_CAPTURE_SET));

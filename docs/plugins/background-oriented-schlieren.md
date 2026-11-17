@@ -12,9 +12,8 @@ first records a random-dot target without the disturbance and then records the
 same target with warm or moving air between camera and target.
 
 The current implementation is the first bounded target-generation slice. It
-creates, previews, downloads and describes a deterministic PNG target. Capture
-import, image registration, displacement analysis, exact-size SVG/PDF print
-outputs and the target-quality assistant remain separate later slices; Fresnel
+creates, previews and exports a deterministic target for screens and physically sized printouts. Capture
+import, image registration, displacement analysis and the target-quality assistant remain separate later slices; Fresnel
 does not yet claim to produce a Schlieren result from camera images in this
 plugin.
 
@@ -31,7 +30,7 @@ The trusted built-in plugin provides:
   SHA-256;
 - schema-driven editing and portable `.fresnel` jobs;
 - a public bounded preview and manifest endpoint;
-- an authenticated production PNG download.
+- authenticated PNG, vector SVG and physical-size PDF downloads.
 
 The parameter schema cannot name code, commands, local paths or remote URLs.
 The implementation is selected only through the reviewed `PluginRegistry`.
@@ -50,7 +49,7 @@ The implementation is selected only through the reviewed `PluginRegistry`.
    must be reproduced later.
 
 The [1920 × 1080 example job](../../examples/background-oriented-schlieren/screen-target.fresnel)
-opens in the same editor and includes a production plan for `bos-target.png`.
+opens in the same editor and includes a production plan for PNG, SVG and A4 PDF outputs.
 
 Changing the seed changes dot placement. Keeping every parameter unchanged
 reproduces the same pixels, semantic hash and target ID.
@@ -73,18 +72,24 @@ the active dot region.
 
 ## Printed target
 
-The PNG contains a `pHYs` chunk derived from `intendedDpi`. Print at **100%** and
-disable:
+Choose **Download print SVG** for a vector drawing or **Download print PDF** for a
+printable page. Both derive each pixel's physical width from `25.4 / intendedDpi`
+in millimetres. The target ID is printed in the top quiet border, clear of the
+orientation markers and the active dot field. The PNG also records its intended
+resolution in a `pHYs` chunk.
 
-- fit-to-page or shrink-to-printable-area;
-- image enhancement and smoothing;
-- driver resampling;
-- automatic border or poster scaling.
+**Exact target sheet** sizes the PDF page to its contents. Select an A-series
+paper size for a 5 mm printing margin. Larger targets tile across pages with
+5 mm overlaps. Print at **Actual size / 100%** and turn off driver scaling.
+Measure the distance between the outer ticks of the optional **50 mm
+calibration strip**. The strip adds 12 mm below the target. For very narrow
+targets, the sheet widens to 56 mm to accommodate the ruler. The active field
+retains its original dimensions in either case.
 
-The manifest reports the intended width and height in millimetres. Measure the
-printed target before treating its geometry as known. A later slice will add
-vector/PDF print targets, a human-readable target ID and explicit scale marks;
-this first slice exports a lossless physically tagged PNG only.
+New jobs saved from this editor include PNG, SVG and PDF production outputs.
+For SVG and PDF, `options.calibrationStrip` is a boolean and defaults to
+`true`. PDF accepts the normal `sheet` values and uses `printScale: 1`.
+Non-unit scale factors fail to protect the target calibration.
 
 ## Parameters and hard limits
 
@@ -145,7 +150,13 @@ Authenticated production download:
 
 ```text
 POST /api/measurements/background-oriented-schlieren/target/export.png
+POST /api/measurements/background-oriented-schlieren/target/export.svg
+POST /api/measurements/background-oriented-schlieren/target/export.pdf
 ```
+
+The two print endpoints accept `?calibrationStrip=false` to omit the ruler.
+The PDF endpoint also accepts `sheet=FIT` (default) or an A-series sheet size
+from A4 through A0.
 
 All operations accept the same JSON parameter object. The PNG endpoints return:
 
@@ -220,12 +231,11 @@ resource rejection.
 The next implementation work for issue #140 is deliberately separate from the
 PNG target generator:
 
-1. add exact-size SVG/PDF targets, a human-readable ID and physical scale marks;
-2. evaluate a reference image for dot resolution, contrast, clipping and active
+1. evaluate a reference image for dot resolution, contrast, clipping and active
    region coverage;
-3. add bounded ordered manual upload of reference and disturbed still images;
-4. implement global registration and deterministic local displacement
+2. add bounded ordered manual upload of reference and disturbed still images;
+3. implement global registration and deterministic local displacement
    estimation with numeric synthetic tests;
-5. add the durable measurement-session shell from issue #139;
-6. advertise `IMPORT_CAPTURE_SET`, `ANALYZE_CAPTURE_SET` and `REMOTE_CAPTURE`
+4. add the durable measurement-session shell from issue #139;
+5. advertise `IMPORT_CAPTURE_SET`, `ANALYZE_CAPTURE_SET` and `REMOTE_CAPTURE`
    only when those paths are actually implemented and tested.

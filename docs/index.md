@@ -43,7 +43,7 @@ separate future capabilities.
 | [Multi-Focus](plugins/multi-focus.md) | `DESIGN` | `MultiFocusRenderer` | Schema form + focus-point widget | Aperture divided among multiple focal targets |
 | [RGB Zone Plate](plugins/rgb-zone-plate.md) | `DESIGN` | `RgbZonePlateRenderer` | Schema editor | Zone plate rendered at three wavelengths and composited into one RGB image |
 | [Hologram](plugins/hologram.md) | `DESIGN` | `HologramSynthesizer` | Schema form + image/reconstruction extensions | Computer-generated hologram via the Gerchberg–Saxton algorithm |
-| [Background-Oriented Schlieren](plugins/background-oriented-schlieren.md) | `MEASUREMENT` | `BosTargetGenerator` | Schema form + target preview/manifest | Deterministic random-dot target with bounded PNG export and reproduction evidence |
+| [Background-Oriented Schlieren](plugins/background-oriented-schlieren.md) | `MEASUREMENT` | `BosTargetGenerator` | Schema form + target preview/manifest | Deterministic random-dot target with PNG, true-size SVG/PDF and a reproduction manifest |
 
 ## Plugin structure
 
