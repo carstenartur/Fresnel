@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { initialJobParameters, SaveJobControl, type JobPanelProps } from '../jobs/JobFileControls';
 import { PluginEditorShell } from '../schema/PluginEditorShell';
 import { defaults, download, generator, pluginId, type Geometry, type Manifest, type Result } from './data';
+import { PhotometryCamera } from './PhotometryCamera';
 import { PatternPresenter } from './PatternPresenter';
 import { MeasurementArchive } from '../measurement/MeasurementArchive';
 import { archiveResult } from './archive';
@@ -70,6 +71,7 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
         stop(); await prepare(restored,images);
       }}/>
     {manifest && <>
+      <PhotometryCamera key={manifest.sequenceId} manifest={manifest} onRestore={(g,images)=>prepare(g,images)}/>
       <h3>Manual capture</h3>
       <p>Light matrix condition number {manifest.conditionNumber.toFixed(2)}. Show each pattern, wait at least {manifest.geometry.settleDelayMs} ms, and take one exposure. Press Esc to return and map the camera file to that pattern.</p>
       <button onClick={() => download(new Blob([JSON.stringify(manifest,null,2)],{type:'application/json'}),'illumination-manifest.json')}>Download sequence manifest</button>

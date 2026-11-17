@@ -91,7 +91,8 @@ class PluginRegistryTest {
                 PluginRegistry.withCapability(PluginCapability.GENERATE_CAPTURE_TARGET));
         var measurements = List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN, PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO);
         assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.IMPORT_CAPTURE_SET));
-        assertTrue(PluginRegistry.withCapability(PluginCapability.REMOTE_CAPTURE).isEmpty());
+        assertEquals(List.of(PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO),
+                PluginRegistry.withCapability(PluginCapability.REMOTE_CAPTURE));
         assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.ANALYZE_CAPTURE_SET));
         assertEquals(List.of(PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO),
                 PluginRegistry.withCapability(PluginCapability.LIVE_ANALYSIS_PREVIEW));

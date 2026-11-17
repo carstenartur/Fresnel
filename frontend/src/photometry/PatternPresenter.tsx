@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { download, generator, type Manifest, type Pattern } from './data';
-import { patternDigest } from './patternDigest';
+import { download, type Manifest, type Pattern } from './data';
+import { stage, nativeSize, displayFrame } from './stage';
 import './photometry.css';
 
-const frame = () => new Promise<void>(done => requestAnimationFrame(() => done()));
 
 export function PatternPresenter({ manifest, pattern }: { manifest: Manifest; pattern: Pattern }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -14,18 +13,9 @@ export function PatternPresenter({ manifest, pattern }: { manifest: Manifest; pa
   useEffect(() => {
     let active = true;
     async function load() {
-      const blob = await (await generator('patterns/' + pattern.id, manifest.geometry)).blob();
-      const image = await createImageBitmap(blob);
-      try {
-        if (!active) return;
-        const ctx = canvas.current?.getContext('2d', { willReadFrequently:true });
-        if (!ctx || image.width !== widthPx || image.height !== heightPx) throw new Error('Unexpected pattern raster.');
-        ctx.drawImage(image,0,0);
-        const rgba = ctx.getImageData(0,0,widthPx,heightPx).data;
-        const hash = await patternDigest(widthPx,heightPx,rgba);
-        if (hash !== pattern.pixelSha256) throw new Error('Pattern pixels differ from the sequence manifest.');
-        if (active) setReady(blob);
-      } finally { image.close(); }
+      if (!canvas.current) return;
+      const blob = await stage(canvas.current,manifest,pattern,()=>active);
+      if (active) setReady(blob);
     }
     void load().catch(e => { if (active) setError(String(e)); });
     return () => { active = false; };
@@ -43,9 +33,8 @@ export function PatternPresenter({ manifest, pattern }: { manifest: Manifest; pa
     setStatus(''); setError('');
     try {
       await target.requestFullscreen({ navigationUI:'hide' });
-      await frame(); await frame();
-      const bounds = target.getBoundingClientRect();
-      if (Math.round(bounds.width * devicePixelRatio) !== widthPx || Math.round(bounds.height * devicePixelRatio) !== heightPx)
+      await displayFrame(); await displayFrame();
+      if (!nativeSize(target))
         throw new Error('Full-screen dimensions differ from the manifest. Use the native pixel dimensions of this screen at 100% browser zoom.');
       await new Promise(done => setTimeout(done,settleDelayMs));
       if (document.fullscreenElement === target && !document.hidden)
