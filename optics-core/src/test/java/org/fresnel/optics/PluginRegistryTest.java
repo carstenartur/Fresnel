@@ -89,14 +89,14 @@ class PluginRegistryTest {
     void measurementCapabilitiesAreAdvertisedOnlyWhenImplemented() {
         assertEquals(List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN, PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO),
                 PluginRegistry.withCapability(PluginCapability.GENERATE_CAPTURE_TARGET));
-        assertEquals(List.of(PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO),
-                PluginRegistry.withCapability(PluginCapability.IMPORT_CAPTURE_SET));
+        var measurements = List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN, PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO);
+        assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.IMPORT_CAPTURE_SET));
         assertTrue(PluginRegistry.withCapability(PluginCapability.REMOTE_CAPTURE).isEmpty());
-        assertEquals(List.of(PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO),
-                PluginRegistry.withCapability(PluginCapability.ANALYZE_CAPTURE_SET));
+        assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.ANALYZE_CAPTURE_SET));
         assertEquals(List.of(PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO),
                 PluginRegistry.withCapability(PluginCapability.LIVE_ANALYSIS_PREVIEW));
-        assertTrue(PluginRegistry.withCapability(PluginCapability.EXPORT_EXPERIMENT_BUNDLE).isEmpty());
+        assertEquals(List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN),
+                PluginRegistry.withCapability(PluginCapability.EXPORT_EXPERIMENT_BUNDLE));
         assertTrue(PluginRegistry.ofKind(PluginKind.DESIGN).stream()
                 .noneMatch(descriptor -> descriptor.supports(PluginCapability.GENERATE_CAPTURE_TARGET)));
     }
@@ -238,10 +238,10 @@ class PluginRegistryTest {
         assertTrue(bos.supports(PluginCapability.GENERATE_CAPTURE_TARGET));
         assertTrue(bos.supports(PluginCapability.PREVIEW_PNG));
         assertTrue(bos.supports(PluginCapability.EXPORT_PNG));
-        assertFalse(bos.supports(PluginCapability.IMPORT_CAPTURE_SET));
+        assertTrue(bos.supports(PluginCapability.IMPORT_CAPTURE_SET));
         assertFalse(bos.supports(PluginCapability.REMOTE_CAPTURE));
-        assertFalse(bos.supports(PluginCapability.ANALYZE_CAPTURE_SET));
-        assertFalse(bos.supports(PluginCapability.EXPORT_EXPERIMENT_BUNDLE));
+        assertTrue(bos.supports(PluginCapability.ANALYZE_CAPTURE_SET));
+        assertTrue(bos.supports(PluginCapability.EXPORT_EXPERIMENT_BUNDLE));
         assertTrue(bos.propagationModes().isEmpty());
     }
 

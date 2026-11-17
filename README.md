@@ -233,11 +233,11 @@ validated artifact is published from `main`.
 | [Window Foil](docs/plugins/window-foil.md) | Design | printable tiled sheet |
 | [Hologram](docs/plugins/hologram.md) | Design | computer-generated hologram |
 | [Variable Line Grating](docs/plugins/variable-line-grating.md) | Design | orientation-specific printer calibration |
-| [Background-Oriented Schlieren](docs/plugins/background-oriented-schlieren.md) | Measurement | deterministic random-dot target and reproduction manifest |
+| [Background-Oriented Schlieren](docs/plugins/background-oriented-schlieren.md) | Measurement | deterministic random-dot target and registered still-pair displacement |
 
-The BOS plugin is intentionally marked experimental. This release slice creates
-and reproduces the target; it does not yet claim camera-image registration,
-displacement analysis, temperature or flow measurements.
+The experimental BOS editor accepts two PNG or JPEG exposures, stabilizes camera
+translation and exports a qualitative displacement map, confidence and numeric
+grid. Its image-plane vectors do not determine temperature or airflow velocity.
 
 ## Documentation
 
