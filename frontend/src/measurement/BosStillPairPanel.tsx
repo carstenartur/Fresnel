@@ -1,6 +1,10 @@
 import { restoreTarget, type TargetEvidence } from './bosTargetEvidence';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MeasurementArchive } from './MeasurementArchive';
+import { BosReferenceInspector, useReferenceInspection } from './BosReferenceInspector';
+import { fullFrame, readRegion, type Region } from './bosReferenceQuality';
+import type { QualityOutput } from './bosQuality.worker';
+import type { BosTargetManifest } from '../bosTargetApi';
 import type { WorkerOutput } from './bosStillPair.worker';
 import { paintMap, type MapMode } from './bosMap';
 
@@ -27,10 +31,15 @@ function useObjectUrl(blob?: Blob) {
   return url;
 }
 
-export function BosStillPairPanel({ target }: { target: TargetEvidence }) {
+export function BosStillPairPanel({ target, manifest }: { target: TargetEvidence; manifest: BosTargetManifest | null }) {
   const [restoredTarget, setRestoredTarget] = useState<TargetEvidence>();
   const [analyzedTarget, setAnalyzedTarget] = useState<TargetEvidence>({configuredTarget:null});
   const [files, setFiles] = useState<Images>({});
+  const [manualArea, setManualArea] = useState<Region | null>(null);
+  const [analyzedQuality, setAnalyzedQuality] = useState<QualityOutput['result'] | null>(null);
+  const qualityTarget =
+    restoredTarget === undefined || restoredTarget.configuredTarget?.semanticSha256 === manifest?.semanticSha256 ? manifest : null;
+  const inspection = useReferenceInspection(files.reference, files.disturbed, qualityTarget, manualArea);
   const [output, setOutput] = useState<WorkerOutput>();
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -52,6 +61,7 @@ export function BosStillPairPanel({ target }: { target: TargetEvidence }) {
           JSON.stringify({
             ...output.result,
             ...analyzedTarget,
+            referenceQuality: analyzedQuality,
             visualization: mode,
             amplification: gain,
             displayedLimitPx: mode === 'confidence' ? null : output.result.autoLimitPx / gain,
@@ -59,7 +69,7 @@ export function BosStillPairPanel({ target }: { target: TargetEvidence }) {
         ],
         { type: 'application/json' },
       ),
-    [output, mode, gain, analyzedTarget],
+    [output, mode, gain, analyzedTarget, analyzedQuality],
   );
   const referenceUrl = useObjectUrl(output?.referencePreview),
     stabilizedUrl = useObjectUrl(output?.stabilizedPreview);
@@ -72,6 +82,7 @@ export function BosStillPairPanel({ target }: { target: TargetEvidence }) {
   }
   function changeFiles(next: Images) {
     stop();
+    if (next.reference !== files.reference) setManualArea(null);
     setFiles(next);
     setRestoredTarget(undefined);
     setOutput(undefined);
@@ -80,6 +91,7 @@ export function BosStillPairPanel({ target }: { target: TargetEvidence }) {
   function restore(params: Record<string, unknown>, restored: Partial<Record<string, File>>) {
     changeFiles({ reference: restored.reference, disturbed: restored.disturbed });
     setRestoredTarget(restoreTarget(params));
+    setManualArea(readRegion(params.analysisRegion));
     setInputGeneration((n) => n + 1);
     setMode(
       typeof params.visualization === 'string' &&
@@ -96,6 +108,7 @@ export function BosStillPairPanel({ target }: { target: TargetEvidence }) {
   function analyze() {
     if (!files.reference || !files.disturbed) return;
     setAnalyzedTarget(restoredTarget ?? target);
+    setAnalyzedQuality(inspection?.data?.result ?? null);
     stop();
     setOutput(undefined);
     setError('');
@@ -119,7 +132,7 @@ export function BosStillPairPanel({ target }: { target: TargetEvidence }) {
           setError('Could not process the image pair in this browser.');
         }
       };
-      task.postMessage(files);
+      task.postMessage({ ...files, region: manualArea ?? inspection?.data?.result.region ?? fullFrame });
     } catch {
       stop();
       setError('This browser could not start image analysis.');
@@ -138,16 +151,27 @@ export function BosStillPairPanel({ target }: { target: TargetEvidence }) {
           {role === 'reference' ? 'Reference image' : 'Disturbed image'}
           <input
             type="file"
-              aria-label={role === 'reference' ? 'Reference image' : 'Disturbed image'}
+            aria-label={role === 'reference' ? 'Reference image' : 'Disturbed image'}
             accept="image/png,image/jpeg"
             onChange={(e) => changeFiles({ ...files, [role]: e.currentTarget.files?.[0] })}
           />
           {files[role] && <small>{files[role]?.name}</small>}
         </label>
       ))}
+      {files.reference && (
+        <BosReferenceInspector
+          state={inspection}
+          onArea={(r) => {
+            stop();
+            setManualArea(r);
+            setOutput(undefined);
+            setError('');
+          }}
+        />
+      )}
       <button
         type="button"
-        disabled={!files.reference || !files.disturbed || Boolean(status)}
+        disabled={!files.reference || !files.disturbed || Boolean(status) || !inspection}
         onClick={analyze}
       >
         Analyze still pair
@@ -264,6 +288,9 @@ export function BosStillPairPanel({ target }: { target: TargetEvidence }) {
         parameters={{
           visualization: mode,
           amplification: gain,
+          analysisRegion: output
+            ? (analyzedQuality?.region ?? manualArea ?? fullFrame)
+            : (manualArea ?? inspection?.data?.result.region),
           ...(output ? analyzedTarget : restoredTarget ?? target),
         }}
         result={report}

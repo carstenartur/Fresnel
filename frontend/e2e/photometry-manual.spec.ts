@@ -49,6 +49,10 @@ test('manually maps a physical illumination sequence and exports measured religh
   expect(json.sources.map((s: {patternId:string})=>s.patternId)).toEqual(manifest.patterns.map(p=>p.id));
   expect(json.sources.every((s: {sha256:string}) => /^[a-f0-9]{64}$/.test(s.sha256))).toBeTruthy();
   expect(json.scale).toBe('Relative');
+  expect(json.alignment.method).toBe('gradient-translation/1');
+  expect(json.sources.filter((s: {transform:unknown})=>s.transform).every(
+    (s: {transform:{status:string}}) => s.transform.status==='LOW_TEXTURE')).toBe(true);
+  expect(json.warnings.join(' ')).toContain('lack enough texture');
   expect(json.relief.method).toBe('masked-poisson/1');
   expect(json.relief.components).toBe(1);
   expect(json.relief.curlRms).toBeLessThan(.00001);

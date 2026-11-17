@@ -38,7 +38,8 @@ public class MeasurementSessions {
     public record Plan(String pluginId, JsonNode parameters, List<String> steps) {}
     public record Asset(String sha256, long byteLength, String mediaType, int width, int height) {}
     public record View(UUID id, Instant created, String pluginId, JsonNode parameters, List<String> steps,
-                       Map<String,Asset> assets, String state) {
+                       Map<String,Asset> assets, String state, String captureProvider) {
+        public View { if (captureProvider == null) captureProvider = "manual-upload"; }
         Plan plan() { return new Plan(pluginId, parameters, steps); }
     }
     record Source(Asset asset, Path path) {}
@@ -95,11 +96,20 @@ public class MeasurementSessions {
     }
 
     View create(String owner, Plan plan) throws IOException {
+        return create(owner, UUID.randomUUID(), plan, "manual-upload");
+    }
+
+    View create(String owner, UUID id, Plan plan, String provider) throws IOException {
         validate(plan);
         var lock = lock(owner); lock.lock();
         try {
+            if (Files.isRegularFile(dir(owner,id).resolve("session.json"))) {
+                var previous = get(owner,id);
+                if (previous.plan().equals(plan) && previous.captureProvider().equals(provider)) return previous;
+                throw conflict("Session already exists with different capture settings");
+            }
             if (list(owner).size() >= MAX_SESSIONS) throw new ResponseStatusException(HttpStatus.CONFLICT, "Delete an older measurement before creating another");
-            var view = new View(UUID.randomUUID(), Instant.now(), plan.pluginId, plan.parameters, List.copyOf(plan.steps), Map.of(), "READY_TO_CAPTURE");
+            var view = new View(id, Instant.now(), plan.pluginId, plan.parameters, List.copyOf(plan.steps), Map.of(), "READY_TO_CAPTURE", provider);
             Path directory = dir(owner, view.id);
             Files.createDirectories(directory);
             try { save(directory, view); }
@@ -121,10 +131,15 @@ public class MeasurementSessions {
     }
 
     View put(String owner, UUID id, String step, String type, String expected, InputStream input) throws IOException {
+        return put(owner, id, step, type, expected, input, "manual-upload");
+    }
+
+    View put(String owner, UUID id, String step, String type, String expected, InputStream input, String provider) throws IOException {
         var lock = lock(owner); lock.lock();
         try {
             View v = get(owner, id);
             boolean result = "result".equals(step);
+            if (!result && !v.captureProvider.equals(provider)) throw conflict("Source belongs to another capture provider");
             if (!v.steps.contains(step) && !result) throw bad("Unknown capture step");
             if (result && !v.assets.keySet().containsAll(v.steps)) throw conflict("Upload every source before saving a result");
             if (expected == null || !expected.matches("[0-9a-f]{64}")) throw bad("A lowercase SHA-256 is required");
@@ -160,7 +175,7 @@ public class MeasurementSessions {
                 var assets = new TreeMap<>(v.assets);
                 assets.put(step, asset);
                 String state = result ? "COMPLETED" : assets.keySet().containsAll(v.steps) ? "READY_TO_ANALYZE" : "CAPTURING";
-                var next = new View(v.id, v.created, v.pluginId, v.parameters, v.steps, assets, state);
+                var next = new View(v.id, v.created, v.pluginId, v.parameters, v.steps, assets, state, v.captureProvider);
                 Files.move(stage, directory.resolve(expected), ATOMIC_MOVE, REPLACE_EXISTING);
                 save(directory, next);
                 return next;
@@ -191,7 +206,13 @@ public class MeasurementSessions {
 
     void delete(String owner, UUID id) throws IOException {
         var lock = lock(owner); lock.lock();
-        try { get(owner,id); remove(dir(owner,id)); } finally { lock.unlock(); }
+        try {
+            var view = get(owner,id);
+            if ("photographer-rest".equals(view.captureProvider()) && Files.exists(dir(owner,id).resolve("photometry-capture.json"))
+                    && !Files.isRegularFile(dir(owner,id).resolve("camera-closed")))
+                throw conflict("Cancel or finish the active camera session before deleting it");
+            remove(dir(owner,id));
+        } finally { lock.unlock(); }
     }
     static void remove(Path directory) throws IOException {
         if (!Files.exists(directory)) return;

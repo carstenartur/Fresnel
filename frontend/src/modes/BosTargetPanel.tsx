@@ -251,7 +251,7 @@ export function BosTargetPanel({ initialJob }: JobPanelProps) {
           );
         }}
       </PluginEditorShell>
-      <BosStillPairPanel target={targetEvidence(currentManifest, request)} />
+      <BosStillPairPanel manifest={currentManifest} target={targetEvidence(currentManifest, request)} />
       <BosSequencePanel target={targetEvidence(currentManifest, request)} />
     </>
   );
