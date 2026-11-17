@@ -123,3 +123,36 @@ fresnel.jobs.persisted-retention-days=30
 
 There is no implicit public sharing. A future sharing feature must use a separate,
 revocable high-entropy token instead of weakening owner checks on the primary ID.
+
+## Pairing a Photographer capture service
+
+Set `FRESNEL_CAPTURE_PHOTOGRAPHER_ENABLED=true` and set
+`FRESNEL_CAPTURE_PHOTOGRAPHER_ORIGIN` to the Photographer origin, for example
+`https://photographer.example.org`. The server accepts an HTTP loopback origin for local
+installations. An administrator can enable HTTP in a trusted private deployment with
+`FRESNEL_CAPTURE_PHOTOGRAPHER_TRUST_PRIVATE_NETWORK=true`. Restart Fresnel after changing these settings.
+
+In Photographer, create a short-lived Fresnel pairing code with the scopes needed for
+discovery, capture and source image transfer. Open **Camera service → Manage Photographer pairing**
+in Fresnel, enter your Fresnel administrator credentials and the code, and select
+**Pair with Photographer**. The status indicator then checks the paired instance and its cameras.
+Fresnel sends the code once. If the exchange result is lost, revoke the orphaned pairing in
+Photographer before issuing a new code.
+
+Fresnel stores the bearer and the negotiated instance identity in the `photographer` subdirectory
+of its per-user data directory. To use a persistent service volume, set
+`FRESNEL_CAPTURE_PHOTOGRAPHER_DIRECTORY` to a directory private to the service account.
+On Windows, grant access only to that account using the directory ACL. Keep this directory out
+of shared diagnostics and protect any backups. A changed origin requires an administrator
+to forget the saved pairing and enter a new code. **Forget local pairing** deletes the token in
+Fresnel. To invalidate the grant at its source and stop its captures, revoke it in Photographer.
+
+### Capturing a BOS reference and disturbed image
+
+The [Photographer provider guide](../integrations/photographer-provider.md#run-a-bos-capture) covers camera selection, physical acknowledgements, downloads and resuming a saved experiment.
+
+The Fresnel server stores the operator-owned experiments and original PNGs in the
+`bos-captures` subdirectory of its data directory. Override this with
+`FRESNEL_CAPTURE_PHOTOGRAPHER_EXPERIMENTS_DIRECTORY`. Set
+`FRESNEL_CAPTURE_PHOTOGRAPHER_JOURNAL_DIRECTORY` to a persistent location for the
+adapter's replay records when using a container. Back up all three directories together.

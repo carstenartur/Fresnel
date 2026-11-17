@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { PhotographerPairingPanel } from './PhotographerPairingPanel';
+import { BosCapturePanel } from './BosCapturePanel';
 import {
   fetchCaptureProviderOverview,
   type CaptureProviderHealthState,
@@ -22,6 +24,7 @@ const STATE_LABELS: Record<CaptureProviderHealthState, string> = {
 export function CaptureProviderStatus() {
   const [overview, setOverview] = useState<CaptureProviderOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pairingRevision, setPairingRevision] = useState(0);
   const activeRequest = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -50,7 +53,7 @@ export function CaptureProviderStatus() {
       activeRequest.current?.abort();
       activeRequest.current = null;
     };
-  }, []);
+  }, [pairingRevision]);
 
   // A failed refresh does not prove that a previously connected provider became
   // disconnected. Preserve the last confirmed state and mark it as stale. Only
@@ -120,6 +123,13 @@ export function CaptureProviderStatus() {
             ))}
           </ul>
         </details>
+      )}
+
+      {overview?.providers.some(provider => provider.id === 'photographer-rest') && (
+        <>
+          <PhotographerPairingPanel onChanged={() => setPairingRevision(value => value + 1)} />
+          <BosCapturePanel />
+        </>
       )}
 
       {overview && (

@@ -37,6 +37,12 @@ fresnel:
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173
   capture:
+    photographer:
+      enabled: false
+      origin: ""
+      trust-private-network: false
+      # Empty selects the private photographer subdirectory in the Fresnel data directory.
+      directory: ""
     mock:
       # Deterministic camera simulation for tests and explicit demonstrations.
       # It is never exposed silently in a normal installation.
