@@ -26,11 +26,11 @@ class PluginControllerTest {
     @Autowired MockMvc mvc;
 
     @Test
-    void listPluginsReturnsAllEightPluginsInRegistryOrderWithExplicitKinds() throws Exception {
+    void listPluginsReturnsAllPluginsInRegistryOrderWithExplicitKinds() throws Exception {
         mvc.perform(get("/api/plugins"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(8)))
+                .andExpect(jsonPath("$", hasSize(9)))
                 .andExpect(jsonPath("$[0].id").value("zone-plate"))
                 .andExpect(jsonPath("$[0].kind").value("DESIGN"))
                 .andExpect(jsonPath("$[1].id").value("variable-line-grating"))
@@ -41,7 +41,9 @@ class PluginControllerTest {
                 .andExpect(jsonPath("$[6].id").value("hologram"))
                 .andExpect(jsonPath("$[6].kind").value("DESIGN"))
                 .andExpect(jsonPath("$[7].id").value("background-oriented-schlieren"))
-                .andExpect(jsonPath("$[7].kind").value("MEASUREMENT"));
+                .andExpect(jsonPath("$[7].kind").value("MEASUREMENT"))
+                .andExpect(jsonPath("$[8].id").value("display-photometric-stereo"))
+                .andExpect(jsonPath("$[8].kind").value("MEASUREMENT"));
     }
 
     @Test

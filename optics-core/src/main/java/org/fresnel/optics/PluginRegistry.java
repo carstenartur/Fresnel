@@ -192,6 +192,16 @@ public final class PluginRegistry {
             schema("background-oriented-schlieren", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
     );
 
+    public static final PluginDescriptor DISPLAY_PHOTOMETRIC_STEREO = new PluginDescriptor(
+            "display-photometric-stereo", PluginKind.MEASUREMENT, "Display photometric stereo",
+            "Measure diffuse surface normals and relative albedo with a monitor and a fixed camera",
+            "DisplayIlluminationSequenceGenerator", "DisplayGeometry", "docs/plugins/display-photometric-stereo.md",
+            "display-photometric-stereo/1", PluginStabilityLevel.EXPERIMENTAL,
+            Set.of(PluginCapability.GENERATE_CAPTURE_TARGET, PluginCapability.IMPORT_CAPTURE_SET,
+                   PluginCapability.ANALYZE_CAPTURE_SET, PluginCapability.LIVE_ANALYSIS_PREVIEW, PluginCapability.EXPORT_PNG),
+            Set.of(), schema("display-photometric-stereo", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
+    );
+
     /**
      * Immutable public plugin order. The frontend consumes this order directly
      * from {@code GET /api/plugins}; no second tab/mode ordering is maintained.
@@ -204,7 +214,8 @@ public final class PluginRegistry {
             MULTI_FOCUS,
             RGB_ZONE_PLATE,
             HOLOGRAM,
-            BACKGROUND_ORIENTED_SCHLIEREN
+            BACKGROUND_ORIENTED_SCHLIEREN,
+            DISPLAY_PHOTOMETRIC_STEREO
     );
 
     private static final Map<String, PluginDescriptor> BY_ID =

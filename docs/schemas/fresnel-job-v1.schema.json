@@ -56,7 +56,8 @@
             "hex-macro-cell",
             "window-foil",
             "hologram",
-            "background-oriented-schlieren"
+            "background-oriented-schlieren",
+            "display-photometric-stereo"
           ]
         },
         "parameterSchemaVersion": {
