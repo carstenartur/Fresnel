@@ -155,8 +155,7 @@ class PluginControllerTest {
                         "GENERATE_CAPTURE_TARGET", "PREVIEW_PNG", "EXPORT_PNG",
                         "IMPORT_CAPTURE_SET", "ANALYZE_CAPTURE_SET", "EXPORT_EXPERIMENT_BUNDLE")))
                 .andExpect(jsonPath("$.capabilities",
-                        org.hamcrest.Matchers.not(hasItems(
-                                "REMOTE_CAPTURE"))))
+                        hasItems("REMOTE_CAPTURE")))
                 .andExpect(jsonPath("$.propagationModes", empty()))
                 .andExpect(jsonPath("$.schemaUrl")
                         .value("/api/plugins/background-oriented-schlieren/schema"));

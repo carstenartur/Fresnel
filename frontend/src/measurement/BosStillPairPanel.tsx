@@ -1,4 +1,5 @@
 import { restoreTarget, type TargetEvidence } from './bosTargetEvidence';
+import {exposureHash,readBosOrigin,type BosOrigin,type PairedBosCapture} from './bosPairedCapture';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MeasurementArchive } from './MeasurementArchive';
 import { BosReferenceInspector, useReferenceInspection } from './BosReferenceInspector';
@@ -31,9 +32,11 @@ function useObjectUrl(blob?: Blob) {
   return url;
 }
 
-export function BosStillPairPanel({ target, manifest }: { target: TargetEvidence; manifest: BosTargetManifest | null }) {
+export function BosStillPairPanel({ target, manifest, pairedCapture }: { target: TargetEvidence; manifest: BosTargetManifest | null; pairedCapture?:PairedBosCapture }) {
   const [restoredTarget, setRestoredTarget] = useState<TargetEvidence>();
   const [analyzedTarget, setAnalyzedTarget] = useState<TargetEvidence>({configuredTarget:null});
+  const [origin,setOrigin]=useState<BosOrigin|null>(null);
+  const panel=useRef<HTMLElement>(null);
   const [files, setFiles] = useState<Images>({});
   const [manualArea, setManualArea] = useState<Region | null>(null);
   const [analyzedQuality, setAnalyzedQuality] = useState<QualityOutput['result'] | null>(null);
@@ -53,6 +56,11 @@ export function BosStillPairPanel({ target, manifest }: { target: TargetEvidence
   useEffect(() => {
     if (map.current && output) paintMap(map.current, output.result, mode, gain);
   }, [output, mode, gain]);
+  useEffect(()=>{
+    if(!pairedCapture)return;
+    changeFiles(pairedCapture.files);setOrigin(pairedCapture.origin);setInputGeneration(v=>v+1);
+    panel.current?.focus({preventScroll:true});panel.current?.scrollIntoView({block:'start'});
+  },[pairedCapture]);
   const report = useMemo(
     () =>
       output &&
@@ -61,6 +69,8 @@ export function BosStillPairPanel({ target, manifest }: { target: TargetEvidence
           JSON.stringify({
             ...output.result,
             ...analyzedTarget,
+            captureProvider: origin?.provider ?? 'manual',
+            captureOrigin: origin,
             referenceQuality: analyzedQuality,
             visualization: mode,
             amplification: gain,
@@ -69,7 +79,7 @@ export function BosStillPairPanel({ target, manifest }: { target: TargetEvidence
         ],
         { type: 'application/json' },
       ),
-    [output, mode, gain, analyzedTarget, analyzedQuality],
+    [output, mode, gain, analyzedTarget, analyzedQuality, origin],
   );
   const referenceUrl = useObjectUrl(output?.referencePreview),
     stabilizedUrl = useObjectUrl(output?.stabilizedPreview);
@@ -84,14 +94,24 @@ export function BosStillPairPanel({ target, manifest }: { target: TargetEvidence
     stop();
     if (next.reference !== files.reference) setManualArea(null);
     setFiles(next);
+    setOrigin(null);
     setRestoredTarget(undefined);
     setOutput(undefined);
     setError('');
   }
-  function restore(params: Record<string, unknown>, restored: Partial<Record<string, File>>) {
+  async function restore(params: Record<string, unknown>, restored: Partial<Record<string, File>>) {
+    const restoredOrigin=readBosOrigin(params.captureOrigin);
+    if(restoredOrigin) {
+      for(const step of imageRoles) {
+        const file=restored[step];
+        if(!file || file.size!==restoredOrigin[step].byteLength || await exposureHash(file)!==restoredOrigin[step].sha256)
+          throw new Error('The saved pair disagrees with its Photographer capture metadata.');
+      }
+    }
     changeFiles({ reference: restored.reference, disturbed: restored.disturbed });
     setRestoredTarget(restoreTarget(params));
     setManualArea(readRegion(params.analysisRegion));
+    setOrigin(restoredOrigin);
     setInputGeneration((n) => n + 1);
     setMode(
       typeof params.visualization === 'string' &&
@@ -140,12 +160,13 @@ export function BosStillPairPanel({ target, manifest }: { target: TargetEvidence
   }
 
   return (
-    <section aria-label="Still-pair displacement" className="card">
+    <section tabIndex={-1} ref={panel} aria-label="Still-pair displacement" className="card">
       <h3>Measure still-pair displacement</h3>
       <p>
         Photograph the same dot field before and during the disturbance. Keep its outer edges sharp and
         undisturbed so Fresnel can register camera translation.
       </p>
+      {origin&&<p>Photographer capture {origin.captureId} · Reference {new Date(origin.reference.capturedAt).toLocaleString()}, disturbed {new Date(origin.disturbed.capturedAt).toLocaleString()}.</p>}
       {imageRoles.map((role) => (
         <label key={role + inputGeneration} style={{ display: 'block', marginBlock: 8 }}>
           {role === 'reference' ? 'Reference image' : 'Disturbed image'}
@@ -286,6 +307,7 @@ export function BosStillPairPanel({ target, manifest }: { target: TargetEvidence
         acceptsSteps={steps=>steps.length===2 && steps[0]==='reference' && steps[1]==='disturbed'}
         files={files}
         parameters={{
+          captureOrigin:origin,
           visualization: mode,
           amplification: gain,
           analysisRegion: output

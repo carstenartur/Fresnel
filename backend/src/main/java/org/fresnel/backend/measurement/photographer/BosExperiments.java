@@ -44,7 +44,7 @@ final class BosExperiments {
 
     record Camera(String id, String name) {}
     record Image(long byteLength, String sha256, Instant capturedAt) {}
-    record View(UUID id, String state, Image reference, Image disturbed, String pendingStep) {}
+    record View(UUID id, String state, Image reference, Image disturbed, String pendingStep, String cameraSelection) {}
 
     private static final class Experiment {
         public UUID id;
@@ -66,7 +66,7 @@ final class BosExperiments {
                 if (referenceAck != null && reference == null) pending = "reference";
                 if (disturbedAck != null && disturbed == null) pending = "disturbed";
             }
-            return new View(id, state, reference, disturbed, pending);
+            return new View(id, state, reference, disturbed, pending, selection);
         }
     }
 
