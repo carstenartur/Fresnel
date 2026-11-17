@@ -23,7 +23,7 @@ class PhotographerContainerIT {
         try (var container = new GenericContainer<>(DockerImageName.parse(image)).withExposedPorts(8080)
                 .withCopyFileToContainer(MountableFile.forClasspathResource("photographer/container-fixture.mjs"),"/fixture/server.mjs")
                 .withCopyFileToContainer(MountableFile.forHostPath(Path.of("../docs/integrations/photographer-capture-v1.fixtures.json").toAbsolutePath()),"/fixture/contract.json")
-                .withCommand("node","/fixture/server.mjs").waitingFor(Wait.forHttp("/ready"))) {
+                .withCommand("sh","-c","while :; do node /fixture/server.mjs; done").waitingFor(Wait.forHttp("/ready"))) {
             container.start();
             String origin = "http://" + container.getHost() + ":" + container.getMappedPort(8080);
             var paired = new PhotographerPairing(origin,true,data.resolve("pairing"));
@@ -36,7 +36,13 @@ class PhotographerContainerIT {
             var first = provider.triggerStep(id,"reference",ack,"reference-once");
             assertEquals("reference",first.asset().stepId());
 
-            container.getDockerClient().restartContainerCmd(container.getContainerId()).exec();
+            // Restart the camera service inside its container. Docker may reassign a random host port
+            // on a full container restart, which would correctly invalidate the origin-bound pairing.
+            String previousPid = container.execInContainer("cat","/tmp/photographer.pid").getStdout().trim();
+            var stopped = container.execInContainer("kill","-TERM",previousPid);
+            assertEquals(0,stopped.getExitCode());
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(20)).until(() ->
+                    !previousPid.equals(container.execInContainer("cat","/tmp/photographer.pid").getStdout().trim()));
             var reopened = new PhotographerPairing(origin,true,data.resolve("pairing"));
             var resumed = new PhotographerCaptureProvider(reopened::current,data.resolve("journal"));
             org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(30)).ignoreExceptions()

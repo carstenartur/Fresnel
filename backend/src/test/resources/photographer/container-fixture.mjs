@@ -6,6 +6,7 @@ const contract = JSON.parse(readFileSync('/fixture/contract.json'));
 const v = contract.values;
 const prefix = '/api/v1/integrations/fresnel';
 const stateFile = '/tmp/capture-state.json';
+writeFileSync('/tmp/photographer.pid',String(process.pid));
 const state = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile)) : {paired:false, keys:{}, shots:0};
 function persist() {
   writeFileSync(stateFile+'.part', JSON.stringify(state));
