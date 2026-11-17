@@ -118,6 +118,71 @@ public class MeasurementSessions {
         } finally { lock.unlock(); }
     }
 
+    record Derivation(Plan plan, Map<String,String> sourceHashes) {}
+
+    View derive(String owner, UUID id, UUID sourceId, Derivation request) throws IOException {
+        if (id.equals(sourceId) || request == null || request.sourceHashes() == null)
+            throw bad("Choose a distinct destination and the verified source files");
+        Plan plan = request.plan();
+        validate(plan);
+        var guard = lock(owner);
+        guard.lock();
+        try {
+            View source = get(owner, sourceId);
+            if (!PhotometryCapture.PLUGIN.equals(plan.pluginId()) || !source.pluginId().equals(plan.pluginId())
+                    || !plan.steps().equals(source.steps()) || !sameGeometry(plan.parameters(), source.parameters())
+                    || !request.sourceHashes().keySet().equals(Set.copyOf(source.steps())))
+                throw conflict("Capture geometry or step mapping has changed");
+            var assets = new TreeMap<String,Asset>();
+            for (String step : source.steps()) {
+                Asset asset = source.assets().get(step);
+                if (asset == null || !asset.sha256().equals(request.sourceHashes().get(step)))
+                    throw conflict("Source checksum differs from the acquisition");
+                assets.put(step, asset);
+            }
+            Path target = dir(owner, id);
+            if (Files.exists(target)) {
+                var previous = get(owner, id);
+                Path origin = target.resolve("derived-from");
+                if (previous.plan().equals(plan) && Files.isRegularFile(origin)
+                        && sourceId.toString().equals(Files.readString(origin))) return previous;
+                throw conflict("Destination already belongs to another experiment");
+            }
+            if (list(owner).size() >= MAX_SESSIONS) throw conflict("Delete an older measurement before creating another");
+            var evidence = CaptureEvidence.read(dir(owner, sourceId), json);
+            if (evidence != null) evidence.verify(plan, assets);
+            Path stage = ownerDir(owner).resolve(".deriving-" + id);
+            remove(stage);
+            Files.createDirectory(stage);
+            try {
+                for (Asset asset : new HashSet<>(assets.values())) {
+                    var checksum = digest();
+                    try (var in = Files.newInputStream(dir(owner, sourceId).resolve(asset.sha256()));
+                         var out = new DigestOutputStream(Files.newOutputStream(stage.resolve(asset.sha256())), checksum)) {
+                        if (copy(in, out, asset.byteLength()) != asset.byteLength()
+                                || !asset.sha256().equals(HexFormat.of().formatHex(checksum.digest())))
+                            throw conflict("Stored acquisition failed checksum verification");
+                    }
+                }
+                if (evidence != null) Files.write(stage.resolve(CaptureEvidence.FILE), json.writeValueAsBytes(evidence));
+                Files.writeString(stage.resolve("derived-from"), sourceId.toString());
+                var view = new View(id, Instant.now(), plan.pluginId(), plan.parameters(), source.steps(),
+                        assets, "READY_TO_ANALYZE", "manual-upload");
+                save(stage, view);
+                Files.move(stage, target, ATOMIC_MOVE);
+                return view;
+            } finally { remove(stage); }
+        } finally { guard.unlock(); }
+    }
+
+    private boolean sameGeometry(JsonNode first, JsonNode second) {
+        try {
+            var type = org.fresnel.measurement.photometry.DisplayGeometry.class;
+            return json.treeToValue(first.has("geometry") ? first.get("geometry") : first, type)
+                    .equals(json.treeToValue(second.has("geometry") ? second.get("geometry") : second, type));
+        } catch (IllegalArgumentException | tools.jackson.core.JacksonException e) { throw bad("Invalid acquisition geometry"); }
+    }
+
     View get(String owner, UUID id) throws IOException { return load(dir(owner, id)); }
     private View load(Path directory) throws IOException {
         try { return json.readValue(Files.readAllBytes(directory.resolve("session.json")), View.class); }
