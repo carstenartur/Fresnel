@@ -25,28 +25,32 @@ available through `GET /api/plugins/{pluginId}/schema` and is consumed by the
 common React form, job validation and future documentation tooling.
 
 Stable plugin IDs are also the primary UI routes, for example
-`/plugins/zone-plate`. The ordered `GET /api/plugins` response determines design
+`/plugins/zone-plate`. The ordered `GET /api/plugins` response determines plugin
 navigation; former frontend mode aliases are no longer part of the public API.
 
-The table below lists all currently available plugins. They are all `DESIGN`
-plugins; the first `MEASUREMENT` plugins are being implemented separately.
+The table below lists the currently available plugins. The seven established
+optical renderers are `DESIGN` plugins. Background-Oriented Schlieren is the
+first `MEASUREMENT` plugin and currently advertises only its implemented,
+deterministic target-generation slice; capture import and analysis remain
+separate future capabilities.
 
-| Plugin | Java renderer | Frontend integration | Description |
-|--------|---------------|----------------------|-------------|
-| [Zone Plate](plugins/zone-plate.md) | `ZonePlateRenderer` | Schema form + analysis extensions | Single Fresnel zone plate — binary amplitude or greyscale phase |
-| [Variable-Line Grating](plugins/variable-line-grating.md) | `VariableLineGratingRenderer` | Schema form + calibration extensions | Orientation-selectable printer calibration grating with native one-bit PCL export |
-| [Hex Macro Cell](plugins/hex-macro-cell.md) | `HexMacroCellRenderer` | Schema editor | Hexagonal array of sub-zone-plates focusing to a common image point |
-| [Window Foil](plugins/window-foil.md) | `WindowFoilRenderer` | Schema form + cell-layout widget | Rectangular sheet tiled with hex macro cells |
-| [Multi-Focus](plugins/multi-focus.md) | `MultiFocusRenderer` | Schema form + focus-point widget | Aperture divided among multiple focal targets |
-| [RGB Zone Plate](plugins/rgb-zone-plate.md) | `RgbZonePlateRenderer` | Schema editor | Zone plate rendered at three wavelengths and composited into one RGB image |
-| [Hologram](plugins/hologram.md) | `HologramSynthesizer` | Schema form + image/reconstruction extensions | Computer-generated hologram via the Gerchberg–Saxton algorithm |
+| Plugin | Kind | Trusted implementation | Frontend integration | Description |
+|--------|------|------------------------|----------------------|-------------|
+| [Zone Plate](plugins/zone-plate.md) | `DESIGN` | `ZonePlateRenderer` | Schema form + analysis extensions | Single Fresnel zone plate — binary amplitude or greyscale phase |
+| [Variable-Line Grating](plugins/variable-line-grating.md) | `DESIGN` | `VariableLineGratingRenderer` | Schema form + calibration extensions | Orientation-selectable printer calibration grating with native one-bit PCL export |
+| [Hex Macro Cell](plugins/hex-macro-cell.md) | `DESIGN` | `HexMacroCellRenderer` | Schema editor | Hexagonal array of sub-zone-plates focusing to a common image point |
+| [Window Foil](plugins/window-foil.md) | `DESIGN` | `WindowFoilRenderer` | Schema form + cell-layout widget | Rectangular sheet tiled with hex macro cells |
+| [Multi-Focus](plugins/multi-focus.md) | `DESIGN` | `MultiFocusRenderer` | Schema form + focus-point widget | Aperture divided among multiple focal targets |
+| [RGB Zone Plate](plugins/rgb-zone-plate.md) | `DESIGN` | `RgbZonePlateRenderer` | Schema editor | Zone plate rendered at three wavelengths and composited into one RGB image |
+| [Hologram](plugins/hologram.md) | `DESIGN` | `HologramSynthesizer` | Schema form + image/reconstruction extensions | Computer-generated hologram via the Gerchberg–Saxton algorithm |
+| [Background-Oriented Schlieren](plugins/background-oriented-schlieren.md) | `MEASUREMENT` | `BosTargetGenerator` | Schema form + target preview/manifest | Deterministic random-dot target with bounded PNG export and reproduction evidence |
 
 ## Plugin structure
 
 Each plugin consists of:
 
-1. **Parameter record** (`optics-core`) — immutable value object carrying all
-   inputs; validated in the compact constructor.
+1. **Parameter record** (`optics-core` or `measurement-core`) — immutable value
+   object carrying all inputs; validated in the compact constructor.
 2. **Trusted implementation** — a pure renderer/synthesizer for `DESIGN`, or a
    measurement workflow built on the framework-free `measurement-core` contracts.
 3. **Parameter schema** (`optics-core/src/main/resources/fresnel/plugins/`) —
@@ -64,11 +68,13 @@ Each plugin consists of:
 7. **Unit and integration tests** — schema/DTO/default drift, stable routes,
    `.fresnel` round trips, rendering and numerical behavior.
 8. **Documentation examples** — checked-in `.fresnel` jobs are the source for
-   generated assets.
+   generated design assets; measurement manifests preserve target identity and
+   later experiment evidence.
 
 ## Shared validation model
 
-Deterministic, plugin-independent validation is modeled in `optics-core` with:
+Deterministic, plugin-independent design validation is modeled in `optics-core`
+with:
 
 - `DesignValidationReport`
 - `ValidationMetric`
@@ -91,14 +97,16 @@ computed theory-versus-experiment comparison for export as JSON or Markdown.
 For practical, step-by-step print/measure workflows, see the
 [experiments handbook](experiments/first-zone-plate.md).
 
-Each plugin exposes a report through:
+Each design plugin exposes a report through:
 
 `POST /api/designs/{pluginId}/validation`
 
 Plugin authors should implement a report factory in `DesignValidationReports`
 for new design plugins. If a layer cannot be computed yet, return an explicit
 informational finding (not silently omitted) so downstream UIs can still render
-the layer consistently.
+the layer consistently. Measurement plugins use workflow-specific validation;
+the BOS target slice currently performs schema, resource, geometry and
+reproducibility validation rather than pretending to have a displacement result.
 
 ## Regenerating all documentation images
 
@@ -106,6 +114,7 @@ the layer consistently.
 mvn -pl optics-core test -Dtest=PluginDocImagesTest -Dfresnel.docs=generate
 ```
 
-Checked-in `.fresnel` jobs are the source of truth for current plugin examples;
-the test harness consumes them and verifies deterministic output. Generated
-images in `docs/assets/plugins/` remain committed to the repository.
+Checked-in `.fresnel` jobs are the source of truth for current design-plugin
+examples; the test harness consumes them and verifies deterministic output.
+Generated images in `docs/assets/plugins/` remain committed to the repository.
+Measurement targets additionally publish a versioned manifest and semantic hash.

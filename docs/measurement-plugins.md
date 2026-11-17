@@ -11,10 +11,37 @@ The distinction is published as `PluginMetadata.kind`. It does not enable
 runtime code loading: implementations remain reviewed application code registered
 through `PluginRegistry`, while parameter and UI schemas remain data-only.
 
+## Current implementation status
+
+Background-Oriented Schlieren is the first registered `MEASUREMENT` plugin. Its
+initial target-generation slice is implemented end to end:
+
+```text
+schema-backed parameters
+        → deterministic BosTargetGenerator
+        → preview / lossless PNG
+        → versioned manifest + semantic SHA-256
+        → portable .fresnel job
+```
+
+It deliberately advertises only:
+
+```text
+GENERATE_CAPTURE_TARGET
+PREVIEW_PNG
+EXPORT_PNG
+```
+
+It does **not** yet advertise upload, remote capture, image analysis, live
+analysis or experiment-bundle export. This keeps the metadata truthful while the
+shared session and analysis layers are implemented separately. See
+[Background-Oriented Schlieren](plugins/background-oriented-schlieren.md) for
+the user workflow and scientific claim boundary.
+
 ## Why measurement workflows need a separate lifecycle
 
 A design plugin can normally validate parameters and produce an artifact in one
-request. A measurement plugin must preserve a multi-step experiment:
+request. A complete measurement plugin must preserve a multi-step experiment:
 
 ```text
 DRAFT
@@ -30,12 +57,17 @@ DRAFT
 `FAILED` and `CANCELLED` are terminal alternatives. Backend persistence and the
 measurement workflow UI will use these states so a browser reload, process
 restart or temporary Photographer outage does not silently lose experiment
-identity.
+identity. The BOS target generator is intentionally stateless; durable sessions
+begin when capture import or remote capture is added.
 
 ## Core boundary
 
 The `measurement-core` Maven module contains only Java value contracts and
 validation. It has no Spring, JPA, HTTP, frontend or camera-vendor dependency.
+
+It now contains both the shared acquisition contracts and the deterministic BOS
+target model. Raster encoding remains in `backend` because Java ImageIO and HTTP
+content metadata are delivery concerns rather than scientific target semantics.
 
 ### Capture plans
 
@@ -79,6 +111,11 @@ cancellation. Stable failure enums and message codes cross the boundary; private
 camera addresses, credentials, local file paths and raw provider exception text
 do not.
 
+The currently merged deterministic mock provider exercises the exact-once
+contract and visible status surface. It is disabled by default and does not make
+BOS claim `REMOTE_CAPTURE`; a plugin advertises that capability only after an
+actual workflow action is wired through a selected provider.
+
 ## Plugin capabilities
 
 Measurement plugins advertise only the actions they implement:
@@ -95,6 +132,11 @@ EXPORT_EXPERIMENT_BUNDLE
 As with existing design actions, a capability is shown only when both the backend
 descriptor and a trusted local frontend handler support it. Capability strings
 never become endpoint URLs, class names or dynamic imports.
+
+A measurement plugin may additionally use ordinary typed output capabilities
+such as `PREVIEW_PNG` or `EXPORT_PNG`. `GENERATE_CAPTURE_TARGET` describes the
+workflow meaning; the export capability describes the concrete transport
+format.
 
 ## Fresnel and Photographer
 

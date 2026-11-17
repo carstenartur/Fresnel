@@ -26,7 +26,9 @@ class PluginRegistryTest {
         assertTrue(ids.contains("hex-macro-cell"), "hex-macro-cell missing");
         assertTrue(ids.contains("window-foil"), "window-foil missing");
         assertTrue(ids.contains("hologram"), "hologram missing");
-        assertEquals(7, PluginRegistry.ALL.size(), "unexpected plugin count");
+        assertTrue(ids.contains("background-oriented-schlieren"),
+                "background-oriented-schlieren missing");
+        assertEquals(8, PluginRegistry.ALL.size(), "unexpected plugin count");
     }
 
     @Test
@@ -38,7 +40,8 @@ class PluginRegistryTest {
                         "window-foil",
                         "multi-focus",
                         "rgb-zone-plate",
-                        "hologram"),
+                        "hologram",
+                        "background-oriented-schlieren"),
                 PluginRegistry.ALL.stream().map(PluginDescriptor::id).toList());
     }
 
@@ -62,21 +65,35 @@ class PluginRegistryTest {
     }
 
     @Test
-    void existingPluginsAreExplicitlyDesignPlugins() {
-        assertEquals(PluginRegistry.ALL, PluginRegistry.ofKind(PluginKind.DESIGN));
-        assertTrue(PluginRegistry.ofKind(PluginKind.MEASUREMENT).isEmpty());
-        assertTrue(PluginRegistry.ALL.stream().noneMatch(PluginDescriptor::isMeasurementPlugin));
+    void pluginKindsAreExplicitAndMeasurementPluginsAreIsolated() {
+        assertEquals(List.of(
+                        PluginRegistry.ZONE_PLATE,
+                        PluginRegistry.VARIABLE_LINE_GRATING,
+                        PluginRegistry.HEX_MACRO_CELL,
+                        PluginRegistry.WINDOW_FOIL,
+                        PluginRegistry.MULTI_FOCUS,
+                        PluginRegistry.RGB_ZONE_PLATE,
+                        PluginRegistry.HOLOGRAM),
+                PluginRegistry.ofKind(PluginKind.DESIGN));
+        assertEquals(List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN),
+                PluginRegistry.ofKind(PluginKind.MEASUREMENT));
+        assertTrue(PluginRegistry.ofKind(PluginKind.DESIGN).stream()
+                .noneMatch(PluginDescriptor::isMeasurementPlugin));
+        assertTrue(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN.isMeasurementPlugin());
         assertThrows(IllegalArgumentException.class, () -> PluginRegistry.ofKind(null));
     }
 
     @Test
-    void measurementCapabilitiesAreAvailableButNotMisadvertisedByDesignPlugins() {
-        assertTrue(PluginRegistry.withCapability(PluginCapability.GENERATE_CAPTURE_TARGET).isEmpty());
+    void measurementCapabilitiesAreAdvertisedOnlyWhenImplemented() {
+        assertEquals(List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN),
+                PluginRegistry.withCapability(PluginCapability.GENERATE_CAPTURE_TARGET));
         assertTrue(PluginRegistry.withCapability(PluginCapability.IMPORT_CAPTURE_SET).isEmpty());
         assertTrue(PluginRegistry.withCapability(PluginCapability.REMOTE_CAPTURE).isEmpty());
         assertTrue(PluginRegistry.withCapability(PluginCapability.ANALYZE_CAPTURE_SET).isEmpty());
         assertTrue(PluginRegistry.withCapability(PluginCapability.LIVE_ANALYSIS_PREVIEW).isEmpty());
         assertTrue(PluginRegistry.withCapability(PluginCapability.EXPORT_EXPERIMENT_BUNDLE).isEmpty());
+        assertTrue(PluginRegistry.ofKind(PluginKind.DESIGN).stream()
+                .noneMatch(descriptor -> descriptor.supports(PluginCapability.GENERATE_CAPTURE_TARGET)));
     }
 
     @Test
@@ -125,8 +142,9 @@ class PluginRegistryTest {
     }
 
     @Test
-    void hasPluginReturnsTrueForRegisteredId() {
+    void hasPluginReturnsTrueForRegisteredIds() {
         assertTrue(PluginRegistry.hasPlugin("hologram"));
+        assertTrue(PluginRegistry.hasPlugin("background-oriented-schlieren"));
     }
 
     @Test
@@ -203,6 +221,23 @@ class PluginRegistryTest {
         assertTrue(hologram.supports(PluginCapability.EXPORT_PNG));
         assertFalse(hologram.supports(PluginCapability.EXPORT_PDF));
         assertTrue(hologram.propagationModes().isEmpty());
+    }
+
+    @Test
+    void bosDescriptorExposesOnlyTheImplementedTargetSlice() {
+        PluginDescriptor bos = PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN;
+        assertEquals(PluginKind.MEASUREMENT, bos.kind());
+        assertEquals(PluginStabilityLevel.EXPERIMENTAL, bos.stability());
+        assertEquals("BosTargetGenerator", bos.rendererClass());
+        assertEquals("BosTargetParameters", bos.parameterType());
+        assertTrue(bos.supports(PluginCapability.GENERATE_CAPTURE_TARGET));
+        assertTrue(bos.supports(PluginCapability.PREVIEW_PNG));
+        assertTrue(bos.supports(PluginCapability.EXPORT_PNG));
+        assertFalse(bos.supports(PluginCapability.IMPORT_CAPTURE_SET));
+        assertFalse(bos.supports(PluginCapability.REMOTE_CAPTURE));
+        assertFalse(bos.supports(PluginCapability.ANALYZE_CAPTURE_SET));
+        assertFalse(bos.supports(PluginCapability.EXPORT_EXPERIMENT_BUNDLE));
+        assertTrue(bos.propagationModes().isEmpty());
     }
 
     @Test

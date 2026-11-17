@@ -14,7 +14,7 @@ import {
   type FresnelPluginId,
   type LoadedFresnelJob,
 } from '../jobApi';
-import { fetchPluginSchema } from '../pluginSchemaApi';
+import { fetchPluginMetadataById } from '../pluginSchemaApi';
 
 const JobSourceContext = createContext<FresnelJobDocument<unknown> | null>(null);
 
@@ -106,11 +106,12 @@ export function SaveJobControl<T>({
     setBusy(true);
     setError(null);
     try {
-      const schema = await fetchPluginSchema(pluginId);
+      const metadata = await fetchPluginMetadataById(pluginId);
       await saveFresnelJob(
         pluginId,
         parameters,
-        schema.parameterSchemaVersion,
+        metadata.parameterSchemaVersion,
+        metadata.algorithmVersion,
         filename,
         sourceJob,
       );
@@ -123,7 +124,7 @@ export function SaveJobControl<T>({
 
   return (
     <div style={{ marginTop: 16 }}>
-      <h2>Design job</h2>
+      <h2>Fresnel job</h2>
       <div className="actions">
         <button
           className="secondary"

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json",
   "title": "Fresnel production job",
-  "description": "Versioned, data-only design and production job for the Fresnel application.",
+  "description": "Versioned, data-only design or measurement job for the Fresnel application.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -55,7 +55,8 @@
             "multi-focus",
             "hex-macro-cell",
             "window-foil",
-            "hologram"
+            "hologram",
+            "background-oriented-schlieren"
           ]
         },
         "parameterSchemaVersion": {
@@ -64,7 +65,8 @@
         },
         "algorithmVersion": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Canonical compatibility identifier published by the trusted plugin registry."
         }
       }
     },

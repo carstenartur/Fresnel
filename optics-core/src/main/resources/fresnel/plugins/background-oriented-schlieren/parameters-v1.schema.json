@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Fresnel/schemas/plugins/background-oriented-schlieren/parameters-v1.schema.json",
+  "title": "Background-Oriented Schlieren target",
+  "description": "Deterministic random-dot target for qualitative visualization of refractive-index gradients in air.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "widthPx",
+    "heightPx",
+    "intendedDpi",
+    "patternSeed",
+    "dotDiameterPx",
+    "targetFillRatio",
+    "minimumDotSpacingPx",
+    "borderPx",
+    "fiducialsEnabled",
+    "invertPattern"
+  ],
+  "properties": {
+    "widthPx": {
+      "type": "integer",
+      "title": "Target width",
+      "description": "Source raster width. For a screen target, one source pixel per display pixel gives the sharpest pattern.",
+      "minimum": 320,
+      "maximum": 6000,
+      "default": 1600,
+      "x-fresnel-unit": "px",
+      "x-fresnel-step": 1,
+      "x-fresnel-expensive": true
+    },
+    "heightPx": {
+      "type": "integer",
+      "title": "Target height",
+      "description": "Source raster height. Width times height is additionally limited by the backend.",
+      "minimum": 240,
+      "maximum": 6000,
+      "default": 1000,
+      "x-fresnel-unit": "px",
+      "x-fresnel-step": 1,
+      "x-fresnel-expensive": true
+    },
+    "intendedDpi": {
+      "type": "number",
+      "title": "Intended print resolution",
+      "description": "Physical resolution embedded in the downloaded PNG. Print at 100% scale to preserve this size.",
+      "minimum": 50.0,
+      "maximum": 2400.0,
+      "default": 150.0,
+      "x-fresnel-unit": "dpi",
+      "x-fresnel-step": 1.0,
+      "x-fresnel-precision": 1
+    },
+    "patternSeed": {
+      "type": "integer",
+      "title": "Pattern seed",
+      "description": "Reproduces exactly the same dot positions when every other parameter is unchanged.",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "default": 20260823,
+      "x-fresnel-step": 1
+    },
+    "dotDiameterPx": {
+      "type": "integer",
+      "title": "Dot diameter",
+      "description": "Diameter of each circular correlation feature in source pixels.",
+      "minimum": 2,
+      "maximum": 32,
+      "default": 7,
+      "x-fresnel-unit": "px",
+      "x-fresnel-step": 1
+    },
+    "targetFillRatio": {
+      "type": "number",
+      "title": "Requested dot fill",
+      "description": "Approximate foreground area within the active analysis region.",
+      "minimum": 0.02,
+      "maximum": 0.25,
+      "default": 0.12,
+      "x-fresnel-step": 0.01,
+      "x-fresnel-precision": 3
+    },
+    "minimumDotSpacingPx": {
+      "type": "integer",
+      "title": "Minimum dot spacing",
+      "description": "Minimum clear edge-to-edge spacing after deterministic jitter.",
+      "minimum": 1,
+      "maximum": 32,
+      "default": 3,
+      "x-fresnel-unit": "px",
+      "x-fresnel-step": 1
+    },
+    "borderPx": {
+      "type": "integer",
+      "title": "Quiet border",
+      "description": "Border excluded from local displacement analysis. Optional orientation markers are placed only here.",
+      "minimum": 24,
+      "maximum": 512,
+      "default": 64,
+      "x-fresnel-unit": "px",
+      "x-fresnel-step": 1
+    },
+    "fiducialsEnabled": {
+      "type": "boolean",
+      "title": "Orientation markers",
+      "description": "Draw four asymmetric markers outside the active region for later target detection and perspective registration.",
+      "default": true
+    },
+    "invertPattern": {
+      "type": "boolean",
+      "title": "Invert black and white",
+      "description": "Use bright dots on a dark background instead of dark dots on a bright background.",
+      "default": false
+    }
+  },
+  "default": {
+    "widthPx": 1600,
+    "heightPx": 1000,
+    "intendedDpi": 150.0,
+    "patternSeed": 20260823,
+    "dotDiameterPx": 7,
+    "targetFillRatio": 0.12,
+    "minimumDotSpacingPx": 3,
+    "borderPx": 64,
+    "fiducialsEnabled": true,
+    "invertPattern": false
+  }
+}

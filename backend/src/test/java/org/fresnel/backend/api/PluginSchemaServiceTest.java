@@ -39,7 +39,8 @@ class PluginSchemaServiceTest {
             "window-foil", WindowFoilRequest.class,
             "multi-focus", MultiFocusRequest.class,
             "rgb-zone-plate", RgbZonePlateRequest.class,
-            "hologram", HologramRequest.class);
+            "hologram", HologramRequest.class,
+            "background-oriented-schlieren", BosTargetRequest.class);
 
     @Autowired PluginSchemaService service;
     @Autowired ObjectMapper mapper;
@@ -50,7 +51,7 @@ class PluginSchemaServiceTest {
         assertEquals(
                 PluginRegistry.ALL.stream().map(PluginDescriptor::id).toList(),
                 service.all().stream().map(PluginSchemaDocument::pluginId).toList());
-        assertEquals(7, service.all().size());
+        assertEquals(8, service.all().size());
 
         for (PluginDescriptor descriptor : PluginRegistry.ALL) {
             PluginSchemaDocument document = service.requireByPluginId(descriptor.id());
@@ -128,6 +129,22 @@ class PluginSchemaServiceTest {
         assertEquals("radio", ui.get("widgets").get("lineOrientation").get("type").asText());
         assertEquals(2, service.requireByPluginId("variable-line-grating")
                 .parameterSchema().get("properties").get("lineOrientation").get("enum").size());
+    }
+
+    @Test
+    void bosUiCoversEveryBoundedTargetParameterWithoutLoadingAnUntrustedExtension() {
+        PluginSchemaDocument bos = service.requireByPluginId("background-oriented-schlieren");
+        JsonNode ui = bos.uiSchema();
+        assertEquals("number-with-presets",
+                ui.get("widgets").get("widthPx").get("type").asText());
+        assertEquals("number-with-presets",
+                ui.get("widgets").get("dotDiameterPx").get("type").asText());
+        assertFalse(ui.has("extensions"));
+        assertEquals(10, bos.parameterSchema().get("properties").size());
+        long defaultPixels = (long) bos.defaults().get("widthPx").asInt()
+                * bos.defaults().get("heightPx").asInt();
+        assertTrue(defaultPixels < 24_000_000L,
+                "default target must remain below the hard pixel limit");
     }
 
     @Test

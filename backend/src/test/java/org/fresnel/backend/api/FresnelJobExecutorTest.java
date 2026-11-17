@@ -98,6 +98,38 @@ class FresnelJobExecutorTest {
     }
 
     @Test
+    void bosProductionPlanReproducesTheSameTargetThroughTheCommonExecutor() throws Exception {
+        byte[] job = Files.readAllBytes(repositoryFile(
+                "examples/background-oriented-schlieren/screen-target.fresnel"));
+
+        Map<String, byte[]> firstBytes = new LinkedHashMap<>();
+        FresnelJobExecutionResult first = executor.execute(
+                job,
+                (artifact, content) -> firstBytes.put(artifact.filename(), content.clone()));
+        Map<String, byte[]> secondBytes = new LinkedHashMap<>();
+        FresnelJobExecutionResult second = executor.execute(
+                job,
+                (artifact, content) -> secondBytes.put(artifact.filename(), content.clone()));
+
+        assertEquals("background-oriented-schlieren", first.job().plugin().id());
+        assertEquals("background-oriented-schlieren/1",
+                first.job().plugin().algorithmVersion());
+        assertEquals(1, first.artifacts().size());
+        GeneratedArtifact artifact = first.artifacts().getFirst();
+        assertEquals("bos-target.png", artifact.filename());
+        assertEquals("image/png", artifact.mediaType());
+        assertEquals(1920, artifact.widthPx());
+        assertEquals(1080, artifact.heightPx());
+        assertEquals(300.0, artifact.dpi());
+        assertTrue(artifact.normalizedSha256().matches("[0-9a-f]{64}"));
+        assertEquals(first.job().provenance().parameterSha256(),
+                second.job().provenance().parameterSha256());
+        assertArrayEquals(firstBytes.get("bos-target.png"), secondBytes.get("bos-target.png"));
+        assertEquals(artifact.normalizedSha256(),
+                second.artifacts().getFirst().normalizedSha256());
+    }
+
+    @Test
     void executionRequiresProductionInstructions() throws Exception {
         FresnelJobExecutionResult source = executor.execute(
                 Files.readAllBytes(repositoryFile(

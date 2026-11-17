@@ -34,6 +34,7 @@ public final class PluginRegistry {
             "ZonePlateRenderer",
             "SingleZonePlateParameters",
             "docs/plugins/zone-plate.md",
+            "zone-plate/1",
             PluginStabilityLevel.STABLE,
             Set.of(
                     PluginCapability.EXPORT_PNG,
@@ -59,6 +60,7 @@ public final class PluginRegistry {
             "VariableLineGratingRenderer",
             "VariableLineGratingParameters",
             "docs/plugins/variable-line-grating.md",
+            "variable-line-grating/1",
             PluginStabilityLevel.BETA,
             Set.of(
                     PluginCapability.EXPORT_PNG,
@@ -81,6 +83,7 @@ public final class PluginRegistry {
             "RgbZonePlateRenderer",
             "RgbZonePlateParameters",
             "docs/plugins/rgb-zone-plate.md",
+            "rgb-zone-plate/1",
             PluginStabilityLevel.STABLE,
             Set.of(
                     PluginCapability.EXPORT_PNG,
@@ -99,6 +102,7 @@ public final class PluginRegistry {
             "MultiFocusRenderer",
             "MultiFocusParameters",
             "docs/plugins/multi-focus.md",
+            "multi-focus/1",
             PluginStabilityLevel.STABLE,
             Set.of(
                     PluginCapability.EXPORT_PNG,
@@ -117,6 +121,7 @@ public final class PluginRegistry {
             "HexMacroCellRenderer",
             "HexMacroCellParameters",
             "docs/plugins/hex-macro-cell.md",
+            "hex-macro-cell/1",
             PluginStabilityLevel.STABLE,
             Set.of(
                     PluginCapability.EXPORT_PNG,
@@ -136,6 +141,7 @@ public final class PluginRegistry {
             "WindowFoilRenderer",
             "WindowFoilParameters",
             "docs/plugins/window-foil.md",
+            "window-foil/1",
             PluginStabilityLevel.STABLE,
             Set.of(
                     PluginCapability.EXPORT_PNG,
@@ -155,6 +161,7 @@ public final class PluginRegistry {
             "HologramSynthesizer",
             "HologramParameters",
             "docs/plugins/hologram.md",
+            "hologram/1",
             PluginStabilityLevel.STABLE,
             Set.of(
                     PluginCapability.EXPORT_PNG,
@@ -163,6 +170,26 @@ public final class PluginRegistry {
             ),
             Set.of(),
             schema("hologram", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
+    );
+
+    /** Deterministic dot target for qualitative Background-Oriented Schlieren experiments. */
+    public static final PluginDescriptor BACKGROUND_ORIENTED_SCHLIEREN = new PluginDescriptor(
+            "background-oriented-schlieren",
+            PluginKind.MEASUREMENT,
+            "Background Schlieren",
+            "Make apparent air-flow distortions visible with a printed or displayed dot target",
+            "BosTargetGenerator",
+            "BosTargetParameters",
+            "docs/plugins/background-oriented-schlieren.md",
+            "background-oriented-schlieren/1",
+            PluginStabilityLevel.EXPERIMENTAL,
+            Set.of(
+                    PluginCapability.GENERATE_CAPTURE_TARGET,
+                    PluginCapability.EXPORT_PNG,
+                    PluginCapability.PREVIEW_PNG
+            ),
+            Set.of(),
+            schema("background-oriented-schlieren", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
     );
 
     /**
@@ -176,7 +203,8 @@ public final class PluginRegistry {
             WINDOW_FOIL,
             MULTI_FOCUS,
             RGB_ZONE_PLATE,
-            HOLOGRAM
+            HOLOGRAM,
+            BACKGROUND_ORIENTED_SCHLIEREN
     );
 
     private static final Map<String, PluginDescriptor> BY_ID =
@@ -251,6 +279,11 @@ public final class PluginRegistry {
             if (!BY_ID.containsKey(descriptor.id())) {
                 throw new IllegalStateException(
                         "BY_ID index is out of sync for id: " + descriptor.id());
+            }
+            if (!descriptor.algorithmVersion().startsWith(descriptor.id())) {
+                throw new IllegalStateException(
+                        "algorithm version must be namespaced by plugin id: "
+                                + descriptor.algorithmVersion());
             }
         }
     }

@@ -15,7 +15,8 @@ export type FresnelPluginId =
   | 'window-foil'
   | 'multi-focus'
   | 'rgb-zone-plate'
-  | 'hologram';
+  | 'hologram'
+  | 'background-oriented-schlieren';
 
 export interface FresnelJobPluginRef {
   id: FresnelPluginId;
@@ -62,10 +63,14 @@ export function createFresnelJob<T>(
   pluginId: FresnelPluginId,
   parameters: T,
   parameterSchemaVersion: number,
+  algorithmVersion: string,
   sourceJob?: FresnelJobDocument<unknown> | null,
 ): FresnelJobDocument<T> {
   if (!Number.isInteger(parameterSchemaVersion) || parameterSchemaVersion < 1) {
     throw new Error('Plugin parameter schema version must be a positive integer.');
+  }
+  if (!algorithmVersion?.trim()) {
+    throw new Error('Plugin algorithm version must be a non-empty string.');
   }
 
   const reusableSource = sourceJob?.plugin.id === pluginId ? sourceJob : null;
@@ -79,7 +84,8 @@ export function createFresnelJob<T>(
       id: pluginId,
       parameterSchemaVersion:
         reusableSource?.plugin.parameterSchemaVersion ?? parameterSchemaVersion,
-      algorithmVersion: reusableSource?.plugin.algorithmVersion ?? `${pluginId}/1`,
+      algorithmVersion:
+        reusableSource?.plugin.algorithmVersion ?? algorithmVersion.trim(),
     },
     parameters,
     production: reusableSource?.production,
@@ -92,13 +98,50 @@ export function createFresnelJob<T>(
   };
 }
 
+/** Current call shape: algorithm metadata comes from the trusted registry. */
 export async function saveFresnelJob<T>(
   pluginId: FresnelPluginId,
   parameters: T,
   parameterSchemaVersion: number,
-  filename = `fresnel-${pluginId}${FRESNEL_JOB_EXTENSION}`,
+  algorithmVersion: string,
+  filename?: string,
   sourceJob?: FresnelJobDocument<unknown> | null,
+): Promise<void>;
+
+/** Compatibility call used by grounded copilot proposals that already contain a canonical job. */
+export async function saveFresnelJob<T>(
+  pluginId: FresnelPluginId,
+  parameters: T,
+  parameterSchemaVersion: number,
+  filename: string,
+  sourceJob: FresnelJobDocument<unknown>,
+): Promise<void>;
+
+export async function saveFresnelJob<T>(
+  pluginId: FresnelPluginId,
+  parameters: T,
+  parameterSchemaVersion: number,
+  algorithmVersionOrFilename: string,
+  filenameOrSourceJob?: string | FresnelJobDocument<unknown> | null,
+  sourceJobMaybe?: FresnelJobDocument<unknown> | null,
 ): Promise<void> {
+  let algorithmVersion: string;
+  let filename: string;
+  let sourceJob: FresnelJobDocument<unknown> | null | undefined;
+
+  if (isFresnelJobDocument(filenameOrSourceJob)) {
+    const canonicalSourceJob = filenameOrSourceJob;
+    sourceJob = canonicalSourceJob;
+    algorithmVersion = canonicalSourceJob.plugin.algorithmVersion;
+    filename = algorithmVersionOrFilename;
+  } else {
+    sourceJob = sourceJobMaybe;
+    algorithmVersion = algorithmVersionOrFilename;
+    filename = typeof filenameOrSourceJob === 'string'
+      ? filenameOrSourceJob
+      : `fresnel-${pluginId}${FRESNEL_JOB_EXTENSION}`;
+  }
+
   const response = await fetch(`${BASE}/api/designs/job/save`, {
     method: 'POST',
     headers: {
@@ -109,6 +152,7 @@ export async function saveFresnelJob<T>(
       pluginId,
       parameters,
       parameterSchemaVersion,
+      algorithmVersion,
       sourceJob,
     )),
   });
@@ -156,6 +200,13 @@ function isLegacyDesignDocument(value: unknown): boolean {
     && typeof value.version === 'number'
     && 'payload' in value
     && !('format' in value);
+}
+
+function isFresnelJobDocument(value: unknown): value is FresnelJobDocument<unknown> {
+  return isRecord(value)
+    && isRecord(value.plugin)
+    && typeof value.plugin.id === 'string'
+    && typeof value.plugin.algorithmVersion === 'string';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

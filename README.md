@@ -12,9 +12,10 @@
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Fcarstenartur%2Ffresnel-blue?logo=docker)](https://github.com/carstenartur/Fresnel/pkgs/container/fresnel)
 [![DOI](https://zenodo.org/badge/1224875238.svg)](https://doi.org/10.5281/zenodo.20838658)
 
-Fresnel is an open platform for **computational diffractive optics**. It combines
-optical models, deterministic renderers, validation, manufacturing exports,
-reproducible `.fresnel` jobs and a React/Spring Boot application.
+Fresnel is an open platform for **computational diffractive optics and
+reproducible optical measurement workflows**. It combines optical models,
+deterministic renderers and measurement targets, validation, manufacturing
+exports, reproducible `.fresnel` jobs and a React/Spring Boot application.
 
 ## Capabilities
 
@@ -23,14 +24,20 @@ reproducible `.fresnel` jobs and a React/Spring Boot application.
 - hexagonal macro cells and printable window foils;
 - Gerchberg–Saxton computer-generated holograms;
 - orientation-specific variable-line printer calibration gratings;
+- deterministic Background-Oriented Schlieren random-dot targets with
+  versioned manifests and semantic SHA-256 evidence;
 - optical propagation and quality analysis;
 - PNG, SVG, PDF, DXF, Gerber, STL and trusted-profile PCL production paths;
-- versioned plugin schemas and deterministic `.fresnel` job execution.
+- versioned plugin schemas and deterministic `.fresnel` job execution;
+- provider-neutral, exact-once camera-capture contracts with visible redacted
+  connection status.
 
 ## Project structure
 
 - **`optics-core/`** — pure Java optical models, renderers, validators and
   production exporters.
+- **`measurement-core/`** — framework-free target, session, capture-plan and
+  capture-provider contracts for measurement plugins.
 - **`backend/`** — Spring Boot REST API, job execution, persistence, security,
   desktop integration and bundled SPA hosting.
 - **`frontend/`** — React, TypeScript and Vite single-page application.
@@ -143,9 +150,10 @@ java -jar backend-<version>.jar
 
 Fresnel uses stateless HTTP Basic authentication.
 
-Public analytical endpoints include validation, bounded previews and design
-recommendations. Mutating operations, manufacturing exports and all render-job
-lifecycle endpoints require authentication.
+Public analytical endpoints include validation, bounded previews, deterministic
+measurement-target manifests and design recommendations. Mutating operations,
+production downloads, manufacturing exports and all render-job lifecycle
+endpoints require authentication.
 
 The loopback-only local profile seeds development accounts. Their credential
 values are deliberately not repeated in this public README. Never expose the
@@ -216,19 +224,25 @@ validated artifact is published from `main`.
 
 ## Plugins
 
-| Plugin | Description |
-|---|---|
-| [Zone Plate](docs/plugins/zone-plate.md) | single binary or greyscale zone plate |
-| [RGB Zone Plate](docs/plugins/rgb-zone-plate.md) | multi-wavelength composite |
-| [Multi-Focus](docs/plugins/multi-focus.md) | multiple focal targets |
-| [Hex Macro Cell](docs/plugins/hex-macro-cell.md) | hexagonal sub-element array |
-| [Window Foil](docs/plugins/window-foil.md) | printable tiled sheet |
-| [Hologram](docs/plugins/hologram.md) | computer-generated hologram |
-| [Variable Line Grating](docs/plugins/variable-line-grating.md) | orientation-specific printer calibration |
+| Plugin | Kind | Description |
+|---|---|---|
+| [Zone Plate](docs/plugins/zone-plate.md) | Design | single binary or greyscale zone plate |
+| [RGB Zone Plate](docs/plugins/rgb-zone-plate.md) | Design | multi-wavelength composite |
+| [Multi-Focus](docs/plugins/multi-focus.md) | Design | multiple focal targets |
+| [Hex Macro Cell](docs/plugins/hex-macro-cell.md) | Design | hexagonal sub-element array |
+| [Window Foil](docs/plugins/window-foil.md) | Design | printable tiled sheet |
+| [Hologram](docs/plugins/hologram.md) | Design | computer-generated hologram |
+| [Variable Line Grating](docs/plugins/variable-line-grating.md) | Design | orientation-specific printer calibration |
+| [Background-Oriented Schlieren](docs/plugins/background-oriented-schlieren.md) | Measurement | deterministic random-dot target and reproduction manifest |
+
+The BOS plugin is intentionally marked experimental. This release slice creates
+and reproduces the target; it does not yet claim camera-image registration,
+displacement analysis, temperature or flow measurements.
 
 ## Documentation
 
 - [Documentation index](docs/index.md)
+- [Measurement plugin architecture](docs/measurement-plugins.md)
 - [Experiments handbook](docs/experiments/first-zone-plate.md)
 - [Plugin schema architecture](docs/plugin-schemas.md)
 - [Secure deployment](docs/security/deployment.md)

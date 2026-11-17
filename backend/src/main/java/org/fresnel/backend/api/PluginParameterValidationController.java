@@ -1,6 +1,7 @@
 package org.fresnel.backend.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import org.fresnel.optics.PluginDescriptor;
 import org.fresnel.optics.PluginRegistry;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -48,12 +49,16 @@ public class PluginParameterValidationController {
             return ResponseEntity.notFound().build();
         }
 
+        PluginDescriptor descriptor = PluginRegistry.requireById(pluginId);
         int schemaVersion = schemaService.requireByPluginId(pluginId).parameterSchemaVersion();
         FresnelJobDocument candidate = new FresnelJobDocument(
                 FresnelJobDocument.SCHEMA_URL,
                 FresnelJobDocument.FORMAT_IDENTIFIER,
                 FresnelJobDocument.CURRENT_FORMAT_VERSION,
-                new FresnelJobDocument.PluginRef(pluginId, schemaVersion, pluginId + "/1"),
+                new FresnelJobDocument.PluginRef(
+                        pluginId,
+                        schemaVersion,
+                        descriptor.algorithmVersion()),
                 parameters,
                 null,
                 null);
