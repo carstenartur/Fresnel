@@ -40,3 +40,20 @@ Open **Test exposures and object region** after preparing the sequence. Map the 
 Drag across the preview or set the four percentage boundaries to select a rectangular region. The solve retains the source grid dimensions and masks pixels outside this region. Saved experiments restore that selection, and the result records its normalized bounds. A geometry job can also be used independently of camera media.
 
 Select **Camera exposure** in the result layers to compare the original mapped frame with the measured relighting. Relit PNGs carry the sequence identity, region and numeric light position, intensity and ambient level in the PNG text metadata.
+
+
+## Optional physical Canon run
+
+Fix the camera on a tripod beside or above the display. With a matte test object
+facing the display, set manual exposure, ISO, focus and white balance. Measure
+the screen dimensions and the offsets from its center to the lens. Start with
+the flat exposure and opposite directional patches. Adjust exposure until the
+setup inspector shows detail on the brightest patch and a usable response on
+both sides of the object.
+
+Use the ordinary mapped-files workflow for camera JPEGs. For a paired camera,
+select the device in Photographer, confirm the connection in Fresnel and run
+the synchronized sequence if the adapter advertises the required capture and
+media capabilities. Record the physical setup and retain the originals when
+comparing repeated runs. The automated acceptance suite uses a mock camera.
+[Photographer provider guide](../integrations/photographer-provider.md)

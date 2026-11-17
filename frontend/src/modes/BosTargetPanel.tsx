@@ -1,5 +1,6 @@
+import type { Region } from '../measurement/bosReferenceQuality';
 import {targetEvidence} from '../measurement/bosTargetEvidence';
-import type {PairedBosCapture} from '../measurement/bosPairedCapture';
+import type {BosAcquisition} from '../measurement/bosPairedCapture';
 import { useRef, useState } from 'react';
 import type { FresnelProductionOutput } from '../jobApi';
 import {
@@ -22,7 +23,12 @@ import { PluginEditorShell } from '../schema/PluginEditorShell';
 import { PreviewPane, useBlobUrl } from './shared';
 import './BosTargetPanel.css';
 import { BosSequencePanel } from '../measurement/BosSequencePanel';
+import { MeasurementWorkflow, type WorkflowSource } from '../measurement/MeasurementWorkflow';
 import { BosStillPairPanel } from '../measurement/BosStillPairPanel';
+
+const pairSource: WorkflowSource = {key:'bos/pair', label:'Still pair', captureId:'bos-pair', analysisId:'bos-analyze-pair', archiveId:'bos-pair-archive', planned:2};
+const sequenceSource: WorkflowSource = {key:'bos/series', label:'Image sequence or video', captureId:'bos-series', analysisId:'bos-analyze-series', archiveId:'bos-series-archive', planned:2};
+const cameraSource: WorkflowSource = {key:'bos/camera', label:'Paired Photographer', captureId:'bos-camera-acquisition', analysisId:'bos-camera-acquisition', archiveId:'bos-pair-archive', planned:2, requiresSession:true};
 
 const DEFAULT: BosTargetRequest = {
   widthPx: 1600,
@@ -43,8 +49,9 @@ interface GeneratedTarget {
 }
 
 export function BosTargetPanel({ initialJob, pairedCapture, photographerAvailable }: JobPanelProps & {
-  pairedCapture?:PairedBosCapture; photographerAvailable?:boolean;
+  pairedCapture?:BosAcquisition; photographerAvailable?:boolean;
 }) {
+  const [explicitRegion, setExplicitRegion] = useState<Region | null>(null);
   const [request, setRequest] = useState<BosTargetRequest>(() =>
     initialJobParameters(initialJob, 'background-oriented-schlieren', DEFAULT));
   const outputs: FresnelProductionOutput[] = initialJob?.production?.outputs ?? [
@@ -147,6 +154,9 @@ export function BosTargetPanel({ initialJob, pairedCapture, photographerAvailabl
         disabled={busy}
         applyDefaultsOnLoad={!initialJob}
         domainValidationEnabled={false}
+        header={schema=>schema.uiSchema.extensions?.includes('measurement-workflow') &&
+          <MeasurementWorkflow sources={photographerAvailable ? [pairSource,sequenceSource,cameraSource] : [pairSource,sequenceSource]}
+            targetId="parameters-background-oriented-schlieren" target={currentManifest?.targetId} targetError={error}/>}
       >
         {(schema, structuralValidation) => {
           const normalized = structuralValidation?.valid
@@ -258,8 +268,8 @@ export function BosTargetPanel({ initialJob, pairedCapture, photographerAvailabl
         const acquisition=document.getElementById('bos-camera-acquisition') as HTMLDetailsElement|null;
         if(acquisition){acquisition.open=true;acquisition.scrollIntoView({block:'center'});acquisition.querySelector('summary')?.focus();}
       }}>Open paired Photographer capture</button>}
-      <BosStillPairPanel pairedCapture={pairedCapture} manifest={currentManifest} target={targetEvidence(currentManifest, request)} />
-      <BosSequencePanel target={targetEvidence(currentManifest, request)} />
+      <BosStillPairPanel explicitRegion={explicitRegion} onExplicitRegion={setExplicitRegion} pairedCapture={pairedCapture && 'files' in pairedCapture ? pairedCapture : undefined} manifest={currentManifest} target={targetEvidence(currentManifest, request)} />
+      <BosSequencePanel stillRegion={explicitRegion} pairedCapture={pairedCapture && 'frames' in pairedCapture ? pairedCapture : undefined} target={targetEvidence(currentManifest, request)} />
     </>
   );
 }

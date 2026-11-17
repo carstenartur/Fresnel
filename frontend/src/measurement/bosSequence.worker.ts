@@ -1,3 +1,4 @@
+import { fullFrame, type Region } from './bosReferenceQuality';
 import { stabilize, type CameraModel } from './bosCameraModel';
 import { analyzePair, register, type LocalSearch, type GrayFrame, type PairResult } from './bosDisplacement';
 import { decodeFrame } from './bosImage';
@@ -5,10 +6,11 @@ import { decodeFrame } from './bosImage';
 export interface FrameInput {
   file: File;
   presentedTimeSeconds?: number;
+  croppedSourceRegion?: Region;
   sourceWidth?: number;
   sourceHeight?: number;
 }
-export type Request = { kind: 'reference'; inputs: FrameInput[]; cameraModel: CameraModel; localSearch: LocalSearch } | { kind: 'frame'; input: FrameInput };
+export type Request = { kind: 'reference'; inputs: FrameInput[]; cameraModel: CameraModel; localSearch: LocalSearch; region: Region } | { kind: 'frame'; input: FrameInput };
 export type Reply =
   | { kind: 'ready'; sourceHashes: string[]; pixelSha256: string; width: number; height: number }
   | {
@@ -18,16 +20,19 @@ export type Reply =
       sha256: string;
       sourceWidth: number;
       sourceHeight: number;
+      sourceRegion: Region;
+      sourcePixelsPerAnalysisPixel: { x: number; y: number };
     }
   | { kind: 'error'; message: string };
 let reference: GrayFrame | undefined;
+let region = fullFrame;
 let cameraModel: CameraModel = 'translation';
 let localSearch: LocalSearch = 'pyramid';
 let width = 0,
   height = 0;
 
 async function read(input: FrameInput) {
-  const { frame, metadata } = await decodeFrame(input.file);
+  const { frame, metadata } = await decodeFrame(input.file, input.croppedSourceRegion ? fullFrame : region);
   const w = input.sourceWidth ?? metadata.sourceWidth,
     h = input.sourceHeight ?? metadata.sourceHeight;
   if (!width) {
@@ -36,7 +41,11 @@ async function read(input: FrameInput) {
   }
   if (w !== width || h !== height)
     throw new Error('All oriented source images must have the same dimensions.');
-  return { frame, sha256: metadata.sha256, sourceWidth: w, sourceHeight: h };
+  const sourceRegion = input.croppedSourceRegion ?? metadata.sourceRegion;
+  return {
+    frame, sha256: metadata.sha256, sourceWidth: w, sourceHeight: h, sourceRegion,
+    sourcePixelsPerAnalysisPixel: { x: sourceRegion.width / frame.width, y: sourceRegion.height / frame.height },
+  };
 }
 
 // Warp each median sample onto the first reference grid before taking the temporal median.
@@ -68,6 +77,7 @@ async function process(message: Request): Promise<Reply> {
   if (message.kind === 'reference') {
     if (!message.inputs.length || message.inputs.length > 5)
       throw new Error('Choose 1–5 reference samples.');
+    region = message.region;
     cameraModel = message.cameraModel;
     localSearch = message.localSearch;
     const frames: GrayFrame[] = [];

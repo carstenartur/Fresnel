@@ -80,9 +80,10 @@ public class PlaywrightE2EIT {
         ProcessBuilder command = new ProcessBuilder(
                 node.toString(), npmCli.toString(), "run", "e2e");
         if (photometryNetwork) {
-            command.command().addAll(java.util.List.of("--","photometry-network.spec.ts","--reporter=list",
+            command.command().addAll(java.util.List.of("--","bos-network-sequence.spec.ts","photometry-network.spec.ts","--reporter=list",
                     "--output=" + backend.resolve("target/photometry-network-artifacts")));
             command.environment().put("FRESNEL_PHOTOMETRY_NETWORK_IT", "1");
+            command.environment().put("FRESNEL_BOS_NETWORK_IT", "1");
         }
         command.directory(frontend.toFile());
         command.redirectErrorStream(true);

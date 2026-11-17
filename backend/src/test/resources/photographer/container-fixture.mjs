@@ -1,7 +1,7 @@
 // An independent process serving the public v1 fixture bytes. Only accepted keys advance its mock camera.
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
-import { sourceImage } from './photometry-image.mjs';
+import { sourceImage,bosFrame } from './photometry-image.mjs';
 import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 
 const contract = JSON.parse(readFileSync(new URL('./contract.json',import.meta.url)));
@@ -47,17 +47,18 @@ async function handle(req, res) {
     let result;
     if (path === '/capture-sessions') {
       state.plan = JSON.parse(payload);
-      result = state.plan.workflowType === 'DISPLAY_PHOTOMETRIC_STEREO' ? {...v.sessionRef,sessionId:'capture-display'} : v.sessionRef;
-    } else if (path.startsWith('/capture-sessions/capture-display/steps/')) {
+      result = state.plan.workflowType === 'DISPLAY_PHOTOMETRIC_STEREO' ? {...v.sessionRef,sessionId:'capture-display'} : state.plan.steps.length>2 ? {...v.sessionRef,sessionId:'capture-series'} : v.sessionRef;
+    } else if (path.startsWith('/capture-sessions/capture-display/steps/') || path.startsWith('/capture-sessions/capture-series/steps/')) {
+      const sessionId=path.split('/')[2],series=sessionId==='capture-series';
       const id = path.split('/')[4], presented = JSON.parse(payload);
       const step = state.plan.steps.find(s => s.id === id);
       if (!step || step.externalPatternId !== presented.externalPatternId || step.externalPatternSha256 !== presented.externalPatternSha256)
         return json(res,409,v.PATTERN_MISMATCH);
-      const bytes = sourceImage(id);
-      const asset = {sessionId:'capture-display', assetId:'asset-'+id, stepId:id, role:step.role,
+      const bytes = series?bosFrame(id):sourceImage(id);
+      const asset = {sessionId, assetId:'asset-'+id, stepId:id, role:step.role,
         originalFileName:id+'.png', mediaType:'image/png', byteLength:bytes.length,
-        sha256:createHash('sha256').update(bytes).digest('hex'), capturedAt:new Date().toISOString()};
-      result = {sessionId:'capture-display',stepId:id,asset,completedAt:asset.capturedAt};
+        sha256:createHash('sha256').update(bytes).digest('hex'), capturedAt:series ? new Date(Date.UTC(2026,0,1)+[0,1000,2250,4500][step.sequenceIndex]).toISOString() : new Date().toISOString()};
+      result = {sessionId,stepId:id,asset,completedAt:asset.capturedAt};
     }
     else if (path === '/capture-sessions/capture-bos/steps/reference/trigger') result = v.referenceResult;
     else if (path === '/capture-sessions/capture-bos/steps/disturbed/trigger') result = v.disturbedResult;
@@ -67,12 +68,13 @@ async function handle(req, res) {
     return json(res, result.stepId ? 200 : 201,result);
   }
   if (path === '/capture-sessions/capture-bos') return json(res,200,state.shots === 2 ? v.captureCompleted : v.capturePending);
-  if (path.startsWith('/capture-sessions/capture-display/assets/')) {
+  if (path.startsWith('/capture-sessions/capture-display/assets/') || path.startsWith('/capture-sessions/capture-series/assets/')) {
+    const sessionId=path.split('/')[2];
     const assetId = path.split('/')[4];
-    const asset = Object.values(state.keys).map(x => x.result?.asset).find(a => a?.assetId === assetId);
+    const asset = Object.values(state.keys).map(x => x.result?.asset).find(a => a?.sessionId===sessionId && a.assetId === assetId);
     if (!asset) return json(res,404,v.ASSET_NOT_FOUND);
     if (path.endsWith('/metadata')) return json(res,200,asset);
-    const bytes = sourceImage(asset.stepId);
+    const bytes = sessionId==='capture-series'?bosFrame(asset.stepId):sourceImage(asset.stepId);
     res.writeHead(200,{'Content-Type':'image/png','Content-Length':bytes.length,ETag:'"'+asset.sha256+'"'});
     return res.end(bytes);
   }

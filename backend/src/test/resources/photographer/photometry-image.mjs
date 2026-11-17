@@ -11,6 +11,27 @@ export function sourceImage(step) {
     const linear = step === 'dark' ? .015 : step === 'flat' ? .015 + texture : .015 + texture*cosine**4;
     bytes[y*(w+1)+1+x] = Math.round(255*linear**(1/2.2));
   }
+  return encodeGray(w,h,bytes);
+}
+
+export function bosFrame(step) {
+  const w=160, h=128, stride=w+1;
+  const source=Buffer.alloc(w*h);
+  let seed=1944;
+  for(let i=0;i<source.length;i++) {
+    seed=(Math.imul(1664525,seed)+1013904223)>>>0;
+    source[i]=seed>>>24;
+  }
+  const amount=step==='reference'?0:Number(step.slice(6));
+  const bytes=Buffer.alloc(stride*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++) {
+    const dx=x>52 && x<108 && y>38 && y<98 ? amount : 0;
+    bytes[y*stride+x+1]=source[y*w+x-dx];
+  }
+  return encodeGray(w,h,bytes);
+}
+
+function encodeGray(w,h,bytes) {
   const chunk = (name, data) => {
     const type = Buffer.from(name);
     const header = Buffer.alloc(4); header.writeUInt32BE(data.length);

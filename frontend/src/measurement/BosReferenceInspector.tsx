@@ -57,7 +57,11 @@ const percent = (value: number) => (value * 100).toFixed(1) + '%';
 const px = (value: number | null) => (value === null ? 'Insufficient edges' : value.toFixed(1) + ' px');
 const keys = ['x', 'y', 'width', 'height'] as const;
 const names = ['Left', 'Top', 'Width', 'Height'];
-function ManualRegion({ region, apply }: { region: Region; apply: (r: Region | null) => void }) {
+export function ManualRegion({ region, apply, resetLabel = 'Use automatic region' }: {
+  region: Region;
+  apply: (r: Region | null) => void;
+  resetLabel?: string;
+}) {
   const [values, setValues] = useState(() => keys.map((k) => (region[k] * 100).toFixed(2)));
   const [error, setError] = useState('');
   return (
@@ -101,7 +105,7 @@ function ManualRegion({ region, apply }: { region: Region; apply: (r: Region | n
         Apply region
       </button>
       <button type="button" onClick={() => apply(null)}>
-        Use automatic region
+        {resetLabel}
       </button>
       {error && <p>{error}</p>}
     </details>

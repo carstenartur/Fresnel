@@ -68,7 +68,7 @@ class PhotographerContainerIT {
             assertEquals("2",evidence.getStdout().trim());
         }
     }
-    @Test void capturesAndReopensPhotometryUsingTheRealBrowserAndBackend() throws Exception {
+    @Test void capturesAndReopensBothMeasurementPluginsUsingTheRealBrowserAndBackend() throws Exception {
         try (var remote = fixture()) {
             remote.start();
             var origin = "http://" + remote.getHost() + ":" + remote.getMappedPort(8080);
@@ -79,13 +79,14 @@ class PhotographerContainerIT {
                     "--fresnel.capture.photographer.trust-private-network=true",
                     "--fresnel.capture.photographer.directory=" + data.resolve("pair"),
                     "--fresnel.capture.photographer.journal-directory=" + data.resolve("journal"),
+                    "--fresnel.capture.photographer.experiments-directory=" + data.resolve("bos"),
                     "--fresnel.measurements.directory=" + data.resolve("experiments"))) {
                 app.getBean(PhotographerPairing.class).pair("test-only-code-fixture");
                 var port = app.getEnvironment().getRequiredProperty("local.server.port");
                 org.fresnel.backend.e2e.PlaywrightE2EIT.runBrowser(java.net.URI.create("http://127.0.0.1:" + port), true);
                 var count = remote.execInContainer("node","-p","require('/tmp/capture-state.json').shots");
                 assertEquals(0, count.getExitCode());
-                assertEquals("6", count.getStdout().trim());
+                assertEquals("10", count.getStdout().trim());
             }
         }
     }

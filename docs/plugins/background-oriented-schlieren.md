@@ -68,6 +68,13 @@ and scale. The source files retain their original pixels.
    keep the source images and result together in an owner-scoped session and
    export a checksummed experiment bundle.
 
+![Stabilized dot field beside the vector map of a local two-pixel shift](../assets/plugins/background-oriented-schlieren/paired-vector-map.png)
+
+In this browser test, a 100 × 90 pixel patch of the generated target moved two
+pixels to the right before the paired mock camera supplied the disturbed image.
+At 2× display amplification the arrows point right inside the displaced patch.
+The surrounding field provides the stationary registration reference.
+
 The worker checks each image header before decoding. It accepts PNG and JPEG up
 to 20 MiB, 24 megapixels and 16,384 pixels per side, normalizes orientation, and
 requires equal source dimensions. It composites transparency on white and
@@ -132,6 +139,12 @@ media presentation timestamp reported by the browser for each decoded frame.
 
 Use a separate undisturbed still or the first frame for a fixed reference.
 The selected camera motion model applies to every frame and to median preparation.
+By default all frames use the full image. Under **Adjust analysis region**, a
+manually chosen rectangle applies to every reference sample and measurement
+frame, before resizing. **Use the manually selected still-pair region** copies
+the operator's existing selection only when clicked. A saved sequence retains
+its own selection. The result records the native source-pixel rectangle and
+conversion to analysis-pixel units for each frame.
 Temporal median registers three or five samples spread across the sequence
 onto the first sample before taking their per-pixel median. It requires at
 least three frames with sufficient stable texture. Each subsequent frame is

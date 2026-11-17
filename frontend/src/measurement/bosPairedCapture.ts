@@ -7,6 +7,8 @@ export interface BosOrigin {
   provider: 'photographer-rest';
   captureId: string;
   cameraSelection?: string;
+  lockExposure?: boolean;
+  lockFocus?: boolean;
   reference: BosExposure;
   disturbed: BosExposure;
 }
@@ -53,7 +55,40 @@ export function readBosOrigin(value: unknown): BosOrigin | null {
     ...(typeof v.cameraSelection === 'string' && /^[a-f0-9]{64}$/.test(v.cameraSelection)
       ? { cameraSelection: v.cameraSelection }
       : {}),
+    ...(typeof v.lockExposure === 'boolean' ? { lockExposure: v.lockExposure } : {}),
+    ...(typeof v.lockFocus === 'boolean' ? { lockFocus: v.lockFocus } : {}),
     reference: fields(v.reference),
     disturbed: fields(v.disturbed),
+  };
+}
+
+export interface BosSeriesOrigin extends Omit<BosOrigin, 'disturbed'> {
+  frames: BosExposure[];
+  lockExposure: boolean;
+  lockFocus: boolean;
+}
+
+export interface PairedBosSeries {
+  origin: BosSeriesOrigin;
+  reference: File;
+  frames: File[];
+}
+export type BosAcquisition = PairedBosCapture | PairedBosSeries;
+
+export function readBosSeriesOrigin(value: unknown): BosSeriesOrigin | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Partial<BosSeriesOrigin>;
+  if (!Array.isArray(v.frames) || v.frames.length < 2 || v.frames.length > 24) return null;
+  const checked = v.frames.map((disturbed) => readBosOrigin({ ...v, disturbed }));
+  if (!checked.every((item): item is BosOrigin => item !== null)) return null;
+  const first = checked[0];
+  return {
+    provider: first.provider,
+    captureId: first.captureId,
+    cameraSelection: first.cameraSelection,
+    reference: first.reference,
+    frames: checked.map((item) => item.disturbed),
+    lockExposure: v.lockExposure === true,
+    lockFocus: v.lockFocus === true,
   };
 }

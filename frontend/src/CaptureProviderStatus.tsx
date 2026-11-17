@@ -1,4 +1,4 @@
-import type {PairedBosCapture} from './measurement/bosPairedCapture';
+import type {BosAcquisition} from './measurement/bosPairedCapture';
 import { useEffect, useRef, useState } from 'react';
 import { PhotographerPairingPanel } from './PhotographerPairingPanel';
 import { BosCapturePanel } from './BosCapturePanel';
@@ -22,7 +22,7 @@ const STATE_LABELS: Record<CaptureProviderHealthState, string> = {
 };
 
 /** Compact global status for Photographer and other capture-provider adapters. */
-export function CaptureProviderStatus({onBosPair,onAvailability}:{onBosPair:(pair:PairedBosCapture)=>void;onAvailability:(value:boolean)=>void}) {
+export function CaptureProviderStatus({onBosPair,onAvailability}:{onBosPair:(pair:BosAcquisition)=>void;onAvailability:(value:boolean)=>void}) {
   const [overview, setOverview] = useState<CaptureProviderOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pairingRevision, setPairingRevision] = useState(0);
@@ -75,6 +75,7 @@ export function CaptureProviderStatus({onBosPair,onAvailability}:{onBosPair:(pai
   return (
     <section
       className={`capture-provider-status state-${state.toLowerCase().replace(/_/g, '-')}${stale ? ' is-stale' : ''}`}
+      id="measurement-camera-status" tabIndex={-1}
       data-testid="capture-provider-status"
       data-state={state}
       data-stale={stale ? 'true' : 'false'}
@@ -114,11 +115,14 @@ export function CaptureProviderStatus({onBosPair,onAvailability}:{onBosPair:(pai
             {overview.providers.map((provider) => (
               <li key={provider.id}>
                 <strong>{provider.displayName}</strong>: {STATE_LABELS[provider.state]}
+                {provider.protocolVersion > 0 && <p>Negotiated protocol · v{provider.protocolVersion}</p>}
+                {!!provider.capabilities?.length && <p>Service capabilities · {provider.capabilities.join(', ')}</p>}
                 {provider.devices.length > 0 && (
                   <ul>
                     {provider.devices.map((device) => (
                       <li key={device.id}>
                         {device.displayName}: {device.state.toLowerCase().replace(/_/g, ' ')}
+                        {!!device.capabilities?.length && <p>Camera capabilities · {device.capabilities.join(', ')}</p>}
                       </li>
                     ))}
                   </ul>

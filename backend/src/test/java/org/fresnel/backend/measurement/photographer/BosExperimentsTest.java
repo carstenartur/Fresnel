@@ -44,6 +44,7 @@ class BosExperimentsTest {
         var registry = mock(CaptureProviderRegistry.class);
         var capture = mock(CaptureProvider.class);
         when(registry.require("photographer-rest")).thenReturn(capture);
+        when(capture.descriptor()).thenReturn(descriptor());
         when(capture.listDevices()).thenReturn(List.of(new CaptureProvider.Device("wire-camera", "Bench camera",
                 CaptureProvider.DeviceState.CONNECTED, Set.of(CaptureProvider.Capability.EXTERNAL_STEP_TRIGGER,
                 CaptureProvider.Capability.STILL_CAPTURE), Set.of(CapturePlan.ImageFormat.PNG))));
@@ -97,5 +98,52 @@ class BosExperimentsTest {
                 () -> service.source("owner", id, "preview")).status());
         assertEquals("COMPLETED", service.get("owner", id).state());
         assertEquals(1, service.list("owner").size());
+    }
+    private static CaptureProvider.Descriptor descriptor() {
+        return new CaptureProvider.Descriptor("photographer-rest", "Camera", 1, 1,
+                Set.of(CaptureProvider.Capability.STILL_CAPTURE, CaptureProvider.Capability.EXTERNAL_STEP_TRIGGER),
+                Set.of(CapturePlan.ImageFormat.PNG), new CaptureProvider.Limits(4, 24000000, java.time.Duration.ofMinutes(1)));
+    }
+
+    @Test void ordersMultipleDisturbedExposuresAcrossRestartAndRejectsUnsupportedPlansBeforeCapture() throws Exception {
+        var pairing = mock(PhotographerPairing.class);
+        var conn = new PhotographerPairing.Connection(URI.create("https://cam.example"), "instance", "grant", "secret", List.of(), descriptor());
+        when(pairing.withConnection(any())).thenAnswer(i -> i.<Function<PhotographerPairing.Connection,Object>>getArgument(0).apply(conn));
+        var registry = mock(CaptureProviderRegistry.class);
+        var provider = mock(CaptureProvider.class);
+        when(registry.require("photographer-rest")).thenReturn(provider);
+        when(provider.descriptor()).thenReturn(descriptor());
+        when(provider.listDevices()).thenReturn(List.of(new CaptureProvider.Device("cam", "Camera", CaptureProvider.DeviceState.CONNECTED, descriptor().capabilities(), descriptor().supportedFormats())));
+        when(provider.createSession(any(), anyString(), anyString())).thenAnswer(i -> {
+            CapturePlan plan = i.getArgument(0);
+            assertEquals(List.of("reference","frame-01","frame-02","frame-03"), plan.steps().stream().map(CapturePlan.Step::id).toList());
+            return new CaptureProvider.SessionRef("r", plan, Instant.EPOCH);
+        });
+        var first = new BosExperiments(pairing, registry, root.toString());
+        var camera = first.cameras().getFirst();
+        var id = UUID.randomUUID();
+        assertEquals(3,camera.maximumDisturbedFrames());
+        assertThrows(PhotographerPairing.Failure.class, () -> first.create("owner",id,camera.id(),4,false,false));
+        assertThrows(PhotographerPairing.Failure.class, () -> first.create("owner",id,camera.id(),3,true,false));
+        verify(provider,never()).createSession(any(),anyString(),anyString());
+        first.create("owner",id,camera.id(),3,false,false);
+        assertThrows(PhotographerPairing.Failure.class, () -> first.create("owner",id,camera.id(),2,false,false));
+        assertThrows(PhotographerPairing.Failure.class, () -> first.confirm("owner",id,"frame-02",false));
+        for (String step : List.of("reference","frame-01","frame-02","frame-03")) {
+            var service = new BosExperiments(pairing,registry,root.toString());
+            byte[] bytes = step.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            var asset = new CaptureProvider.AssetMetadata("r",step,step,step.equals("reference") ? CapturePlan.Role.REFERENCE : CapturePlan.Role.DISTURBED,
+                    step+".png","image/png",bytes.length,HexFormat.of().formatHex(PhotographerJournal.sha256().digest(bytes)),Instant.EPOCH);
+            when(provider.triggerStep(eq("r"),eq(step),any(),anyString())).thenReturn(new CaptureProvider.StepResult("r",step,asset,Instant.EPOCH));
+            when(provider.openAsset("r",step,CaptureProvider.FullAsset.INSTANCE)).thenReturn(new ByteArrayInputStream(bytes));
+            assertEquals(step,service.get("owner",id).nextStep());
+            service.confirm("owner",id,step,false);
+            service.confirm("owner",id,step,false);
+            verify(provider,times(1)).triggerStep(eq("r"),eq(step),any(),anyString());
+            assertArrayEquals(bytes, Files.readAllBytes(service.source("owner",id,step)));
+        }
+        assertEquals("COMPLETED",first.get("owner",id).state());
+        assertEquals(3,first.get("owner",id).frames().size());
+        assertThrows(PhotographerPairing.Failure.class, () -> first.source("other",id,"frame-03"));
     }
 }

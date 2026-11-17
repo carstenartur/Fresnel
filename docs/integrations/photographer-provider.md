@@ -15,6 +15,29 @@ After closing the browser or restarting Fresnel, sign in with the same account a
 
 This two-step workflow records the operator's acknowledgement of a physical reference and disturbed scene. Display photometric stereo additionally requires presentation of each specified raster on the light display and confirmation of the actual presentation before the corresponding exposure. Its display controls and scientific reconstruction are separate Fresnel workflows.
 
+### Ordered BOS stills
+
+The paired camera panel offers one reference and up to 24 disturbed PNG exposures.
+An additional limit comes from the camera service's advertised maximum step count
+minus the reference step. Choose a supported exposure or focus lock before starting.
+Photographer v1 reports image dimensions after capture. Exposures are individually
+triggered, and the timeline uses UTC capture timestamps from Photographer.
+
+A count of one opens the still-pair editor. For two or more, acknowledge each named
+step in order and choose **Use verified sequence in BOS analysis**. Fresnel verifies
+the full source length and SHA-256 for every role and opens the sequence with the
+captured reference. A step completed before a refresh or restart retains its identity.
+If the other service received a trigger whose result was interrupted, confirm the
+physical condition remained unchanged before retrying that step.
+
+The recorded plan includes the chosen camera selection, lock settings and reported
+timestamps. The signed-in operator can reopen the capture or store the same sources
+with their displacement grids in **Saved experiments**. The private camera journal
+contains the original Photographer acknowledgements. The measurement archive
+stores a user-owned copy of those sources, their UTC times, camera selection, and
+checksums. The BOS editor rechecks each archived role against its recorded
+source digest when reopening the sequence.
+
 ## Capture and recovery
 
 A measurement workflow obtains `photographer-rest` from `CaptureProviderRegistry` and passes its durable local experiment ID to `createSession(plan, externalExperimentId, key)`. Use the camera profile ID returned by discovery for that pairing. The workflow must check its local owner before using the saved remote session. It also owns the observation that the intended physical condition or displayed raster remains in place.

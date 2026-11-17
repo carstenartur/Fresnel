@@ -1,13 +1,14 @@
-import {exposureHash, readBosOrigin, type PairedBosCapture} from './measurement/bosPairedCapture';
-import { useEffect, useState, type FormEvent } from 'react';
+import {exposureHash, readBosOrigin,readBosSeriesOrigin, type BosAcquisition} from './measurement/bosPairedCapture';
+import {useMeasurementTrack} from './measurement/MeasurementWorkflow';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 const ROOT = '/api/experiments/bos-captures';
 
-type Step = 'reference' | 'disturbed';
-type Camera = { id: string; name: string };
+type Step = 'reference' | 'disturbed' | `frame-${string}`;
+type Camera = { id: string; name: string; maximumDisturbedFrames?:number; exposureLock?:boolean; focusLock?:boolean };
 type Source = { byteLength: number; sha256: string; capturedAt: string };
-type Capture = { id: string; cameraSelection?:string; state: string; pendingStep: Step | null; reference: Source | null; disturbed: Source | null };
-type PendingCreate = { id: string; cameraId: string };
+type Capture = { id: string; nextStep?:Step; frames?:Record<string,Source>; disturbedCount?:number; lockExposure?:boolean; lockFocus?:boolean; cameraSelection?:string; state: string; pendingStep: Step | null; reference: Source | null; disturbed: Source | null };
+type PendingCreate = { id: string; cameraId: string; disturbedCount?:number; lockExposure?:boolean; lockFocus?:boolean };
 type Operator = { username: string; authorization: string };
 const labels: Record<string, string> = {
   CREATING: 'Preparing capture', WAITING_REFERENCE: 'Awaiting reference',
@@ -55,6 +56,28 @@ async function verifiedPng(operator:Operator,capture:string,step:Step,source:Sou
   return new File([blob],'bos-'+capture+'-'+step+'.png',{type:'image/png'});
 }
 
+async function verifiedSequence(operator:Operator,current:Capture) {
+  const ordered=Object.entries(current.frames ?? {}).sort(([a],[b]) => a.localeCompare(b));
+  if (ordered.length !== current.disturbedCount || !ordered.every(([key],i) => key === 'frame-'+String(i+1).padStart(2,'0')))
+    throw new Error('The completed capture has an incomplete frame sequence.');
+  const origin = readBosSeriesOrigin({
+    provider: 'photographer-rest',
+    captureId: current.id,
+    cameraSelection: current.cameraSelection,
+    reference: current.reference,
+    frames: ordered.map(([,source]) => source),
+    lockExposure: current.lockExposure,
+    lockFocus: current.lockFocus,
+  });
+  if (!origin) throw new Error('The completed capture has incomplete source metadata.');
+  if (origin.frames.reduce((sum,frame) => sum+frame.byteLength, origin.reference.byteLength) > 128*1024*1024)
+    throw new Error('The sequence exceeds 128 MiB.');
+  const reference = await verifiedPng(operator,current.id,'reference',origin.reference);
+  const frames:File[] = [];
+  for (const [step,source] of ordered) frames.push(await verifiedPng(operator,current.id,step as Step,source));
+  return {origin,reference,frames};
+}
+
 function SourceImage({ operator, capture, step, source }: {
   operator: Operator; capture: string; step: Step; source: Source;
 }) {
@@ -85,10 +108,14 @@ function SourceImage({ operator, capture, step, source }: {
   </figure>;
 }
 
-function Acquisition({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
+function Acquisition({onUsePair}:{onUsePair:(pair:BosAcquisition)=>void}) {
   const [operator, setOperator] = useState<Operator | null>(null);
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [cameraId, setCameraId] = useState('');
+  const [count,setCount]=useState(1),[lockExposure,setLockExposure]=useState(false),[lockFocus,setLockFocus]=useState(false);
+  const selected=cameras.find(c=>c.id===cameraId);
+  const maxFrames=selected?.maximumDisturbedFrames??1;
+  const countValid=Number.isInteger(count)&&count>=1&&count<=maxFrames;
   const [list, setList] = useState<Capture[]>([]);
   const [current, setCurrent] = useState<Capture | null>(null);
   const [pending, setPending] = useState<PendingCreate | null>(null);
@@ -96,6 +123,14 @@ function Acquisition({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
 
+  const activateCamera = useMeasurementTrack('bos/camera',useMemo(()=>({
+    artifacts: Object.entries({reference:current?.reference, disturbed:current?.disturbed, ...current?.frames})
+      .flatMap(([role,asset]) => asset ? [{role,byteLength:asset.byteLength,sha256:asset.sha256}] : []),
+    planned:1 + (current?.disturbedCount ?? (countValid ? count : 1)), target:null, ready:current?.state==='COMPLETED', captureReady:!!current && ['WAITING_REFERENCE','WAITING_DISTURBED'].includes(current.state),
+    calibrating:current?.state==='CREATING', capturing:!!current?.pendingStep || !!current && busy,
+    cancelled:current?.state==='CANCELLED', error, session:current?.id,
+    camera:cameras.find(c=>c.id===cameraId)?.name,
+  }),[current,busy,error,cameras,cameraId,count,countValid]));
   function show(capture: Capture) {
     setCurrent(capture);
     setReady(false);
@@ -132,16 +167,19 @@ function Acquisition({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
       const available: Camera[] = await (await request(user, '/cameras')).json();
       setCameras(available);
       setCameraId(saved?.cameraId ?? available[0]?.id ?? '');
+      setCount(saved?.disturbedCount??1);setLockExposure(saved?.lockExposure??false);setLockFocus(saved?.lockFocus??false);
     });
   }
 
   async function create() {
     if (!operator) return;
     await action(async () => {
-      const next = pending ?? { id: crypto.randomUUID(), cameraId };
+      const next = pending ?? { id:crypto.randomUUID(),cameraId,...(count>1?{disturbedCount:count}:{}),
+        ...(lockExposure?{lockExposure:true}:{}),...(lockFocus?{lockFocus:true}:{}) };
       setPending(next);
       remember(operator.username, next);
-      const capture: Capture = await (await request(operator, '/' + next.id, 'PUT', { cameraId: next.cameraId })).json();
+      const {id,...plan}=next;
+      const capture: Capture = await (await request(operator, '/' + id, 'PUT', plan)).json();
       show(capture);
       if (capture.state !== 'CREATING') {
         remember(operator.username, null);
@@ -188,8 +226,8 @@ function Acquisition({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
     });
   }
 
-  const step = current?.state === 'WAITING_REFERENCE' ? 'reference' : current?.state === 'WAITING_DISTURBED' ? 'disturbed' : null;
-  return <div className="photographer-pairing-form">
+  const step = current?.nextStep ?? (current?.state === 'WAITING_REFERENCE' ? 'reference' : current?.state === 'WAITING_DISTURBED' ? 'disturbed' : null);
+  return <div className="photographer-pairing-form" onFocusCapture={activateCamera}>
     {!operator ? <form className="photographer-pairing-form" onSubmit={signIn}>
       <label>Fresnel username <input name="username" autoComplete="username" required /></label>
       <label>Password <input name="password" type="password" autoComplete="current-password" required /></label>
@@ -199,11 +237,19 @@ function Acquisition({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
         setOperator(null); setList([]); setCurrent(null); setCameras([]); setCameraId(''); setPending(null); setError('');
       }}>Sign out</button></p>
       <label>Camera <select value={pending?.cameraId ?? cameraId} disabled={busy || !!pending}
-        onChange={event => setCameraId(event.target.value)}>
+        onChange={event => {setCameraId(event.target.value);setCount(1);setLockExposure(false);setLockFocus(false);}}>
         {!cameras.length && <option value="">No camera available</option>}
         {cameras.map(camera => <option key={camera.id} value={camera.id}>{camera.name}</option>)}
       </select></label>
-      <button type="button" disabled={busy || (!pending && !cameraId)} onClick={() => void create()}>
+      {selected && <fieldset disabled={busy||!!pending}><legend>Still capture plan</legend>
+        {maxFrames>1 && <label>Disturbed frames <input type="number" min="1" max={maxFrames} step="1" value={Number.isNaN(count)?'':count}
+          onChange={event=>setCount(event.target.valueAsNumber)}/></label>}
+        {selected.exposureLock&&<label><input type="checkbox" checked={lockExposure} onChange={e=>setLockExposure(e.target.checked)}/>Lock exposure</label>}
+        {selected.focusLock&&<label><input type="checkbox" checked={lockFocus} onChange={e=>setLockFocus(e.target.checked)}/>Lock focus</label>}
+        <p>PNG stills · one reference and {countValid?count:'…'} disturbed exposures · operator-triggered.
+          This provider does not publish pixel dimensions in advance. Each exposure records its capture time.</p>
+      </fieldset>}
+      <button type="button" disabled={busy || (!pending && (!cameraId || !countValid))} onClick={() => void create()}>
         {pending ? 'Retry BOS capture creation' : 'Start BOS capture'}
       </button>
       {list.length > 0 && <label>Saved captures <select value={current?.id ?? ''} disabled={busy}
@@ -220,7 +266,7 @@ function Acquisition({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
           <label><input type="checkbox" checked={ready} disabled={busy}
             onChange={event => setReady(event.target.checked)} />
             {current.pendingStep === step ? `The original ${step} condition has remained continuously in place.`
-              : step === 'reference' ? 'The undisturbed reference condition is ready.' : 'The disturbed condition is ready.'}
+              : step === 'reference' ? 'The undisturbed reference condition is ready.' : step === 'disturbed' ? 'The disturbed condition is ready.' : 'The disturbed condition for '+step+' is ready.'}
           </label>
           <button type="button" disabled={busy || !ready} onClick={() => void advance(step)}>Capture {step}</button>
         </>}
@@ -231,7 +277,7 @@ function Acquisition({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
         </div>
         {current.state==='COMPLETED'&&current.reference&&current.disturbed&&<button type="button" disabled={busy}
           onClick={()=>void action(async()=>{
-            const origin=readBosOrigin({provider:'photographer-rest',captureId:current.id,cameraSelection:current.cameraSelection,reference:current.reference,disturbed:current.disturbed});
+            const origin=readBosOrigin({provider:'photographer-rest',captureId:current.id,cameraSelection:current.cameraSelection,lockExposure:current.lockExposure,lockFocus:current.lockFocus,reference:current.reference,disturbed:current.disturbed});
             if(!origin)throw new Error('The completed capture has incomplete source metadata.');
             if([origin.reference,origin.disturbed].some(s=>s.byteLength>20*1024*1024))throw new Error('Still analysis accepts up to 20 MiB per original.');
             const [reference,disturbed]=await Promise.all([
@@ -239,6 +285,12 @@ function Acquisition({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
             ]);
             onUsePair({origin,files:{reference,disturbed}});
           })}>Use verified pair in BOS analysis</button>}
+        {current.state === 'COMPLETED' && current.reference && (current.disturbedCount ?? 1) > 1 && (
+          <button type="button" disabled={busy} onClick={() => void action(async () => {
+            onUsePair(await verifiedSequence(operator, current));
+          })}>Use verified sequence in BOS analysis</button>
+        )}
+        {current.frames && Object.keys(current.frames).length>0 && <p>{Object.keys(current.frames).length} of {current.disturbedCount} disturbed frames captured.</p>}
         {(['reference', 'disturbed'] as const).map(role => current[role] &&
           <SourceImage key={current.id + role} operator={operator} capture={current.id} step={role} source={current[role]} />)}
       </>}
@@ -247,9 +299,9 @@ function Acquisition({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
   </div>;
 }
 
-export function BosCapturePanel({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
+export function BosCapturePanel({onUsePair}:{onUsePair:(pair:BosAcquisition)=>void}) {
   const [open, setOpen] = useState(false);
-  return <details id="bos-camera-acquisition" className="capture-provider-status-details" onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details id="bos-camera-acquisition" tabIndex={-1} className="capture-provider-status-details" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Background-oriented schlieren capture</summary>
     {open && <Acquisition onUsePair={onUsePair} />}
   </details>;

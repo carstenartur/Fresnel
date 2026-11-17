@@ -1,4 +1,4 @@
-import type {PairedBosCapture} from './measurement/bosPairedCapture';
+import type {BosAcquisition} from './measurement/bosPairedCapture';
 import {
   type ComponentType,
   useCallback,
@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { MeasurementWorkflowProvider } from './measurement/MeasurementWorkflow';
 import { CaptureProviderStatus } from './CaptureProviderStatus';
 import { consumeDesktopOpen } from './desktopOpenApi';
 import { type FresnelJobDocument, type FresnelPluginId, type LoadedFresnelJob } from './jobApi';
@@ -67,7 +68,7 @@ interface OpenedJobState {
 }
 
 export function App() {
-  const [bosPair,setBosPair]=useState<PairedBosCapture>();
+  const [bosPair,setBosPair]=useState<BosAcquisition>();
   const [photographerAvailable,setPhotographerAvailable]=useState(false);
   const [mode, setMode] = useState<ModeKey>(() => modeFromPath(window.location.pathname));
   const [pluginOrder, setPluginOrder] = useState<readonly FresnelPluginId[]>(FALLBACK_PLUGIN_ORDER);
@@ -211,7 +212,7 @@ export function App() {
   }
 
   return (
-    <div className="app">
+    <MeasurementWorkflowProvider><div className="app">
       <aside className="panel">
         <h1>Fresnel Designer</h1>
         <CaptureProviderStatus onAvailability={setPhotographerAvailable} onBosPair={pair=>{
@@ -268,7 +269,7 @@ export function App() {
         </JobSourceProvider>
       </aside>
       <main className="preview" />
-    </div>
+    </div></MeasurementWorkflowProvider>
   );
 }
 

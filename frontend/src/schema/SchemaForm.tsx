@@ -45,7 +45,7 @@ export function SchemaForm<T extends object>({
   };
 
   return (
-    <div data-plugin-schema={uiSchema.pluginId}>
+    <div id={'parameters-' + uiSchema.pluginId} tabIndex={-1} data-plugin-schema={uiSchema.pluginId}>
       {uiSchema.groups.map((group) => {
         if (!conditionMatches(group.visibleWhen, source)) return null;
 

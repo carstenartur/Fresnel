@@ -108,8 +108,13 @@ test('a generated target and paired originals survive an experiment bundle round
   await pair.getByRole('button', { name: 'Analyze still pair' }).click();
   await expect(pair.getByRole('status')).toContainText('Registered');
   await pair.getByLabel('Amplification').fill('2');
+  await pair.getByLabel('Map', { exact: true }).selectOption('vectors');
+  await expect(pair.getByText(/Arrows show image-plane displacement/)).toBeVisible();
+  await pair.getByLabel('Source view').selectOption('stabilized');
+  await expect(pair.getByRole('img', { name: 'Disturbed image after registration' })).toBeVisible();
+  const comparison = pair.getByLabel('Displacement map').locator('../..');
   await testInfo.attach('bos-camera-displacement-map', {
-    body: await pair.screenshot(),
+    body: await comparison.screenshot(),
     contentType: 'image/png',
   });
   const original = await numericGrid(page);
