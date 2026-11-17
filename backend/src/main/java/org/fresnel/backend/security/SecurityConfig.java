@@ -40,6 +40,7 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/measurement-sessions", "/api/measurement-sessions/**").authenticated()
+                        .requestMatchers("/api/experiments/photometry-captures", "/api/experiments/photometry-captures/**").authenticated()
                         .requestMatchers("/api/experiments/bos-captures", "/api/experiments/bos-captures/**").authenticated()
                         .requestMatchers("/api/admin/capture-providers/photographer/**").hasRole("ADMIN")
                         // A render-job identifier is not a public share token. Every

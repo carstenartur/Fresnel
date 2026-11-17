@@ -5,7 +5,7 @@ const bundleType = 'application/vnd.carstenartur.fresnel.experiment+zip';
 type Files = Partial<Record<string, File>>;
 type Asset = { sha256: string; byteLength: number; mediaType: string };
 type Saved = { id: string; created: string; pluginId: string; parameters: Record<string, unknown>;
-  steps: string[]; assets: Record<string, Asset>; state: string };
+  steps: string[]; assets: Record<string, Asset>; state: string; captureProvider?:string };
 
 interface Props {
   pluginId: string;
@@ -79,12 +79,17 @@ export function MeasurementArchive({pluginId, parameters, steps, files, result, 
     if (result && items.length === steps.length) items.push({step:'result', file:result, type:'application/json', hash:await sha256(result)});
     const plan = {pluginId, parameters, steps};
     const key = JSON.stringify([plan, items.map(i => [i.step, i.hash])]);
-    let id = pending?.key === key ? pending.id : undefined;
-    if (!id) {
-      const created: Saved = await (await request(auth, '', {method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(plan)})).json();
-      id = created.id; setPending({key, id}); setSaved(previous => [created, ...previous]); select(id);
-    }
+    const current = saved.find(s => s.id === selected);
+    const samePlan = current && current.pluginId === pluginId && JSON.stringify(current.steps) === JSON.stringify(steps)
+      && JSON.stringify(current.parameters) === JSON.stringify(parameters);
+    const sameFiles = current && Object.entries(current.assets).every(([step, asset]) =>
+      items.some(item => item.step === step && item.hash === asset.sha256));
+    const reusable = samePlan && sameFiles && current?.captureProvider !== 'photographer-rest';
+    const id = pending?.key === key ? pending.id : reusable && current ? current.id : crypto.randomUUID();
+    setPending({key, id});
+    const created: Saved = await (await request(auth, '/' + id, {method:'PUT', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(plan)})).json();
+    setSaved(previous => [created, ...previous.filter(s => s.id !== id)]); select(id);
     for (const item of items) {
       setStatus('Saving ' + item.step + '…');
       await request(auth, '/' + id + '/assets/' + item.step, {method:'PUT',
