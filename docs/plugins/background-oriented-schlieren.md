@@ -59,7 +59,11 @@ and scale. The source files retain their original pixels.
 2. Check the accepted windows and registration residual. Inspect the stabilized
    disturbed frame alongside the map. Switch between magnitude, signed horizontal
    or vertical displacement and normalized correlation. Display amplification
-   changes the colors of the stored grid.
+   changes the colors of the stored grid. **Vector field over magnitude** draws
+   arrows at every second row and column of accepted windows. The arrow tip gives
+   the displacement direction in image coordinates. Length scales with magnitude
+   up to one grid interval at the displayed color limit. The PNG and time-series
+   WebM include the selected visualization and amplification.
 3. Download the PNG visualization or numeric JSON. Use **Saved experiments** to
    keep the source images and result together in an owner-scoped session and
    export a checksummed experiment bundle.
