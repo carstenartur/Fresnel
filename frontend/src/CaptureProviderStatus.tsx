@@ -1,4 +1,4 @@
-import type {PairedBosCapture} from './measurement/bosPairedCapture';
+import type {BosAcquisition} from './measurement/bosPairedCapture';
 import { useEffect, useRef, useState } from 'react';
 import { PhotographerPairingPanel } from './PhotographerPairingPanel';
 import { BosCapturePanel } from './BosCapturePanel';
@@ -22,7 +22,7 @@ const STATE_LABELS: Record<CaptureProviderHealthState, string> = {
 };
 
 /** Compact global status for Photographer and other capture-provider adapters. */
-export function CaptureProviderStatus({onBosPair,onAvailability}:{onBosPair:(pair:PairedBosCapture)=>void;onAvailability:(value:boolean)=>void}) {
+export function CaptureProviderStatus({onBosPair,onAvailability}:{onBosPair:(pair:BosAcquisition)=>void;onAvailability:(value:boolean)=>void}) {
   const [overview, setOverview] = useState<CaptureProviderOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pairingRevision, setPairingRevision] = useState(0);

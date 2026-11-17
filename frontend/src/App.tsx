@@ -1,4 +1,4 @@
-import type {PairedBosCapture} from './measurement/bosPairedCapture';
+import type {BosAcquisition} from './measurement/bosPairedCapture';
 import {
   type ComponentType,
   useCallback,
@@ -67,7 +67,7 @@ interface OpenedJobState {
 }
 
 export function App() {
-  const [bosPair,setBosPair]=useState<PairedBosCapture>();
+  const [bosPair,setBosPair]=useState<BosAcquisition>();
   const [photographerAvailable,setPhotographerAvailable]=useState(false);
   const [mode, setMode] = useState<ModeKey>(() => modeFromPath(window.location.pathname));
   const [pluginOrder, setPluginOrder] = useState<readonly FresnelPluginId[]>(FALLBACK_PLUGIN_ORDER);

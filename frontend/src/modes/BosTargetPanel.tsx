@@ -1,5 +1,5 @@
 import {targetEvidence} from '../measurement/bosTargetEvidence';
-import type {PairedBosCapture} from '../measurement/bosPairedCapture';
+import type {BosAcquisition} from '../measurement/bosPairedCapture';
 import { useRef, useState } from 'react';
 import type { FresnelProductionOutput } from '../jobApi';
 import {
@@ -43,7 +43,7 @@ interface GeneratedTarget {
 }
 
 export function BosTargetPanel({ initialJob, pairedCapture, photographerAvailable }: JobPanelProps & {
-  pairedCapture?:PairedBosCapture; photographerAvailable?:boolean;
+  pairedCapture?:BosAcquisition; photographerAvailable?:boolean;
 }) {
   const [request, setRequest] = useState<BosTargetRequest>(() =>
     initialJobParameters(initialJob, 'background-oriented-schlieren', DEFAULT));
@@ -258,8 +258,8 @@ export function BosTargetPanel({ initialJob, pairedCapture, photographerAvailabl
         const acquisition=document.getElementById('bos-camera-acquisition') as HTMLDetailsElement|null;
         if(acquisition){acquisition.open=true;acquisition.scrollIntoView({block:'center'});acquisition.querySelector('summary')?.focus();}
       }}>Open paired Photographer capture</button>}
-      <BosStillPairPanel pairedCapture={pairedCapture} manifest={currentManifest} target={targetEvidence(currentManifest, request)} />
-      <BosSequencePanel target={targetEvidence(currentManifest, request)} />
+      <BosStillPairPanel pairedCapture={pairedCapture && 'files' in pairedCapture ? pairedCapture : undefined} manifest={currentManifest} target={targetEvidence(currentManifest, request)} />
+      <BosSequencePanel pairedCapture={pairedCapture && 'frames' in pairedCapture ? pairedCapture : undefined} target={targetEvidence(currentManifest, request)} />
     </>
   );
 }

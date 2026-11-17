@@ -2,6 +2,12 @@ import { BosLocalSearchControl, savedLocalSearch } from './BosLocalSearchControl
 import type { LocalSearch } from './bosDisplacement';
 import type { CameraModel } from './bosCameraModel';
 import { CameraModelControl, restoreCameraModel } from './CameraModelControl';
+import {
+  exposureHash,
+  readBosSeriesOrigin,
+  type PairedBosSeries,
+  type BosSeriesOrigin,
+} from './bosPairedCapture';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { restoreTarget, type TargetEvidence } from './bosTargetEvidence';
 import { MeasurementArchive } from './MeasurementArchive';
@@ -70,7 +76,15 @@ async function reviewVideo(result: SequenceResult, mode: MapMode, signal: AbortS
   }
 }
 
-export function BosSequencePanel({ target }: { target: TargetEvidence }) {
+export function BosSequencePanel({
+  target,
+  pairedCapture,
+}: {
+  target: TargetEvidence;
+  pairedCapture?: PairedBosSeries;
+}) {
+  const [origin, setOrigin] = useState<BosSeriesOrigin>();
+  const disclosure = useRef<HTMLDetailsElement>(null);
   const [liveFrame, setLiveFrame] = useState<FrameResult>();
   const liveCanvas = useRef<HTMLCanvasElement>(null);
   const [localSearch, setLocalSearch] = useState<LocalSearch>('pyramid');
@@ -99,17 +113,44 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
     if (liveFrame?.result && liveCanvas.current)
       paintMap(liveCanvas.current, liveFrame.result, 'magnitude', 1);
   }, [liveFrame]);
+  useEffect(() => {
+    if (!pairedCapture) return;
+    reset();
+    setOrigin(pairedCapture.origin);
+    setFiles(pairedCapture.frames);
+    setExternal(pairedCapture.reference);
+    setClip(undefined);
+    setRestoredTarget(undefined);
+    setPolicy('fixed');
+    setKind('stills');
+    setKey((k) => k + 1);
+    if (disclosure.current) {
+      disclosure.current.open = true;
+      disclosure.current.scrollIntoView({ block: 'start' });
+    }
+  }, [pairedCapture]);
   const report = useMemo(
     () =>
-      result && new Blob([JSON.stringify({ ...result, ...analyzedTarget })], { type: 'application/json' }),
-    [result, analyzedTarget],
+      result &&
+      new Blob(
+        [
+          JSON.stringify({
+            ...result,
+            ...analyzedTarget,
+            captureProvider: origin?.provider ?? 'manual',
+            captureOrigin: origin ?? null,
+          }),
+        ],
+        { type: 'application/json' },
+      ),
+    [result, analyzedTarget, origin],
   );
   const steps = [
-    ...(external && policy === 'fixed' ? ['reference'] : []),
+    ...(external && (policy === 'fixed' || origin) ? ['reference'] : []),
     ...(kind === 'video' ? ['video'] : files.map((_, i) => stepName(i))),
   ];
   const sources: Record<string, File> = {};
-  if (external && policy === 'fixed') sources.reference = external;
+  if (external && (policy === 'fixed' || origin)) sources.reference = external;
   if (kind === 'video') {
     if (clip) sources.video = clip;
   } else
@@ -125,8 +166,22 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
     setResult(undefined);
     setIndex(0);
   }
-  function restore(params: Record<string, unknown>, sources: Record<string, File>) {
+  async function restore(params: Record<string, unknown>, sources: Record<string, File>) {
+    const metadata = readBosSeriesOrigin(params.captureOrigin);
+    if (params.captureOrigin) {
+      const hashes = metadata && [metadata.reference, ...metadata.frames];
+      const roles = metadata && ['reference', ...metadata.frames.map((_, i) => stepName(i))];
+      if (!metadata || !hashes || !roles || roles.length !== Object.keys(sources).length)
+        throw new Error('Incomplete Photographer capture provenance.');
+      for (let i = 0; i < roles.length; i++) {
+        const file = sources[roles[i]],
+          evidence = hashes[i];
+        if (!file || file.size !== evidence.byteLength || (await exposureHash(file)) !== evidence.sha256)
+          throw new Error('The saved Photographer sequence failed source verification.');
+      }
+    }
     reset();
+    setOrigin(metadata ?? undefined);
     setRestoredTarget(restoreTarget(params));
     setKey((k) => k + 1);
     setKind(sources.video || params.sourceKind === 'video' ? 'video' : 'stills');
@@ -182,7 +237,18 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
             if (!controller.signal.aborted) setLiveFrame(f);
           },
         );
-        if (!controller.signal.aborted) setResult(next);
+        if (!controller.signal.aborted) {
+          if (origin) {
+            const start = Date.parse(origin.frames[0].capturedAt);
+            next.timeBasis = 'Elapsed seconds from first disturbed Photographer exposure (recorded UTC)';
+            if (next.reference) next.reference.name = 'reference.png';
+            next.frames.forEach((frame, i) => {
+              frame.timeSeconds = (Date.parse(origin.frames[i].capturedAt) - start) / 1000;
+              frame.name = stepName(i) + '.png';
+            });
+          }
+          setResult(next);
+        }
       }
     } catch (e) {
       if (!controller.signal.aborted)
@@ -197,13 +263,19 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
   }
   const frame = result?.frames[index];
   return (
-    <details className="capture-provider-status-details">
+    <details ref={disclosure} className="capture-provider-status-details">
       <summary>Analyze a sequence or video</summary>
       <section aria-label="BOS time series">
         <p>
           Use ordered dot-field exposures or an MP4 up to 30 seconds. The analysis samples at most{' '}
           {MAX_FRAMES} frames and registers each to the same reference.
         </p>
+        {origin && (
+          <p>
+            Photographer capture {origin.captureId} · {origin.frames.length} verified disturbed exposures ·
+            recorded UTC capture times.
+          </p>
+        )}
         <fieldset disabled={Boolean(status)}>
           <label>
             Source type{' '}
@@ -212,6 +284,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
               value={kind}
               onChange={(e) => {
                 reset();
+                setOrigin(undefined);
                 setKind(e.target.value as typeof kind);
               }}
             >
@@ -232,6 +305,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
                   onChange={(e) => {
                     reset();
                     setRestoredTarget(undefined);
+                    setOrigin(undefined);
                     const chosen = Array.from(e.target.files ?? []);
                     setFiles([]);
                     if (chosen.length > MAX_FRAMES) {
@@ -252,6 +326,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
                           type="button"
                           onClick={() => {
                             reset();
+                            setOrigin(undefined);
                             const ordered = files.slice();
                             [ordered[i - 1], ordered[i]] = [ordered[i], ordered[i - 1]];
                             setFiles(ordered);
@@ -276,6 +351,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
                 onChange={(e) => {
                   reset();
                   setRestoredTarget(undefined);
+                  setOrigin(undefined);
                   setClip(e.target.files?.[0]);
                 }}
               />
@@ -319,6 +395,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
                 accept="image/png,image/jpeg"
                 onChange={(e) => {
                   reset();
+                  setOrigin(undefined);
                   setExternal(e.target.files?.[0]);
                 }}
               />
@@ -327,21 +404,23 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
           ) : (
             <p>Median of three or five samples spread across the whole sequence.</p>
           )}
-          <label>
-            {kind === 'video' ? 'Requested samples per second' : 'Declared still frames per second'}{' '}
-            <input
-              aria-label="Frames per second"
-              type="number"
-              min="0.25"
-              max="12"
-              step="0.25"
-              value={Number.isNaN(rate) ? '' : rate}
-              onChange={(e) => {
-                reset();
-                setRate(e.target.valueAsNumber);
-              }}
-            />
-          </label>
+          {!origin && (
+            <label>
+              {kind === 'video' ? 'Requested samples per second' : 'Declared still frames per second'}{' '}
+              <input
+                aria-label="Frames per second"
+                type="number"
+                min="0.25"
+                max="12"
+                step="0.25"
+                value={Number.isNaN(rate) ? '' : rate}
+                onChange={(e) => {
+                  reset();
+                  setRate(e.target.valueAsNumber);
+                }}
+              />
+            </label>
+          )}
           <button
             type="button"
             disabled={kind === 'video' ? !clip : files.length < 2}
@@ -445,6 +524,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
           files={sources}
           parameters={{
             sourceKind: kind,
+            ...(origin ? { captureOrigin: origin } : {}),
             policy,
             rate,
             cameraModel,
