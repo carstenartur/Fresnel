@@ -142,6 +142,8 @@
                             <goal>verify</goal>
                         </goals>
                         <configuration>
+                            <!-- The repackaged Boot JAR stores classes below BOOT-INF/classes. -->
+                            <classesDirectory>${project.build.outputDirectory}</classesDirectory>
                             <includes>
                                 <include>**/PlaywrightE2EIT.java</include>
                                 <include>**/PhotographerContainerIT.java</include>
