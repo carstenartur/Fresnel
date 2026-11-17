@@ -23,7 +23,7 @@ async function request<T>(auth:string,url:string,method='GET',body?:object,keepa
   }
   return r.json();
 }
-export function PhotometryCamera({manifest,onRestore}:{manifest:Manifest;onRestore:(g:Geometry,f:Record<string,File>)=>Promise<void>}) {
+export function PhotometryCamera({manifest,onRestore}:{manifest:Manifest;onRestore:(g:Geometry,f:Record<string,File>,sourceSessionId:string)=>Promise<void>}) {
   const [auth,setAuth]=useState(''),[username,setUsername]=useState('');
   const [cameras,setCameras]=useState<Camera[]>([]),[cameraId,setCameraId]=useState(''),[locks,setLocks]=useState(false);
   const [sessions,setSessions]=useState<CameraSession[]>([]),[current,setCurrent]=useState<CameraSession|null>(null);
@@ -139,7 +139,7 @@ export function PhotometryCamera({manifest,onRestore}:{manifest:Manifest;onResto
       if (a.byteLength!==blob.size || hash!==a.sha256) throw new Error('Invalid archived exposure checksum for '+id);
       files[id]=new File([blob],id+'.png',{type:a.mediaType});
     }
-    await onRestore(saved.parameters,files);
+    await onRestore(saved.parameters,files,current.archiveId);
   }
   return <details><summary>Synchronized Photographer capture</summary>
     {!auth ? <form onSubmit={signIn}><fieldset disabled={busy}>

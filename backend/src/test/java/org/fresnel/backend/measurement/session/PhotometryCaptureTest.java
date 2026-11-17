@@ -100,6 +100,34 @@ class PhotometryCaptureTest {
             var restored = bundles.read("bob",new ByteArrayInputStream(bytes.toByteArray()));
             var original = CaptureEvidence.read(sessions.dir("alice",id),json);
             assertEquals(original,CaptureEvidence.read(sessions.dir("bob",restored.id()),json));
+            var targetId = UUID.randomUUID();
+            var plan = new MeasurementSessions.Plan(restored.pluginId(),
+                    json.valueToTree(Map.of("geometry",geometry, "roi",Map.of("width",0.5))),restored.steps());
+            var hashes = new TreeMap<String,String>();
+            restored.assets().forEach((step,asset) -> hashes.put(step,asset.sha256()));
+            var request = new MeasurementSessions.Derivation(plan,hashes);
+            assertThrows(ResponseStatusException.class, () -> sessions.derive("alice",targetId,restored.id(),request));
+            hashes.put("dark","0".repeat(64));
+            assertThrows(ResponseStatusException.class, () -> sessions.derive("bob",targetId,restored.id(),request));
+            assertThrows(ResponseStatusException.class, () -> sessions.get("bob",targetId));
+            hashes.put("dark",restored.assets().get("dark").sha256());
+            var different = json.valueToTree(geometry).deepCopy();
+            ((tools.jackson.databind.node.ObjectNode) different).put("widthPx",256);
+            var otherPlan = new MeasurementSessions.Plan(plan.pluginId(),different,restored.steps());
+            assertThrows(ResponseStatusException.class, () -> sessions.derive("bob",targetId,restored.id(),
+                    new MeasurementSessions.Derivation(otherPlan,hashes)));
+            var derived = sessions.derive("bob",targetId,restored.id(),request);
+            restart();
+            assertEquals(derived,sessions.derive("bob",targetId,restored.id(),request));
+            byte[] result = "{\"validPixels\":64}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            assertEquals("COMPLETED", sessions.put("bob",targetId,"result","application/json",
+                    MeasurementSessions.hash(result),new ByteArrayInputStream(result)).state());
+            sessions.delete("bob",restored.id());
+            var bundle = new ByteArrayOutputStream();
+            bundles.export("bob",targetId,bundle);
+            var analyzed = bundles.read("carol",new ByteArrayInputStream(bundle.toByteArray()));
+            assertEquals(original,CaptureEvidence.read(sessions.dir("carol",analyzed.id()),json));
+            assertEquals("COMPLETED",analyzed.state());
             assertTrue(original.manualLocksConfirmed());
             assertEquals(sequence.sequenceId(),original.sequenceId());
             assertEquals(6,original.exposures().size());

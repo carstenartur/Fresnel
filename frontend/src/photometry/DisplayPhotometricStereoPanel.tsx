@@ -17,6 +17,7 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   const [geometry, setGeometry] = useState(() => initialJobParameters(initialJob,pluginId,defaults));
   const [roi,setRoi]=useState<Region>(fullRegion);
   const [profile,setProfile]=useState<Awaited<ReturnType<typeof profileIdentity>>|null>(null);
+  const [sourceSessionId,setSourceSessionId]=useState<string>();
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [files, setFiles] = useState<Record<string,File>>({});
   const [selected, select] = useState('dark');
@@ -32,7 +33,7 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   function change(next: Geometry) {
     generation.current++;
     worker.current?.terminate();
-    setGeometry(next); setRoi(fullRegion); setProfile(null); setManifest(null); setFiles({}); setResult(null); setRelief(null); setError(''); setBusy(null);
+    setSourceSessionId(undefined); setGeometry(next); setRoi(fullRegion); setProfile(null); setManifest(null); setFiles({}); setResult(null); setRelief(null); setError(''); setBusy(null);
   }
   async function measureScreen() {
     const target=screenProbe.current;
@@ -49,7 +50,7 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
       change({...geometry,widthPx,heightPx});
     } catch(e){if(document.fullscreenElement===target)await document.exitFullscreen().catch(()=>undefined);setError(String(e));setBusy(null);}
   }
-  async function prepare(settings: Geometry, restored?: Record<string,File>, region:Region=fullRegion) {
+  async function prepare(settings: Geometry, restored?: Record<string,File>, region:Region=fullRegion, sourceId?:string) {
     const ticket = ++generation.current;
     setError(''); setBusy('sequence');
     try {
@@ -58,7 +59,7 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
       if (generation.current !== ticket) return;
       if (restored && Object.keys(restored).some(id => !generated.patterns.some(p=>p.id===id)))
         throw new Error('Saved source mapping differs from the regenerated illumination plan.');
-      setRoi(region); setProfile(screenProfile); setGeometry(generated.geometry); setManifest(generated); setFiles(restored ?? {}); select('dark'); setResult(null); setRelief(null);
+      setSourceSessionId(sourceId); setRoi(region); setProfile(screenProfile); setGeometry(generated.geometry); setManifest(generated); setFiles(restored ?? {}); select('dark'); setResult(null); setRelief(null);
     } catch (e) { if (ticket === generation.current) setError(String(e)); if (restored) throw e; }
     finally { if (ticket === generation.current) setBusy(null); }
   }
@@ -89,13 +90,13 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
         <SaveJobControl pluginId={pluginId} parameters={geometry} disabled={!!busy || !validation?.valid}/>
       </>}
     </PluginEditorShell>
-    <MeasurementArchive pluginId={pluginId} parameters={{geometry,roi,screenProfile:profile}} steps={manifest?.patterns.map(p=>p.id) ?? []}
-      files={files} result={archived} onRestore={async (parameters,images)=>{
+    <MeasurementArchive sourceSessionId={sourceSessionId} pluginId={pluginId} parameters={{geometry,roi,screenProfile:profile}} steps={manifest?.patterns.map(p=>p.id) ?? []}
+      files={files} result={archived} onRestore={async (parameters,images,sourceId?:string)=>{
         const restored=(parameters.geometry ?? parameters) as Geometry;
-        stop(); await prepare(restored,images,regionFrom(parameters.roi));
+        stop(); await prepare(restored,images,regionFrom(parameters.roi),sourceId);
       }}/>
     {manifest && <>
-      <PhotometryCamera key={manifest.sequenceId} manifest={manifest} onRestore={(g,images)=>prepare(g,images)}/>
+      <PhotometryCamera key={manifest.sequenceId} manifest={manifest} onRestore={(g,images,sourceId)=>prepare(g,images,fullRegion,sourceId)}/>
       <h3>Manual capture</h3>
       <SetupAssistant manifest={manifest} files={files} roi={roi} disabled={!!busy} onSelect={select}
         onChange={next=>{setRoi(next);setResult(null);setRelief(null);}}/>
@@ -109,7 +110,7 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
         disabled={!!busy} onChange={e => {
           const f = e.target.files?.[0]; if (!f) return;
           if (f.size > 16*1024*1024) { setError('Choose a file of at most 16 MiB.'); return; }
-          setFiles({ ...files,[selected]:f }); setResult(null); setRelief(null); setError('');
+          setSourceSessionId(undefined); setFiles({ ...files,[selected]:f }); setResult(null); setRelief(null); setError('');
         }}/></label>
       {files[selected] && <p>{files[selected].name}</p>}
       <p role="status">{Object.keys(files).length} / {manifest.patterns.length} exposures mapped</p>
