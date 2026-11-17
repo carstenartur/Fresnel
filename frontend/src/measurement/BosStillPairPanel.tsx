@@ -1,3 +1,5 @@
+import { BosLocalSearchControl, savedLocalSearch } from './BosLocalSearchControl';
+import type { LocalSearch } from './bosDisplacement';
 import { useMeasurementTrack } from './MeasurementWorkflow';
 import { restoreTarget, type TargetEvidence } from './bosTargetEvidence';
 import {exposureHash,readBosOrigin,type BosOrigin,type PairedBosCapture} from './bosPairedCapture';
@@ -39,6 +41,7 @@ function useObjectUrl(blob?: Blob) {
 export function BosStillPairPanel({ target, manifest, pairedCapture }: { target: TargetEvidence; manifest: BosTargetManifest | null; pairedCapture?:PairedBosCapture }) {
   const [restoredTarget, setRestoredTarget] = useState<TargetEvidence>();
   const [analyzedTarget, setAnalyzedTarget] = useState<TargetEvidence>({configuredTarget:null});
+  const [localSearch, setLocalSearch] = useState<LocalSearch>('pyramid');
   const [cameraModel, setCameraModel] = useState<CameraModel>('translation');
   const [origin,setOrigin]=useState<BosOrigin|null>(null);
   const panel=useRef<HTMLElement>(null);
@@ -125,6 +128,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
     setRestoredTarget(restoreTarget(params));
     setManualArea(readRegion(params.analysisRegion));
     setCameraModel(restoreCameraModel(params.cameraModel));
+    setLocalSearch(savedLocalSearch(params.localSearch));
     setOrigin(restoredOrigin);
     setInputGeneration((n) => n + 1);
     setMode(
@@ -169,6 +173,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
       task.postMessage({
         ...files,
         model: cameraModel,
+        localSearch,
         region: manualArea ?? inspection?.data?.result.region ?? fullFrame,
       });
     } catch {
@@ -208,6 +213,15 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
           }}
         />
       )}
+      <BosLocalSearchControl
+        value={localSearch}
+        onChange={(next) => {
+          stop();
+          setLocalSearch(next);
+          setOutput(undefined);
+          setError('');
+        }}
+      />
       <CameraModelControl
         value={cameraModel}
         onChange={(model) => {
@@ -335,6 +349,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
         files={files}
         parameters={{
           cameraModel,
+          localSearch,
           captureOrigin:origin,
           visualization: mode,
           amplification: gain,

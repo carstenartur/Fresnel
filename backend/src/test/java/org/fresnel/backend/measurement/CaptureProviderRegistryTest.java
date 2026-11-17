@@ -34,6 +34,17 @@ class CaptureProviderRegistryTest {
     }
 
     @Test
+    void exposesLocalFileIntakeWithoutAdvertisingAConnectedCamera() {
+        org.fresnel.measurement.CaptureSource files = () -> new org.fresnel.measurement.CaptureSource.Info(
+                "manual-upload", "Upload camera files", org.fresnel.measurement.CaptureSource.Kind.FILE_UPLOAD);
+        var camera = new StubProvider("photographer-rest");
+        var registry = new CaptureProviderRegistry(List.of(camera,files));
+        assertEquals(List.of(files.source(),camera.source()),registry.sources());
+        assertEquals(List.of(camera),registry.all());
+        assertThrows(IllegalStateException.class,() -> new CaptureProviderRegistry(List.of(files,new StubProvider("manual-upload"))));
+    }
+
+    @Test
     void registryRejectsDuplicateIdsAndNullProviders() {
         assertThrows(IllegalStateException.class, () ->
                 new CaptureProviderRegistry(List.of(

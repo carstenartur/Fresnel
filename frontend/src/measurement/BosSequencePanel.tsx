@@ -1,3 +1,5 @@
+import { BosLocalSearchControl, savedLocalSearch } from './BosLocalSearchControl';
+import type { LocalSearch } from './bosDisplacement';
 import type { CameraModel } from './bosCameraModel';
 import { CameraModelControl, restoreCameraModel } from './CameraModelControl';
 import { useMeasurementTrack } from './MeasurementWorkflow';
@@ -63,6 +65,7 @@ async function reviewVideo(result: SequenceResult, mode: MapMode, signal: AbortS
 }
 
 export function BosSequencePanel({ target }: { target: TargetEvidence }) {
+  const [localSearch, setLocalSearch] = useState<LocalSearch>('pyramid');
   const [cameraModel, setCameraModel] = useState<CameraModel>('translation');
   const [restoredTarget, setRestoredTarget] = useState<TargetEvidence>();
   const [analyzedTarget, setAnalyzedTarget] = useState<TargetEvidence>({ configuredTarget: null });
@@ -135,6 +138,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
     );
     setRate(typeof params.rate === 'number' && params.rate >= 0.25 && params.rate <= 12 ? params.rate : 2);
     setCameraModel(restoreCameraModel(params.cameraModel));
+    setLocalSearch(savedLocalSearch(params.localSearch));
     setPolicy(params.policy === 'median' ? 'median' : 'fixed');
   }
   function download(blob: Blob, name: string) {
@@ -168,6 +172,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
           policy,
           rate,
           cameraModel,
+          localSearch,
           controller.signal,
           (s) => {
             if (!controller.signal.aborted) setStatus(s);
@@ -272,6 +277,13 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
               {clip?.name}
             </label>
           )}
+          <BosLocalSearchControl
+            value={localSearch}
+            onChange={(next) => {
+              reset();
+              setLocalSearch(next);
+            }}
+          />
           <CameraModelControl
             value={cameraModel}
             onChange={(model) => {
@@ -411,6 +423,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
             policy,
             rate,
             cameraModel,
+            localSearch,
             ...(result ? analyzedTarget : (restoredTarget ?? target)),
           }}
           acceptsSteps={(s) => s.includes('video') || s.includes('frame-01')}

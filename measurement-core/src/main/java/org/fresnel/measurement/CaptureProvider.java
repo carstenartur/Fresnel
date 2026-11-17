@@ -12,11 +12,16 @@ import java.util.regex.Pattern;
 /**
  * Service boundary through which Fresnel obtains camera captures.
  *
- * <p>Implementations may use manual upload, an in-process mock or the versioned
+ * <p>Implementations may use an in-process mock or the versioned
  * Photographer REST bridge. Optical measurement algorithms depend only on this
  * contract and never on camera-vendor or transport-specific classes.</p>
  */
-public interface CaptureProvider {
+public interface CaptureProvider extends CaptureSource {
+
+    @Override default CaptureSource.Info source() {
+        var metadata = descriptor();
+        return new CaptureSource.Info(metadata.id(), metadata.displayName(), CaptureSource.Kind.CAMERA);
+    }
 
     Descriptor descriptor();
 

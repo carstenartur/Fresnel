@@ -70,4 +70,28 @@ test('paired Photographer records four directional exposures and reconstructs ar
   expect(percentile95(angular)).toBeLessThan(1);
   expect(percentile95(albedo)).toBeLessThan(.008);
   expect(solved.scale).toBe('Relative');
+
+  // The authenticated analysis reuses these original bytes server-side. Only its result needs uploading.
+  const originalId=await page.getByRole('combobox',{name:/^Saved experiment/,exact:false}).inputValue();
+  const uploads:string[]=[];
+  page.on('request',request=>{
+    const asset=request.url().match(/\/api\/measurement-sessions\/[^/]+\/assets\/([^/?]+)/);
+    if(request.method()==='PUT' && asset) uploads.push(asset[1]);
+  });
+  await page.getByRole('button',{name:'Save current captures'}).click();
+  await expect(page.getByText('Saved 7 files.',{exact:true})).toBeVisible();
+  expect(uploads).toEqual(['result']);
+  const derivedId=await page.getByRole('combobox',{name:/^Saved experiment/,exact:false}).inputValue();
+  expect(derivedId).not.toBe(originalId);
+  const bundleDownload=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Download experiment bundle'}).click();
+  const bundle=await (await bundleDownload).path();
+  expect(bundle).toBeTruthy();
+  await page.getByLabel('Import experiment bundle').setInputFiles(bundle!);
+  await expect(page.getByText('Opened 6 source images.',{exact:true})).toBeVisible();
+  const importedId=await page.getByRole('combobox',{name:/^Saved experiment/,exact:false}).inputValue();
+  expect([originalId,derivedId]).not.toContain(importedId);
+  await page.getByRole('button',{name:'Reconstruct surface'}).click();
+  await expect(page.getByRole('heading',{name:'Measured surface'})).toBeVisible();
+  expect((await downloadGrid(page)).grid).toEqual(solved.grid);
 });

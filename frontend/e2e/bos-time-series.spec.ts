@@ -117,7 +117,7 @@ test('fits camera rotation both when preparing the temporal median and when meas
   const download = page.waitForEvent('download');
   await panel.getByRole('button', { name: 'Download time-series grid' }).click();
   const report = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
-  expect(report.method).toBe('sequence-affine-zncc/1');
+  expect(report.method).toBe('sequence-affine-pyramid-zncc/2');
   for (const frame of report.frames) {
     expect(frame.result.registration.model).toBe('affine');
     expect(frame.result.accepted / frame.result.vectors.length).toBeGreaterThan(0.85);
