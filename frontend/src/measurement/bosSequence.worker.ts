@@ -4,13 +4,21 @@ import { decodeFrame } from './bosImage';
 
 export interface FrameInput {
   file: File;
+  presentedTimeSeconds?: number;
   sourceWidth?: number;
   sourceHeight?: number;
 }
 export type Request = { kind: 'reference'; inputs: FrameInput[]; cameraModel: CameraModel; localSearch: LocalSearch } | { kind: 'frame'; input: FrameInput };
 export type Reply =
-  | { kind: 'ready' }
-  | { kind: 'result'; result: PairResult | null; reason?: string; sha256: string; sourceWidth:number; sourceHeight:number }
+  | { kind: 'ready'; sourceHashes: string[]; pixelSha256: string; width: number; height: number }
+  | {
+      kind: 'result';
+      result: PairResult | null;
+      reason?: string;
+      sha256: string;
+      sourceWidth: number;
+      sourceHeight: number;
+    }
   | { kind: 'error'; message: string };
 let reference: GrayFrame | undefined;
 let cameraModel: CameraModel = 'translation';
@@ -28,7 +36,7 @@ async function read(input: FrameInput) {
   }
   if (w !== width || h !== height)
     throw new Error('All oriented source images must have the same dimensions.');
-  return { frame, sha256: metadata.sha256, sourceWidth:w, sourceHeight:h };
+  return { frame, sha256: metadata.sha256, sourceWidth: w, sourceHeight: h };
 }
 
 // Warp each median sample onto the first reference grid before taking the temporal median.
@@ -63,8 +71,10 @@ async function process(message: Request): Promise<Reply> {
     cameraModel = message.cameraModel;
     localSearch = message.localSearch;
     const frames: GrayFrame[] = [];
+    const sourceHashes: string[] = [];
     for (const item of message.inputs) {
-      const frame = (await read(item)).frame;
+      const { frame, sha256 } = await read(item);
+      sourceHashes.push(sha256);
       frames.push(frames.length ? align(frames[0], frame) : frame);
     }
     const first = frames[0];
@@ -79,7 +89,14 @@ async function process(message: Request): Promise<Reply> {
       }
       reference = { width: first.width, height: first.height, pixels };
     }
-    return { kind: 'ready' };
+    const checksum = await crypto.subtle.digest('SHA-256', new Uint8Array(reference.pixels));
+    return {
+      kind: 'ready',
+      sourceHashes,
+      width: reference.width,
+      height: reference.height,
+      pixelSha256: Array.from(new Uint8Array(checksum), (b) => b.toString(16).padStart(2, '0')).join(''),
+    };
   }
   if (!reference) throw new Error('Missing registered reference.');
   const { frame, ...source } = await read(message.input);
