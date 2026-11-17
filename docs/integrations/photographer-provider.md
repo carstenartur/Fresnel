@@ -48,3 +48,17 @@ With Docker available locally, `mvn -B -ntp -Dfresnel.e2e.skip=false verify` run
 The photometry capture endpoint binds the selected camera to a server-generated, immutable display sequence. Camera and service must support externally triggered stills, durable media and checksummed PNG transfer. Lock exposure and focus on the camera if the service cannot lock them. Choose a light count within the advertised session limit, including the dark and flat exposures.
 
 A presented step has two acknowledgements. After the exact raster has settled the display client sends its hash and a unique presentation ID to `steps/{step}/trigger`. After capture, it sends `steps/{step}/accept` only if it continuously displayed that raster. The server records the original acknowledgement before triggering. It verifies the source and adds it to the private measurement archive on acceptance. A repeated trigger from the same uninterrupted presentation uses the original key. Starting a different presentation cannot accept an outstanding exposure. If the display is interrupted, cancel the capture. Already accepted exposures remain in the archive.
+
+
+## Resume a saved analysis
+
+In **Saved experiments**, sign in, select a complete source set, and choose
+**Analyze saved captures**. Fresnel reopens the original inputs and settings and
+records the analysis attempt under your account before the browser starts its
+worker. A successful run saves its checksummed result in the same experiment.
+
+If the browser closes, the computer restarts, or the result upload is interrupted,
+open the experiment again and choose **Resume saved analysis**. Fresnel starts
+a new attempt from the saved original inputs. A previous tab cannot commit a
+late result over the new attempt. The worker reruns the computation from the
+beginning. Acquiring the original exposures again is unnecessary.

@@ -49,7 +49,14 @@ public class MeasurementSessions implements UploadCaptureSource<MeasurementSessi
     public record Plan(String pluginId, JsonNode parameters, List<String> steps) {}
     public record Asset(String sha256, long byteLength, String mediaType, int width, int height) {}
     public record View(UUID id, Instant created, String pluginId, JsonNode parameters, List<String> steps,
-                       Map<String,Asset> assets, String state, String captureProvider) {
+                       Map<String,Asset> assets, String state, String captureProvider, UUID analysisAttempt) {
+        View(UUID id, Instant created, String pluginId, JsonNode parameters, List<String> steps,
+             Map<String,Asset> assets, String state, String captureProvider) {
+            this(id, created, pluginId, parameters, steps, assets, state, captureProvider, null);
+        }
+        View attempt(String state, UUID attempt) {
+            return new View(id, created, pluginId, parameters, steps, assets, state, captureProvider, attempt);
+        }
         public View { if (captureProvider == null) captureProvider = "manual-upload"; }
         Plan plan() { return new Plan(pluginId, parameters, steps); }
     }
@@ -215,6 +222,8 @@ public class MeasurementSessions implements UploadCaptureSource<MeasurementSessi
         try {
             View v = get(owner, id);
             boolean result = "result".equals(step);
+            if (result && v.analysisAttempt() != null && !"saved-analysis".equals(provider))
+                throw conflict("Save the result through the current analysis attempt");
             if (!result && !v.captureProvider.equals(provider)) throw conflict("Source belongs to another capture provider");
             if (!v.steps.contains(step) && !result) throw bad("Unknown capture step");
             if (result && !v.assets.keySet().containsAll(v.steps)) throw conflict("Upload every source before saving a result");
@@ -251,13 +260,48 @@ public class MeasurementSessions implements UploadCaptureSource<MeasurementSessi
                 var assets = new TreeMap<>(v.assets);
                 assets.put(step, asset);
                 String state = result ? "COMPLETED" : assets.keySet().containsAll(v.steps) ? "READY_TO_ANALYZE" : "CAPTURING";
-                var next = new View(v.id, v.created, v.pluginId, v.parameters, v.steps, assets, state, v.captureProvider);
+                var next = new View(v.id, v.created, v.pluginId, v.parameters, v.steps, assets, state, v.captureProvider, v.analysisAttempt);
                 Files.move(stage, directory.resolve(expected), ATOMIC_MOVE, REPLACE_EXISTING);
                 save(directory, next);
                 return next;
             } catch (tools.jackson.core.JacksonException e) { throw bad("Invalid result JSON"); }
             finally { Files.deleteIfExists(stage); }
         } finally { lock.unlock(); }
+    }
+
+    View startAnalysis(String owner, UUID id, UUID attempt, UUID previous) throws IOException {
+        var guard = lock(owner); guard.lock();
+        try {
+            var view = get(owner,id);
+            if (attempt.equals(view.analysisAttempt())) return view;
+            if (!Objects.equals(view.analysisAttempt(), previous) || !view.assets().keySet().containsAll(view.steps())
+                    || view.assets().containsKey("result")) throw conflict("Saved analysis or source set has changed");
+            var started = view.attempt("ANALYZING",attempt);
+            save(dir(owner,id),started);
+            return started;
+        } finally { guard.unlock(); }
+    }
+
+    View stopAnalysis(String owner, UUID id, UUID attempt, boolean failed) throws IOException {
+        var guard = lock(owner); guard.lock();
+        try {
+            var view = get(owner,id);
+            if (!attempt.equals(view.analysisAttempt())) throw conflict("Another analysis is current");
+            if (!"ANALYZING".equals(view.state())) return view;
+            var stopped = view.attempt(failed ? "FAILED" : "CANCELLED",attempt);
+            save(dir(owner,id),stopped);
+            return stopped;
+        } finally { guard.unlock(); }
+    }
+
+    View analysisResult(String owner, UUID id, UUID attempt, String type, String sha, InputStream data) throws IOException {
+        var guard = lock(owner); guard.lock();
+        try {
+            var view = get(owner,id);
+            if (!attempt.equals(view.analysisAttempt()) || !Set.of("ANALYZING","COMPLETED").contains(view.state()))
+                throw conflict("This analysis is no longer current");
+            return put(owner,id,"result",type,sha,data,"saved-analysis");
+        } finally { guard.unlock(); }
     }
 
     private static Asset inspectImage(Path path, String sha, long size, String type) throws IOException {

@@ -68,6 +68,30 @@ class MeasurementSessionsTest {
         assertTrue(service.get("alice",malformed.id()).assets().isEmpty());
     }
 
+    @Test void resumesSavedAnalysisAfterRestartAndFencesOlderWorkers() throws IOException {
+        var sessions = service();
+        var id = sessions.create("alice",plan).id();
+        var first = UUID.randomUUID();
+        var second = UUID.randomUUID();
+        assertThrows(ResponseStatusException.class,() -> sessions.startAnalysis("alice",id,first,null));
+        for (var step : plan.steps()) put(sessions,id,step,picture(8));
+        assertEquals(404,assertThrows(ResponseStatusException.class,() -> sessions.startAnalysis("bob",id,first,null)).getStatusCode().value());
+        var started = sessions.startAnalysis("alice",id,first,null);
+        assertEquals(started,service().get("alice",id));
+        assertEquals(started,service().startAnalysis("alice",id,first,null));
+        assertThrows(ResponseStatusException.class,() -> sessions.startAnalysis("alice",id,second,null));
+        assertEquals("ANALYZING",service().startAnalysis("alice",id,second,first).state());
+        byte[] result = "{}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String sha = MeasurementSessions.hash(result);
+        assertThrows(ResponseStatusException.class,() -> sessions.analysisResult("alice",id,first,"application/json",sha,new ByteArrayInputStream(result)));
+        assertThrows(ResponseStatusException.class,() -> sessions.put("alice",id,"result","application/json",sha,new ByteArrayInputStream(result)));
+        assertEquals("CANCELLED",service().stopAnalysis("alice",id,second,false).state());
+        var finalAttempt = UUID.randomUUID();
+        sessions.startAnalysis("alice",id,finalAttempt,second);
+        assertEquals("COMPLETED",service().analysisResult("alice",id,finalAttempt,"application/json",sha,new ByteArrayInputStream(result)).state());
+        assertEquals("COMPLETED",service().analysisResult("alice",id,finalAttempt,"application/json",sha,new ByteArrayInputStream(result)).state());
+    }
+
     @Test void inputSurvivesRestartAndRetryIsImmutableAndPrivate() throws IOException {
         var s = service();
         var id = s.create("alice", plan).id();
