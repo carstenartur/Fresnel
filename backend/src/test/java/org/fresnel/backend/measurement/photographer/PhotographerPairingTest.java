@@ -65,6 +65,20 @@ class PhotographerPairingTest {
             assertEquals(2, posts.get());
             String manifest = Files.readString(data.resolve("connection.json"));
             assertFalse(manifest.contains("test-code"));
+            assertFalse(manifest.contains(connection.bearerToken()));
+            var sealed = json.readTree(manifest);
+            assertEquals(1, sealed.required("version").asInt());
+            // Simulate an existing installation, then reopen it twice with its original grant.
+            String legacy = json.writeValueAsString(java.util.Map.of("fresnelInstanceId", localId[0], "connection", connection));
+            Files.writeString(data.resolve("connection.json"), legacy);
+            assertEquals(connection.bearerToken(), new PhotographerPairing(origin, false, data).current().orElseThrow().bearerToken());
+            assertFalse(Files.readString(data.resolve("connection.json")).contains(connection.bearerToken()));
+            assertEquals(connection.pairingId(), new PhotographerPairing(origin, false, data).status().pairingId());
+            Path key = data.resolve("pairing.key");
+            assertEquals(32, Files.size(key));
+            Files.move(key, data.resolve("backup-key"));
+            assertThrows(PhotographerPairing.Failure.class, () -> new PhotographerPairing(origin, false, data).current());
+            assertFalse(Files.exists(key));
             if (Files.getFileStore(data).supportsFileAttributeView("posix")) {
                 assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions.toString(
                         Files.getPosixFilePermissions(data.resolve("connection.json"))));

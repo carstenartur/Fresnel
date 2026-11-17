@@ -39,19 +39,35 @@ public final class PhotographerPairing {
     private final URI origin;
     private final Path directory;
     private final Path manifest;
+    private final PairingEnvelope envelope;
 
     @Autowired
     PhotographerPairing(@Value("${fresnel.capture.photographer.origin:}") String configuredOrigin,
                         @Value("${fresnel.capture.photographer.trust-private-network:false}") boolean trustNetwork,
-                        @Value("${fresnel.capture.photographer.directory:}") String directory) {
+                        @Value("${fresnel.capture.photographer.directory:}") String directory,
+                        @Value("${fresnel.capture.photographer.key-file:}") String keyFile) {
         this(configuredOrigin, trustNetwork, directory.isBlank()
-                ? DesktopDataDirectory.resolve().resolve("photographer") : Path.of(directory));
+                ? DesktopDataDirectory.resolve().resolve("photographer") : Path.of(directory), keyFile);
     }
 
     PhotographerPairing(String configuredOrigin, boolean trustNetwork, Path directory) {
+        this(configuredOrigin, trustNetwork, directory, "");
+    }
+
+    PhotographerPairing(String configuredOrigin, boolean trustNetwork, Path directory, String keyFile) {
         this.origin = origin(configuredOrigin, trustNetwork);
         this.directory = directory;
         this.manifest = directory.resolve("connection.json");
+        this.envelope = new PairingEnvelope(directory, keyFile);
+        if (Files.exists(manifest)) {
+            locked(() -> {
+                try {
+                    JsonNode saved = JSON.readTree(Files.readAllBytes(manifest));
+                    if (saved.has("fresnelInstanceId") && !saved.has("version")) save(JSON.treeToValue(saved, Stored.class));
+                } catch (IOException | tools.jackson.core.JacksonException e) { throw new Failure(500, "PAIRING_STORE_UNAVAILABLE"); }
+                return null;
+            });
+        }
     }
 
     public record Connection(URI origin, String instanceId, String pairingId, String bearerToken,
@@ -176,7 +192,7 @@ public final class PhotographerPairing {
     private Stored read() {
         try {
             if (Files.notExists(manifest)) return null;
-            return JSON.readValue(Files.readAllBytes(manifest), Stored.class);
+            return JSON.readValue(envelope.open(JSON.readTree(Files.readAllBytes(manifest))), Stored.class);
         } catch (IOException | tools.jackson.core.JacksonException e) { throw new Failure(500, "PAIRING_STORE_UNAVAILABLE"); }
     }
 
@@ -197,7 +213,7 @@ public final class PhotographerPairing {
             // createTempFile uses owner-only permissions on POSIX. Replacement publishes a complete snapshot.
             Path temp = Files.createTempFile(directory, ".pairing-", ".tmp");
             try {
-                Files.write(temp, JSON.writeValueAsBytes(stored), StandardOpenOption.WRITE, StandardOpenOption.SYNC);
+                Files.write(temp, envelope.seal(JSON, JSON.writeValueAsBytes(stored)), StandardOpenOption.WRITE, StandardOpenOption.SYNC);
                 Files.move(temp, manifest, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } finally { Files.deleteIfExists(temp); }
         } catch (IOException e) { throw new Failure(500, "PAIRING_STORE_UNAVAILABLE"); }

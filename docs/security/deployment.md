@@ -156,3 +156,5 @@ The Fresnel server stores the operator-owned experiments and original PNGs in th
 `FRESNEL_CAPTURE_PHOTOGRAPHER_EXPERIMENTS_DIRECTORY`. Set
 `FRESNEL_CAPTURE_PHOTOGRAPHER_JOURNAL_DIRECTORY` to a persistent location for the
 adapter's replay records when using a container. Back up all three directories together.
+
+The Photographer pairing manifest is encrypted with AES-256-GCM. Existing pairings are migrated on startup. By default Fresnel generates a private 32-byte key in `pairing.key` next to the manifest. Back up the key if the pairing must survive a restore. To manage it separately from the data volume, set `fresnel.capture.photographer.key-file` to a file containing exactly 32 random binary bytes and mount it read-only. When moving an existing encrypted installation to a managed key, mount its original key. A missing or incorrect key prevents use of the saved grant.
