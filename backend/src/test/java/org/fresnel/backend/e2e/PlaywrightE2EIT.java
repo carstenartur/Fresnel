@@ -17,7 +17,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
-class PlaywrightE2EIT {
+public class PlaywrightE2EIT {
 
     private static final Duration MAXIMUM_RUNTIME = Duration.ofMinutes(20);
     private static final URI BACKEND_URI = URI.create("http://localhost:8080/");
@@ -48,12 +48,16 @@ class PlaywrightE2EIT {
 
     @Test
     void completePlaywrightSuitePassesAgainstThePackagedApplication() throws Exception {
+        runBrowser(BACKEND_URI, false);
+    }
+
+    public static void runBrowser(URI origin, boolean photometryNetwork) throws Exception {
         Path backend = Path.of(System.getProperty("basedir", "."))
                 .toAbsolutePath()
                 .normalize();
         Path frontend = backend.resolveSibling("frontend");
         Path nodeDirectory = backend.resolve("target/node");
-        Path log = backend.resolve("target/failsafe-reports/playwright-e2e.log");
+        Path log = backend.resolve("target/failsafe-reports/" + (photometryNetwork ? "photometry-network.log" : "playwright-e2e.log"));
         boolean windows = System.getProperty("os.name", "")
                 .toLowerCase(Locale.ROOT)
                 .contains("win");
@@ -75,6 +79,11 @@ class PlaywrightE2EIT {
 
         ProcessBuilder command = new ProcessBuilder(
                 node.toString(), npmCli.toString(), "run", "e2e");
+        if (photometryNetwork) {
+            command.command().addAll(java.util.List.of("--","photometry-network.spec.ts","--reporter=list",
+                    "--output=" + backend.resolve("target/photometry-network-artifacts")));
+            command.environment().put("FRESNEL_PHOTOMETRY_NETWORK_IT", "1");
+        }
         command.directory(frontend.toFile());
         command.redirectErrorStream(true);
         command.redirectOutput(log.toFile());
@@ -82,7 +91,7 @@ class PlaywrightE2EIT {
         command.environment().put("E2E_USER", "user");
         command.environment().put("E2E_PASSWORD", "user");
         command.environment().put("E2E_NO_WEBSERVER", "true");
-        command.environment().put("E2E_BASE_URL", BACKEND_URI.toString());
+        command.environment().put("E2E_BASE_URL", origin.toString());
 
         Process process = command.start();
         try {

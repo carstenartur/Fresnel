@@ -1,12 +1,17 @@
 // An independent process serving the public v1 fixture bytes. Only accepted keys advance its mock camera.
 import { createServer } from 'node:http';
+import { createHash } from 'node:crypto';
+import { sourceImage } from './photometry-image.mjs';
 import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 
-const contract = JSON.parse(readFileSync('/fixture/contract.json'));
+const contract = JSON.parse(readFileSync(new URL('./contract.json',import.meta.url)));
 const v = contract.values;
+// 64×64 synthetic photometry frames exceed the tiny 1×1 protocol fixtures.
+v.pairResult.descriptor.limits.maximumAssetBytes = 64 * 1024;
+v.descriptor.limits.maximumAssetBytes = 64 * 1024;
 const prefix = '/api/v1/integrations/fresnel';
-const stateFile = '/tmp/capture-state.json';
-writeFileSync('/tmp/photographer.pid',String(process.pid));
+const stateFile = process.env.FIXTURE_STATE_FILE ?? '/tmp/capture-state.json';
+writeFileSync(process.env.FIXTURE_PID_FILE ?? '/tmp/photographer.pid',String(process.pid));
 const state = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile)) : {paired:false, keys:{}, shots:0};
 function persist() {
   writeFileSync(stateFile+'.part', JSON.stringify(state));
@@ -40,7 +45,20 @@ async function handle(req, res) {
       return json(res,200,previous.result);
     }
     let result;
-    if (path === '/capture-sessions') result = v.sessionRef;
+    if (path === '/capture-sessions') {
+      state.plan = JSON.parse(payload);
+      result = state.plan.workflowType === 'DISPLAY_PHOTOMETRIC_STEREO' ? {...v.sessionRef,sessionId:'capture-display'} : v.sessionRef;
+    } else if (path.startsWith('/capture-sessions/capture-display/steps/')) {
+      const id = path.split('/')[4], presented = JSON.parse(payload);
+      const step = state.plan.steps.find(s => s.id === id);
+      if (!step || step.externalPatternId !== presented.externalPatternId || step.externalPatternSha256 !== presented.externalPatternSha256)
+        return json(res,409,v.PATTERN_MISMATCH);
+      const bytes = sourceImage(id);
+      const asset = {sessionId:'capture-display', assetId:'asset-'+id, stepId:id, role:step.role,
+        originalFileName:id+'.png', mediaType:'image/png', byteLength:bytes.length,
+        sha256:createHash('sha256').update(bytes).digest('hex'), capturedAt:new Date().toISOString()};
+      result = {sessionId:'capture-display',stepId:id,asset,completedAt:asset.capturedAt};
+    }
     else if (path === '/capture-sessions/capture-bos/steps/reference/trigger') result = v.referenceResult;
     else if (path === '/capture-sessions/capture-bos/steps/disturbed/trigger') result = v.disturbedResult;
     if (!result) return json(res,404,v.ASSET_NOT_FOUND);
@@ -49,6 +67,15 @@ async function handle(req, res) {
     return json(res, result.stepId ? 200 : 201,result);
   }
   if (path === '/capture-sessions/capture-bos') return json(res,200,state.shots === 2 ? v.captureCompleted : v.capturePending);
+  if (path.startsWith('/capture-sessions/capture-display/assets/')) {
+    const assetId = path.split('/')[4];
+    const asset = Object.values(state.keys).map(x => x.result?.asset).find(a => a?.assetId === assetId);
+    if (!asset) return json(res,404,v.ASSET_NOT_FOUND);
+    if (path.endsWith('/metadata')) return json(res,200,asset);
+    const bytes = sourceImage(asset.stepId);
+    res.writeHead(200,{'Content-Type':'image/png','Content-Length':bytes.length,ETag:'"'+asset.sha256+'"'});
+    return res.end(bytes);
+  }
   const file = contract.media.find(m => path.startsWith('/capture-sessions/capture-bos/assets/'+m.metadata.assetId));
   if (file) {
     if (path.endsWith('/metadata')) return json(res,200,file.metadata);
@@ -58,4 +85,4 @@ async function handle(req, res) {
   }
   return json(res,404,v.ASSET_NOT_FOUND);
 }
-createServer((req,res)=>{ handle(req,res).catch(()=>json(res,500,{error:'invalid fixture request'})); }).listen(8080,'0.0.0.0');
+createServer((req,res)=>{ handle(req,res).catch(()=>json(res,500,{error:'invalid fixture request'})); }).listen(Number(process.env.PORT ?? 8080),'0.0.0.0');

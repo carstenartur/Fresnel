@@ -15,15 +15,20 @@ import static org.junit.jupiter.api.Assertions.*;
 class PhotographerContainerIT {
     @TempDir Path data;
 
-    @Test void recoversAStillPairWithExactlyTwoShutterReleases() throws Exception {
+    private GenericContainer<?> fixture() throws Exception {
         String image;
         try (var lines = Files.lines(Path.of("..","Dockerfile"))) {
             image = lines.filter(l -> l.startsWith("FROM node:")).findFirst().orElseThrow().split(" ")[1];
         }
-        try (var container = new GenericContainer<>(DockerImageName.parse(image)).withExposedPorts(8080)
+        return new GenericContainer<>(DockerImageName.parse(image)).withExposedPorts(8080)
+                .withCopyFileToContainer(MountableFile.forClasspathResource("photographer/photometry-image.mjs"),"/fixture/photometry-image.mjs")
                 .withCopyFileToContainer(MountableFile.forClasspathResource("photographer/container-fixture.mjs"),"/fixture/server.mjs")
                 .withCopyFileToContainer(MountableFile.forHostPath(Path.of("../docs/integrations/photographer-capture-v1.fixtures.json").toAbsolutePath()),"/fixture/contract.json")
-                .withCommand("sh","-c","while :; do node /fixture/server.mjs; done").waitingFor(Wait.forHttp("/ready"))) {
+                .withCommand("sh","-c","while :; do node /fixture/server.mjs; done").waitingFor(Wait.forHttp("/ready"));
+    }
+
+    @Test void recoversAStillPairWithExactlyTwoShutterReleases() throws Exception {
+        try (var container = fixture()) {
             container.start();
             String origin = "http://" + container.getHost() + ":" + container.getMappedPort(8080);
             var paired = new PhotographerPairing(origin,true,data.resolve("pairing"));
@@ -63,4 +68,26 @@ class PhotographerContainerIT {
             assertEquals("2",evidence.getStdout().trim());
         }
     }
+    @Test void capturesAndReopensPhotometryUsingTheRealBrowserAndBackend() throws Exception {
+        try (var remote = fixture()) {
+            remote.start();
+            var origin = "http://" + remote.getHost() + ":" + remote.getMappedPort(8080);
+            try (var app = new org.springframework.boot.builder.SpringApplicationBuilder(
+                    org.fresnel.backend.FresnelBackendApplication.class).run(
+                    "--server.port=0", "--server.address=127.0.0.1", "--spring.jmx.enabled=false",
+                    "--fresnel.capture.photographer.enabled=true", "--fresnel.capture.photographer.origin=" + origin,
+                    "--fresnel.capture.photographer.trust-private-network=true",
+                    "--fresnel.capture.photographer.directory=" + data.resolve("pair"),
+                    "--fresnel.capture.photographer.journal-directory=" + data.resolve("journal"),
+                    "--fresnel.measurements.directory=" + data.resolve("experiments"))) {
+                app.getBean(PhotographerPairing.class).pair("test-only-code-fixture");
+                var port = app.getEnvironment().getRequiredProperty("local.server.port");
+                org.fresnel.backend.e2e.PlaywrightE2EIT.runBrowser(java.net.URI.create("http://127.0.0.1:" + port), true);
+                var count = remote.execInContainer("node","-p","require('/tmp/capture-state.json').shots");
+                assertEquals(0, count.getExitCode());
+                assertEquals("6", count.getStdout().trim());
+            }
+        }
+    }
+
 }
