@@ -6,16 +6,20 @@ import {pluginId,type Geometry,type Manifest} from './data';
 const root='/api/experiments/photometry-captures';
 type Camera={id:string;name:string};
 type Creation={id:string;cameraId:string;manualLocksConfirmed:boolean;sequenceId:string};
+class CaptureRequestError extends Error {
+  readonly status:number;
+  constructor(status:number,message:string) { super(message); this.status=status; }
+}
 async function request<T>(auth:string,url:string,method='GET',body?:object,keepalive=false):Promise<T> {
   const headers:Record<string,string>={Authorization:auth};
   if (body) headers['Content-Type']='application/json';
   const r=await fetch(url,{method,headers,body:body ? JSON.stringify(body) : undefined,
     keepalive,cache:'no-store',redirect:'error',credentials:'omit'});
   if (!r.ok) {
-    if (r.status===404) throw new Error('Photographer capture is unavailable. Check pairing and enable the integration.');
-    if (r.status===401 || r.status===403) throw new Error('Fresnel denied access. Check the operator credentials.');
+    if (r.status===404) throw new CaptureRequestError(r.status,'Photographer capture is unavailable. Check pairing and enable the integration.');
+    if (r.status===401 || r.status===403) throw new CaptureRequestError(r.status,'Fresnel denied access. Check the operator credentials.');
     let detail=''; try {const problem=await r.json();detail=problem.code ?? problem.detail ?? '';} catch { /* empty response */ }
-    throw new Error('Fresnel capture request failed (HTTP '+r.status+'). '+detail);
+    throw new CaptureRequestError(r.status,'Fresnel capture request failed (HTTP '+r.status+'). '+detail);
   }
   return r.json();
 }
@@ -53,8 +57,24 @@ export function PhotometryCamera({manifest,onRestore}:{manifest:Manifest;onResto
     if (!plan || plan.sequenceId!==manifest.sequenceId) plan={id:crypto.randomUUID(),cameraId,manualLocksConfirmed:locks,sequenceId:manifest.sequenceId};
     creating.current=plan;
     try {sessionStorage.setItem('fresnel.photo.create.'+username,JSON.stringify(plan));} catch { /* memory fallback */ }
-    const next=await request<CameraSession>(auth,root+'/'+plan.id,'PUT',{cameraId:plan.cameraId,
-      geometry:manifest.geometry,manualLocksConfirmed:plan.manualLocksConfirmed});
+    let next:CameraSession;
+    try {
+      next=await request<CameraSession>(auth,root+'/'+plan.id,'PUT',{cameraId:plan.cameraId,
+        geometry:manifest.geometry,manualLocksConfirmed:plan.manualLocksConfirmed});
+    } catch (error) {
+      // A capability rejection before persistence permits the operator to change settings.
+      // An ambiguous network failure keeps the same creation UUID for a safe retry.
+      if (error instanceof CaptureRequestError && [400,409].includes(error.status)) {
+        try { selectSession(await request<CameraSession>(auth,root+'/'+plan.id)); }
+        catch (lookup) {
+          if (lookup instanceof CaptureRequestError && lookup.status===404) {
+            creating.current=null;
+            try {sessionStorage.removeItem('fresnel.photo.create.'+username);} catch { /* memory fallback */ }
+          }
+        }
+      }
+      throw error;
+    }
     selectSession(next);
     if (next.state!=='CREATING') {
       creating.current=null;
