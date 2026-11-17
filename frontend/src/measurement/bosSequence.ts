@@ -7,9 +7,11 @@ export const stepName = (i: number) => 'frame-' + String(i + 1).padStart(2, '0')
 export interface FrameResult {
   index: number;
   timeSeconds: number;
+  presentedTimeSeconds?: number;
   name: string;
   sha256: string;
-  sourceWidth:number; sourceHeight:number;
+  sourceWidth: number;
+  sourceHeight: number;
   result: PairResult | null;
   rejection?: string;
 }
@@ -38,6 +40,34 @@ function waitFor(video: HTMLVideoElement, event: string, signal: AbortSignal, ac
     }
   });
 }
+// Register before changing the media position. "seeked" alone can still expose the preceding pixels.
+async function presented(
+  video: HTMLVideoElement,
+  signal: AbortSignal,
+  move: () => Promise<void>,
+): Promise<number> {
+  signal.throwIfAborted();
+  if (!video.requestVideoFrameCallback)
+    throw new Error('MP4 sampling requires a browser with video frame callbacks.');
+  let callback = 0,
+    timer: ReturnType<typeof setTimeout> | undefined;
+  let abort = () => {};
+  const display = new Promise<number>((resolve, reject) => {
+    abort = () => reject(new DOMException('Cancelled', 'AbortError'));
+    signal.addEventListener('abort', abort, { once: true });
+    timer = setTimeout(() => reject(new Error('The MP4 decoder did not present this frame.')), 12_000);
+    callback = video.requestVideoFrameCallback((_, frame) => resolve(frame.mediaTime));
+  });
+  try {
+    const [, time] = await Promise.all([move(), display]);
+    return time;
+  } finally {
+    clearTimeout(timer);
+    video.cancelVideoFrameCallback(callback);
+    signal.removeEventListener('abort', abort);
+  }
+}
+
 async function openMovie(file: File, signal: AbortSignal) {
   if (!file.size || file.size > 64 * 1024 * 1024) throw new Error('Each MP4 is limited to 64 MiB.');
   const prefix = new Uint8Array(await file.slice(0, 12).arrayBuffer());
@@ -48,52 +78,56 @@ async function openMovie(file: File, signal: AbortSignal) {
   video.preload = 'metadata';
   video.muted = true;
   video.playsInline = true;
+  video.width = 2;
+  video.height = 2;
+  video.tabIndex = -1;
+  video.setAttribute('aria-hidden', 'true');
+  video.style.position = 'absolute';
+  video.style.left = '-200px';
+  document.body.append(video);
   const close = () => {
     video.removeAttribute('src');
     video.load();
+    video.remove();
     URL.revokeObjectURL(url);
   };
   try {
-    await waitFor(video, 'loadedmetadata', signal, () => {
-      video.src = url;
+    let actualTime = await presented(video, signal, async () => {
+      await waitFor(video, 'loadedmetadata', signal, () => {
+        video.src = url;
+      });
+      const { videoWidth: w, videoHeight: h, duration } = video;
+      if (
+        !Number.isFinite(duration) ||
+        duration <= 0 ||
+        duration > 30 ||
+        !w ||
+        !h ||
+        w > 4096 ||
+        h > 4096 ||
+        w * h > 8_500_000
+      )
+        throw new Error('Use an MP4 up to 30 seconds, 4096 px per side and 8.5 megapixels.');
+      video.preload = 'auto';
     });
     const { videoWidth: w, videoHeight: h, duration } = video;
-    if (
-      !Number.isFinite(duration) ||
-      duration <= 0 ||
-      duration > 30 ||
-      !w ||
-      !h ||
-      w > 4096 ||
-      h > 4096 ||
-      w * h > 8_500_000
-    )
-      throw new Error('Use an MP4 up to 30 seconds, 4096 px per side and 8.5 megapixels.');
     const canvas = document.createElement('canvas'),
       scale = Math.min(1, settings.maximumSide / Math.max(w, h));
     canvas.width = Math.round(w * scale);
     canvas.height = Math.round(h * scale);
-    const ctx = canvas.getContext('2d', {willReadFrequently:true});
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) throw new Error('Browser image decoder is unavailable.');
     ctx.imageSmoothingQuality = 'high';
     const sample = async (t: number, index: number): Promise<FrameInput> => {
-      if (video.readyState < 2 || Math.abs(t - video.currentTime) > 1e-7)
-        await waitFor(video, 'seeked', signal, () => {
-          video.currentTime = t;
-        });
-      signal.throwIfAborted();
-      // A seek can finish before the compositor has exposed an opaque decoded frame.
-      // Reading back the raster synchronizes canvas drawing before the PNG encoder runs.
-      let ready=false;
-      for (let i=0;i<8&&!ready;i++) {
-        signal.throwIfAborted();
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(video,0,0,canvas.width,canvas.height);
-        const rgba=ctx.getImageData(0,0,canvas.width,canvas.height).data;
-        for (let a=3;a<rgba.length;a+=4) if (rgba[a]) {ready=true;break;}
-        if(!ready) await new Promise(resolve=>setTimeout(resolve,25));
+      if (video.readyState < 2 || Math.abs(t - video.currentTime) > 1e-7) {
+        actualTime = await presented(video, signal, () =>
+          waitFor(video, 'seeked', signal, () => {
+            video.currentTime = t;
+          }),
+        );
       }
-      if(!ready) throw new Error('The MP4 decoder did not produce a visible frame.');
+      signal.throwIfAborted();
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const blob = await new Promise<Blob>((resolve, reject) =>
         canvas.toBlob(
           (b) => (b ? resolve(b) : reject(new Error('Could not sample video frame.'))),
@@ -102,6 +136,7 @@ async function openMovie(file: File, signal: AbortSignal) {
       );
       return {
         file: new File([blob], stepName(index) + '.png', { type: 'image/png' }),
+        presentedTimeSeconds: actualTime,
         sourceWidth: w,
         sourceHeight: h,
       };
@@ -125,6 +160,7 @@ export async function runSequence(
   rate: number,
   signal: AbortSignal,
   onProgress: (s: string) => void,
+  onFrame: (frame: FrameResult) => void,
 ) {
   if (!Number.isFinite(rate) || rate < 0.25 || rate > 12)
     throw new Error('Use a sampling rate between 0.25 and 12 frames per second.');
@@ -170,30 +206,40 @@ export async function runSequence(
             Math.round((i * (count - 1)) / (count < 5 ? 2 : 4)),
           );
     const refs: FrameInput[] = [];
+    const referenceSamples = new Map<number, FrameInput>();
     if (policy === 'fixed' && external) refs.push({ file: external });
     else
       for (const i of indices) {
         signal.throwIfAborted();
-        refs.push(await frame(i));
+        const sampled = await frame(i);
+        refs.push(sampled);
+        if (movie) referenceSamples.set(i, sampled);
       }
     onProgress('Preparing reference…');
-    await ask({ kind: 'reference', inputs: refs });
+    const provenance = await ask({ kind: 'reference', inputs: refs });
+    if (provenance.kind !== 'ready') throw new Error('Unexpected reference response.');
     refs.length = 0;
     const frames: FrameResult[] = [];
     for (let i = 0; i < count; i++) {
       signal.throwIfAborted();
       onProgress('Analyzing frame ' + (i + 1) + ' of ' + count + '…');
-      const input = await frame(i);
+      const input = referenceSamples.get(i) ?? (await frame(i));
+      referenceSamples.delete(i);
       const value = await ask({ kind: 'frame', input });
       if (value.kind !== 'result') throw new Error('Unexpected worker result.');
-      frames.push({
+      const measured: FrameResult = {
         index: i,
         timeSeconds: time(i),
+        presentedTimeSeconds: input.presentedTimeSeconds,
         name: input.file.name,
-        sha256: value.sha256, sourceWidth:value.sourceWidth, sourceHeight:value.sourceHeight,
+        sha256: value.sha256,
+        sourceWidth: value.sourceWidth,
+        sourceHeight: value.sourceHeight,
         result: value.result,
         rejection: value.reason,
-      });
+      };
+      frames.push(measured);
+      onFrame(measured);
     }
     const magnitudes = frames
       .flatMap(
@@ -212,8 +258,15 @@ export async function runSequence(
       policy,
       rate,
       referenceFrameIndices: external && policy === 'fixed' ? [] : indices,
+      referenceRaster: {
+        width: provenance.width,
+        height: provenance.height,
+        luminance: '8-bit sRGB BT.709 luma, top-down row-major',
+        sha256: provenance.pixelSha256,
+      },
+      referenceSourceHashes: provenance.sourceHashes,
       reference:
-        external && policy === 'fixed' ? { name: external.name, sha256: await digest(external) } : null,
+        external && policy === 'fixed' ? { name: external.name, sha256: provenance.sourceHashes[0] } : null,
       sourceVideo:
         movie && clip
           ? {
@@ -226,7 +279,7 @@ export async function runSequence(
             }
           : null,
       timeBasis: movie
-        ? 'Requested video presentation time in seconds'
+        ? 'Requested sampling time and actual media presentation time in seconds'
         : 'Declared still-frame cadence in seconds',
       coordinateSystem: 'Analysis pixels in the oriented reference raster, +x right, +y down',
       colorLimitPx: Math.max(0.15, magnitudes[Math.floor(0.95 * (magnitudes.length - 1))] ?? 0),

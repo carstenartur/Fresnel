@@ -51,7 +51,8 @@ and scale. The source files retain their original pixels.
    completed capture, choose **Use verified pair in BOS analysis**. Fresnel
    checks each original PNG against its recorded size and SHA-256 and loads it
    into the same analysis controls. The numeric result and saved experiment
-   retain the provider, capture identifier and both exposure times.
+   retain the provider, capture identifier and both exposure times. The current
+   integration has been verified with Photographer’s mock PNG still camera.
 2. Check the accepted windows and registration residual. Inspect the stabilized
    disturbed frame alongside the map. Switch between magnitude, signed horizontal
    or vertical displacement and normalized correlation. Display amplification
@@ -95,13 +96,18 @@ Open **Analyze a sequence or video** below the still-pair editor. Supply
 codec is required. Reorder stills before analysis with **Move earlier**.
 The declared still cadence determines their displayed times. For video,
 Fresnel samples evenly at the midpoint of each interval, with at least two
-and at most 24 samples. The JSON records the requested presentation times.
+and at most 24 samples. The JSON records both the requested sampling time and the actual
+media presentation timestamp reported by the browser for each decoded frame.
 
 Use a separate undisturbed still or the first frame for a fixed reference.
 Temporal median registers three or five samples spread across the sequence
 onto the first sample before taking their per-pixel median. It requires at
 least three frames with sufficient stable texture. Each subsequent frame is
-registered independently. Inspect rejected frames on the timeline. All
+registered independently. A live magnitude map shows the latest measured frame
+and its provisional color limit while the worker runs. Inspect rejected samples
+on the completed timeline. The report retains the SHA-256 of each reference
+source, the final reference luminance raster, the original MP4 (for video), and
+every frame. All
 valid frames share one robust color limit so colors can be compared in time.
 The review WebM plays at five frames per second. The numeric grid preserves
 the experiment timing.
