@@ -185,6 +185,9 @@ public final class PluginRegistry {
             PluginStabilityLevel.EXPERIMENTAL,
             Set.of(
                     PluginCapability.GENERATE_CAPTURE_TARGET,
+                    PluginCapability.IMPORT_CAPTURE_SET,
+                    PluginCapability.ANALYZE_CAPTURE_SET,
+                    PluginCapability.EXPORT_EXPERIMENT_BUNDLE,
                     PluginCapability.EXPORT_PNG,
                     PluginCapability.EXPORT_SVG,
                     PluginCapability.EXPORT_PDF,

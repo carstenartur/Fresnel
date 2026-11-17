@@ -11,11 +11,48 @@ high-contrast background visible. In a typical household experiment, a camera
 first records a random-dot target without the disturbance and then records the
 same target with warm or moving air between camera and target.
 
-The current implementation is the first bounded target-generation slice. It
-creates, previews and exports a deterministic target for screens and physically sized printouts. Capture
-import, image registration, displacement analysis and the target-quality assistant remain separate later slices; Fresnel
-does not yet claim to produce a Schlieren result from camera images in this
-plugin.
+Fresnel generates a reproducible dot target for a screen or a physical-size printout
+and measures a pair of still images in the BOS editor. Use the same stationary target and camera settings for both
+exposures. Ordinary PNG or JPEG uploads are sufficient.
+
+## Analyze a still pair
+
+1. Keep the outer dot field undisturbed in both exposures. Select **Reference
+   image** and **Disturbed image**, then **Analyze still pair**.
+2. Check the accepted windows and registration residual. Inspect the stabilized
+   disturbed frame alongside the map. Switch between magnitude, signed horizontal
+   or vertical displacement and normalized correlation. Display amplification
+   changes the colors of the stored grid.
+3. Download the PNG visualization or numeric JSON. Use **Saved experiments** to
+   keep the source images and result together in an owner-scoped session and
+   export a checksummed experiment bundle.
+
+The worker checks each image header before decoding. It accepts PNG and JPEG up
+to 20 MiB, 24 megapixels and 16,384 pixels per side, normalizes orientation, and
+requires equal source dimensions. It composites transparency on white and
+uses BT.709 luma coefficients on browser-decoded sRGB. The analysis raster
+preserves aspect ratio, has at most 512 pixels on its longest side and at
+least 96 on its shortest. The original files remain available at full size.
+
+For each pair, 12 outer patches measure global translation by zero-mean
+normalized cross-correlation (ZNCC), using 15 × 15 interrogation windows and
+an integer search of ±9 analysis pixels. A fit requires at least nine agreeing
+anchors within 0.85 pixels, with support in all four quadrants. Rotation,
+projective motion or loss of texture can lead to a registration error. For a
+stable pair, each grid patch searches ±5 pixels around the integer global
+shift and refines the peak by parabolic interpolation. Flat windows,
+boundary peaks, correlations below 0.65, competing peaks within 0.055 and
+isolated outliers are masked. At least 45% of the grid must survive.
+Missing vectors are null and excluded from the robust 95th-percentile color
+limit (minimum 0.15 px). The JSON records coordinates in analysis pixels
+(origin top left, +x right, +y down), full-resolution conversion factors,
+source SHA-256, settings and registration statistics. The configured
+target identity is recorded when a generated target is selected.
+
+The numeric fixtures exercise fractional camera motion, a smooth local field
+under camera translation, occlusion, illumination changes, repeated patterns
+and excessive motion. For a textured 160 × 160 fixture the translation error
+must be below 0.22 analysis pixels and the local field error below 0.4 pixels.
 
 ## What is available now
 
@@ -23,7 +60,7 @@ The trusted built-in plugin provides:
 
 - a bounded, deterministic random-dot generator in `measurement-core`;
 - a fixed, versioned pseudo-random sequence independent of JDK random classes;
-- a quiet border excluded from the future analysis region;
+- a quiet border outside the generated dot field;
 - four asymmetric orientation fiducials outside that active region;
 - lossless grayscale PNG output with physical DPI metadata;
 - a data-only manifest with target geometry, seed, dot statistics and semantic
@@ -208,8 +245,7 @@ it is not:
 
 Camera motion, rolling shutter, compression, focus changes, target motion and
 heat shimmer outside the intended region can all produce misleading
-structures. The future analysis slice must estimate global camera motion and
-reject poor registration rather than displaying it as local air motion.
+structures. Check the registration residual and rejected windows before interpreting a map.
 
 ## Verification
 
@@ -228,14 +264,9 @@ resource rejection.
 
 ## Next slices
 
-The next implementation work for issue #140 is deliberately separate from the
-PNG target generator:
+Remaining work for issue #140 includes the following.
 
-1. evaluate a reference image for dot resolution, contrast, clipping and active
-   region coverage;
-2. add bounded ordered manual upload of reference and disturbed still images;
-3. implement global registration and deterministic local displacement
-   estimation with numeric synthetic tests;
-4. add the durable measurement-session shell from issue #139;
-5. advertise `IMPORT_CAPTURE_SET`, `ANALYZE_CAPTURE_SET` and `REMOTE_CAPTURE`
-   only when those paths are actually implemented and tested.
+1. Evaluate a reference image for dot resolution, contrast, clipping and active-region coverage.
+2. Add fiducial registration, affine models and manual selection of the active region.
+3. Analyze ordered sequences and video with temporal confidence and cancellation.
+4. Integrate paired capture directly into the acquisition and analysis editor.

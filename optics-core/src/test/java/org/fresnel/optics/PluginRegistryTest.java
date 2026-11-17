@@ -87,11 +87,11 @@ class PluginRegistryTest {
     void measurementCapabilitiesAreAdvertisedOnlyWhenImplemented() {
         assertEquals(List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN),
                 PluginRegistry.withCapability(PluginCapability.GENERATE_CAPTURE_TARGET));
-        assertTrue(PluginRegistry.withCapability(PluginCapability.IMPORT_CAPTURE_SET).isEmpty());
+        assertTrue(PluginRegistry.withCapability(PluginCapability.IMPORT_CAPTURE_SET).contains(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN));
         assertTrue(PluginRegistry.withCapability(PluginCapability.REMOTE_CAPTURE).isEmpty());
-        assertTrue(PluginRegistry.withCapability(PluginCapability.ANALYZE_CAPTURE_SET).isEmpty());
+        assertTrue(PluginRegistry.withCapability(PluginCapability.ANALYZE_CAPTURE_SET).contains(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN));
         assertTrue(PluginRegistry.withCapability(PluginCapability.LIVE_ANALYSIS_PREVIEW).isEmpty());
-        assertTrue(PluginRegistry.withCapability(PluginCapability.EXPORT_EXPERIMENT_BUNDLE).isEmpty());
+        assertTrue(PluginRegistry.withCapability(PluginCapability.EXPORT_EXPERIMENT_BUNDLE).contains(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN));
         assertTrue(PluginRegistry.ofKind(PluginKind.DESIGN).stream()
                 .noneMatch(descriptor -> descriptor.supports(PluginCapability.GENERATE_CAPTURE_TARGET)));
     }
@@ -235,10 +235,10 @@ class PluginRegistryTest {
         assertTrue(bos.supports(PluginCapability.EXPORT_PNG));
         assertTrue(bos.supports(PluginCapability.EXPORT_PDF));
         assertTrue(bos.supports(PluginCapability.EXPORT_SVG));
-        assertFalse(bos.supports(PluginCapability.IMPORT_CAPTURE_SET));
+        assertTrue(bos.supports(PluginCapability.IMPORT_CAPTURE_SET));
         assertFalse(bos.supports(PluginCapability.REMOTE_CAPTURE));
-        assertFalse(bos.supports(PluginCapability.ANALYZE_CAPTURE_SET));
-        assertFalse(bos.supports(PluginCapability.EXPORT_EXPERIMENT_BUNDLE));
+        assertTrue(bos.supports(PluginCapability.ANALYZE_CAPTURE_SET));
+        assertTrue(bos.supports(PluginCapability.EXPORT_EXPERIMENT_BUNDLE));
         assertTrue(bos.propagationModes().isEmpty());
     }
 
