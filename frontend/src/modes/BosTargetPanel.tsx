@@ -22,7 +22,12 @@ import { PluginEditorShell } from '../schema/PluginEditorShell';
 import { PreviewPane, useBlobUrl } from './shared';
 import './BosTargetPanel.css';
 import { BosSequencePanel } from '../measurement/BosSequencePanel';
+import { MeasurementWorkflow, type WorkflowSource } from '../measurement/MeasurementWorkflow';
 import { BosStillPairPanel } from '../measurement/BosStillPairPanel';
+
+const pairSource: WorkflowSource = {key:'bos/pair', label:'Still pair', captureId:'bos-pair', analysisId:'bos-analyze-pair', archiveId:'bos-pair-archive', planned:2};
+const sequenceSource: WorkflowSource = {key:'bos/series', label:'Image sequence or video', captureId:'bos-series', analysisId:'bos-analyze-series', archiveId:'bos-series-archive', planned:2};
+const cameraSource: WorkflowSource = {key:'bos/camera', label:'Paired Photographer', captureId:'bos-camera-acquisition', analysisId:'bos-camera-acquisition', archiveId:'bos-pair-archive', planned:2, requiresSession:true};
 
 const DEFAULT: BosTargetRequest = {
   widthPx: 1600,
@@ -147,6 +152,9 @@ export function BosTargetPanel({ initialJob, pairedCapture, photographerAvailabl
         disabled={busy}
         applyDefaultsOnLoad={!initialJob}
         domainValidationEnabled={false}
+        header={schema=>schema.uiSchema.extensions?.includes('measurement-workflow') &&
+          <MeasurementWorkflow sources={photographerAvailable ? [pairSource,sequenceSource,cameraSource] : [pairSource,sequenceSource]}
+            targetId="parameters-background-oriented-schlieren" target={currentManifest?.targetId} targetError={error}/>}
       >
         {(schema, structuralValidation) => {
           const normalized = structuralValidation?.valid

@@ -75,6 +75,7 @@ export function CaptureProviderStatus({onBosPair,onAvailability}:{onBosPair:(pai
   return (
     <section
       className={`capture-provider-status state-${state.toLowerCase().replace(/_/g, '-')}${stale ? ' is-stale' : ''}`}
+      id="measurement-camera-status" tabIndex={-1}
       data-testid="capture-provider-status"
       data-state={state}
       data-stale={stale ? 'true' : 'false'}
@@ -114,11 +115,13 @@ export function CaptureProviderStatus({onBosPair,onAvailability}:{onBosPair:(pai
             {overview.providers.map((provider) => (
               <li key={provider.id}>
                 <strong>{provider.displayName}</strong>: {STATE_LABELS[provider.state]}
+                {!!provider.capabilities?.length && <p>Service capabilities · {provider.capabilities.join(', ')}</p>}
                 {provider.devices.length > 0 && (
                   <ul>
                     {provider.devices.map((device) => (
                       <li key={device.id}>
                         {device.displayName}: {device.state.toLowerCase().replace(/_/g, ' ')}
+                        {!!device.capabilities?.length && <p>Camera capabilities · {device.capabilities.join(', ')}</p>}
                       </li>
                     ))}
                   </ul>

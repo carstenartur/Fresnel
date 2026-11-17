@@ -8,6 +8,7 @@ type Saved = { id: string; created: string; pluginId: string; parameters: Record
   steps: string[]; assets: Record<string, Asset>; state: string; captureProvider?:string };
 
 interface Props {
+  anchorId?: string;
   pluginId: string;
   parameters: object;
   steps: readonly string[];
@@ -35,7 +36,7 @@ async function request(auth: string, path = '', options: RequestInit = {}) {
   throw new Error(errors[response.status] ?? ('Fresnel returned HTTP ' + response.status + '.'));
 }
 
-export function MeasurementArchive({pluginId, parameters, steps, files, result, onRestore, acceptsSteps, sourceSessionId}: Props) {
+export function MeasurementArchive({anchorId, pluginId, parameters, steps, files, result, onRestore, acceptsSteps, sourceSessionId}: Props) {
   const [auth, setAuth] = useState('');
   const [saved, setSaved] = useState<Saved[]>([]);
   const [selected, select] = useState('');
@@ -128,7 +129,8 @@ export function MeasurementArchive({pluginId, parameters, steps, files, result, 
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  return <details className="capture-provider-status-details"><summary>Saved experiments</summary>
+  const selectedSession = saved.find(s => s.id === selected);
+  return <details id={anchorId} tabIndex={-1} className="capture-provider-status-details"><summary>Saved experiments</summary>
     <p>Source images and results are private to your Fresnel account and stay on the server until you delete the experiment.</p>
     {!auth ? <form onSubmit={login}><fieldset disabled={busy}>
       <label>Fresnel username <input name="username" autoComplete="username" required /></label>
@@ -140,6 +142,7 @@ export function MeasurementArchive({pluginId, parameters, steps, files, result, 
         <option value="">Choose an experiment</option>
         {saved.map(s => <option key={s.id} value={s.id}>{new Date(s.created).toLocaleString()} · {s.state} · {s.id.slice(0,8)}</option>)}
       </select></label>
+      {selectedSession && <p>Saved session · <code>{selectedSession.id}</code> · {selectedSession.state} · {selectedSession.steps.filter(step=>selectedSession.assets[step]).length} / {selectedSession.steps.length} sources</p>}
       <button type="button" disabled={!selected} onClick={() => void action(async () => {
         await restore(await (await request(auth, '/' + selected)).json());
       })}>Open saved captures</button>

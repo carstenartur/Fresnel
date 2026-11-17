@@ -37,6 +37,7 @@ test('paired Photographer records four directional exposures and reconstructs ar
   await expect(page.getByText('COMPLETED · 6 / 6 exposures accepted')).toBeVisible({timeout:60000});
   await page.getByRole('button',{name:'Open captured exposures'}).click();
   await expect(page.getByText('6 / 6 exposures mapped')).toBeVisible();
+  await expect(page.getByRole('region',{name:'Measurement workflow'})).toHaveAttribute('data-state','READY_TO_ANALYZE');
   await page.getByRole('button',{name:'Reconstruct surface'}).click();
   await expect(page.getByRole('heading',{name:'Measured surface'})).toBeVisible();
   const live=await downloadGrid(page);
@@ -47,6 +48,7 @@ test('paired Photographer records four directional exposures and reconstructs ar
   await page.getByRole('button',{name:'Sign in to saved experiments'}).click();
   await page.getByRole('button',{name:'Open saved captures'}).click();
   await expect(page.getByText('6 / 6 exposures mapped')).toBeVisible();
+  await expect(page.getByRole('region',{name:'Measurement workflow'})).toHaveAttribute('data-state','READY_TO_ANALYZE');
   await page.getByRole('button',{name:'Reconstruct surface'}).click();
   await expect(page.getByRole('heading',{name:'Measured surface'})).toBeVisible();
   const solved=await downloadGrid(page);

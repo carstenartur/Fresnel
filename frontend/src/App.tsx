@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { MeasurementWorkflowProvider } from './measurement/MeasurementWorkflow';
 import { CaptureProviderStatus } from './CaptureProviderStatus';
 import { consumeDesktopOpen } from './desktopOpenApi';
 import { type FresnelJobDocument, type FresnelPluginId, type LoadedFresnelJob } from './jobApi';
@@ -211,7 +212,7 @@ export function App() {
   }
 
   return (
-    <div className="app">
+    <MeasurementWorkflowProvider><div className="app">
       <aside className="panel">
         <h1>Fresnel Designer</h1>
         <CaptureProviderStatus onAvailability={setPhotographerAvailable} onBosPair={pair=>{
@@ -268,7 +269,7 @@ export function App() {
         </JobSourceProvider>
       </aside>
       <main className="preview" />
-    </div>
+    </div></MeasurementWorkflowProvider>
   );
 }
 

@@ -1,5 +1,6 @@
 import type { CameraModel } from './bosCameraModel';
 import { CameraModelControl, restoreCameraModel } from './CameraModelControl';
+import { useMeasurementTrack } from './MeasurementWorkflow';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { restoreTarget, type TargetEvidence } from './bosTargetEvidence';
 import { MeasurementArchive } from './MeasurementArchive';
@@ -88,19 +89,30 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
       result && new Blob([JSON.stringify({ ...result, ...analyzedTarget })], { type: 'application/json' }),
     [result, analyzedTarget],
   );
-  const steps = [
-    ...(external && policy === 'fixed' ? ['reference'] : []),
-    ...(kind === 'video' ? ['video'] : files.map((_, i) => stepName(i))),
-  ];
-  const sources: Record<string, File> = {};
-  if (external && policy === 'fixed') sources.reference = external;
-  if (kind === 'video') {
-    if (clip) sources.video = clip;
-  } else
-    files.forEach((f, i) => {
-      sources[stepName(i)] = f;
-    });
+  const sources = useMemo(() => {
+    const items: Record<string, File> = {};
+    if (external && policy === 'fixed') items.reference = external;
+    if (kind === 'video') {
+      if (clip) items.video = clip;
+    } else {
+      files.forEach((file, i) => { items[stepName(i)] = file; });
+    }
+    return items;
+  }, [external, policy, kind, clip, files]);
+  const steps = kind === 'video' && !clip ? [...Object.keys(sources), 'video'] : Object.keys(sources);
+  const [cancelled, setCancelled] = useState(false);
+  const activateSeries = useMeasurementTrack('bos/series', useMemo(() => ({
+    artifacts: Object.entries(sources).map(([role,file])=>({
+      role, file, sha256:role==='reference' ? result?.reference?.sha256 : role==='video' ?
+        result?.sourceVideo?.sha256 : result?.frames[Number(role.slice(6))-1]?.sha256,
+    })),
+    planned: (kind === 'video' ? 1 : Math.max(2, files.length)) + Number(!!sources.reference),
+    ready: kind === 'video' ? !!clip : files.length >= 2,
+    analyzing: !!status && !result, completed: !!result, error, cancelled,
+    target: result ? analyzedTarget.configuredTarget?.targetId ?? null : restoredTarget && (restoredTarget.configuredTarget?.targetId ?? null),
+  }), [sources, kind, files.length, clip, result, status, error, cancelled, restoredTarget, analyzedTarget]));
   function reset() {
+    setCancelled(false);
     job.current?.abort();
     job.current = null;
     setStatus('');
@@ -134,6 +146,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   async function run(exporting: boolean) {
+    setCancelled(false);
     job.current?.abort();
     const controller = new AbortController();
     job.current = controller;
@@ -174,7 +187,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
   }
   const frame = result?.frames[index];
   return (
-    <details className="capture-provider-status-details">
+    <details id="bos-series" tabIndex={-1} onFocusCapture={activateSeries} className="capture-provider-status-details">
       <summary>Analyze a sequence or video</summary>
       <section aria-label="BOS time series">
         <p>
@@ -315,7 +328,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
           <button
             type="button"
             disabled={kind === 'video' ? !clip : files.length < 2}
-            onClick={() => void run(false)}
+            id="bos-analyze-series" onClick={() => void run(false)}
           >
             Analyze time series
           </button>
@@ -328,7 +341,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
               onClick={() => {
                 job.current?.abort();
                 job.current = null;
-                setStatus('');
+                setStatus(''); setCancelled(!result);
               }}
             >
               Cancel
@@ -389,7 +402,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
             </button>
           </>
         )}
-        <MeasurementArchive
+        <MeasurementArchive anchorId="bos-series-archive"
           pluginId="background-oriented-schlieren"
           steps={steps}
           files={sources}
