@@ -25,6 +25,16 @@ class BosExperimentsTest {
     @TempDir Path root;
 
     @Test
+    void initialAcknowledgementDoesNotRequireTheRecoveryOnlyWireField() {
+        var json = tools.jackson.databind.json.JsonMapper.builder().build();
+        var first = json.readValue("{\"ready\":true}", BosCaptureController.Acknowledgement.class);
+        var retry = json.readValue("{\"ready\":true,\"continuous\":true}", BosCaptureController.Acknowledgement.class);
+        assertTrue(first.ready());
+        assertNull(first.continuous());
+        assertTrue(retry.continuous());
+    }
+
+    @Test
     void ownsTheSessionAndImportsEachAcknowledgedImageOnceAcrossRestart() throws Exception {
         var pairings = mock(PhotographerPairing.class);
         var connection = new PhotographerPairing.Connection(URI.create("https://camera.example"),
