@@ -84,13 +84,16 @@ test('STL requires explicit dimensions and includes only supported cells in a cl
   expect(new TextDecoder().decode(bytes.slice(0,80))).toContain('USER-ASSIGNED');
   expect(view.getUint32(80,true)).toBe(28); // three top/base quads and eight boundary walls
   const incidence=new Map<string,number>();
+  let maximumZ=0;
   for (let face=0;face<28;face++) {
     const vertices=[];
     for (let vertex=0;vertex<3;vertex++) {
       const offset=84+50*face+12+12*vertex;
+      maximumZ=Math.max(maximumZ,view.getFloat32(offset+8,true));
       vertices.push([0,4,8].map(i=>view.getFloat32(offset+i,true)).join(','));
     }
     for (let i=0;i<3;i++) { const edge=[vertices[i],vertices[(i+1)%3]].sort().join('/'); incidence.set(edge,1+(incidence.get(edge)??0)); }
   }
+  expect(maximumZ).toBeCloseTo(3,6);
   expect([...incidence.values()].every(count=>count===2)).toBe(true);
 });
