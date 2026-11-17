@@ -1,5 +1,6 @@
 import { BosLocalSearchControl, savedLocalSearch } from './BosLocalSearchControl';
 import type { LocalSearch } from './bosDisplacement';
+import { useMeasurementTrack } from './MeasurementWorkflow';
 import { restoreTarget, type TargetEvidence } from './bosTargetEvidence';
 import {exposureHash,readBosOrigin,type BosOrigin,type PairedBosCapture} from './bosPairedCapture';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -37,7 +38,13 @@ function useObjectUrl(blob?: Blob) {
   return url;
 }
 
-export function BosStillPairPanel({ target, manifest, pairedCapture }: { target: TargetEvidence; manifest: BosTargetManifest | null; pairedCapture?:PairedBosCapture }) {
+export function BosStillPairPanel({ target, manifest, pairedCapture, explicitRegion, onExplicitRegion }: {
+  target: TargetEvidence;
+  manifest: BosTargetManifest | null;
+  pairedCapture?: PairedBosCapture;
+  explicitRegion: Region | null;
+  onExplicitRegion: (region: Region | null) => void;
+}) {
   const [restoredTarget, setRestoredTarget] = useState<TargetEvidence>();
   const [analyzedTarget, setAnalyzedTarget] = useState<TargetEvidence>({configuredTarget:null});
   const [localSearch, setLocalSearch] = useState<LocalSearch>('pyramid');
@@ -88,6 +95,14 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
       ),
     [output, mode, gain, analyzedTarget, analyzedQuality, origin],
   );
+  const [cancelled, setCancelled] = useState(false);
+  const activatePair = useMeasurementTrack('bos/pair', useMemo(() => ({
+    artifacts: imageRoles.filter(role=>files[role]).map(role=>({role, file:files[role], sha256:output?.result.sources[role].sha256 ?? origin?.[role].sha256})),
+    planned: 2, ready: !!files.reference && !!files.disturbed && !!inspection,
+    calibrating: !!files.reference && !inspection, analyzing: !!status, completed: !!output,
+    error: error || inspection?.error, cancelled, session:origin?.captureId,
+    target: output ? analyzedTarget.configuredTarget?.targetId ?? null : restoredTarget && (restoredTarget.configuredTarget?.targetId ?? null),
+  }), [files, output, origin, inspection, status, error, cancelled, restoredTarget, analyzedTarget]));
   const referenceUrl = useObjectUrl(output?.referencePreview),
     stabilizedUrl = useObjectUrl(output?.stabilizedPreview);
   const reportUrl = useObjectUrl(report);
@@ -98,8 +113,11 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
     setStatus('');
   }
   function changeFiles(next: Images) {
-    stop();
-    if (next.reference !== files.reference) setManualArea(null);
+    setCancelled(false); stop();
+    if (next.reference !== files.reference) {
+      setManualArea(null);
+      onExplicitRegion(null);
+    }
     setFiles(next);
     setOrigin(null);
     setRestoredTarget(undefined);
@@ -118,6 +136,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
     changeFiles({ reference: restored.reference, disturbed: restored.disturbed });
     setRestoredTarget(restoreTarget(params));
     setManualArea(readRegion(params.analysisRegion));
+    onExplicitRegion(readRegion(params.manualRegion));
     setCameraModel(restoreCameraModel(params.cameraModel));
     setLocalSearch(savedLocalSearch(params.localSearch));
     setOrigin(restoredOrigin);
@@ -136,7 +155,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
   }
   function analyze() {
     if (!files.reference || !files.disturbed) return;
-    setAnalyzedTarget(restoredTarget ?? target);
+    setCancelled(false); setAnalyzedTarget(restoredTarget ?? target);
     setAnalyzedQuality(inspection?.data?.result ?? null);
     stop();
     setOutput(undefined);
@@ -174,7 +193,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
   }
 
   return (
-    <section tabIndex={-1} ref={panel} aria-label="Still-pair displacement" className="card">
+    <section id="bos-pair" onFocusCapture={activatePair} tabIndex={-1} ref={panel} aria-label="Still-pair displacement" className="card">
       <h3>Measure still-pair displacement</h3>
       <p>
         Photograph the same dot field before and during the disturbance. Keep its outer edges sharp and
@@ -199,6 +218,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
           onArea={(r) => {
             stop();
             setManualArea(r);
+            onExplicitRegion(r);
             setOutput(undefined);
             setError('');
           }}
@@ -225,14 +245,14 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
       <button
         type="button"
         disabled={!files.reference || !files.disturbed || Boolean(status) || !inspection}
-        onClick={analyze}
+        id="bos-analyze-pair" onClick={analyze}
       >
         Analyze still pair
       </button>
       {status && (
         <>
           <span role="status"> {status} </span>
-          <button type="button" onClick={stop}>
+          <button type="button" onClick={()=>{stop(); setCancelled(true);}}>
             Cancel analysis
           </button>
         </>
@@ -333,7 +353,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
           </button>
         </>
       )}
-      <MeasurementArchive
+      <MeasurementArchive anchorId="bos-pair-archive"
         analysis={{ready:Boolean(files.reference && files.disturbed && inspection),running:Boolean(status),error,start:analyze,stop}}
         pluginId="background-oriented-schlieren"
         steps={imageRoles}
@@ -345,6 +365,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
           captureOrigin:origin,
           visualization: mode,
           amplification: gain,
+          manualRegion: explicitRegion,
           analysisRegion: output
             ? (analyzedQuality?.region ?? manualArea ?? fullFrame)
             : (manualArea ?? inspection?.data?.result.region),

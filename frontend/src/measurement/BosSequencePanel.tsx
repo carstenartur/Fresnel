@@ -1,7 +1,10 @@
+import { ManualRegion } from './BosReferenceInspector';
+import { fullFrame, readRegion, type Region } from './bosReferenceQuality';
 import { BosLocalSearchControl, savedLocalSearch } from './BosLocalSearchControl';
 import type { LocalSearch } from './bosDisplacement';
 import type { CameraModel } from './bosCameraModel';
 import { CameraModelControl, restoreCameraModel } from './CameraModelControl';
+import { useMeasurementTrack } from './MeasurementWorkflow';
 import {
   exposureHash,
   readBosSeriesOrigin,
@@ -78,13 +81,16 @@ async function reviewVideo(result: SequenceResult, mode: MapMode, signal: AbortS
 
 export function BosSequencePanel({
   target,
+  stillRegion,
   pairedCapture,
 }: {
   target: TargetEvidence;
+  stillRegion: Region | null;
   pairedCapture?: PairedBosSeries;
 }) {
   const [origin, setOrigin] = useState<BosSeriesOrigin>();
   const disclosure = useRef<HTMLDetailsElement>(null);
+  const [region, setRegion] = useState<Region | null>(null);
   const [liveFrame, setLiveFrame] = useState<FrameResult>();
   const liveCanvas = useRef<HTMLCanvasElement>(null);
   const [localSearch, setLocalSearch] = useState<LocalSearch>('pyramid');
@@ -145,19 +151,30 @@ export function BosSequencePanel({
       ),
     [result, analyzedTarget, origin],
   );
-  const steps = [
-    ...(external && (policy === 'fixed' || origin) ? ['reference'] : []),
-    ...(kind === 'video' ? ['video'] : files.map((_, i) => stepName(i))),
-  ];
-  const sources: Record<string, File> = {};
-  if (external && (policy === 'fixed' || origin)) sources.reference = external;
-  if (kind === 'video') {
-    if (clip) sources.video = clip;
-  } else
-    files.forEach((f, i) => {
-      sources[stepName(i)] = f;
-    });
+  const sources = useMemo(() => {
+    const items: Record<string, File> = {};
+    if (external && (policy === 'fixed' || origin)) items.reference = external;
+    if (kind === 'video') {
+      if (clip) items.video = clip;
+    } else {
+      files.forEach((file, i) => { items[stepName(i)] = file; });
+    }
+    return items;
+  }, [external, policy, origin, kind, clip, files]);
+  const steps = kind === 'video' && !clip ? [...Object.keys(sources), 'video'] : Object.keys(sources);
+  const [cancelled, setCancelled] = useState(false);
+  const activateSeries = useMeasurementTrack('bos/series', useMemo(() => ({
+    artifacts: Object.entries(sources).map(([role,file])=>({
+      role, file, sha256:role==='reference' ? result?.reference?.sha256 : role==='video' ?
+        result?.sourceVideo?.sha256 : result?.frames[Number(role.slice(6))-1]?.sha256,
+    })),
+    planned: (kind === 'video' ? 1 : Math.max(2, files.length)) + Number(!!sources.reference),
+    ready: kind === 'video' ? !!clip : files.length >= 2,
+    analyzing: !!status && !result, completed: !!result, error, cancelled,
+    target: result ? analyzedTarget.configuredTarget?.targetId ?? null : restoredTarget && (restoredTarget.configuredTarget?.targetId ?? null),
+  }), [sources, kind, files.length, clip, result, status, error, cancelled, restoredTarget, analyzedTarget]));
   function reset() {
+    setCancelled(false);
     job.current?.abort();
     setLiveFrame(undefined);
     job.current = null;
@@ -183,6 +200,7 @@ export function BosSequencePanel({
     reset();
     setOrigin(metadata ?? undefined);
     setRestoredTarget(restoreTarget(params));
+    setRegion(readRegion(params.manualRegion));
     setKey((k) => k + 1);
     setKind(sources.video || params.sourceKind === 'video' ? 'video' : 'stills');
     setExternal(sources.reference);
@@ -207,6 +225,7 @@ export function BosSequencePanel({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   async function run(exporting: boolean) {
+    setCancelled(false);
     job.current?.abort();
     const controller = new AbortController();
     job.current = controller;
@@ -229,6 +248,7 @@ export function BosSequencePanel({
           rate,
           cameraModel,
           localSearch,
+          region ?? fullFrame,
           controller.signal,
           (s) => {
             if (!controller.signal.aborted) setStatus(s);
@@ -263,7 +283,7 @@ export function BosSequencePanel({
   }
   const frame = result?.frames[index];
   return (
-    <details ref={disclosure} className="capture-provider-status-details">
+    <details ref={disclosure} id="bos-series" tabIndex={-1} onFocusCapture={activateSeries} className="capture-provider-status-details">
       <summary>Analyze a sequence or video</summary>
       <section aria-label="BOS time series">
         <p>
@@ -285,6 +305,7 @@ export function BosSequencePanel({
               onChange={(e) => {
                 reset();
                 setOrigin(undefined);
+                setRegion(null);
                 setKind(e.target.value as typeof kind);
               }}
             >
@@ -304,6 +325,7 @@ export function BosSequencePanel({
                   accept="image/png,image/jpeg"
                   onChange={(e) => {
                     reset();
+                    setRegion(null);
                     setRestoredTarget(undefined);
                     setOrigin(undefined);
                     const chosen = Array.from(e.target.files ?? []);
@@ -352,11 +374,39 @@ export function BosSequencePanel({
                   reset();
                   setRestoredTarget(undefined);
                   setOrigin(undefined);
+                  setRegion(null);
                   setClip(e.target.files?.[0]);
                 }}
               />
               {clip?.name}
             </label>
+          )}
+          {(kind === 'video' ? clip : files.length > 0) && (
+            <>
+              {stillRegion && (
+                <button type="button" onClick={() => {
+                  reset();
+                  setRegion(stillRegion);
+                }}>
+                  Use the manually selected still-pair region
+                </button>
+              )}
+              <ManualRegion
+                key={JSON.stringify(region)}
+                region={region ?? fullFrame}
+                resetLabel="Use full image"
+                apply={next => {
+                  reset();
+                  setRegion(next);
+                }}
+              />
+              {region && (
+                <p>
+                  Sequence region starts at {(100 * region.x).toFixed(1)}%, {(100 * region.y).toFixed(1)}%
+                  and covers {(100 * region.width).toFixed(1)}% × {(100 * region.height).toFixed(1)}% of each source.
+                </p>
+              )}
+            </>
           )}
           <BosLocalSearchControl
             value={localSearch}
@@ -396,6 +446,7 @@ export function BosSequencePanel({
                 onChange={(e) => {
                   reset();
                   setOrigin(undefined);
+                  setRegion(null);
                   setExternal(e.target.files?.[0]);
                 }}
               />
@@ -424,7 +475,7 @@ export function BosSequencePanel({
           <button
             type="button"
             disabled={kind === 'video' ? !clip : files.length < 2}
-            onClick={() => void run(false)}
+            id="bos-analyze-series" onClick={() => void run(false)}
           >
             Analyze time series
           </button>
@@ -439,6 +490,7 @@ export function BosSequencePanel({
                 job.current = null;
                 setLiveFrame(undefined);
                 setStatus('');
+                setCancelled(!result);
               }}
             >
               Cancel
@@ -516,7 +568,7 @@ export function BosSequencePanel({
             </button>
           </>
         )}
-        <MeasurementArchive
+        <MeasurementArchive anchorId="bos-series-archive"
           analysis={{ready:kind === 'video' ? !!clip : files.length >= 2,running:Boolean(status),error,
             start:() => void run(false),stop:reset}}
           pluginId="background-oriented-schlieren"
@@ -525,6 +577,7 @@ export function BosSequencePanel({
           parameters={{
             sourceKind: kind,
             ...(origin ? { captureOrigin: origin } : {}),
+            manualRegion: region,
             policy,
             rate,
             cameraModel,

@@ -11,58 +11,47 @@ The distinction is published as `PluginMetadata.kind`. It does not enable
 runtime code loading: implementations remain reviewed application code registered
 through `PluginRegistry`, while parameter and UI schemas remain data-only.
 
-## Current implementation status
+## Measurement editors
 
-Background-Oriented Schlieren is the first registered `MEASUREMENT` plugin. Its
-initial target-generation slice is implemented end to end:
+The BOS target editor generates a deterministic dot field for native PNG or
+physically sized SVG/PDF output. Its workers measure displacement in still
+pairs, ordered frames and finite videos. The surface scanner generates a
+physically defined display illumination sequence, reconstructs measured normals
+and relative albedo, and exports relighting and relative relief.
+[Background-Oriented Schlieren guide](plugins/background-oriented-schlieren.md) ·
+[Display photometric stereo guide](plugins/display-photometric-stereo.md)
 
-```text
-schema-backed parameters
-        → deterministic BosTargetGenerator
-        → native PNG or physically sized SVG/PDF
-        → versioned manifest + semantic SHA-256
-        → portable .fresnel job
-```
+Both UI schemas declare the trusted `measurement-workflow` extension. Opening
+either editor loads the usual schema-backed parameter form. Its workflow panel
+shows the stage and the number of mapped or accepted sources. Choose a capture
+source to open the corresponding controls. Manual files work locally. With a
+paired Photographer, the camera controls show available devices and maintain
+the remote session. **Camera service status** opens the global status panel,
+where **Connection details** lists advertised device and service capabilities.
 
-The editor advertises the implemented target and still-pair capabilities:
+**Set up target**, **Collect sources** and **Analyze sources** focus the relevant
+controls. They follow the state of the selected source. For example, a
+complete camera sequence is ready for analysis once its accepted images can be
+opened. The workflow reports analysis complete after the worker produces its
+result. A retry opens the stage that needs attention so the operator can
+inspect the inputs or reconcile the camera session.
 
-```text
-GENERATE_CAPTURE_TARGET
-PREVIEW_PNG
-EXPORT_PNG
-EXPORT_SVG
-EXPORT_PDF
-IMPORT_CAPTURE_SET
-ANALYZE_CAPTURE_SET
-EXPORT_EXPERIMENT_BUNDLE
-```
+Open **Source files and provenance** to inspect source roles, original sizes and
+available SHA-256 digests. Select an individual image for a preview. **Save or
+reopen** opens Saved experiments for the current capture type, including the
+server-backed source set, settings and checksummed bundle.
+[Saved measurement sessions](measurement-sessions.md)
 
-The still-pair editor runs deterministic local displacement analysis in a
-browser worker and saves original images, settings and the numeric result
-through the shared measurement-session service. See the
-[Background-Oriented Schlieren guide](plugins/background-oriented-schlieren.md).
-
-## Why measurement workflows need a separate lifecycle
-
-A design plugin can normally validate parameters and produce an artifact in one
-request. A complete measurement plugin must preserve a multi-step experiment:
+The canonical measurement stages are:
 
 ```text
-DRAFT
-  → TARGET_READY
-  → CALIBRATING
-  → READY_TO_CAPTURE
-  → CAPTURING
-  → READY_TO_ANALYZE
-  → ANALYZING
-  → COMPLETED
+DRAFT → TARGET_READY → CALIBRATING → READY_TO_CAPTURE → CAPTURING
+      → READY_TO_ANALYZE → ANALYZING → COMPLETED
 ```
 
-`FAILED` and `CANCELLED` are terminal alternatives. Backend persistence and the
-measurement workflow UI will use these states so a browser reload, process
-restart or temporary Photographer outage does not silently lose experiment
-identity. The BOS target generator is intentionally stateless; durable sessions
-begin when capture import or remote capture is added.
+`FAILED` and `CANCELLED` record a failed or cancelled operation. Imported
+sources can enter directly at analysis. A reloaded browser can reopen the
+owner's saved sources or reconcile the paired capture with server state.
 
 ## Core boundary
 
@@ -117,10 +106,10 @@ cancellation. Stable failure enums and message codes cross the boundary; private
 camera addresses, credentials, local file paths and raw provider exception text
 do not.
 
-The currently merged deterministic mock provider exercises the exact-once
-contract and visible status surface. It is disabled by default and does not make
-BOS claim `REMOTE_CAPTURE`; a plugin advertises that capability only after an
-actual workflow action is wired through a selected provider.
+The deterministic mock provider exercises idempotent capture and visible
+connection state. The paired Photographer adapter supports remote still-pair
+capture in BOS and synchronized, externally triggered exposures in photometry.
+Both use the stored, verified camera originals in their analysis paths.
 
 ## Plugin capabilities
 

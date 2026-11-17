@@ -1,0 +1,12 @@
+.measurement-workflow { border: 1px solid #c5d1d8; padding: .8rem 1rem; margin-block: .75rem; border-radius: .4rem; }
+.measurement-workflow h3 { margin: 0; }
+.measurement-workflow p { margin: .45rem 0; overflow-wrap: anywhere; }
+.measurement-workflow ol { display: flex; flex-wrap: wrap; gap: .4rem 1.7rem; padding-left: 1.5rem; }
+.measurement-workflow [aria-current="step"] { font-weight: 700; }
+.measurement-workflow button { margin: .15rem .25rem .15rem 0; }
+.measurement-workflow label { margin-right: .5rem; }
+.workflow-artifacts { margin-top: .4rem; }
+.workflow-artifacts ul { padding-left: 1.2rem; }
+.workflow-artifacts li { margin-block: .4rem; overflow-wrap: anywhere; }
+.workflow-artifacts code, .workflow-artifacts img { display: block; }
+.workflow-artifacts img { max-width: 100%; max-height: 160px; object-fit: contain; }

@@ -50,7 +50,8 @@ public class PluginSchemaService {
             "experiment",
             "propagation",
             "preview-info",
-            "reconstruction-preview");
+            "reconstruction-preview",
+            "measurement-workflow");
 
     private static final Set<String> FRESNEL_SCHEMA_KEYWORDS = Set.of(
             "x-fresnel-unit",

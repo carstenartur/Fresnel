@@ -30,5 +30,5 @@
     }
   ],
   "widgets": {},
-  "extensions": []
+  "extensions": ["measurement-workflow"]
 }

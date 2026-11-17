@@ -1,5 +1,6 @@
 import {exposureHash, readBosOrigin,readBosSeriesOrigin, type BosAcquisition} from './measurement/bosPairedCapture';
-import { useEffect, useState, type FormEvent } from 'react';
+import {useMeasurementTrack} from './measurement/MeasurementWorkflow';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 const ROOT = '/api/experiments/bos-captures';
 
@@ -122,6 +123,14 @@ function Acquisition({onUsePair}:{onUsePair:(pair:BosAcquisition)=>void}) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
 
+  const activateCamera = useMeasurementTrack('bos/camera',useMemo(()=>({
+    artifacts: Object.entries({reference:current?.reference, disturbed:current?.disturbed, ...current?.frames})
+      .flatMap(([role,asset]) => asset ? [{role,byteLength:asset.byteLength,sha256:asset.sha256}] : []),
+    planned:1 + (current?.disturbedCount ?? (countValid ? count : 1)), target:null, ready:current?.state==='COMPLETED', captureReady:!!current && ['WAITING_REFERENCE','WAITING_DISTURBED'].includes(current.state),
+    calibrating:current?.state==='CREATING', capturing:!!current?.pendingStep || !!current && busy,
+    cancelled:current?.state==='CANCELLED', error, session:current?.id,
+    camera:cameras.find(c=>c.id===cameraId)?.name,
+  }),[current,busy,error,cameras,cameraId,count,countValid]));
   function show(capture: Capture) {
     setCurrent(capture);
     setReady(false);
@@ -218,7 +227,7 @@ function Acquisition({onUsePair}:{onUsePair:(pair:BosAcquisition)=>void}) {
   }
 
   const step = current?.nextStep ?? (current?.state === 'WAITING_REFERENCE' ? 'reference' : current?.state === 'WAITING_DISTURBED' ? 'disturbed' : null);
-  return <div className="photographer-pairing-form">
+  return <div className="photographer-pairing-form" onFocusCapture={activateCamera}>
     {!operator ? <form className="photographer-pairing-form" onSubmit={signIn}>
       <label>Fresnel username <input name="username" autoComplete="username" required /></label>
       <label>Password <input name="password" type="password" autoComplete="current-password" required /></label>
@@ -292,7 +301,7 @@ function Acquisition({onUsePair}:{onUsePair:(pair:BosAcquisition)=>void}) {
 
 export function BosCapturePanel({onUsePair}:{onUsePair:(pair:BosAcquisition)=>void}) {
   const [open, setOpen] = useState(false);
-  return <details id="bos-camera-acquisition" className="capture-provider-status-details" onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details id="bos-camera-acquisition" tabIndex={-1} className="capture-provider-status-details" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Background-oriented schlieren capture</summary>
     {open && <Acquisition onUsePair={onUsePair} />}
   </details>;
