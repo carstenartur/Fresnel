@@ -93,8 +93,7 @@ class PluginRegistryTest {
         assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.IMPORT_CAPTURE_SET));
         assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.REMOTE_CAPTURE));
         assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.ANALYZE_CAPTURE_SET));
-        assertEquals(List.of(PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO),
-                PluginRegistry.withCapability(PluginCapability.LIVE_ANALYSIS_PREVIEW));
+        assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.LIVE_ANALYSIS_PREVIEW));
         assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.EXPORT_EXPERIMENT_BUNDLE));
         assertTrue(PluginRegistry.ofKind(PluginKind.DESIGN).stream()
                 .noneMatch(descriptor -> descriptor.supports(PluginCapability.GENERATE_CAPTURE_TARGET)));

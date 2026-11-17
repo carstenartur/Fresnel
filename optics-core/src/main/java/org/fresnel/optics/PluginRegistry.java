@@ -186,6 +186,7 @@ public final class PluginRegistry {
             Set.of(
                     PluginCapability.GENERATE_CAPTURE_TARGET,
                     PluginCapability.REMOTE_CAPTURE,
+                    PluginCapability.LIVE_ANALYSIS_PREVIEW,
                     PluginCapability.IMPORT_CAPTURE_SET,
                     PluginCapability.ANALYZE_CAPTURE_SET,
                     PluginCapability.EXPORT_EXPERIMENT_BUNDLE,

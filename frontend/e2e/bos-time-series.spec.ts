@@ -21,8 +21,17 @@ test('samples a finite MP4, exports quantitative times and scrubs its median-ref
   await panel.getByRole('button', { name: 'Download time-series grid' }).click();
   const result = JSON.parse(await readFile((await (await jsonDownload).path())!, 'utf8'));
   expect(result.referenceFrameIndices).toEqual([0, 2, 3]);
+  expect(result.referenceRaster.sha256).toMatch(/^[a-f0-9]{64}$/);
+  expect(result.referenceSourceHashes).toEqual(
+    result.referenceFrameIndices.map((i: number) => result.frames[i].sha256),
+  );
   expect(result.sourceVideo.sha256).toMatch(/^[a-f0-9]{64}$/);
-  expect(result.frames.map((f: { timeSeconds: number }) => f.timeSeconds)).toEqual([0.25, 0.75, 1.25, 1.75]);
+  expect(result.frames.map((f: { timeSeconds: number }) => f.timeSeconds)).toEqual([
+    0.25, 0.75, 1.25, 1.75,
+  ]);
+  expect(result.frames.map((f: { presentedTimeSeconds: number }) => f.presentedTimeSeconds)).toEqual([
+    0.25, 0.75, 1.25, 1.75,
+  ]);
   expect(result.frames[3].result.accepted).toBeGreaterThan(15);
   const review = page.waitForEvent('download');
   await panel.getByRole('button', { name: /Download review WebM/ }).click();
@@ -56,16 +65,40 @@ test('ordered stills preserve the declared time base and cancel cleanly', async 
     mimeType: 'image/png',
     buffer: Buffer.from(source, 'base64'),
   }));
+  const blank = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 180;
+    c.height = 128;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, c.width, c.height);
+    return c.toDataURL().split(',')[1];
+  });
+  inputs[2] = { ...inputs[2], buffer: Buffer.from(blank, 'base64') };
   await panel.getByLabel('Ordered frames', { exact: true }).setInputFiles(inputs);
   await panel.getByRole('button', { name: 'Move earlier' }).first().click();
   await panel.getByRole('button', { name: 'Analyze time series' }).click();
-  await expect(panel.getByRole('status')).toHaveText('3 of 3 frames registered.');
+  await expect(panel.getByRole('status')).toHaveText('2 of 3 frames registered.');
   await expect(panel.getByText('Frame 1 · 0.000 s · b.png')).toBeVisible();
   await panel.getByLabel('Timeline', { exact: true }).fill('2');
   await expect(panel.getByText('Frame 3 · 1.000 s · c.png')).toBeVisible();
+  await expect(panel.getByText(/Registration failed/)).toBeVisible();
+  const grid = page.waitForEvent('download');
+  await panel.getByRole('button', { name: 'Download time-series grid' }).click();
+  const output = JSON.parse(await readFile((await (await grid).path())!, 'utf8'));
+  expect(output.frames[2].result).toBeNull();
+  expect(output.frames[2].rejection).toMatch(/registration/i);
+  expect(output.referenceSourceHashes).toEqual([output.frames[0].sha256]);
   await panel.getByRole('button', { name: /Download review WebM/ }).click();
   await panel.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(panel.getByText('Encoding review…')).toHaveCount(0);
+  const long = Array.from({ length: 24 }, (_, i) => ({ ...inputs[0], name: String(i) + '.png' }));
+  await panel.getByLabel('Ordered frames', { exact: true }).setInputFiles(long);
+  await panel.getByRole('button', { name: 'Analyze time series' }).click();
+  await expect(panel.getByRole('figure', { name: 'Live displacement preview' })).toBeVisible();
+  await panel.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(panel.getByRole('figure', { name: 'Live displacement preview' })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Download time-series grid' })).toHaveCount(0);
 });
 
 test('fits camera rotation both when preparing the temporal median and when measuring each frame', async ({

@@ -7,7 +7,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { restoreTarget, type TargetEvidence } from './bosTargetEvidence';
 import { MeasurementArchive } from './MeasurementArchive';
 import { paintMap, type MapMode } from './bosMap';
-import { MAX_FRAMES, runSequence, stepName, type Policy, type SequenceResult } from './bosSequence';
+import {
+  MAX_FRAMES,
+  runSequence,
+  stepName,
+  type Policy,
+  type FrameResult,
+  type SequenceResult,
+} from './bosSequence';
 
 function draw(canvas: HTMLCanvasElement, seq: SequenceResult, index: number, mode: MapMode) {
   const frame = seq.frames[index];
@@ -65,6 +72,8 @@ async function reviewVideo(result: SequenceResult, mode: MapMode, signal: AbortS
 }
 
 export function BosSequencePanel({ target }: { target: TargetEvidence }) {
+  const [liveFrame, setLiveFrame] = useState<FrameResult>();
+  const liveCanvas = useRef<HTMLCanvasElement>(null);
   const [localSearch, setLocalSearch] = useState<LocalSearch>('pyramid');
   const [cameraModel, setCameraModel] = useState<CameraModel>('translation');
   const [restoredTarget, setRestoredTarget] = useState<TargetEvidence>();
@@ -87,6 +96,10 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
   useEffect(() => {
     if (map.current && result) draw(map.current, result, index, mode);
   }, [result, index, mode]);
+  useEffect(() => {
+    if (liveFrame?.result && liveCanvas.current)
+      paintMap(liveCanvas.current, liveFrame.result, 'magnitude', 1);
+  }, [liveFrame]);
   const report = useMemo(
     () =>
       result && new Blob([JSON.stringify({ ...result, ...analyzedTarget })], { type: 'application/json' }),
@@ -117,6 +130,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
   function reset() {
     setCancelled(false);
     job.current?.abort();
+    setLiveFrame(undefined);
     job.current = null;
     setStatus('');
     setError('');
@@ -168,7 +182,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
         const next = await runSequence(
           files,
           kind === 'video' ? clip : undefined,
-          external,
+          policy === 'fixed' ? external : undefined,
           policy,
           rate,
           cameraModel,
@@ -176,6 +190,9 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
           controller.signal,
           (s) => {
             if (!controller.signal.aborted) setStatus(s);
+          },
+          (f) => {
+            if (!controller.signal.aborted) setLiveFrame(f);
           },
         );
         if (!controller.signal.aborted) setResult(next);
@@ -186,6 +203,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
     } finally {
       if (job.current === controller) {
         setStatus('');
+        setLiveFrame(undefined);
         job.current = null;
       }
     }
@@ -353,12 +371,31 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
               onClick={() => {
                 job.current?.abort();
                 job.current = null;
-                setStatus(''); setCancelled(!result);
+                setLiveFrame(undefined);
+                setStatus('');
+                setCancelled(!result);
               }}
             >
               Cancel
             </button>
           </>
+        )}
+        {status && liveFrame && (
+          <figure aria-label="Live displacement preview">
+            <figcaption>
+              Frame {liveFrame.index + 1} at {liveFrame.timeSeconds.toFixed(3)} s {' · '}
+              {liveFrame.result
+                ? 'Live magnitude, per-frame color limit ' + liveFrame.result.autoLimitPx.toFixed(2) + ' px'
+                : liveFrame.rejection}
+            </figcaption>
+            {liveFrame.result && (
+              <canvas
+                ref={liveCanvas}
+                aria-label="Live frame magnitude"
+                style={{ width: 'min(100%, 512px)' }}
+              />
+            )}
+          </figure>
         )}
         {error && <p role="alert">{error}</p>}
         {result && frame && (
