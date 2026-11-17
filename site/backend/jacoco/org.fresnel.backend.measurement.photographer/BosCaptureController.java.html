@@ -18,7 +18,7 @@ class BosCaptureController {
     private final BosExperiments experiments;
 <span class="nc" id="L19">    BosCaptureController(BosExperiments experiments) { this.experiments = experiments; }</span>
 
-<span class="nc" id="L21">    record Selection(String cameraId) {}</span>
+<span class="nc" id="L21">    record Selection(String cameraId, Integer disturbedCount, Boolean lockExposure, Boolean lockFocus) {}</span>
 <span class="fc" id="L22">    record Acknowledgement(boolean ready, Boolean continuous) {}</span>
 
     @GetMapping(&quot;/cameras&quot;)
@@ -29,51 +29,52 @@ class BosCaptureController {
 
     @PutMapping(&quot;/{id}&quot;)
     ResponseEntity&lt;BosExperiments.View&gt; create(Principal caller, @PathVariable(&quot;id&quot;) UUID id, @RequestBody Selection body) {
-<span class="nc" id="L32">        return ok(experiments.create(caller.getName(), id, body.cameraId()));</span>
+<span class="nc bnc" id="L32" title="All 2 branches missed.">        return ok(experiments.create(caller.getName(), id, body.cameraId(), body.disturbedCount() == null ? 1 : body.disturbedCount(),</span>
+<span class="nc" id="L33">                Boolean.TRUE.equals(body.lockExposure()), Boolean.TRUE.equals(body.lockFocus())));</span>
     }
 
     @GetMapping(&quot;/{id}&quot;)
     ResponseEntity&lt;BosExperiments.View&gt; read(Principal caller, @PathVariable(&quot;id&quot;) UUID id) {
-<span class="nc" id="L37">        return ok(experiments.get(caller.getName(), id));</span>
+<span class="nc" id="L38">        return ok(experiments.get(caller.getName(), id));</span>
     }
 
     @PostMapping(&quot;/{id}/steps/{step}&quot;)
     ResponseEntity&lt;BosExperiments.View&gt; confirm(Principal caller, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;step&quot;) String step,
                                                  @RequestBody Acknowledgement confirmation) {
-<span class="nc bnc" id="L43" title="All 2 branches missed.">        if (!confirmation.ready()) throw new PhotographerPairing.Failure(400, &quot;STEP_ACKNOWLEDGEMENT_REQUIRED&quot;);</span>
-<span class="nc" id="L44">        return ok(experiments.confirm(caller.getName(), id, step, Boolean.TRUE.equals(confirmation.continuous())));</span>
+<span class="nc bnc" id="L44" title="All 2 branches missed.">        if (!confirmation.ready()) throw new PhotographerPairing.Failure(400, &quot;STEP_ACKNOWLEDGEMENT_REQUIRED&quot;);</span>
+<span class="nc" id="L45">        return ok(experiments.confirm(caller.getName(), id, step, Boolean.TRUE.equals(confirmation.continuous())));</span>
     }
 
     @DeleteMapping(&quot;/{id}&quot;)
     ResponseEntity&lt;BosExperiments.View&gt; cancel(Principal caller, @PathVariable(&quot;id&quot;) UUID id) {
-<span class="nc" id="L49">        return ok(experiments.cancel(caller.getName(), id));</span>
+<span class="nc" id="L50">        return ok(experiments.cancel(caller.getName(), id));</span>
     }
 
     @GetMapping(&quot;/{id}/images/{step}&quot;)
     ResponseEntity&lt;FileSystemResource&gt; image(Principal caller, @PathVariable(&quot;id&quot;) UUID id, @PathVariable(&quot;step&quot;) String step) {
-<span class="nc" id="L54">        var file = experiments.source(caller.getName(), id, step);</span>
-<span class="nc" id="L55">        return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;)</span>
-<span class="nc" id="L56">                .contentType(MediaType.IMAGE_PNG).body(new FileSystemResource(file));</span>
+<span class="nc" id="L55">        var file = experiments.source(caller.getName(), id, step);</span>
+<span class="nc" id="L56">        return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;)</span>
+<span class="nc" id="L57">                .contentType(MediaType.IMAGE_PNG).body(new FileSystemResource(file));</span>
     }
 
     @ExceptionHandler(PhotographerPairing.Failure.class)
-<span class="nc" id="L60">    ResponseEntity&lt;?&gt; failure(PhotographerPairing.Failure error) { return problem(error.status(), error.getMessage()); }</span>
+<span class="nc" id="L61">    ResponseEntity&lt;?&gt; failure(PhotographerPairing.Failure error) { return problem(error.status(), error.getMessage()); }</span>
 
     @ExceptionHandler(CaptureProviderException.class)
     ResponseEntity&lt;?&gt; failure(CaptureProviderException error) {
-<span class="nc bnc" id="L64" title="All 3 branches missed.">        int status = switch (error.code()) {</span>
-<span class="nc" id="L65">            case CONFLICT, DEVICE_UNAVAILABLE, INVALID_PLAN -&gt; 409;</span>
-<span class="nc" id="L66">            case UNAVAILABLE, TRANSIENT_IO -&gt; 503;</span>
-<span class="nc" id="L67">            default -&gt; 502;</span>
+<span class="nc bnc" id="L65" title="All 3 branches missed.">        int status = switch (error.code()) {</span>
+<span class="nc" id="L66">            case CONFLICT, DEVICE_UNAVAILABLE, INVALID_PLAN -&gt; 409;</span>
+<span class="nc" id="L67">            case UNAVAILABLE, TRANSIENT_IO -&gt; 503;</span>
+<span class="nc" id="L68">            default -&gt; 502;</span>
         };
-<span class="nc" id="L69">        return problem(status, error.code().name());</span>
+<span class="nc" id="L70">        return problem(status, error.code().name());</span>
     }
 
     private static ResponseEntity&lt;Map&lt;String, String&gt;&gt; problem(int status, String code) {
-<span class="nc" id="L73">        return ResponseEntity.status(status).header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;).body(Map.of(&quot;code&quot;, code));</span>
+<span class="nc" id="L74">        return ResponseEntity.status(status).header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;).body(Map.of(&quot;code&quot;, code));</span>
     }
     private static &lt;T&gt; ResponseEntity&lt;T&gt; ok(T result) {
-<span class="nc" id="L76">        return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;).body(result);</span>
+<span class="nc" id="L77">        return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, &quot;private, no-store&quot;).body(result);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>
