@@ -1,0 +1,11 @@
+# Saved measurement sessions
+
+The BOS still-pair and display photometry editors use the same private capture archive. Open **Saved experiments**, sign in with your Fresnel account, and save the images you have mapped to individual capture steps. Incomplete sets can be archived. Use **Open saved captures** to restore a set after restarting the application. A complete experiment can also include the analysis result as JSON.
+
+Sources are stored unchanged. Each upload carries its SHA-256 and declares either PNG or JPEG. Fresnel checks the digest, file signature and dimensions. Retrying a step with the same bytes returns its existing metadata. A recorded step is immutable. Another signed-in user sees a 404 when requesting its identifier. Source downloads support ETag and byte range requests.
+
+For exchange, download the `.fresnel-exp` bundle. The v1 ZIP contains a `manifest.json` with the plugin ID, resolved parameters, ordered capture steps, source dimensions and checksums, one `assets/<sha256>.png` or `.jpg` entry per distinct source, and an optional `results/result.json`. Import validates the declared entry set, sizes and hashes before returning a fresh session under the importing account. An export with missing steps can be resumed after import.
+
+The service accepts 32 sessions per account, 20 MiB per source, 24 megapixels per image and 160 MiB per session. Data remains until its owner deletes the session. Set `fresnel.measurements.directory` to a persistent directory on the application host, or mount the Fresnel data directory. The local filesystem store supports one application instance per directory.
+
+The authenticated API is rooted at `/api/measurement-sessions`. POST a plan with `pluginId`, `parameters` and ordered `steps`. GET the collection or an individual session. PUT source bytes to `/{id}/assets/{step}` with `Content-Type` and `X-Content-SHA256`. The reserved `result` step accepts JSON after every source has been recorded. GET an asset or `/{id}/bundle`, POST a bundle to `/import` using `application/vnd.carstenartur.fresnel.experiment+zip`, or DELETE a session.
