@@ -52,9 +52,23 @@ test('analyzes two local images, re-renders a stored grid and exports it', async
   expect(
     Math.max(...result.vectors.map((v: { dx: number; dy: number }) => Math.hypot(v.dx, v.dy))),
   ).toBeLessThan(0.04);
+  expect(result.registration.model).toBe('translation');
   const mapDownload = page.waitForEvent('download');
   await panel.getByRole('button', { name: 'Download map PNG' }).click();
   expect((await mapDownload).suggestedFilename()).toBe('bos-horizontal.png');
+
+  await panel.getByLabel('Camera motion model').selectOption('homography');
+  await expect(panel.getByRole('link', { name: 'Download numeric grid' })).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Analyze still pair' }).click();
+  await expect(panel.getByRole('status')).toContainText('Registered 12 of 12');
+  await panel.getByLabel('Source view').selectOption('stabilized');
+  await expect(panel.getByRole('img', { name: 'Disturbed image after registration' })).toBeVisible();
+  const secondDownload = page.waitForEvent('download');
+  await panel.getByRole('link', { name: 'Download numeric grid' }).click();
+  const projected = JSON.parse(await readFile((await (await secondDownload).path())!, 'utf8'));
+  expect(projected.registration.model).toBe('homography');
+  expect(projected.registration.matrix).toHaveLength(9);
+  expect(projected.registration.maxHeldOutError).toBeLessThan(0.04);
 
   await panel
     .getByLabel('Disturbed image', { exact: true })

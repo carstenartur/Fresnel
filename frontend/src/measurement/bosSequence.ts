@@ -1,3 +1,4 @@
+import { cameraLimits, type CameraModel } from './bosCameraModel';
 import { settings, type PairResult } from './bosDisplacement';
 import type { FrameInput, Reply, Request } from './bosSequence.worker';
 export type Policy = 'fixed' | 'median';
@@ -123,6 +124,7 @@ export async function runSequence(
   external: File | undefined,
   policy: Policy,
   rate: number,
+  cameraModel: CameraModel,
   signal: AbortSignal,
   onProgress: (s: string) => void,
 ) {
@@ -177,7 +179,7 @@ export async function runSequence(
         refs.push(await frame(i));
       }
     onProgress('Preparing reference…');
-    await ask({ kind: 'reference', inputs: refs });
+    await ask({ kind: 'reference', inputs: refs, cameraModel });
     refs.length = 0;
     const frames: FrameResult[] = [];
     for (let i = 0; i < count; i++) {
@@ -206,9 +208,10 @@ export async function runSequence(
     return {
       pluginId: 'background-oriented-schlieren',
       algorithmVersion: 'background-oriented-schlieren/1',
-      method: 'sequence-translation-zncc/1',
+      method: 'sequence-' + cameraModel + '-zncc/1',
+      cameraModel,
       schemaVersion: 1,
-      settings,
+      settings: cameraModel === 'translation' ? settings : { ...settings, ...cameraLimits },
       policy,
       rate,
       referenceFrameIndices: external && policy === 'fixed' ? [] : indices,
