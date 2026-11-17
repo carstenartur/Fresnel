@@ -5,7 +5,7 @@ const ROOT = '/api/experiments/bos-captures';
 type Step = 'reference' | 'disturbed';
 type Camera = { id: string; name: string };
 type Source = { byteLength: number; sha256: string; capturedAt: string };
-type Capture = { id: string; state: string; reference: Source | null; disturbed: Source | null };
+type Capture = { id: string; state: string; pendingStep: Step | null; reference: Source | null; disturbed: Source | null };
 type PendingCreate = { id: string; cameraId: string };
 type Operator = { username: string; authorization: string };
 const labels: Record<string, string> = {
@@ -68,6 +68,7 @@ function SourceImage({ operator, capture, step, source }: {
 
   return <figure>
     <figcaption>{step === 'reference' ? 'Reference' : 'Disturbed'} · {(source.byteLength / 1024).toFixed(1)} KiB</figcaption>
+    <details><summary>SHA-256</summary><code style={{ overflowWrap: 'anywhere' }}>{source.sha256}</code></details>
     {url && <>
       <img src={url} alt={step + ' exposure'} style={{ maxWidth: '100%' }} />
       <a href={url} download={'bos-' + capture + '-' + step + '.png'}>Download {step} PNG</a>
@@ -158,9 +159,18 @@ function Acquisition() {
     setReady(false);
     const path = '/' + encodeURIComponent(current.id);
     await action(async () => {
-      const response = step
-        ? await request(operator, path + '/steps/' + step, 'POST', { ready: true })
-        : await request(operator, path, 'DELETE');
+      let response: Response;
+      try {
+        const acknowledgement = current.pendingStep === step ? { ready: true, continuous: true } : { ready: true };
+        response = step
+          ? await request(operator, path + '/steps/' + step, 'POST', acknowledgement)
+          : await request(operator, path, 'DELETE');
+      } catch (failure) {
+        // Read the server's durable acknowledgement before offering another operator action.
+        try { show(await (await request(operator, path)).json()); }
+        catch { /* Refresh capture remains available if the service is still unreachable. */ }
+        throw new Error(errorMessage(failure) + ' Check the current capture and cancel if the condition has changed.');
+      }
       const capture: Capture = await response.json();
       show(capture);
       if (pending?.id === capture.id && capture.state !== 'CREATING') {
@@ -198,9 +208,11 @@ function Acquisition() {
       {current && <>
         <p role="status">{labels[current.state] ?? current.state}</p>
         {step && <>
+          {current.pendingStep === step && <p>If the condition changed since the original acknowledgement, cancel this capture.</p>}
           <label><input type="checkbox" checked={ready} disabled={busy}
             onChange={event => setReady(event.target.checked)} />
-            {step === 'reference' ? 'The undisturbed reference condition is ready.' : 'The disturbed condition is ready.'}
+            {current.pendingStep === step ? `The original ${step} condition has remained continuously in place.`
+              : step === 'reference' ? 'The undisturbed reference condition is ready.' : 'The disturbed condition is ready.'}
           </label>
           <button type="button" disabled={busy || !ready} onClick={() => void advance(step)}>Capture {step}</button>
         </>}

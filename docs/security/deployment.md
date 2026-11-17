@@ -149,13 +149,7 @@ Fresnel. To invalidate the grant at its source and stop its captures, revoke it 
 
 ### Capturing a BOS reference and disturbed image
 
-In **Camera service → Background-oriented schlieren capture**, sign in with a Fresnel
-operator account, choose an available PNG-capable camera and select **Start BOS capture**.
-Set up the undisturbed scene, check its acknowledgement and select **Capture reference**.
-Prepare the disturbed scene and use the second acknowledgement to capture it. The completed
-experiment shows both images and provides each verified PNG for download. The operator
-can reopen their saved experiments after signing in again or cancel an unfinished sequence.
-Photographer retains the camera lease across both steps.
+The [Photographer provider guide](../integrations/photographer-provider.md#run-a-bos-capture) covers camera selection, physical acknowledgements, downloads and resuming a saved experiment.
 
 The Fresnel server stores the operator-owned experiments and original PNGs in the
 `bos-captures` subdirectory of its data directory. Override this with

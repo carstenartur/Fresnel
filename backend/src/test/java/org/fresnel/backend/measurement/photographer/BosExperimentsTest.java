@@ -46,8 +46,8 @@ class BosExperimentsTest {
         assertEquals("WAITING_REFERENCE", service.create("owner", id, camera).state());
         assertEquals(404, assertThrows(PhotographerPairing.Failure.class, () -> service.get("other", id)).status());
         assertTrue(service.list("other").isEmpty());
-        assertThrows(PhotographerPairing.Failure.class, () -> service.confirm("other", id, "reference"));
-        assertThrows(PhotographerPairing.Failure.class, () -> service.confirm("owner", id, "disturbed"));
+        assertThrows(PhotographerPairing.Failure.class, () -> service.confirm("other", id, "reference", false));
+        assertThrows(PhotographerPairing.Failure.class, () -> service.confirm("owner", id, "disturbed", false));
         var restarted = new BosExperiments(pairings, registry, root.toString());
         restarted.create("owner", id, camera);
         verify(capture).createSession(any(), eq(id.toString()), anyString());
@@ -58,11 +58,24 @@ class BosExperimentsTest {
                     "image/png", bytes.length, HexFormat.of().formatHex(PhotographerJournal.sha256().digest(bytes)), Instant.EPOCH);
             when(capture.triggerStep(eq("remote"), eq(step), any(), anyString()))
                     .thenReturn(new CaptureProvider.StepResult("remote", step, metadata, Instant.EPOCH));
-            when(capture.openAsset("remote", "asset-" + step, CaptureProvider.FullAsset.INSTANCE))
-                    .thenReturn(new ByteArrayInputStream(bytes));
-            restarted.confirm("owner", id, step);
-            service.confirm("owner", id, step);
-            verify(capture).triggerStep(eq("remote"), eq(step), any(), anyString());
+            var download = when(capture.openAsset("remote", "asset-" + step, CaptureProvider.FullAsset.INSTANCE));
+            if (step.equals("reference")) {
+                download.thenReturn(new ByteArrayInputStream(new byte[]{1}), new ByteArrayInputStream(bytes));
+                assertThrows(PhotographerPairing.Failure.class, () -> restarted.confirm("owner", id, step, false));
+                assertEquals(step, restarted.get("owner", id).pendingStep());
+                var failure = assertThrows(PhotographerPairing.Failure.class, () -> service.confirm("owner", id, step, false));
+                assertEquals("CONTINUITY_CONFIRMATION_REQUIRED", failure.getMessage());
+            } else {
+                download.thenReturn(new ByteArrayInputStream(bytes));
+            }
+            restarted.confirm("owner", id, step, step.equals("reference"));
+            service.confirm("owner", id, step, false);
+            var times = org.mockito.ArgumentCaptor.forClass(CaptureProvider.StepTrigger.class);
+            var keys = org.mockito.ArgumentCaptor.forClass(String.class);
+            verify(capture, times(step.equals("reference") ? 2 : 1)).triggerStep(eq("remote"), eq(step),
+                    times.capture(), keys.capture());
+            assertEquals(1, times.getAllValues().stream().distinct().count());
+            assertEquals(1, keys.getAllValues().stream().distinct().count());
             assertArrayEquals(bytes, Files.readAllBytes(service.source("owner", id, step)));
             assertThrows(PhotographerPairing.Failure.class, () -> service.source("other", id, step));
         }

@@ -43,7 +43,7 @@ final class BosExperiments {
 
     record Camera(String id, String name) {}
     record Image(long byteLength, String sha256, Instant capturedAt) {}
-    record View(UUID id, String state, Image reference, Image disturbed) {}
+    record View(UUID id, String state, Image reference, Image disturbed, String pendingStep) {}
 
     private static final class Experiment {
         public UUID id;
@@ -60,7 +60,12 @@ final class BosExperiments {
         View view() {
             String state = cancelled ? "CANCELLED" : disturbed != null ? "COMPLETED" : reference != null
                     ? "WAITING_DISTURBED" : session != null ? "WAITING_REFERENCE" : "CREATING";
-            return new View(id, state, reference, disturbed);
+            String pending = null;
+            if (!cancelled) {
+                if (referenceAck != null && reference == null) pending = "reference";
+                if (disturbedAck != null && disturbed == null) pending = "disturbed";
+            }
+            return new View(id, state, reference, disturbed, pending);
         }
     }
 
@@ -107,7 +112,7 @@ final class BosExperiments {
         });
     }
 
-    View confirm(String owner, UUID id, String step) {
+    View confirm(String owner, UUID id, String step, boolean continuous) {
         var role = role(step);
         Path file = manifest(owner, id);
         var latest = load(file);
@@ -119,6 +124,7 @@ final class BosExperiments {
             if (e.cancelled || e.session == null || (role == DISTURBED && e.reference == null))
                 throw failure(409, "STEP_NOT_READY");
             Instant at = role == REFERENCE ? e.referenceAck : e.disturbedAck;
+            if (at != null && !continuous) throw failure(409, "CONTINUITY_CONFIRMATION_REQUIRED");
             if (at == null) {
                 at = Instant.now();
                 if (role == REFERENCE) e.referenceAck = at; else e.disturbedAck = at;

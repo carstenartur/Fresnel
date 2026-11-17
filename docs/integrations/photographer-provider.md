@@ -2,6 +2,17 @@
 
 Enable the `photographer-rest` provider and establish its pairing from **Camera service** as described in the [deployment guide](../security/deployment.md#pairing-a-photographer-capture-service). Fresnel records the negotiated limits when an administrator pairs the service. Its status panel uses an authenticated health request and camera discovery to show current availability.
 
+## Run a BOS capture
+
+1. Open **Camera service → Background-oriented schlieren capture** and sign in with your Fresnel account. Choose an available camera and select **Start BOS capture**. Photographer holds the camera lease across both exposures.
+2. Set up the undisturbed scene. Check **The undisturbed reference condition is ready** and select **Capture reference**. Wait for the reference image before changing the scene.
+3. Prepare the disturbance. Check **The disturbed condition is ready** and select **Capture disturbed**. A completed experiment shows both original images.
+4. Use **Download reference PNG** and **Download disturbed PNG** to save the sources. Fresnel checks each image's original media type, size and SHA-256 before importing it. To verify a downloaded copy independently, compare its digest (for example, from `sha256sum image.png`) with the image's **SHA-256** entry.
+
+After closing the browser or restarting Fresnel, sign in with the same account and choose the experiment under **Saved captures**. A completed experiment opens its locally stored PNGs. An unfinished experiment reopens at its last saved stage. After an interrupted trigger, refresh the saved capture. Retry only if the original scene remained continuously in place. Confirm continuity in the form, or cancel if it changed. Fresnel reuses the original presentation time and operation key. If Photographer reports that it requires recovery, use its administrative controls to inspect or cancel the session before starting another experiment.
+
+This two-step workflow records the operator's acknowledgement of a physical reference and disturbed scene. Display photometric stereo additionally requires presentation of each specified raster on the light display and confirmation of the actual presentation before the corresponding exposure. Its display controls and scientific reconstruction are separate Fresnel workflows.
+
 ## Capture and recovery
 
 A measurement workflow obtains `photographer-rest` from `CaptureProviderRegistry` and passes its durable local experiment ID to `createSession(plan, externalExperimentId, key)`. Use the camera profile ID from calibrated device selection on that pairing. The workflow must check its local owner before using the saved remote session. It also owns the observation that the intended physical condition or displayed raster remains in place.
@@ -17,7 +28,7 @@ An accepted asynchronous trigger is followed by bounded status polling. Only a c
 The fixture tests read the repository's [contract and test vectors](photographer-capture-v1.md) and run a loopback HTTP service. Run them from the Fresnel repository root.
 
 ```sh
-mvn -Pno-frontend -pl backend -am -Dtest=PhotographerCaptureProviderTest,PhotographerPairingTest,PhotographerPairingAuthorizationTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -Pno-frontend -pl backend -am -Dtest=PhotographerCaptureProviderTest,PhotographerPairingTest,PhotographerPairingAuthorizationTest,BosExperimentsTest -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
 `PhotographerInteropTest` exercises both running products independently of their build classpaths. Start a dedicated Photographer instance with the Fresnel bridge enabled and a mock camera configured. Set `PHOTOGRAPHER_TEST_ORIGIN` and provide a newly issued one-time code in the environment variable `PHOTOGRAPHER_TEST_PAIR_CODE`. Run the dedicated test.

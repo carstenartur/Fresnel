@@ -19,7 +19,7 @@ class BosCaptureController {
     BosCaptureController(BosExperiments experiments) { this.experiments = experiments; }
 
     record Selection(String cameraId) {}
-    record Acknowledgement(boolean ready) {}
+    record Acknowledgement(boolean ready, boolean continuous) {}
 
     @GetMapping("/cameras")
     ResponseEntity<List<BosExperiments.Camera>> cameras() { return ok(experiments.cameras()); }
@@ -41,7 +41,7 @@ class BosCaptureController {
     ResponseEntity<BosExperiments.View> confirm(Principal caller, @PathVariable("id") UUID id, @PathVariable("step") String step,
                                                  @RequestBody Acknowledgement confirmation) {
         if (!confirmation.ready()) throw new PhotographerPairing.Failure(400, "STEP_ACKNOWLEDGEMENT_REQUIRED");
-        return ok(experiments.confirm(caller.getName(), id, step));
+        return ok(experiments.confirm(caller.getName(), id, step, confirmation.continuous()));
     }
 
     @DeleteMapping("/{id}")
