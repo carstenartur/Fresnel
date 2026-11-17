@@ -91,6 +91,21 @@ class PhotometryCaptureTest {
         assertEquals(6,sessions.get("alice",id).assets().size());
         verify(provider,times(6)).triggerStep(anyString(),anyString(),any(),anyString());
         assertEquals(service.get("alice",id),service.list("alice").getFirst());
+        var json = JsonMapper.builder().build();
+        try (var validation = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
+            var documents = new ExperimentDocuments(new org.fresnel.backend.api.FresnelJobService(json,validation.getValidator()));
+            var bundles = new MeasurementBundles(sessions,documents);
+            var bytes = new ByteArrayOutputStream();
+            bundles.export("alice",id,bytes);
+            var restored = bundles.read("bob",new ByteArrayInputStream(bytes.toByteArray()));
+            var original = CaptureEvidence.read(sessions.dir("alice",id),json);
+            assertEquals(original,CaptureEvidence.read(sessions.dir("bob",restored.id()),json));
+            assertTrue(original.manualLocksConfirmed());
+            assertEquals(sequence.sequenceId(),original.sequenceId());
+            assertEquals(6,original.exposures().size());
+            assertEquals("manual-upload",restored.captureProvider());
+            assertFalse(service.list("bob").stream().anyMatch(x -> x.id().equals(restored.id())));
+        }
         sessions.delete("alice",id);
     }
 
