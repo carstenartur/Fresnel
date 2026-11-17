@@ -32,8 +32,8 @@ self.onmessage = async (event: MessageEvent<{ manifest: Manifest; files: Record<
       if (!file || file.size > 16*1024*1024) throw new Error('Each pattern needs a PNG or JPEG of at most 16 MiB.');
       const bytes = new Uint8Array(await file.arrayBuffer());
       const [w,h] = dimensions(bytes);
-      if (!w || !h || w*h > 32_000_000 || Math.max(w,h) > 12000)
-        throw new Error('Camera images must be at most 32 megapixels and 12,000 pixels on each side.');
+      if (!w || !h || w*h > 24_000_000 || Math.max(w,h) > 12000)
+        throw new Error('Camera images must be at most 24 megapixels and 12,000 pixels on each side.');
       const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
         n => n.toString(16).padStart(2, '0')).join('');
       const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
