@@ -201,7 +201,8 @@ public final class PluginRegistry {
             "DisplayIlluminationSequenceGenerator", "DisplayGeometry", "docs/plugins/display-photometric-stereo.md",
             "display-photometric-stereo/1", PluginStabilityLevel.EXPERIMENTAL,
             Set.of(PluginCapability.GENERATE_CAPTURE_TARGET, PluginCapability.IMPORT_CAPTURE_SET,
-                   PluginCapability.ANALYZE_CAPTURE_SET, PluginCapability.LIVE_ANALYSIS_PREVIEW, PluginCapability.EXPORT_PNG),
+                   PluginCapability.ANALYZE_CAPTURE_SET, PluginCapability.LIVE_ANALYSIS_PREVIEW, PluginCapability.EXPORT_PNG,
+                   PluginCapability.EXPORT_EXPERIMENT_BUNDLE, PluginCapability.EXPORT_STL),
             Set.of(), schema("display-photometric-stereo", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
     );
 

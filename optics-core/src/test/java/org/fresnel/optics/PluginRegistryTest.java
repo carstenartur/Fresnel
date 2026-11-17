@@ -95,8 +95,7 @@ class PluginRegistryTest {
         assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.ANALYZE_CAPTURE_SET));
         assertEquals(List.of(PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO),
                 PluginRegistry.withCapability(PluginCapability.LIVE_ANALYSIS_PREVIEW));
-        assertEquals(List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN),
-                PluginRegistry.withCapability(PluginCapability.EXPORT_EXPERIMENT_BUNDLE));
+        assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.EXPORT_EXPERIMENT_BUNDLE));
         assertTrue(PluginRegistry.ofKind(PluginKind.DESIGN).stream()
                 .noneMatch(descriptor -> descriptor.supports(PluginCapability.GENERATE_CAPTURE_TARGET)));
     }
@@ -175,10 +174,9 @@ class PluginRegistryTest {
     }
 
     @Test
-    void withCapabilityExportStlReturnsOnlyHologram() {
+    void withCapabilityExportStlIncludesSolvedRelief() {
         List<PluginDescriptor> stl = PluginRegistry.withCapability(PluginCapability.EXPORT_STL);
-        assertEquals(1, stl.size());
-        assertEquals("hologram", stl.getFirst().id());
+        assertEquals(List.of(PluginRegistry.HOLOGRAM, PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO), stl);
     }
 
     @Test

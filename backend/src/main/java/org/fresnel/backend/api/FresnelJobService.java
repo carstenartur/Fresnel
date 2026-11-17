@@ -436,6 +436,8 @@ public class FresnelJobService {
                 throw new IllegalArgumentException("production.outputs[" + i + "] must not be null");
             }
             String format = normalizeFormat(output.format());
+            if (descriptor == PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO && "stl".equals(format))
+                throw new IllegalArgumentException("Relative STL requires a completed surface solve and explicit export scale");
             PluginCapability capability = capabilityFor(format);
             if (!descriptor.supportsExport(capability)) {
                 throw new IllegalArgumentException(

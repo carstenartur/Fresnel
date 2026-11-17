@@ -17,4 +17,10 @@ The solver fits a three-component Lambertian vector using the known light direct
 
 ## Files and units
 
-The exported geometry job can be reopened with **Open job**. A PNG production output with `options.patternId` set to a manifest ID exports the corresponding lossless illumination pattern. The result JSON contains the ordered source hashes, pixel dimensions, pattern hashes, light vectors, coordinate system, solve thresholds and result arrays. Relative albedo depends on camera exposure and screen brightness. This workflow yields surface orientation and relative reflectance, without calibrated length or height measurements.
+The exported geometry job can be reopened with **Open job**. A PNG production output with `options.patternId` set to a manifest ID exports the corresponding lossless illumination pattern. The result JSON contains the ordered source hashes, pixel dimensions, pattern hashes, light vectors, coordinate system, solve thresholds and result arrays. Relative albedo depends on camera exposure and screen brightness. Open **Saved experiments** and sign in to save mapped sources and the current result to the server. A checksummed experiment bundle can be downloaded and imported there. Restored camera files can be reconstructed again. The archive stores numeric grids as base64 little-endian Float32 and unsigned 8-bit arrays.
+
+## Relative relief and export scale
+
+Choose **Integrate relative height** to solve a masked Poisson least-squares problem from the measured normal gradients. The solver excludes low-confidence and grazing pixels, calculates the circulation around each complete four-pixel cell and rejects excessive curl or residual. It assigns independent zero datums to disconnected regions and leaves holes empty. Optionally subtract a fitted plane per component. The result grid contains the height method, curl, residual, mask and relative values. The PNG stretches supported heights over the grayscale range.
+
+An accepted result with a nonzero height range can be exported as a closed STL relief. Supply the model width, desired height span and base thickness. All three dimensions are user-assigned millimeters. The file header records the assigned scale. The experiment does not measure physical height or length.
