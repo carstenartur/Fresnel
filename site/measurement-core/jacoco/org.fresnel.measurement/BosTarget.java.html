@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BosTarget.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Measurement Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.measurement</a> &gt; <span class="el_source">BosTarget.java</span></div><h1>BosTarget.java</h1><pre class="source lang-java linenums">package org.fresnel.measurement;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+/**
+ * Immutable generated BOS target together with the metadata needed to reproduce,
+ * display, print and later detect it in a camera frame.
+ */
+public final class BosTarget {
+
+<span class="fc" id="L13">    private static final Pattern SHA_256 = Pattern.compile(&quot;[0-9a-f]{64}&quot;);</span>
+
+    private final BosTargetParameters parameters;
+    private final Region activeRegion;
+    private final int dotCount;
+    private final double actualFillRatio;
+    private final int cellPitchPx;
+    private final List&lt;Fiducial&gt; fiducials;
+    private final byte[] grayscalePixels;
+    private final String semanticSha256;
+    private final String targetId;
+
+    BosTarget(
+            BosTargetParameters parameters,
+            Region activeRegion,
+            int dotCount,
+            double actualFillRatio,
+            int cellPitchPx,
+            List&lt;Fiducial&gt; fiducials,
+            byte[] grayscalePixels,
+<span class="fc" id="L33">            String semanticSha256) {</span>
+<span class="fc" id="L34">        this.parameters = Objects.requireNonNull(parameters, &quot;parameters&quot;);</span>
+<span class="fc" id="L35">        this.activeRegion = Objects.requireNonNull(activeRegion, &quot;activeRegion&quot;);</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">        if (dotCount &lt; 1) throw new IllegalArgumentException(&quot;dotCount must be positive&quot;);</span>
+<span class="pc bpc" id="L37" title="3 of 6 branches missed.">        if (!Double.isFinite(actualFillRatio)</span>
+                || actualFillRatio &lt;= 0.0
+                || actualFillRatio &gt;= 1.0) {
+<span class="nc" id="L40">            throw new IllegalArgumentException(&quot;actualFillRatio must be between zero and one&quot;);</span>
+        }
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (cellPitchPx &lt; parameters.dotDiameterPx() + parameters.minimumDotSpacingPx()) {</span>
+<span class="nc" id="L43">            throw new IllegalArgumentException(&quot;cellPitchPx violates the minimum dot spacing&quot;);</span>
+        }
+<span class="fc" id="L45">        this.dotCount = dotCount;</span>
+<span class="fc" id="L46">        this.actualFillRatio = actualFillRatio;</span>
+<span class="fc" id="L47">        this.cellPitchPx = cellPitchPx;</span>
+<span class="fc" id="L48">        this.fiducials = List.copyOf(Objects.requireNonNull(fiducials, &quot;fiducials&quot;));</span>
+<span class="fc" id="L49">        Objects.requireNonNull(grayscalePixels, &quot;grayscalePixels&quot;);</span>
+<span class="fc" id="L50">        int expectedPixels = Math.multiplyExact(parameters.widthPx(), parameters.heightPx());</span>
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">        if (grayscalePixels.length != expectedPixels) {</span>
+<span class="nc" id="L52">            throw new IllegalArgumentException(</span>
+                    &quot;pixel length mismatch: expected &quot; + expectedPixels
+                            + &quot; but was &quot; + grayscalePixels.length);
+        }
+<span class="fc" id="L56">        this.grayscalePixels = grayscalePixels.clone();</span>
+<span class="pc bpc" id="L57" title="2 of 4 branches missed.">        if (semanticSha256 == null || !SHA_256.matcher(semanticSha256).matches()) {</span>
+<span class="nc" id="L58">            throw new IllegalArgumentException(&quot;semanticSha256 must be lowercase SHA-256&quot;);</span>
+        }
+<span class="fc" id="L60">        this.semanticSha256 = semanticSha256;</span>
+<span class="fc" id="L61">        this.targetId = &quot;bos-&quot; + semanticSha256.substring(0, 12);</span>
+<span class="fc" id="L62">    }</span>
+
+    public BosTargetParameters parameters() {
+<span class="fc" id="L65">        return parameters;</span>
+    }
+
+    public Region activeRegion() {
+<span class="fc" id="L69">        return activeRegion;</span>
+    }
+
+    public int dotCount() {
+<span class="fc" id="L73">        return dotCount;</span>
+    }
+
+    public double actualFillRatio() {
+<span class="fc" id="L77">        return actualFillRatio;</span>
+    }
+
+    public int cellPitchPx() {
+<span class="fc" id="L81">        return cellPitchPx;</span>
+    }
+
+    public List&lt;Fiducial&gt; fiducials() {
+<span class="fc" id="L85">        return fiducials;</span>
+    }
+
+    public byte[] grayscalePixels() {
+<span class="fc" id="L89">        return grayscalePixels.clone();</span>
+    }
+
+    public String semanticSha256() {
+<span class="fc" id="L93">        return semanticSha256;</span>
+    }
+
+    public String targetId() {
+<span class="fc" id="L97">        return targetId;</span>
+    }
+
+    public int pixelUnsigned(int x, int y) {
+<span class="pc bpc" id="L101" title="2 of 8 branches missed.">        if (x &lt; 0 || x &gt;= parameters.widthPx() || y &lt; 0 || y &gt;= parameters.heightPx()) {</span>
+<span class="fc" id="L102">            throw new IndexOutOfBoundsException(&quot;pixel outside target: &quot; + x + &quot;,&quot; + y);</span>
+        }
+<span class="fc" id="L104">        return Byte.toUnsignedInt(grayscalePixels[y * parameters.widthPx() + x]);</span>
+    }
+
+    public Manifest manifest() {
+<span class="fc" id="L108">        return new Manifest(</span>
+                BosTargetParameters.ALGORITHM_VERSION,
+                targetId,
+                semanticSha256,
+<span class="fc" id="L112">                parameters.widthPx(),</span>
+<span class="fc" id="L113">                parameters.heightPx(),</span>
+<span class="fc" id="L114">                parameters.intendedDpi(),</span>
+<span class="fc" id="L115">                parameters.intendedWidthMm(),</span>
+<span class="fc" id="L116">                parameters.intendedHeightMm(),</span>
+<span class="fc" id="L117">                parameters.patternSeed(),</span>
+<span class="fc" id="L118">                parameters.dotDiameterPx(),</span>
+<span class="fc" id="L119">                parameters.targetFillRatio(),</span>
+                actualFillRatio,
+<span class="fc" id="L121">                parameters.minimumDotSpacingPx(),</span>
+                cellPitchPx,
+                dotCount,
+<span class="fc" id="L124">                parameters.borderPx(),</span>
+<span class="fc" id="L125">                parameters.fiducialsEnabled(),</span>
+<span class="fc" id="L126">                parameters.invertPattern(),</span>
+                activeRegion,
+                fiducials);
+    }
+
+    /** Inclusive-origin, exclusive-size pixel rectangle. */
+    public record Region(int x, int y, int width, int height) {
+<span class="fc" id="L133">        public Region {</span>
+<span class="pc bpc" id="L134" title="1 of 4 branches missed.">            if (x &lt; 0 || y &lt; 0) throw new IllegalArgumentException(&quot;region origin must not be negative&quot;);</span>
+<span class="pc bpc" id="L135" title="1 of 4 branches missed.">            if (width &lt; 1 || height &lt; 1) {</span>
+<span class="fc" id="L136">                throw new IllegalArgumentException(&quot;region dimensions must be positive&quot;);</span>
+            }
+<span class="fc" id="L138">        }</span>
+
+        public int maxXExclusive() {
+<span class="fc" id="L141">            return Math.addExact(x, width);</span>
+        }
+
+        public int maxYExclusive() {
+<span class="fc" id="L145">            return Math.addExact(y, height);</span>
+        }
+
+        public boolean contains(int px, int py) {
+<span class="fc bfc" id="L149" title="All 8 branches covered.">            return px &gt;= x &amp;&amp; px &lt; maxXExclusive() &amp;&amp; py &gt;= y &amp;&amp; py &lt; maxYExclusive();</span>
+        }
+    }
+
+<span class="fc" id="L153">    public enum FiducialShape {</span>
+<span class="fc" id="L154">        SOLID_SQUARE,</span>
+<span class="fc" id="L155">        RING,</span>
+<span class="fc" id="L156">        L_SHAPE,</span>
+<span class="fc" id="L157">        CROSS</span>
+    }
+
+    /** Asymmetric marker outside the analysis region. */
+    public record Fiducial(String id, FiducialShape shape, Region region) {
+<span class="fc" id="L162">        public Fiducial {</span>
+<span class="pc bpc" id="L163" title="2 of 4 branches missed.">            if (id == null || !id.matches(&quot;[a-z][a-z0-9-]*&quot;)) {</span>
+<span class="nc" id="L164">                throw new IllegalArgumentException(&quot;fiducial id is invalid&quot;);</span>
+            }
+<span class="fc" id="L166">            Objects.requireNonNull(shape, &quot;shape&quot;);</span>
+<span class="fc" id="L167">            Objects.requireNonNull(region, &quot;region&quot;);</span>
+<span class="fc" id="L168">        }</span>
+    }
+
+    /** Data-only manifest safe for REST responses and experiment provenance. */
+    public record Manifest(
+            String algorithmVersion,
+            String targetId,
+            String semanticSha256,
+            int widthPx,
+            int heightPx,
+            double intendedDpi,
+            double intendedWidthMm,
+            double intendedHeightMm,
+            long patternSeed,
+            int dotDiameterPx,
+            double requestedFillRatio,
+            double actualFillRatio,
+            int minimumDotSpacingPx,
+            int cellPitchPx,
+            int dotCount,
+            int borderPx,
+            boolean fiducialsEnabled,
+            boolean invertPattern,
+            Region activeRegion,
+            List&lt;Fiducial&gt; fiducials) {
+
+<span class="fc" id="L194">        public Manifest {</span>
+<span class="fc" id="L195">            Objects.requireNonNull(algorithmVersion, &quot;algorithmVersion&quot;);</span>
+<span class="fc" id="L196">            Objects.requireNonNull(targetId, &quot;targetId&quot;);</span>
+<span class="fc" id="L197">            Objects.requireNonNull(semanticSha256, &quot;semanticSha256&quot;);</span>
+<span class="fc" id="L198">            Objects.requireNonNull(activeRegion, &quot;activeRegion&quot;);</span>
+<span class="fc" id="L199">            fiducials = List.copyOf(Objects.requireNonNull(fiducials, &quot;fiducials&quot;));</span>
+<span class="fc" id="L200">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

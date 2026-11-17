@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FresnelJobExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">FresnelJobExecutor.java</span></div><h1>FresnelJobExecutor.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
 
+import org.fresnel.backend.measurement.BosTargetPngEncoder;
+import org.fresnel.measurement.BosTarget;
+import org.fresnel.measurement.BosTargetGenerator;
 import org.fresnel.optics.DxfExporter;
 import org.fresnel.optics.GerberExporter;
 import org.fresnel.optics.HexMacroCellRenderer;
@@ -56,456 +59,470 @@ public class FresnelJobExecutor {
     private static final String DXF = &quot;application/dxf&quot;;
     private static final String GERBER = &quot;application/vnd.gerber&quot;;
     private static final String STL = &quot;model/stl&quot;;
-<span class="fc" id="L59">    private static final Set&lt;String&gt; HOLOGRAM_PNG_OPTION_FIELDS = Set.of(&quot;hologramPng&quot;);</span>
-<span class="fc" id="L60">    private static final Set&lt;String&gt; GRATING_PCL_OPTION_FIELDS = Set.of(</span>
+<span class="fc" id="L62">    private static final Set&lt;String&gt; HOLOGRAM_PNG_OPTION_FIELDS = Set.of(&quot;hologramPng&quot;);</span>
+<span class="fc" id="L63">    private static final Set&lt;String&gt; GRATING_PCL_OPTION_FIELDS = Set.of(</span>
             &quot;printerProfileId&quot;, &quot;compression&quot;);
 
     private final FresnelJobService jobService;
     private final ObjectMapper mapper;
 
-<span class="fc" id="L66">    public FresnelJobExecutor(FresnelJobService jobService, ObjectMapper mapper) {</span>
-<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        if (jobService == null) throw new IllegalArgumentException(&quot;jobService must not be null&quot;);</span>
-<span class="pc bpc" id="L68" title="1 of 2 branches missed.">        if (mapper == null) throw new IllegalArgumentException(&quot;mapper must not be null&quot;);</span>
-<span class="fc" id="L69">        this.jobService = jobService;</span>
-<span class="fc" id="L70">        this.mapper = mapper;</span>
-<span class="fc" id="L71">    }</span>
+<span class="fc" id="L69">    public FresnelJobExecutor(FresnelJobService jobService, ObjectMapper mapper) {</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (jobService == null) throw new IllegalArgumentException(&quot;jobService must not be null&quot;);</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">        if (mapper == null) throw new IllegalArgumentException(&quot;mapper must not be null&quot;);</span>
+<span class="fc" id="L72">        this.jobService = jobService;</span>
+<span class="fc" id="L73">        this.mapper = mapper;</span>
+<span class="fc" id="L74">    }</span>
 
     public FresnelJobExecutionResult execute(byte[] jobBytes, FresnelJobOutputSink sink)
             throws IOException {
-<span class="fc" id="L75">        return execute(jobService.parseAndNormalize(jobBytes), sink);</span>
+<span class="fc" id="L78">        return execute(jobService.parseAndNormalize(jobBytes), sink);</span>
     }
 
     public FresnelJobExecutionResult execute(
             FresnelJobDocument job,
             FresnelJobOutputSink sink) throws IOException {
-<span class="pc bpc" id="L81" title="1 of 2 branches missed.">        if (sink == null) throw new IllegalArgumentException(&quot;output sink must not be null&quot;);</span>
-<span class="fc" id="L82">        FresnelJobDocument normalized = jobService.normalize(job);</span>
-<span class="fc bfc" id="L83" title="All 2 branches covered.">        if (normalized.production() == null</span>
-<span class="pc bpc" id="L84" title="1 of 2 branches missed.">                || normalized.production().outputs() == null</span>
-<span class="pc bpc" id="L85" title="1 of 2 branches missed.">                || normalized.production().outputs().isEmpty()) {</span>
-<span class="fc" id="L86">            throw new IllegalArgumentException(</span>
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        if (sink == null) throw new IllegalArgumentException(&quot;output sink must not be null&quot;);</span>
+<span class="fc" id="L85">        FresnelJobDocument normalized = jobService.normalize(job);</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (normalized.production() == null</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">                || normalized.production().outputs() == null</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">                || normalized.production().outputs().isEmpty()) {</span>
+<span class="fc" id="L89">            throw new IllegalArgumentException(</span>
                     &quot;Fresnel job execution requires a non-empty production plan&quot;);
         }
-<span class="fc" id="L89">        List&lt;GeneratedArtifact&gt; artifacts = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L90" title="All 2 branches covered.">        for (FresnelJobDocument.ProductionOutput output : normalized.production().outputs()) {</span>
-<span class="fc" id="L91">            RenderedOutput rendered = render(normalized, output);</span>
-<span class="fc" id="L92">            GeneratedArtifact artifact = inspect(output, rendered);</span>
-<span class="fc" id="L93">            sink.write(artifact, rendered.content());</span>
-<span class="fc" id="L94">            artifacts.add(artifact);</span>
-<span class="fc" id="L95">        }</span>
-<span class="fc" id="L96">        return new FresnelJobExecutionResult(normalized, artifacts);</span>
+<span class="fc" id="L92">        List&lt;GeneratedArtifact&gt; artifacts = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        for (FresnelJobDocument.ProductionOutput output : normalized.production().outputs()) {</span>
+<span class="fc" id="L94">            RenderedOutput rendered = render(normalized, output);</span>
+<span class="fc" id="L95">            GeneratedArtifact artifact = inspect(output, rendered);</span>
+<span class="fc" id="L96">            sink.write(artifact, rendered.content());</span>
+<span class="fc" id="L97">            artifacts.add(artifact);</span>
+<span class="fc" id="L98">        }</span>
+<span class="fc" id="L99">        return new FresnelJobExecutionResult(normalized, artifacts);</span>
     }
 
     private RenderedOutput render(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
-<span class="pc bpc" id="L102" title="1 of 8 branches missed.">        return switch (job.plugin().id()) {</span>
-<span class="fc" id="L103">            case &quot;zone-plate&quot; -&gt; renderZonePlate(job, output);</span>
-<span class="fc" id="L104">            case &quot;variable-line-grating&quot; -&gt; renderVariableLineGrating(job, output);</span>
-<span class="fc" id="L105">            case &quot;hex-macro-cell&quot; -&gt; renderHexMacroCell(job, output);</span>
-<span class="fc" id="L106">            case &quot;window-foil&quot; -&gt; renderWindowFoil(job, output);</span>
-<span class="fc" id="L107">            case &quot;multi-focus&quot; -&gt; renderMultiFocus(job, output);</span>
-<span class="fc" id="L108">            case &quot;rgb-zone-plate&quot; -&gt; renderRgb(job, output);</span>
-<span class="fc" id="L109">            case &quot;hologram&quot; -&gt; renderHologram(job, output);</span>
-<span class="nc" id="L110">            default -&gt; throw new IllegalArgumentException(</span>
-<span class="nc" id="L111">                    &quot;No production executor for plugin &quot; + job.plugin().id());</span>
+<span class="pc bpc" id="L105" title="1 of 9 branches missed.">        return switch (job.plugin().id()) {</span>
+<span class="fc" id="L106">            case &quot;zone-plate&quot; -&gt; renderZonePlate(job, output);</span>
+<span class="fc" id="L107">            case &quot;variable-line-grating&quot; -&gt; renderVariableLineGrating(job, output);</span>
+<span class="fc" id="L108">            case &quot;hex-macro-cell&quot; -&gt; renderHexMacroCell(job, output);</span>
+<span class="fc" id="L109">            case &quot;window-foil&quot; -&gt; renderWindowFoil(job, output);</span>
+<span class="fc" id="L110">            case &quot;multi-focus&quot; -&gt; renderMultiFocus(job, output);</span>
+<span class="fc" id="L111">            case &quot;rgb-zone-plate&quot; -&gt; renderRgb(job, output);</span>
+<span class="fc" id="L112">            case &quot;hologram&quot; -&gt; renderHologram(job, output);</span>
+<span class="fc" id="L113">            case &quot;background-oriented-schlieren&quot; -&gt; renderBosTarget(job, output);</span>
+<span class="nc" id="L114">            default -&gt; throw new IllegalArgumentException(</span>
+<span class="nc" id="L115">                    &quot;No production executor for plugin &quot; + job.plugin().id());</span>
         };
     }
 
     private RenderedOutput renderZonePlate(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
-<span class="fc" id="L118">        requireNoOptions(output);</span>
-<span class="fc" id="L119">        SingleZonePlateRequest request = mapper.convertValue(</span>
-<span class="fc" id="L120">                job.parameters(), SingleZonePlateRequest.class);</span>
-<span class="fc" id="L121">        SingleZonePlateParameters parameters = request.toParameters();</span>
-<span class="fc" id="L122">        String format = output.format();</span>
-<span class="pc bpc" id="L123" title="1 of 6 branches missed.">        return switch (format) {</span>
+<span class="fc" id="L122">        requireNoOptions(output);</span>
+<span class="fc" id="L123">        SingleZonePlateRequest request = mapper.convertValue(</span>
+<span class="fc" id="L124">                job.parameters(), SingleZonePlateRequest.class);</span>
+<span class="fc" id="L125">        SingleZonePlateParameters parameters = request.toParameters();</span>
+<span class="fc" id="L126">        String format = output.format();</span>
+<span class="pc bpc" id="L127" title="1 of 6 branches missed.">        return switch (format) {</span>
             case &quot;png&quot; -&gt; {
-<span class="fc" id="L125">                RenderResult rendered = ZonePlateRenderer.render(parameters);</span>
-<span class="fc" id="L126">                yield new RenderedOutput(</span>
-<span class="fc" id="L127">                        PngExporter.toPngBytes(rendered, parameters.dpi()), PNG, parameters.dpi());</span>
+<span class="fc" id="L129">                RenderResult rendered = ZonePlateRenderer.render(parameters);</span>
+<span class="fc" id="L130">                yield new RenderedOutput(</span>
+<span class="fc" id="L131">                        PngExporter.toPngBytes(rendered, parameters.dpi()), PNG, parameters.dpi());</span>
             }
             case &quot;svg&quot; -&gt; {
-<span class="pc bpc" id="L130" title="1 of 2 branches missed.">                boolean vector = parameters.targetOffsetXmm() == 0.0</span>
-<span class="pc bpc" id="L131" title="1 of 2 branches missed.">                        &amp;&amp; parameters.targetOffsetYmm() == 0.0</span>
-<span class="pc bpc" id="L132" title="1 of 2 branches missed.">                        &amp;&amp; parameters.maskType() == MaskType.BINARY_AMPLITUDE;</span>
-<span class="pc bpc" id="L133" title="1 of 2 branches missed.">                byte[] content = vector</span>
-<span class="fc" id="L134">                        ? SvgExporter.toSvgZonePlateBytes(parameters)</span>
-<span class="pc" id="L135">                        : SvgExporter.toSvgRasterBytes(</span>
-<span class="nc" id="L136">                                ZonePlateRenderer.render(parameters), parameters.dpi());</span>
-<span class="fc" id="L137">                yield new RenderedOutput(content, SVG, null);</span>
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">                boolean vector = parameters.targetOffsetXmm() == 0.0</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">                        &amp;&amp; parameters.targetOffsetYmm() == 0.0</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">                        &amp;&amp; parameters.maskType() == MaskType.BINARY_AMPLITUDE;</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">                byte[] content = vector</span>
+<span class="fc" id="L138">                        ? SvgExporter.toSvgZonePlateBytes(parameters)</span>
+<span class="pc" id="L139">                        : SvgExporter.toSvgRasterBytes(</span>
+<span class="nc" id="L140">                                ZonePlateRenderer.render(parameters), parameters.dpi());</span>
+<span class="fc" id="L141">                yield new RenderedOutput(content, SVG, null);</span>
             }
-<span class="fc" id="L139">            case &quot;pdf&quot; -&gt; new RenderedOutput(</span>
-<span class="fc" id="L140">                    PdfExporter.toPdfBytes(</span>
-<span class="fc" id="L141">                            scaledForPdf(ZonePlateRenderer.render(parameters), output),</span>
-<span class="fc" id="L142">                            sheet(output)),</span>
+<span class="fc" id="L143">            case &quot;pdf&quot; -&gt; new RenderedOutput(</span>
+<span class="fc" id="L144">                    PdfExporter.toPdfBytes(</span>
+<span class="fc" id="L145">                            scaledForPdf(ZonePlateRenderer.render(parameters), output),</span>
+<span class="fc" id="L146">                            sheet(output)),</span>
                     PDF,
                     null);
-<span class="fc" id="L145">            case &quot;dxf&quot; -&gt; new RenderedOutput(DxfExporter.toDxfBytes(parameters), DXF, null);</span>
-<span class="fc" id="L146">            case &quot;gerber&quot; -&gt; new RenderedOutput(</span>
-<span class="fc" id="L147">                    GerberExporter.toGerberBytes(parameters), GERBER, null);</span>
-<span class="nc" id="L148">            default -&gt; throw unsupported(job.plugin().id(), format);</span>
+<span class="fc" id="L149">            case &quot;dxf&quot; -&gt; new RenderedOutput(DxfExporter.toDxfBytes(parameters), DXF, null);</span>
+<span class="fc" id="L150">            case &quot;gerber&quot; -&gt; new RenderedOutput(</span>
+<span class="fc" id="L151">                    GerberExporter.toGerberBytes(parameters), GERBER, null);</span>
+<span class="nc" id="L152">            default -&gt; throw unsupported(job.plugin().id(), format);</span>
         };
     }
 
     private RenderedOutput renderVariableLineGrating(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
-<span class="fc" id="L155">        VariableLineGratingRequest request = mapper.convertValue(</span>
-<span class="fc" id="L156">                job.parameters(), VariableLineGratingRequest.class);</span>
-<span class="fc" id="L157">        VariableLineGratingParameters parameters = request.toParameters();</span>
-<span class="pc bpc" id="L158" title="1 of 5 branches missed.">        return switch (output.format()) {</span>
+<span class="fc" id="L159">        VariableLineGratingRequest request = mapper.convertValue(</span>
+<span class="fc" id="L160">                job.parameters(), VariableLineGratingRequest.class);</span>
+<span class="fc" id="L161">        VariableLineGratingParameters parameters = request.toParameters();</span>
+<span class="pc bpc" id="L162" title="1 of 5 branches missed.">        return switch (output.format()) {</span>
             case &quot;png&quot; -&gt; {
-<span class="fc" id="L160">                requireNoOptions(output);</span>
-<span class="fc" id="L161">                RenderResult rendered = VariableLineGratingRenderer.render(parameters);</span>
-<span class="fc" id="L162">                yield new RenderedOutput(</span>
-<span class="fc" id="L163">                        PngExporter.toPngBytes(rendered, parameters.dpi()), PNG, parameters.dpi());</span>
+<span class="fc" id="L164">                requireNoOptions(output);</span>
+<span class="fc" id="L165">                RenderResult rendered = VariableLineGratingRenderer.render(parameters);</span>
+<span class="fc" id="L166">                yield new RenderedOutput(</span>
+<span class="fc" id="L167">                        PngExporter.toPngBytes(rendered, parameters.dpi()), PNG, parameters.dpi());</span>
             }
             case &quot;svg&quot; -&gt; {
-<span class="fc" id="L166">                requireNoOptions(output);</span>
-<span class="fc" id="L167">                yield new RenderedOutput(</span>
-<span class="fc" id="L168">                        VariableLineGratingSvgExporter.toSvgBytes(parameters), SVG, null);</span>
+<span class="fc" id="L170">                requireNoOptions(output);</span>
+<span class="fc" id="L171">                yield new RenderedOutput(</span>
+<span class="fc" id="L172">                        VariableLineGratingSvgExporter.toSvgBytes(parameters), SVG, null);</span>
             }
             case &quot;pdf&quot; -&gt; {
-<span class="fc" id="L171">                requireNoOptions(output);</span>
-<span class="fc" id="L172">                yield new RenderedOutput(</span>
-<span class="fc" id="L173">                        PdfExporter.toPdfBytes(</span>
-<span class="fc" id="L174">                                scaledForPdf(VariableLineGratingRenderer.render(parameters), output),</span>
-<span class="fc" id="L175">                                sheet(output)),</span>
+<span class="fc" id="L175">                requireNoOptions(output);</span>
+<span class="fc" id="L176">                yield new RenderedOutput(</span>
+<span class="fc" id="L177">                        PdfExporter.toPdfBytes(</span>
+<span class="fc" id="L178">                                scaledForPdf(VariableLineGratingRenderer.render(parameters), output),</span>
+<span class="fc" id="L179">                                sheet(output)),</span>
                         PDF,
                         null);
             }
-<span class="fc" id="L179">            case &quot;pcl&quot; -&gt; renderVariableLineGratingPcl(parameters, output);</span>
-<span class="nc" id="L180">            default -&gt; throw unsupported(job.plugin().id(), output.format());</span>
+<span class="fc" id="L183">            case &quot;pcl&quot; -&gt; renderVariableLineGratingPcl(parameters, output);</span>
+<span class="nc" id="L184">            default -&gt; throw unsupported(job.plugin().id(), output.format());</span>
         };
     }
 
     private static RenderedOutput renderVariableLineGratingPcl(
             VariableLineGratingParameters parameters,
             FresnelJobDocument.ProductionOutput output) {
-<span class="fc" id="L187">        JsonNode options = output.options();</span>
-<span class="pc bpc" id="L188" title="1 of 2 branches missed.">        if (options != null) {</span>
-<span class="fc bfc" id="L189" title="All 2 branches covered.">            for (Map.Entry&lt;String, JsonNode&gt; entry : options.properties()) {</span>
-<span class="fc bfc" id="L190" title="All 2 branches covered.">                if (!GRATING_PCL_OPTION_FIELDS.contains(entry.getKey())) {</span>
-<span class="fc" id="L191">                    throw new IllegalArgumentException(</span>
-<span class="fc" id="L192">                            &quot;Unsupported variable-line grating PCL option: &quot; + entry.getKey());</span>
+<span class="fc" id="L191">        JsonNode options = output.options();</span>
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">        if (options != null) {</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">            for (Map.Entry&lt;String, JsonNode&gt; entry : options.properties()) {</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">                if (!GRATING_PCL_OPTION_FIELDS.contains(entry.getKey())) {</span>
+<span class="fc" id="L195">                    throw new IllegalArgumentException(</span>
+<span class="fc" id="L196">                            &quot;Unsupported variable-line grating PCL option: &quot; + entry.getKey());</span>
                 }
-<span class="fc" id="L194">            }</span>
+<span class="fc" id="L198">            }</span>
         }
-<span class="fc" id="L196">        String profileId = textOption(</span>
+<span class="fc" id="L200">        String profileId = textOption(</span>
                 options, &quot;printerProfileId&quot;, PrinterRasterProfiles.DEFAULT_PROFILE_ID);
-<span class="fc" id="L198">        String compressionName = textOption(options, &quot;compression&quot;, PclCompression.TIFF.name());</span>
+<span class="fc" id="L202">        String compressionName = textOption(options, &quot;compression&quot;, PclCompression.TIFF.name());</span>
         final PclCompression compression;
         try {
-<span class="fc" id="L201">            compression = PclCompression.valueOf(compressionName.toUpperCase(Locale.ROOT));</span>
-<span class="nc" id="L202">        } catch (IllegalArgumentException e) {</span>
-<span class="nc" id="L203">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L205">            compression = PclCompression.valueOf(compressionName.toUpperCase(Locale.ROOT));</span>
+<span class="nc" id="L206">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L207">            throw new IllegalArgumentException(</span>
                     &quot;PCL compression must be NONE or TIFF&quot;, e);
-<span class="fc" id="L205">        }</span>
-<span class="fc" id="L206">        PrinterRasterProfile profile = PrinterRasterProfiles.require(profileId);</span>
-<span class="fc" id="L207">        return new RenderedOutput(</span>
-<span class="fc" id="L208">                PclExporter.toPclBytes(parameters, profile, compression), PCL, null);</span>
+<span class="fc" id="L209">        }</span>
+<span class="fc" id="L210">        PrinterRasterProfile profile = PrinterRasterProfiles.require(profileId);</span>
+<span class="fc" id="L211">        return new RenderedOutput(</span>
+<span class="fc" id="L212">                PclExporter.toPclBytes(parameters, profile, compression), PCL, null);</span>
     }
 
     private RenderedOutput renderHexMacroCell(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
-<span class="fc" id="L214">        requireNoOptions(output);</span>
-<span class="fc" id="L215">        HexMacroCellRequest request = mapper.convertValue(</span>
-<span class="fc" id="L216">                job.parameters(), HexMacroCellRequest.class);</span>
-<span class="fc" id="L217">        RenderResult rendered = HexMacroCellRenderer.render(request.toParameters());</span>
-<span class="pc bpc" id="L218" title="2 of 3 branches missed.">        return switch (output.format()) {</span>
-<span class="fc" id="L219">            case &quot;png&quot; -&gt; new RenderedOutput(</span>
-<span class="fc" id="L220">                    PngExporter.toPngBytes(rendered, request.dpi()), PNG, request.dpi());</span>
-<span class="nc" id="L221">            case &quot;pdf&quot; -&gt; new RenderedOutput(</span>
-<span class="nc" id="L222">                    PdfExporter.toPdfBytes(scaledForPdf(rendered, output), sheet(output)), PDF, null);</span>
-<span class="nc" id="L223">            default -&gt; throw unsupported(job.plugin().id(), output.format());</span>
+<span class="fc" id="L218">        requireNoOptions(output);</span>
+<span class="fc" id="L219">        HexMacroCellRequest request = mapper.convertValue(</span>
+<span class="fc" id="L220">                job.parameters(), HexMacroCellRequest.class);</span>
+<span class="fc" id="L221">        RenderResult rendered = HexMacroCellRenderer.render(request.toParameters());</span>
+<span class="pc bpc" id="L222" title="2 of 3 branches missed.">        return switch (output.format()) {</span>
+<span class="fc" id="L223">            case &quot;png&quot; -&gt; new RenderedOutput(</span>
+<span class="fc" id="L224">                    PngExporter.toPngBytes(rendered, request.dpi()), PNG, request.dpi());</span>
+<span class="nc" id="L225">            case &quot;pdf&quot; -&gt; new RenderedOutput(</span>
+<span class="nc" id="L226">                    PdfExporter.toPdfBytes(scaledForPdf(rendered, output), sheet(output)), PDF, null);</span>
+<span class="nc" id="L227">            default -&gt; throw unsupported(job.plugin().id(), output.format());</span>
         };
     }
 
     private RenderedOutput renderWindowFoil(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
-<span class="fc" id="L230">        requireNoOptions(output);</span>
-<span class="fc" id="L231">        WindowFoilRequest request = mapper.convertValue(</span>
-<span class="fc" id="L232">                job.parameters(), WindowFoilRequest.class);</span>
-<span class="fc" id="L233">        RenderResult rendered = WindowFoilRenderer.render(request.toParameters());</span>
-<span class="pc bpc" id="L234" title="2 of 3 branches missed.">        return switch (output.format()) {</span>
-<span class="fc" id="L235">            case &quot;png&quot; -&gt; new RenderedOutput(</span>
-<span class="fc" id="L236">                    PngExporter.toPngBytes(rendered, request.dpi()), PNG, request.dpi());</span>
-<span class="nc" id="L237">            case &quot;pdf&quot; -&gt; new RenderedOutput(</span>
-<span class="nc" id="L238">                    PdfExporter.toPdfBytes(scaledForPdf(rendered, output), sheet(output)), PDF, null);</span>
-<span class="nc" id="L239">            default -&gt; throw unsupported(job.plugin().id(), output.format());</span>
+<span class="fc" id="L234">        requireNoOptions(output);</span>
+<span class="fc" id="L235">        WindowFoilRequest request = mapper.convertValue(</span>
+<span class="fc" id="L236">                job.parameters(), WindowFoilRequest.class);</span>
+<span class="fc" id="L237">        RenderResult rendered = WindowFoilRenderer.render(request.toParameters());</span>
+<span class="pc bpc" id="L238" title="2 of 3 branches missed.">        return switch (output.format()) {</span>
+<span class="fc" id="L239">            case &quot;png&quot; -&gt; new RenderedOutput(</span>
+<span class="fc" id="L240">                    PngExporter.toPngBytes(rendered, request.dpi()), PNG, request.dpi());</span>
+<span class="nc" id="L241">            case &quot;pdf&quot; -&gt; new RenderedOutput(</span>
+<span class="nc" id="L242">                    PdfExporter.toPdfBytes(scaledForPdf(rendered, output), sheet(output)), PDF, null);</span>
+<span class="nc" id="L243">            default -&gt; throw unsupported(job.plugin().id(), output.format());</span>
         };
     }
 
     private RenderedOutput renderMultiFocus(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
-<span class="fc" id="L246">        requireNoOptions(output);</span>
-<span class="fc" id="L247">        MultiFocusRequest request = mapper.convertValue(</span>
-<span class="fc" id="L248">                job.parameters(), MultiFocusRequest.class);</span>
-<span class="pc bpc" id="L249" title="1 of 2 branches missed.">        if (!&quot;png&quot;.equals(output.format())) throw unsupported(job.plugin().id(), output.format());</span>
-<span class="fc" id="L250">        RenderResult rendered = MultiFocusRenderer.render(request.toParameters());</span>
-<span class="fc" id="L251">        return new RenderedOutput(</span>
-<span class="fc" id="L252">                PngExporter.toPngBytes(rendered, request.dpi()), PNG, request.dpi());</span>
+<span class="fc" id="L250">        requireNoOptions(output);</span>
+<span class="fc" id="L251">        MultiFocusRequest request = mapper.convertValue(</span>
+<span class="fc" id="L252">                job.parameters(), MultiFocusRequest.class);</span>
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">        if (!&quot;png&quot;.equals(output.format())) throw unsupported(job.plugin().id(), output.format());</span>
+<span class="fc" id="L254">        RenderResult rendered = MultiFocusRenderer.render(request.toParameters());</span>
+<span class="fc" id="L255">        return new RenderedOutput(</span>
+<span class="fc" id="L256">                PngExporter.toPngBytes(rendered, request.dpi()), PNG, request.dpi());</span>
     }
 
     private RenderedOutput renderRgb(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
-<span class="fc" id="L258">        requireNoOptions(output);</span>
-<span class="fc" id="L259">        RgbZonePlateRequest request = mapper.convertValue(</span>
-<span class="fc" id="L260">                job.parameters(), RgbZonePlateRequest.class);</span>
-<span class="pc bpc" id="L261" title="1 of 2 branches missed.">        if (!&quot;png&quot;.equals(output.format())) throw unsupported(job.plugin().id(), output.format());</span>
-<span class="fc" id="L262">        SingleZonePlateParameters base = request.base().toParameters();</span>
-<span class="fc" id="L263">        RenderResult rendered = RgbZonePlateRenderer.render(</span>
-<span class="fc" id="L264">                base, request.redNm(), request.greenNm(), request.blueNm());</span>
-<span class="fc" id="L265">        return new RenderedOutput(</span>
-<span class="fc" id="L266">                PngExporter.toPngBytes(rendered, base.dpi()), PNG, base.dpi());</span>
+<span class="fc" id="L262">        requireNoOptions(output);</span>
+<span class="fc" id="L263">        RgbZonePlateRequest request = mapper.convertValue(</span>
+<span class="fc" id="L264">                job.parameters(), RgbZonePlateRequest.class);</span>
+<span class="pc bpc" id="L265" title="1 of 2 branches missed.">        if (!&quot;png&quot;.equals(output.format())) throw unsupported(job.plugin().id(), output.format());</span>
+<span class="fc" id="L266">        SingleZonePlateParameters base = request.base().toParameters();</span>
+<span class="fc" id="L267">        RenderResult rendered = RgbZonePlateRenderer.render(</span>
+<span class="fc" id="L268">                base, request.redNm(), request.greenNm(), request.blueNm());</span>
+<span class="fc" id="L269">        return new RenderedOutput(</span>
+<span class="fc" id="L270">                PngExporter.toPngBytes(rendered, base.dpi()), PNG, base.dpi());</span>
+    }
+
+    private RenderedOutput renderBosTarget(
+            FresnelJobDocument job,
+            FresnelJobDocument.ProductionOutput output) {
+<span class="fc" id="L276">        requireNoOptions(output);</span>
+<span class="pc bpc" id="L277" title="1 of 2 branches missed.">        if (!&quot;png&quot;.equals(output.format())) throw unsupported(job.plugin().id(), output.format());</span>
+<span class="fc" id="L278">        BosTargetRequest request = mapper.convertValue(job.parameters(), BosTargetRequest.class);</span>
+<span class="fc" id="L279">        BosTarget target = BosTargetGenerator.generate(request.toParameters());</span>
+<span class="fc" id="L280">        return new RenderedOutput(</span>
+<span class="fc" id="L281">                BosTargetPngEncoder.encode(target),</span>
+                PNG,
+<span class="fc" id="L283">                target.parameters().intendedDpi());</span>
     }
 
     private RenderedOutput renderHologram(
             FresnelJobDocument job,
             FresnelJobDocument.ProductionOutput output) throws IOException {
-<span class="fc" id="L272">        HologramRequest request = mapper.convertValue(job.parameters(), HologramRequest.class);</span>
-<span class="pc bpc" id="L273" title="2 of 3 branches missed.">        return switch (output.format()) {</span>
-<span class="fc" id="L274">            case &quot;png&quot; -&gt; renderHologramPng(request, output);</span>
+<span class="fc" id="L289">        HologramRequest request = mapper.convertValue(job.parameters(), HologramRequest.class);</span>
+<span class="pc bpc" id="L290" title="2 of 3 branches missed.">        return switch (output.format()) {</span>
+<span class="fc" id="L291">            case &quot;png&quot; -&gt; renderHologramPng(request, output);</span>
             case &quot;stl&quot; -&gt; {
-<span class="nc" id="L276">                requireNoOptions(output);</span>
-<span class="nc bnc" id="L277" title="All 2 branches missed.">                if (request.sidePx() &gt; HologramController.MAX_STL_SIDE) {</span>
-<span class="nc" id="L278">                    throw new IllegalArgumentException(</span>
+<span class="nc" id="L293">                requireNoOptions(output);</span>
+<span class="nc bnc" id="L294" title="All 2 branches missed.">                if (request.sidePx() &gt; HologramController.MAX_STL_SIDE) {</span>
+<span class="nc" id="L295">                    throw new IllegalArgumentException(</span>
                             &quot;sidePx &gt; &quot; + HologramController.MAX_STL_SIDE
                                     + &quot; is too large for STL export&quot;);
                 }
-<span class="nc" id="L282">                HologramRequest greyscale = new HologramRequest(</span>
-<span class="nc" id="L283">                        request.targetImageBase64(), request.sidePx(), request.iterations(),</span>
-<span class="nc" id="L284">                        HologramParameters.OutputType.GREYSCALE_PHASE, request.dpi(),</span>
-<span class="nc" id="L285">                        request.wavelengthNm(), request.refractiveIndexDelta(),</span>
-<span class="nc" id="L286">                        request.maxPhaseShiftRad());</span>
-<span class="nc" id="L287">                RenderResult mask = HologramSynthesizer.synthesize(</span>
-<span class="nc" id="L288">                        HologramController.decode(greyscale));</span>
-<span class="nc" id="L289">                ReliefParameters relief = new ReliefParameters(</span>
-<span class="nc" id="L290">                        request.resolvedWavelengthNm(),</span>
-<span class="nc" id="L291">                        request.resolvedRefractiveIndexDelta(),</span>
-<span class="nc" id="L292">                        request.resolvedMaxPhaseShiftRad());</span>
-<span class="nc" id="L293">                double[][] heightMap = PhaseReliefGenerator.toHeightMapMm(mask.image(), relief);</span>
-<span class="nc" id="L294">                yield new RenderedOutput(</span>
-<span class="nc" id="L295">                        StlExporter.toBinaryStl(heightMap, mask.pixelSizeMm()), STL, null);</span>
+<span class="nc" id="L299">                HologramRequest greyscale = new HologramRequest(</span>
+<span class="nc" id="L300">                        request.targetImageBase64(), request.sidePx(), request.iterations(),</span>
+<span class="nc" id="L301">                        HologramParameters.OutputType.GREYSCALE_PHASE, request.dpi(),</span>
+<span class="nc" id="L302">                        request.wavelengthNm(), request.refractiveIndexDelta(),</span>
+<span class="nc" id="L303">                        request.maxPhaseShiftRad());</span>
+<span class="nc" id="L304">                RenderResult mask = HologramSynthesizer.synthesize(</span>
+<span class="nc" id="L305">                        HologramController.decode(greyscale));</span>
+<span class="nc" id="L306">                ReliefParameters relief = new ReliefParameters(</span>
+<span class="nc" id="L307">                        request.resolvedWavelengthNm(),</span>
+<span class="nc" id="L308">                        request.resolvedRefractiveIndexDelta(),</span>
+<span class="nc" id="L309">                        request.resolvedMaxPhaseShiftRad());</span>
+<span class="nc" id="L310">                double[][] heightMap = PhaseReliefGenerator.toHeightMapMm(mask.image(), relief);</span>
+<span class="nc" id="L311">                yield new RenderedOutput(</span>
+<span class="nc" id="L312">                        StlExporter.toBinaryStl(heightMap, mask.pixelSizeMm()), STL, null);</span>
             }
-<span class="nc" id="L297">            default -&gt; throw unsupported(job.plugin().id(), output.format());</span>
+<span class="nc" id="L314">            default -&gt; throw unsupported(job.plugin().id(), output.format());</span>
         };
     }
 
     private RenderedOutput renderHologramPng(
             HologramRequest request,
             FresnelJobDocument.ProductionOutput output) throws IOException {
-<span class="fc" id="L304">        HologramPngKind kind = hologramPngKind(output);</span>
-<span class="fc bfc" id="L305" title="All 2 branches covered.">        if (kind == HologramPngKind.SOURCE) {</span>
-<span class="fc" id="L306">            return new RenderedOutput(</span>
-<span class="fc" id="L307">                    encodePng(decodeEmbeddedTarget(request.targetImageBase64())), PNG, null);</span>
+<span class="fc" id="L321">        HologramPngKind kind = hologramPngKind(output);</span>
+<span class="fc bfc" id="L322" title="All 2 branches covered.">        if (kind == HologramPngKind.SOURCE) {</span>
+<span class="fc" id="L323">            return new RenderedOutput(</span>
+<span class="fc" id="L324">                    encodePng(decodeEmbeddedTarget(request.targetImageBase64())), PNG, null);</span>
         }
-<span class="fc" id="L309">        HologramParameters parameters = HologramController.decode(request);</span>
-<span class="fc" id="L310">        RenderResult mask = HologramSynthesizer.synthesize(parameters);</span>
-<span class="fc bfc" id="L311" title="All 2 branches covered.">        if (kind == HologramPngKind.MASK) {</span>
-<span class="fc" id="L312">            return new RenderedOutput(</span>
-<span class="fc" id="L313">                    PngExporter.toPngBytes(mask, parameters.dpi()), PNG, parameters.dpi());</span>
+<span class="fc" id="L326">        HologramParameters parameters = HologramController.decode(request);</span>
+<span class="fc" id="L327">        RenderResult mask = HologramSynthesizer.synthesize(parameters);</span>
+<span class="fc bfc" id="L328" title="All 2 branches covered.">        if (kind == HologramPngKind.MASK) {</span>
+<span class="fc" id="L329">            return new RenderedOutput(</span>
+<span class="fc" id="L330">                    PngExporter.toPngBytes(mask, parameters.dpi()), PNG, parameters.dpi());</span>
         }
-<span class="fc" id="L315">        BufferedImage reconstruction = HologramSynthesizer.reconstruct(</span>
-<span class="fc" id="L316">                mask.image(), parameters.outputType());</span>
-<span class="fc" id="L317">        return new RenderedOutput(encodePng(reconstruction), PNG, null);</span>
+<span class="fc" id="L332">        BufferedImage reconstruction = HologramSynthesizer.reconstruct(</span>
+<span class="fc" id="L333">                mask.image(), parameters.outputType());</span>
+<span class="fc" id="L334">        return new RenderedOutput(encodePng(reconstruction), PNG, null);</span>
     }
 
     private static HologramPngKind hologramPngKind(
             FresnelJobDocument.ProductionOutput output) {
-<span class="fc" id="L322">        JsonNode options = output.options();</span>
-<span class="pc bpc" id="L323" title="2 of 4 branches missed.">        if (options == null || options.isEmpty()) return HologramPngKind.MASK;</span>
-<span class="fc bfc" id="L324" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; entry : options.properties()) {</span>
-<span class="fc bfc" id="L325" title="All 2 branches covered.">            if (!HOLOGRAM_PNG_OPTION_FIELDS.contains(entry.getKey())) {</span>
-<span class="fc" id="L326">                throw new IllegalArgumentException(</span>
-<span class="fc" id="L327">                        &quot;Unsupported Hologram PNG option: &quot; + entry.getKey());</span>
+<span class="fc" id="L339">        JsonNode options = output.options();</span>
+<span class="pc bpc" id="L340" title="2 of 4 branches missed.">        if (options == null || options.isEmpty()) return HologramPngKind.MASK;</span>
+<span class="fc bfc" id="L341" title="All 2 branches covered.">        for (Map.Entry&lt;String, JsonNode&gt; entry : options.properties()) {</span>
+<span class="fc bfc" id="L342" title="All 2 branches covered.">            if (!HOLOGRAM_PNG_OPTION_FIELDS.contains(entry.getKey())) {</span>
+<span class="fc" id="L343">                throw new IllegalArgumentException(</span>
+<span class="fc" id="L344">                        &quot;Unsupported Hologram PNG option: &quot; + entry.getKey());</span>
             }
-<span class="fc" id="L329">        }</span>
-<span class="fc" id="L330">        JsonNode value = options.get(&quot;hologramPng&quot;);</span>
-<span class="pc bpc" id="L331" title="3 of 6 branches missed.">        if (value == null || !value.isTextual() || value.textValue().isBlank()) {</span>
-<span class="nc" id="L332">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L346">        }</span>
+<span class="fc" id="L347">        JsonNode value = options.get(&quot;hologramPng&quot;);</span>
+<span class="pc bpc" id="L348" title="3 of 6 branches missed.">        if (value == null || !value.isTextual() || value.textValue().isBlank()) {</span>
+<span class="nc" id="L349">            throw new IllegalArgumentException(</span>
                     &quot;Hologram PNG option hologramPng must be SOURCE, MASK or RECONSTRUCTION&quot;);
         }
         try {
-<span class="fc" id="L336">            return HologramPngKind.valueOf(value.textValue().trim().toUpperCase(Locale.ROOT));</span>
-<span class="fc" id="L337">        } catch (IllegalArgumentException e) {</span>
-<span class="fc" id="L338">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L353">            return HologramPngKind.valueOf(value.textValue().trim().toUpperCase(Locale.ROOT));</span>
+<span class="fc" id="L354">        } catch (IllegalArgumentException e) {</span>
+<span class="fc" id="L355">            throw new IllegalArgumentException(</span>
                     &quot;Hologram PNG option hologramPng must be SOURCE, MASK or RECONSTRUCTION&quot;, e);
         }
     }
 
     private static String textOption(JsonNode options, String field, String defaultValue) {
-<span class="pc bpc" id="L344" title="3 of 6 branches missed.">        if (options == null || options.isEmpty() || !options.has(field)) return defaultValue;</span>
-<span class="fc" id="L345">        JsonNode value = options.get(field);</span>
-<span class="pc bpc" id="L346" title="2 of 4 branches missed.">        if (!value.isTextual() || value.textValue().isBlank()) {</span>
-<span class="nc" id="L347">            throw new IllegalArgumentException(&quot;Production option &quot; + field + &quot; must be a non-empty string&quot;);</span>
+<span class="pc bpc" id="L361" title="3 of 6 branches missed.">        if (options == null || options.isEmpty() || !options.has(field)) return defaultValue;</span>
+<span class="fc" id="L362">        JsonNode value = options.get(field);</span>
+<span class="pc bpc" id="L363" title="2 of 4 branches missed.">        if (!value.isTextual() || value.textValue().isBlank()) {</span>
+<span class="nc" id="L364">            throw new IllegalArgumentException(&quot;Production option &quot; + field + &quot; must be a non-empty string&quot;);</span>
         }
-<span class="fc" id="L349">        return value.textValue().trim();</span>
+<span class="fc" id="L366">        return value.textValue().trim();</span>
     }
 
     private static BufferedImage decodeEmbeddedTarget(String encoded) throws IOException {
-<span class="pc bpc" id="L353" title="1 of 2 branches missed.">        if (encoded == null) throw new IllegalArgumentException(&quot;Hologram target image must not be null&quot;);</span>
-<span class="fc" id="L354">        int comma = encoded.indexOf(',');</span>
-<span class="pc bpc" id="L355" title="3 of 4 branches missed.">        String base64 = encoded.startsWith(&quot;data:&quot;) &amp;&amp; comma &gt; 0</span>
-<span class="nc" id="L356">                ? encoded.substring(comma + 1)</span>
-<span class="fc" id="L357">                : encoded;</span>
-<span class="pc bpc" id="L358" title="1 of 2 branches missed.">        if (base64.length() &gt; HologramController.MAX_BASE64_BYTES) {</span>
-<span class="nc" id="L359">            throw new IllegalArgumentException(&quot;Hologram target image is too large&quot;);</span>
+<span class="pc bpc" id="L370" title="1 of 2 branches missed.">        if (encoded == null) throw new IllegalArgumentException(&quot;Hologram target image must not be null&quot;);</span>
+<span class="fc" id="L371">        int comma = encoded.indexOf(',');</span>
+<span class="pc bpc" id="L372" title="3 of 4 branches missed.">        String base64 = encoded.startsWith(&quot;data:&quot;) &amp;&amp; comma &gt; 0</span>
+<span class="nc" id="L373">                ? encoded.substring(comma + 1)</span>
+<span class="fc" id="L374">                : encoded;</span>
+<span class="pc bpc" id="L375" title="1 of 2 branches missed.">        if (base64.length() &gt; HologramController.MAX_BASE64_BYTES) {</span>
+<span class="nc" id="L376">            throw new IllegalArgumentException(&quot;Hologram target image is too large&quot;);</span>
         }
         final byte[] raw;
         try {
-<span class="fc" id="L363">            raw = Base64.getDecoder().decode(base64);</span>
-<span class="nc" id="L364">        } catch (IllegalArgumentException e) {</span>
-<span class="nc" id="L365">            throw new IllegalArgumentException(&quot;Hologram target image is not valid Base64&quot;, e);</span>
-<span class="fc" id="L366">        }</span>
-<span class="fc" id="L367">        BufferedImage image = ImageIO.read(new ByteArrayInputStream(raw));</span>
-<span class="pc bpc" id="L368" title="1 of 2 branches missed.">        if (image == null) throw new IllegalArgumentException(&quot;Hologram target image could not be decoded&quot;);</span>
-<span class="fc" id="L369">        return image;</span>
+<span class="fc" id="L380">            raw = Base64.getDecoder().decode(base64);</span>
+<span class="nc" id="L381">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L382">            throw new IllegalArgumentException(&quot;Hologram target image is not valid Base64&quot;, e);</span>
+<span class="fc" id="L383">        }</span>
+<span class="fc" id="L384">        BufferedImage image = ImageIO.read(new ByteArrayInputStream(raw));</span>
+<span class="pc bpc" id="L385" title="1 of 2 branches missed.">        if (image == null) throw new IllegalArgumentException(&quot;Hologram target image could not be decoded&quot;);</span>
+<span class="fc" id="L386">        return image;</span>
     }
 
     private static byte[] encodePng(BufferedImage image) throws IOException {
-<span class="fc" id="L373">        ByteArrayOutputStream output = new ByteArrayOutputStream();</span>
-<span class="pc bpc" id="L374" title="1 of 2 branches missed.">        if (!ImageIO.write(image, &quot;png&quot;, output)) {</span>
-<span class="nc" id="L375">            throw new IOException(&quot;No PNG writer is available&quot;);</span>
+<span class="fc" id="L390">        ByteArrayOutputStream output = new ByteArrayOutputStream();</span>
+<span class="pc bpc" id="L391" title="1 of 2 branches missed.">        if (!ImageIO.write(image, &quot;png&quot;, output)) {</span>
+<span class="nc" id="L392">            throw new IOException(&quot;No PNG writer is available&quot;);</span>
         }
-<span class="fc" id="L377">        return output.toByteArray();</span>
+<span class="fc" id="L394">        return output.toByteArray();</span>
     }
 
     private static void requireNoOptions(FresnelJobDocument.ProductionOutput output) {
-<span class="pc bpc" id="L381" title="3 of 4 branches missed.">        if (output.options() != null &amp;&amp; !output.options().isEmpty()) {</span>
-<span class="nc" id="L382">            throw new IllegalArgumentException(</span>
-<span class="nc" id="L383">                    &quot;Production output options are not implemented for &quot; + output.id());</span>
+<span class="pc bpc" id="L398" title="3 of 4 branches missed.">        if (output.options() != null &amp;&amp; !output.options().isEmpty()) {</span>
+<span class="nc" id="L399">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L400">                    &quot;Production output options are not implemented for &quot; + output.id());</span>
         }
-<span class="fc" id="L385">    }</span>
+<span class="fc" id="L402">    }</span>
 
     private static RenderResult scaledForPdf(
             RenderResult rendered,
             FresnelJobDocument.ProductionOutput output) {
-<span class="pc bpc" id="L390" title="1 of 2 branches missed.">        double scale = output.printScale() == null ? 1.0 : output.printScale();</span>
-<span class="pc bpc" id="L391" title="1 of 2 branches missed.">        if (Double.compare(scale, 1.0) == 0) return rendered;</span>
-<span class="nc" id="L392">        return new RenderResult(rendered.image(), rendered.pixelSizeMm() * scale);</span>
+<span class="pc bpc" id="L407" title="1 of 2 branches missed.">        double scale = output.printScale() == null ? 1.0 : output.printScale();</span>
+<span class="pc bpc" id="L408" title="1 of 2 branches missed.">        if (Double.compare(scale, 1.0) == 0) return rendered;</span>
+<span class="nc" id="L409">        return new RenderResult(rendered.image(), rendered.pixelSizeMm() * scale);</span>
     }
 
     private static PdfExporter.SheetSize sheet(FresnelJobDocument.ProductionOutput output) {
         try {
-<span class="fc" id="L397">            return PdfExporter.SheetSize.valueOf(output.sheet().toUpperCase(Locale.ROOT));</span>
-<span class="nc" id="L398">        } catch (RuntimeException e) {</span>
-<span class="nc" id="L399">            throw new IllegalArgumentException(&quot;Unsupported PDF sheet size: &quot; + output.sheet(), e);</span>
+<span class="fc" id="L414">            return PdfExporter.SheetSize.valueOf(output.sheet().toUpperCase(Locale.ROOT));</span>
+<span class="nc" id="L415">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L416">            throw new IllegalArgumentException(&quot;Unsupported PDF sheet size: &quot; + output.sheet(), e);</span>
         }
     }
 
     private static IllegalArgumentException unsupported(String pluginId, String format) {
-<span class="nc" id="L404">        return new IllegalArgumentException(</span>
+<span class="nc" id="L421">        return new IllegalArgumentException(</span>
                 &quot;Production executor does not support &quot; + format + &quot; for plugin &quot; + pluginId);
     }
 
     private static GeneratedArtifact inspect(
             FresnelJobDocument.ProductionOutput output,
             RenderedOutput rendered) throws IOException {
-<span class="fc" id="L411">        Integer width = null;</span>
-<span class="fc" id="L412">        Integer height = null;</span>
-<span class="fc bfc" id="L413" title="All 2 branches covered.">        if (PNG.equals(rendered.mediaType())) {</span>
-<span class="fc" id="L414">            BufferedImage image = decodePng(rendered.content());</span>
-<span class="fc" id="L415">            width = image.getWidth();</span>
-<span class="fc" id="L416">            height = image.getHeight();</span>
+<span class="fc" id="L428">        Integer width = null;</span>
+<span class="fc" id="L429">        Integer height = null;</span>
+<span class="fc bfc" id="L430" title="All 2 branches covered.">        if (PNG.equals(rendered.mediaType())) {</span>
+<span class="fc" id="L431">            BufferedImage image = decodePng(rendered.content());</span>
+<span class="fc" id="L432">            width = image.getWidth();</span>
+<span class="fc" id="L433">            height = image.getHeight();</span>
         }
-<span class="fc" id="L418">        return new GeneratedArtifact(</span>
-<span class="fc" id="L419">                output.id(),</span>
-<span class="fc" id="L420">                output.filename(),</span>
-<span class="fc" id="L421">                rendered.mediaType(),</span>
-<span class="fc" id="L422">                rendered.content().length,</span>
-<span class="fc" id="L423">                normalizedSha256(rendered.mediaType(), rendered.content(), rendered.dpi()),</span>
+<span class="fc" id="L435">        return new GeneratedArtifact(</span>
+<span class="fc" id="L436">                output.id(),</span>
+<span class="fc" id="L437">                output.filename(),</span>
+<span class="fc" id="L438">                rendered.mediaType(),</span>
+<span class="fc" id="L439">                rendered.content().length,</span>
+<span class="fc" id="L440">                normalizedSha256(rendered.mediaType(), rendered.content(), rendered.dpi()),</span>
                 width,
                 height,
-<span class="fc" id="L426">                rendered.dpi());</span>
+<span class="fc" id="L443">                rendered.dpi());</span>
     }
 
     public static String normalizedSha256(String mediaType, byte[] content, Double dpi)
             throws IOException {
-<span class="pc bpc" id="L431" title="2 of 4 branches missed.">        if (mediaType == null || mediaType.isBlank()) {</span>
-<span class="nc" id="L432">            throw new IllegalArgumentException(&quot;mediaType must not be empty&quot;);</span>
+<span class="pc bpc" id="L448" title="2 of 4 branches missed.">        if (mediaType == null || mediaType.isBlank()) {</span>
+<span class="nc" id="L449">            throw new IllegalArgumentException(&quot;mediaType must not be empty&quot;);</span>
         }
-<span class="pc bpc" id="L434" title="1 of 2 branches missed.">        if (content == null) throw new IllegalArgumentException(&quot;content must not be null&quot;);</span>
-<span class="fc" id="L435">        MessageDigest digest = sha256();</span>
-<span class="fc bfc" id="L436" title="All 2 branches covered.">        if (PNG.equals(mediaType)) {</span>
-<span class="fc" id="L437">            BufferedImage image = decodePng(content);</span>
-<span class="fc" id="L438">            digest.update(&quot;fresnel-png-pixels-v1\0&quot;.getBytes(StandardCharsets.UTF_8));</span>
-<span class="fc" id="L439">            updateInt(digest, image.getWidth());</span>
-<span class="fc" id="L440">            updateInt(digest, image.getHeight());</span>
-<span class="fc bfc" id="L441" title="All 2 branches covered.">            updateLong(digest, dpi == null ? 0L : Math.round(dpi / 25.4 * 1000.0));</span>
-<span class="fc bfc" id="L442" title="All 2 branches covered.">            for (int y = 0; y &lt; image.getHeight(); y++) {</span>
-<span class="fc bfc" id="L443" title="All 2 branches covered.">                for (int x = 0; x &lt; image.getWidth(); x++) {</span>
-<span class="fc" id="L444">                    updateInt(digest, image.getRGB(x, y));</span>
+<span class="pc bpc" id="L451" title="1 of 2 branches missed.">        if (content == null) throw new IllegalArgumentException(&quot;content must not be null&quot;);</span>
+<span class="fc" id="L452">        MessageDigest digest = sha256();</span>
+<span class="fc bfc" id="L453" title="All 2 branches covered.">        if (PNG.equals(mediaType)) {</span>
+<span class="fc" id="L454">            BufferedImage image = decodePng(content);</span>
+<span class="fc" id="L455">            digest.update(&quot;fresnel-png-pixels-v1\0&quot;.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L456">            updateInt(digest, image.getWidth());</span>
+<span class="fc" id="L457">            updateInt(digest, image.getHeight());</span>
+<span class="fc bfc" id="L458" title="All 2 branches covered.">            updateLong(digest, dpi == null ? 0L : Math.round(dpi / 25.4 * 1000.0));</span>
+<span class="fc bfc" id="L459" title="All 2 branches covered.">            for (int y = 0; y &lt; image.getHeight(); y++) {</span>
+<span class="fc bfc" id="L460" title="All 2 branches covered.">                for (int x = 0; x &lt; image.getWidth(); x++) {</span>
+<span class="fc" id="L461">                    updateInt(digest, image.getRGB(x, y));</span>
                 }
             }
-<span class="fc bfc" id="L447" title="All 2 branches covered.">        } else if (isTextMediaType(mediaType)) {</span>
-<span class="fc" id="L448">            digest.update(&quot;fresnel-text-v1\0&quot;.getBytes(StandardCharsets.UTF_8));</span>
-<span class="fc" id="L449">            String normalized = new String(content, StandardCharsets.UTF_8)</span>
-<span class="fc" id="L450">                    .replace(&quot;\r\n&quot;, &quot;\n&quot;)</span>
-<span class="fc" id="L451">                    .replace('\r', '\n');</span>
-<span class="fc" id="L452">            digest.update(normalized.getBytes(StandardCharsets.UTF_8));</span>
-<span class="fc" id="L453">        } else {</span>
-<span class="fc" id="L454">            digest.update(&quot;fresnel-bytes-v1\0&quot;.getBytes(StandardCharsets.UTF_8));</span>
-<span class="fc" id="L455">            digest.update(content);</span>
+<span class="fc bfc" id="L464" title="All 2 branches covered.">        } else if (isTextMediaType(mediaType)) {</span>
+<span class="fc" id="L465">            digest.update(&quot;fresnel-text-v1\0&quot;.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L466">            String normalized = new String(content, StandardCharsets.UTF_8)</span>
+<span class="fc" id="L467">                    .replace(&quot;\r\n&quot;, &quot;\n&quot;)</span>
+<span class="fc" id="L468">                    .replace('\r', '\n');</span>
+<span class="fc" id="L469">            digest.update(normalized.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L470">        } else {</span>
+<span class="fc" id="L471">            digest.update(&quot;fresnel-bytes-v1\0&quot;.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L472">            digest.update(content);</span>
         }
-<span class="fc" id="L457">        return HexFormat.of().formatHex(digest.digest());</span>
+<span class="fc" id="L474">        return HexFormat.of().formatHex(digest.digest());</span>
     }
 
     private static boolean isTextMediaType(String mediaType) {
-<span class="fc bfc" id="L461" title="All 6 branches covered.">        return SVG.equals(mediaType) || DXF.equals(mediaType) || GERBER.equals(mediaType)</span>
-<span class="pc bpc" id="L462" title="1 of 2 branches missed.">                || mediaType.startsWith(&quot;text/&quot;);</span>
+<span class="fc bfc" id="L478" title="All 6 branches covered.">        return SVG.equals(mediaType) || DXF.equals(mediaType) || GERBER.equals(mediaType)</span>
+<span class="pc bpc" id="L479" title="1 of 2 branches missed.">                || mediaType.startsWith(&quot;text/&quot;);</span>
     }
 
     private static BufferedImage decodePng(byte[] content) throws IOException {
-<span class="fc" id="L466">        BufferedImage image = ImageIO.read(new ByteArrayInputStream(content));</span>
-<span class="pc bpc" id="L467" title="1 of 2 branches missed.">        if (image == null) throw new IOException(&quot;Generated PNG could not be decoded&quot;);</span>
-<span class="fc" id="L468">        return image;</span>
+<span class="fc" id="L483">        BufferedImage image = ImageIO.read(new ByteArrayInputStream(content));</span>
+<span class="pc bpc" id="L484" title="1 of 2 branches missed.">        if (image == null) throw new IOException(&quot;Generated PNG could not be decoded&quot;);</span>
+<span class="fc" id="L485">        return image;</span>
     }
 
     private static MessageDigest sha256() {
         try {
-<span class="fc" id="L473">            return MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
-<span class="nc" id="L474">        } catch (NoSuchAlgorithmException e) {</span>
-<span class="nc" id="L475">            throw new IllegalStateException(&quot;SHA-256 is not available&quot;, e);</span>
+<span class="fc" id="L490">            return MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
+<span class="nc" id="L491">        } catch (NoSuchAlgorithmException e) {</span>
+<span class="nc" id="L492">            throw new IllegalStateException(&quot;SHA-256 is not available&quot;, e);</span>
         }
     }
 
     private static void updateInt(MessageDigest digest, int value) {
-<span class="fc" id="L480">        digest.update((byte) (value &gt;&gt;&gt; 24));</span>
-<span class="fc" id="L481">        digest.update((byte) (value &gt;&gt;&gt; 16));</span>
-<span class="fc" id="L482">        digest.update((byte) (value &gt;&gt;&gt; 8));</span>
-<span class="fc" id="L483">        digest.update((byte) value);</span>
-<span class="fc" id="L484">    }</span>
+<span class="fc" id="L497">        digest.update((byte) (value &gt;&gt;&gt; 24));</span>
+<span class="fc" id="L498">        digest.update((byte) (value &gt;&gt;&gt; 16));</span>
+<span class="fc" id="L499">        digest.update((byte) (value &gt;&gt;&gt; 8));</span>
+<span class="fc" id="L500">        digest.update((byte) value);</span>
+<span class="fc" id="L501">    }</span>
 
     private static void updateLong(MessageDigest digest, long value) {
-<span class="fc" id="L487">        digest.update((byte) (value &gt;&gt;&gt; 56));</span>
-<span class="fc" id="L488">        digest.update((byte) (value &gt;&gt;&gt; 48));</span>
-<span class="fc" id="L489">        digest.update((byte) (value &gt;&gt;&gt; 40));</span>
-<span class="fc" id="L490">        digest.update((byte) (value &gt;&gt;&gt; 32));</span>
-<span class="fc" id="L491">        digest.update((byte) (value &gt;&gt;&gt; 24));</span>
-<span class="fc" id="L492">        digest.update((byte) (value &gt;&gt;&gt; 16));</span>
-<span class="fc" id="L493">        digest.update((byte) (value &gt;&gt;&gt; 8));</span>
-<span class="fc" id="L494">        digest.update((byte) value);</span>
-<span class="fc" id="L495">    }</span>
+<span class="fc" id="L504">        digest.update((byte) (value &gt;&gt;&gt; 56));</span>
+<span class="fc" id="L505">        digest.update((byte) (value &gt;&gt;&gt; 48));</span>
+<span class="fc" id="L506">        digest.update((byte) (value &gt;&gt;&gt; 40));</span>
+<span class="fc" id="L507">        digest.update((byte) (value &gt;&gt;&gt; 32));</span>
+<span class="fc" id="L508">        digest.update((byte) (value &gt;&gt;&gt; 24));</span>
+<span class="fc" id="L509">        digest.update((byte) (value &gt;&gt;&gt; 16));</span>
+<span class="fc" id="L510">        digest.update((byte) (value &gt;&gt;&gt; 8));</span>
+<span class="fc" id="L511">        digest.update((byte) value);</span>
+<span class="fc" id="L512">    }</span>
 
-<span class="fc" id="L497">    private enum HologramPngKind {</span>
-<span class="fc" id="L498">        SOURCE,</span>
-<span class="fc" id="L499">        MASK,</span>
-<span class="fc" id="L500">        RECONSTRUCTION</span>
+<span class="fc" id="L514">    private enum HologramPngKind {</span>
+<span class="fc" id="L515">        SOURCE,</span>
+<span class="fc" id="L516">        MASK,</span>
+<span class="fc" id="L517">        RECONSTRUCTION</span>
     }
 
     private record RenderedOutput(byte[] content, String mediaType, Double dpi) {
-<span class="fc" id="L504">        private RenderedOutput {</span>
-<span class="pc bpc" id="L505" title="2 of 4 branches missed.">            if (content == null || content.length == 0) {</span>
-<span class="nc" id="L506">                throw new IllegalArgumentException(&quot;generated artifact content must not be empty&quot;);</span>
+<span class="fc" id="L521">        private RenderedOutput {</span>
+<span class="pc bpc" id="L522" title="2 of 4 branches missed.">            if (content == null || content.length == 0) {</span>
+<span class="nc" id="L523">                throw new IllegalArgumentException(&quot;generated artifact content must not be empty&quot;);</span>
             }
-<span class="fc" id="L508">        }</span>
+<span class="fc" id="L525">        }</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BosTargetGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Measurement Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.measurement</a> &gt; <span class="el_source">BosTargetGenerator.java</span></div><h1>BosTargetGenerator.java</h1><pre class="source lang-java linenums">package org.fresnel.measurement;
+
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HexFormat;
+import java.util.List;
+
+/** Deterministic generator for random-dot Background-Oriented Schlieren targets. */
+public final class BosTargetGenerator {
+
+    private BosTargetGenerator() {}
+
+    public static BosTarget generate(BosTargetParameters parameters) {
+<span class="pc bpc" id="L18" title="1 of 2 branches missed.">        if (parameters == null) throw new IllegalArgumentException(&quot;parameters must not be null&quot;);</span>
+
+<span class="fc" id="L20">        int width = parameters.widthPx();</span>
+<span class="fc" id="L21">        int height = parameters.heightPx();</span>
+<span class="fc bfc" id="L22" title="All 2 branches covered.">        int background = parameters.invertPattern() ? 0 : 255;</span>
+<span class="fc" id="L23">        int foreground = 255 - background;</span>
+<span class="fc" id="L24">        byte[] pixels = new byte[Math.multiplyExact(width, height)];</span>
+<span class="fc" id="L25">        Arrays.fill(pixels, (byte) background);</span>
+
+<span class="fc" id="L27">        BosTarget.Region activeRegion = new BosTarget.Region(</span>
+<span class="fc" id="L28">                parameters.borderPx(),</span>
+<span class="fc" id="L29">                parameters.borderPx(),</span>
+<span class="fc" id="L30">                parameters.activeWidthPx(),</span>
+<span class="fc" id="L31">                parameters.activeHeightPx());</span>
+
+<span class="fc bfc" id="L33" title="All 2 branches covered.">        List&lt;BosTarget.Fiducial&gt; fiducials = parameters.fiducialsEnabled()</span>
+<span class="fc" id="L34">                ? drawFiducials(pixels, width, height, parameters, foreground, background)</span>
+<span class="fc" id="L35">                : List.of();</span>
+
+<span class="fc" id="L37">        int pitch = BosTargetParameters.cellPitchPx(</span>
+<span class="fc" id="L38">                parameters.dotDiameterPx(), parameters.minimumDotSpacingPx());</span>
+<span class="fc" id="L39">        int jitter = BosTargetParameters.jitterRadiusPx(parameters.dotDiameterPx());</span>
+<span class="fc" id="L40">        int columns = activeRegion.width() / pitch;</span>
+<span class="fc" id="L41">        int rows = activeRegion.height() / pitch;</span>
+<span class="fc" id="L42">        int candidateCount = Math.multiplyExact(columns, rows);</span>
+<span class="fc" id="L43">        double nominalDotArea = Math.PI * square(parameters.dotDiameterPx() / 2.0);</span>
+<span class="fc" id="L44">        int requestedDotCount = (int) Math.round(</span>
+<span class="fc" id="L45">                parameters.targetFillRatio()</span>
+<span class="fc" id="L46">                        * activeRegion.width()</span>
+<span class="fc" id="L47">                        * activeRegion.height()</span>
+                        / nominalDotArea);
+
+<span class="fc" id="L50">        int[] candidates = new int[candidateCount];</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        for (int i = 0; i &lt; candidateCount; i++) candidates[i] = i;</span>
+
+<span class="fc" id="L53">        DeterministicRandom random = new DeterministicRandom(parameters.patternSeed());</span>
+<span class="fc" id="L54">        int occupiedWidth = columns * pitch;</span>
+<span class="fc" id="L55">        int occupiedHeight = rows * pitch;</span>
+<span class="fc" id="L56">        int originX = activeRegion.x() + (activeRegion.width() - occupiedWidth) / 2;</span>
+<span class="fc" id="L57">        int originY = activeRegion.y() + (activeRegion.height() - occupiedHeight) / 2;</span>
+
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        for (int dotIndex = 0; dotIndex &lt; requestedDotCount; dotIndex++) {</span>
+<span class="fc" id="L60">            int selectedIndex = dotIndex + random.nextInt(candidateCount - dotIndex);</span>
+<span class="fc" id="L61">            int candidate = candidates[selectedIndex];</span>
+<span class="fc" id="L62">            candidates[selectedIndex] = candidates[dotIndex];</span>
+<span class="fc" id="L63">            candidates[dotIndex] = candidate;</span>
+
+<span class="fc" id="L65">            int cellX = candidate % columns;</span>
+<span class="fc" id="L66">            int cellY = candidate / columns;</span>
+<span class="fc" id="L67">            int centerX = originX + cellX * pitch + pitch / 2</span>
+<span class="fc" id="L68">                    + random.nextInt(2 * jitter + 1) - jitter;</span>
+<span class="fc" id="L69">            int centerY = originY + cellY * pitch + pitch / 2</span>
+<span class="fc" id="L70">                    + random.nextInt(2 * jitter + 1) - jitter;</span>
+<span class="fc" id="L71">            drawDisc(</span>
+                    pixels,
+                    width,
+                    height,
+                    centerX,
+                    centerY,
+<span class="fc" id="L77">                    parameters.dotDiameterPx(),</span>
+                    foreground);
+        }
+
+<span class="fc" id="L81">        int foregroundPixels = countValue(pixels, width, activeRegion, foreground);</span>
+<span class="fc" id="L82">        double actualFillRatio = (double) foregroundPixels</span>
+<span class="fc" id="L83">                / ((long) activeRegion.width() * activeRegion.height());</span>
+<span class="fc" id="L84">        String semanticSha256 = semanticSha256(parameters, activeRegion, pixels);</span>
+<span class="fc" id="L85">        return new BosTarget(</span>
+                parameters,
+                activeRegion,
+                requestedDotCount,
+                actualFillRatio,
+                pitch,
+                fiducials,
+                pixels,
+                semanticSha256);
+    }
+
+    private static List&lt;BosTarget.Fiducial&gt; drawFiducials(
+            byte[] pixels,
+            int width,
+            int height,
+            BosTargetParameters parameters,
+            int foreground,
+            int background) {
+<span class="fc" id="L103">        int border = parameters.borderPx();</span>
+<span class="fc" id="L104">        int margin = Math.max(4, border / 8);</span>
+<span class="fc" id="L105">        int desired = Math.max(12, parameters.dotDiameterPx() * 2 + 2);</span>
+<span class="fc" id="L106">        int size = Math.min(border - 2 * margin, desired);</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        if (size &lt; 8) {</span>
+<span class="nc" id="L108">            throw new IllegalArgumentException(&quot;border is too small for orientation fiducials&quot;);</span>
+        }
+
+<span class="fc" id="L111">        List&lt;BosTarget.Fiducial&gt; result = new ArrayList&lt;&gt;(4);</span>
+<span class="fc" id="L112">        BosTarget.Region topLeft = new BosTarget.Region(margin, margin, size, size);</span>
+<span class="fc" id="L113">        BosTarget.Region topRight = new BosTarget.Region(</span>
+                width - border + margin, margin, size, size);
+<span class="fc" id="L115">        BosTarget.Region bottomLeft = new BosTarget.Region(</span>
+                margin, height - border + margin, size, size);
+<span class="fc" id="L117">        BosTarget.Region bottomRight = new BosTarget.Region(</span>
+                width - border + margin, height - border + margin, size, size);
+
+<span class="fc" id="L120">        fillRectangle(pixels, width, height, topLeft, foreground);</span>
+<span class="fc" id="L121">        result.add(new BosTarget.Fiducial(</span>
+                &quot;top-left&quot;, BosTarget.FiducialShape.SOLID_SQUARE, topLeft));
+
+<span class="fc" id="L124">        drawRing(pixels, width, height, topRight, foreground, background);</span>
+<span class="fc" id="L125">        result.add(new BosTarget.Fiducial(</span>
+                &quot;top-right&quot;, BosTarget.FiducialShape.RING, topRight));
+
+<span class="fc" id="L128">        drawLShape(pixels, width, height, bottomLeft, foreground);</span>
+<span class="fc" id="L129">        result.add(new BosTarget.Fiducial(</span>
+                &quot;bottom-left&quot;, BosTarget.FiducialShape.L_SHAPE, bottomLeft));
+
+<span class="fc" id="L132">        drawCross(pixels, width, height, bottomRight, foreground);</span>
+<span class="fc" id="L133">        result.add(new BosTarget.Fiducial(</span>
+                &quot;bottom-right&quot;, BosTarget.FiducialShape.CROSS, bottomRight));
+<span class="fc" id="L135">        return List.copyOf(result);</span>
+    }
+
+    private static void drawDisc(
+            byte[] pixels,
+            int width,
+            int height,
+            int centerX,
+            int centerY,
+            int diameter,
+            int value) {
+<span class="fc" id="L146">        double radius = diameter / 2.0;</span>
+<span class="fc" id="L147">        double radiusSquared = radius * radius;</span>
+<span class="fc" id="L148">        int minimumX = Math.max(0, centerX - diameter / 2);</span>
+<span class="fc" id="L149">        int minimumY = Math.max(0, centerY - diameter / 2);</span>
+<span class="fc" id="L150">        int maximumX = Math.min(width - 1, minimumX + diameter - 1);</span>
+<span class="fc" id="L151">        int maximumY = Math.min(height - 1, minimumY + diameter - 1);</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        double pixelCenterOffset = (diameter % 2 == 0) ? 0.5 : 0.0;</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">        for (int y = minimumY; y &lt;= maximumY; y++) {</span>
+<span class="fc" id="L154">            double dy = y - centerY + pixelCenterOffset;</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">            for (int x = minimumX; x &lt;= maximumX; x++) {</span>
+<span class="fc" id="L156">                double dx = x - centerX + pixelCenterOffset;</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">                if (dx * dx + dy * dy &lt;= radiusSquared) {</span>
+<span class="fc" id="L158">                    pixels[y * width + x] = (byte) value;</span>
+                }
+            }
+        }
+<span class="fc" id="L162">    }</span>
+
+    private static void fillRectangle(
+            byte[] pixels,
+            int width,
+            int height,
+            BosTarget.Region region,
+            int value) {
+<span class="fc" id="L170">        requireInside(region, width, height);</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">        for (int y = region.y(); y &lt; region.maxYExclusive(); y++) {</span>
+<span class="fc" id="L172">            Arrays.fill(</span>
+                    pixels,
+<span class="fc" id="L174">                    y * width + region.x(),</span>
+<span class="fc" id="L175">                    y * width + region.maxXExclusive(),</span>
+                    (byte) value);
+        }
+<span class="fc" id="L178">    }</span>
+
+    private static void drawRing(
+            byte[] pixels,
+            int width,
+            int height,
+            BosTarget.Region region,
+            int foreground,
+            int background) {
+<span class="fc" id="L187">        int diameter = Math.min(region.width(), region.height());</span>
+<span class="fc" id="L188">        int centerX = region.x() + region.width() / 2;</span>
+<span class="fc" id="L189">        int centerY = region.y() + region.height() / 2;</span>
+<span class="fc" id="L190">        drawDisc(pixels, width, height, centerX, centerY, diameter, foreground);</span>
+<span class="fc" id="L191">        drawDisc(pixels, width, height, centerX, centerY, Math.max(2, diameter / 2), background);</span>
+<span class="fc" id="L192">    }</span>
+
+    private static void drawLShape(
+            byte[] pixels,
+            int width,
+            int height,
+            BosTarget.Region region,
+            int foreground) {
+<span class="fc" id="L200">        int thickness = Math.max(2, region.width() / 4);</span>
+<span class="fc" id="L201">        fillRectangle(pixels, width, height,</span>
+<span class="fc" id="L202">                new BosTarget.Region(region.x(), region.y(), thickness, region.height()),</span>
+                foreground);
+<span class="fc" id="L204">        fillRectangle(pixels, width, height,</span>
+<span class="fc" id="L205">                new BosTarget.Region(region.x(), region.maxYExclusive() - thickness,</span>
+<span class="fc" id="L206">                        region.width(), thickness),</span>
+                foreground);
+<span class="fc" id="L208">    }</span>
+
+    private static void drawCross(
+            byte[] pixels,
+            int width,
+            int height,
+            BosTarget.Region region,
+            int foreground) {
+<span class="fc" id="L216">        int thickness = Math.max(2, region.width() / 5);</span>
+<span class="fc" id="L217">        int centerX = region.x() + (region.width() - thickness) / 2;</span>
+<span class="fc" id="L218">        int centerY = region.y() + (region.height() - thickness) / 2;</span>
+<span class="fc" id="L219">        fillRectangle(pixels, width, height,</span>
+<span class="fc" id="L220">                new BosTarget.Region(centerX, region.y(), thickness, region.height()),</span>
+                foreground);
+<span class="fc" id="L222">        fillRectangle(pixels, width, height,</span>
+<span class="fc" id="L223">                new BosTarget.Region(region.x(), centerY, region.width(), thickness),</span>
+                foreground);
+<span class="fc" id="L225">    }</span>
+
+    private static void requireInside(BosTarget.Region region, int width, int height) {
+<span class="pc bpc" id="L228" title="2 of 4 branches missed.">        if (region.maxXExclusive() &gt; width || region.maxYExclusive() &gt; height) {</span>
+<span class="nc" id="L229">            throw new IllegalArgumentException(&quot;drawing region exceeds target bounds&quot;);</span>
+        }
+<span class="fc" id="L231">    }</span>
+
+    private static int countValue(
+            byte[] pixels,
+            int width,
+            BosTarget.Region region,
+            int expected) {
+<span class="fc" id="L238">        int count = 0;</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">        for (int y = region.y(); y &lt; region.maxYExclusive(); y++) {</span>
+<span class="fc" id="L240">            int offset = y * width + region.x();</span>
+<span class="fc bfc" id="L241" title="All 2 branches covered.">            for (int x = 0; x &lt; region.width(); x++) {</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">                if (Byte.toUnsignedInt(pixels[offset + x]) == expected) count++;</span>
+            }
+        }
+<span class="fc" id="L245">        return count;</span>
+    }
+
+    private static String semanticSha256(
+            BosTargetParameters parameters,
+            BosTarget.Region activeRegion,
+            byte[] pixels) {
+        try {
+<span class="fc" id="L253">            MessageDigest digest = MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
+<span class="fc" id="L254">            digest.update(BosTargetParameters.ALGORITHM_VERSION.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L255">            digest.update((byte) 0);</span>
+<span class="fc" id="L256">            ByteBuffer metadata = ByteBuffer.allocate(80);</span>
+<span class="fc" id="L257">            metadata.putInt(parameters.widthPx());</span>
+<span class="fc" id="L258">            metadata.putInt(parameters.heightPx());</span>
+<span class="fc" id="L259">            metadata.putLong(Double.doubleToLongBits(parameters.intendedDpi()));</span>
+<span class="fc" id="L260">            metadata.putLong(parameters.patternSeed());</span>
+<span class="fc" id="L261">            metadata.putInt(parameters.dotDiameterPx());</span>
+<span class="fc" id="L262">            metadata.putLong(Double.doubleToLongBits(parameters.targetFillRatio()));</span>
+<span class="fc" id="L263">            metadata.putInt(parameters.minimumDotSpacingPx());</span>
+<span class="fc" id="L264">            metadata.putInt(parameters.borderPx());</span>
+<span class="fc bfc" id="L265" title="All 2 branches covered.">            metadata.put((byte) (parameters.fiducialsEnabled() ? 1 : 0));</span>
+<span class="fc bfc" id="L266" title="All 2 branches covered.">            metadata.put((byte) (parameters.invertPattern() ? 1 : 0));</span>
+<span class="fc" id="L267">            metadata.putInt(activeRegion.x());</span>
+<span class="fc" id="L268">            metadata.putInt(activeRegion.y());</span>
+<span class="fc" id="L269">            metadata.putInt(activeRegion.width());</span>
+<span class="fc" id="L270">            metadata.putInt(activeRegion.height());</span>
+<span class="fc" id="L271">            digest.update(metadata.array(), 0, metadata.position());</span>
+<span class="fc" id="L272">            digest.update(pixels);</span>
+<span class="fc" id="L273">            return HexFormat.of().formatHex(digest.digest());</span>
+<span class="nc" id="L274">        } catch (NoSuchAlgorithmException exception) {</span>
+<span class="nc" id="L275">            throw new IllegalStateException(&quot;SHA-256 is unavailable&quot;, exception);</span>
+        }
+    }
+
+    private static double square(double value) {
+<span class="fc" id="L280">        return value * value;</span>
+    }
+
+    /** Small explicitly versioned PRNG; independent of JDK random implementations. */
+    private static final class DeterministicRandom {
+        private long state;
+
+<span class="fc" id="L287">        private DeterministicRandom(long seed) {</span>
+<span class="fc" id="L288">            this.state = seed;</span>
+<span class="fc" id="L289">        }</span>
+
+        private long nextLong() {
+<span class="fc" id="L292">            long z = (state += 0x9E3779B97F4A7C15L);</span>
+<span class="fc" id="L293">            z = (z ^ (z &gt;&gt;&gt; 30)) * 0xBF58476D1CE4E5B9L;</span>
+<span class="fc" id="L294">            z = (z ^ (z &gt;&gt;&gt; 27)) * 0x94D049BB133111EBL;</span>
+<span class="fc" id="L295">            return z ^ (z &gt;&gt;&gt; 31);</span>
+        }
+
+        private int nextInt(int bound) {
+<span class="pc bpc" id="L299" title="1 of 2 branches missed.">            if (bound &lt;= 0) throw new IllegalArgumentException(&quot;bound must be positive&quot;);</span>
+<span class="fc" id="L300">            return (int) Long.remainderUnsigned(nextLong(), bound);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

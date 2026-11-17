@@ -10,9 +10,9 @@ public final class DesktopDataDirectory {
     private DesktopDataDirectory() {}
 
     public static Path resolve() {
-<span class="nc" id="L13">        return resolve(System.getProperty(&quot;FRESNEL_DATA_DIR&quot;), System.getenv(),</span>
-<span class="nc" id="L14">                System.getProperty(&quot;os.name&quot;, &quot;&quot;),</span>
-<span class="nc" id="L15">                Path.of(System.getProperty(&quot;user.home&quot;, &quot;.&quot;)));</span>
+<span class="fc" id="L13">        return resolve(System.getProperty(&quot;FRESNEL_DATA_DIR&quot;), System.getenv(),</span>
+<span class="fc" id="L14">                System.getProperty(&quot;os.name&quot;, &quot;&quot;),</span>
+<span class="fc" id="L15">                Path.of(System.getProperty(&quot;user.home&quot;, &quot;.&quot;)));</span>
     }
 
     static Path resolve(Map&lt;String, String&gt; environment, String osName, Path userHome) {

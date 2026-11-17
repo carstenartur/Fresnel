@@ -39,62 +39,68 @@ import org.springframework.security.web.SecurityFilterChain;
 <span class="fc" id="L39">                .csrf(csrf -&gt; csrf.ignoringRequestMatchers(&quot;/api/**&quot;))</span>
 <span class="fc" id="L40">                .cors(cors -&gt; {})</span>
 <span class="fc" id="L41">                .authorizeHttpRequests(auth -&gt; auth</span>
-<span class="fc" id="L42">                        .requestMatchers(&quot;/api/experiments/bos-captures&quot;, &quot;/api/experiments/bos-captures/**&quot;).authenticated()</span>
-<span class="fc" id="L43">                        .requestMatchers(&quot;/api/admin/capture-providers/photographer/**&quot;).hasRole(&quot;ADMIN&quot;)</span>
+<span class="fc" id="L42">                        .requestMatchers(&quot;/api/measurement-sessions&quot;, &quot;/api/measurement-sessions/**&quot;).authenticated()</span>
+<span class="fc" id="L43">                        .requestMatchers(&quot;/api/experiments/bos-captures&quot;, &quot;/api/experiments/bos-captures/**&quot;).authenticated()</span>
+<span class="fc" id="L44">                        .requestMatchers(&quot;/api/admin/capture-providers/photographer/**&quot;).hasRole(&quot;ADMIN&quot;)</span>
                         // A render-job identifier is not a public share token. Every
                         // submit/status/SSE/result request requires authentication;
                         // owner-or-admin authorization is enforced by the job service.
-<span class="fc" id="L47">                        .requestMatchers(&quot;/api/jobs/**&quot;).authenticated()</span>
+<span class="fc" id="L48">                        .requestMatchers(&quot;/api/jobs/**&quot;).authenticated()</span>
                         // Public read-only endpoints. Capture-provider status is
                         // deliberately redacted and contains no service token, URL,
                         // private camera address, serial number or file path.
-<span class="fc" id="L51">                        .requestMatchers(HttpMethod.GET,</span>
+<span class="fc" id="L52">                        .requestMatchers(HttpMethod.GET,</span>
                                 &quot;/api/capture-providers/**&quot;,
                                 &quot;/api/designs/persist/**&quot;,
                                 &quot;/api/designs/preview*&quot;,
                                 &quot;/api/designs/*/info&quot;,
                                 &quot;/api/assistant/providers&quot;,
                                 &quot;/error&quot;, &quot;/&quot;, &quot;/index.html&quot;,
-<span class="fc" id="L58">                                &quot;/assets/**&quot;, &quot;/static/**&quot;, &quot;/favicon.ico&quot;).permitAll()</span>
-<span class="fc" id="L59">                        .requestMatchers(HttpMethod.POST,</span>
+<span class="fc" id="L59">                                &quot;/assets/**&quot;, &quot;/static/**&quot;, &quot;/favicon.ico&quot;).permitAll()</span>
+<span class="fc" id="L60">                        .requestMatchers(HttpMethod.POST,</span>
                                 &quot;/api/designs/validate&quot;,
                                 &quot;/api/designs/preview.png&quot;,
                                 &quot;/api/designs/load&quot;,
                                 &quot;/api/designs/*/info&quot;,
                                 &quot;/api/designs/*/preview.png&quot;,
-<span class="fc" id="L65">                                &quot;/api/assistant/recommend&quot;).permitAll()</span>
+                                &quot;/api/assistant/recommend&quot;,
+                                &quot;/api/measurements/background-oriented-schlieren/target/manifest&quot;,
+                                &quot;/api/measurements/background-oriented-schlieren/target/preview.png&quot;)
+<span class="fc" id="L69">                        .permitAll()</span>
                         // Endpoints that mutate state or may consume configured quota.
-<span class="fc" id="L67">                        .requestMatchers(HttpMethod.POST,</span>
+<span class="fc" id="L71">                        .requestMatchers(HttpMethod.POST,</span>
                                 &quot;/api/assistant/propose&quot;,
                                 &quot;/api/designs/save&quot;,
                                 &quot;/api/designs/persist&quot;,
                                 &quot;/api/designs/export*&quot;,
                                 &quot;/api/designs/*/export*&quot;,
-<span class="fc" id="L73">                                &quot;/api/holograms/**&quot;).authenticated()</span>
-<span class="fc" id="L74">                        .requestMatchers(HttpMethod.DELETE, &quot;/api/**&quot;).authenticated()</span>
-<span class="fc" id="L75">                        .anyRequest().permitAll())</span>
-<span class="fc" id="L76">                .httpBasic(basic -&gt; {});</span>
-<span class="fc" id="L77">        return http.build();</span>
+                                &quot;/api/holograms/**&quot;,
+                                &quot;/api/measurements/background-oriented-schlieren/target/export.png&quot;)
+<span class="fc" id="L79">                        .authenticated()</span>
+<span class="fc" id="L80">                        .requestMatchers(HttpMethod.DELETE, &quot;/api/**&quot;).authenticated()</span>
+<span class="fc" id="L81">                        .anyRequest().permitAll())</span>
+<span class="fc" id="L82">                .httpBasic(basic -&gt; {});</span>
+<span class="fc" id="L83">        return http.build();</span>
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-<span class="fc" id="L82">        return PasswordEncoderFactories.createDelegatingPasswordEncoder();</span>
+<span class="fc" id="L88">        return PasswordEncoderFactories.createDelegatingPasswordEncoder();</span>
     }
 
     @Bean
     public InMemoryUserDetailsManager userDetailsService(
             PasswordEncoder encoder,
             SecurityCredentials credentials) {
-<span class="fc" id="L89">        UserDetails user = User.withUsername(credentials.userName())</span>
-<span class="fc" id="L90">                .password(encoder.encode(credentials.userPassword()))</span>
-<span class="fc" id="L91">                .roles(&quot;USER&quot;)</span>
-<span class="fc" id="L92">                .build();</span>
-<span class="fc" id="L93">        UserDetails admin = User.withUsername(credentials.adminName())</span>
-<span class="fc" id="L94">                .password(encoder.encode(credentials.adminPassword()))</span>
-<span class="fc" id="L95">                .roles(&quot;USER&quot;, &quot;ADMIN&quot;)</span>
-<span class="fc" id="L96">                .build();</span>
-<span class="fc" id="L97">        return new InMemoryUserDetailsManager(user, admin);</span>
+<span class="fc" id="L95">        UserDetails user = User.withUsername(credentials.userName())</span>
+<span class="fc" id="L96">                .password(encoder.encode(credentials.userPassword()))</span>
+<span class="fc" id="L97">                .roles(&quot;USER&quot;)</span>
+<span class="fc" id="L98">                .build();</span>
+<span class="fc" id="L99">        UserDetails admin = User.withUsername(credentials.adminName())</span>
+<span class="fc" id="L100">                .password(encoder.encode(credentials.adminPassword()))</span>
+<span class="fc" id="L101">                .roles(&quot;USER&quot;, &quot;ADMIN&quot;)</span>
+<span class="fc" id="L102">                .build();</span>
+<span class="fc" id="L103">        return new InMemoryUserDetailsManager(user, admin);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

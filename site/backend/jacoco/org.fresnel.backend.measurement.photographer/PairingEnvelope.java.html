@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PairingEnvelope.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement.photographer</a> &gt; <span class="el_source">PairingEnvelope.java</span></div><h1>PairingEnvelope.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement.photographer;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.security.GeneralSecurityException;
+import java.security.SecureRandom;
+import java.util.Arrays;
+import java.util.Base64;
+
+/** An authenticated, versioned envelope for the server-side Photographer grant. */
+final class PairingEnvelope {
+<span class="fc" id="L19">    private static final SecureRandom RANDOM = new SecureRandom();</span>
+<span class="fc" id="L20">    private static final byte[] CONTEXT = &quot;Fresnel/Photographer/pairing/v1&quot;.getBytes(StandardCharsets.US_ASCII);</span>
+    private final Path keyFile;
+    private final boolean supplied;
+
+<span class="fc" id="L24">    PairingEnvelope(Path directory, String configuredKey) {</span>
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        supplied = !configuredKey.isBlank();</span>
+<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        keyFile = supplied ? Path.of(configuredKey) : directory.resolve(&quot;pairing.key&quot;);</span>
+<span class="fc" id="L27">    }</span>
+
+    byte[] seal(JsonMapper json, byte[] plaintext) throws IOException {
+<span class="fc" id="L30">        byte[] nonce = new byte[12];</span>
+<span class="fc" id="L31">        RANDOM.nextBytes(nonce);</span>
+<span class="fc" id="L32">        var node = json.createObjectNode().put(&quot;version&quot;, 1)</span>
+<span class="fc" id="L33">                .put(&quot;nonce&quot;, Base64.getEncoder().encodeToString(nonce))</span>
+<span class="fc" id="L34">                .put(&quot;ciphertext&quot;, Base64.getEncoder().encodeToString(crypt(Cipher.ENCRYPT_MODE, nonce, plaintext)));</span>
+<span class="fc" id="L35">        return json.writeValueAsBytes(node);</span>
+    }
+
+    byte[] open(JsonNode node) throws IOException {
+        try {
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">            if (node.required(&quot;version&quot;).asInt() != 1) throw new IOException(&quot;Unsupported pairing envelope&quot;);</span>
+<span class="fc" id="L41">            byte[] nonce = Base64.getDecoder().decode(node.required(&quot;nonce&quot;).asString());</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">            if (nonce.length != 12) throw new IOException(&quot;Invalid pairing nonce&quot;);</span>
+<span class="fc" id="L43">            return crypt(Cipher.DECRYPT_MODE, nonce, Base64.getDecoder().decode(node.required(&quot;ciphertext&quot;).asString()));</span>
+<span class="nc" id="L44">        } catch (IllegalArgumentException e) { throw new IOException(&quot;Invalid pairing envelope&quot;); }</span>
+    }
+
+    private byte[] crypt(int mode, byte[] nonce, byte[] input) throws IOException {
+<span class="pc bpc" id="L48" title="1 of 6 branches missed.">        if (mode == Cipher.ENCRYPT_MODE &amp;&amp; !supplied &amp;&amp; Files.notExists(keyFile)) createKey();</span>
+        byte[] key;
+<span class="fc" id="L50">        try (var stream = Files.newInputStream(keyFile)) { key = stream.readNBytes(33); }</span>
+        try {
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">            if (key.length != 32) throw new IOException(&quot;Invalid pairing key&quot;);</span>
+<span class="fc" id="L53">            var cipher = Cipher.getInstance(&quot;AES/GCM/NoPadding&quot;);</span>
+<span class="fc" id="L54">            cipher.init(mode, new SecretKeySpec(key, &quot;AES&quot;), new GCMParameterSpec(128, nonce));</span>
+<span class="fc" id="L55">            cipher.updateAAD(CONTEXT);</span>
+<span class="fc" id="L56">            return cipher.doFinal(input);</span>
+<span class="nc" id="L57">        } catch (GeneralSecurityException e) { throw new IOException(&quot;Pairing credential unavailable&quot;); }</span>
+<span class="fc" id="L58">        finally { Arrays.fill(key, (byte) 0); }</span>
+    }
+
+    // The caller holds the pairing file lock. A crash before rename leaves the active key untouched.
+    private void createKey() throws IOException {
+<span class="fc" id="L63">        Path pending = Files.createTempFile(keyFile.getParent(), &quot;.key-&quot;, &quot;.tmp&quot;);</span>
+<span class="fc" id="L64">        byte[] key = new byte[32];</span>
+        try {
+<span class="fc" id="L66">            RANDOM.nextBytes(key);</span>
+<span class="fc" id="L67">            Files.write(pending, key, StandardOpenOption.WRITE, StandardOpenOption.SYNC);</span>
+<span class="fc" id="L68">            Files.move(pending, keyFile, StandardCopyOption.ATOMIC_MOVE);</span>
+<span class="fc" id="L69">        } finally { Arrays.fill(key, (byte) 0); Files.deleteIfExists(pending); }</span>
+<span class="fc" id="L70">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

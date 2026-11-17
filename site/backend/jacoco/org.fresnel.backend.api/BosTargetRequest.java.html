@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BosTargetRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">BosTargetRequest.java</span></div><h1>BosTargetRequest.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import org.fresnel.measurement.BosTargetParameters;
+
+/** Public request shape for the Background-Oriented Schlieren target plugin. */
+<span class="fc" id="L11">public record BosTargetRequest(</span>
+        @NotNull @Min(BosTargetParameters.MIN_WIDTH_PX) @Max(BosTargetParameters.MAX_WIDTH_PX)
+        Integer widthPx,
+        @NotNull @Min(BosTargetParameters.MIN_HEIGHT_PX) @Max(BosTargetParameters.MAX_HEIGHT_PX)
+        Integer heightPx,
+        @NotNull @DecimalMin(&quot;50.0&quot;) @DecimalMax(&quot;2400.0&quot;)
+        Double intendedDpi,
+        @NotNull @Min(0) @Max(9007199254740991L)
+        Long patternSeed,
+        @NotNull @Min(BosTargetParameters.MIN_DOT_DIAMETER_PX)
+        @Max(BosTargetParameters.MAX_DOT_DIAMETER_PX)
+        Integer dotDiameterPx,
+        @NotNull @DecimalMin(&quot;0.02&quot;) @DecimalMax(&quot;0.25&quot;)
+        Double targetFillRatio,
+        @NotNull @Min(BosTargetParameters.MIN_SPACING_PX)
+        @Max(BosTargetParameters.MAX_SPACING_PX)
+        Integer minimumDotSpacingPx,
+        @NotNull @Min(BosTargetParameters.MIN_BORDER_PX) @Max(BosTargetParameters.MAX_BORDER_PX)
+        Integer borderPx,
+        @NotNull Boolean fiducialsEnabled,
+        @NotNull Boolean invertPattern) {
+
+    public BosTargetRequest normalized() {
+<span class="fc" id="L34">        BosTargetParameters defaults = BosTargetParameters.defaults();</span>
+<span class="fc" id="L35">        return new BosTargetRequest(</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">                widthPx == null ? defaults.widthPx() : widthPx,</span>
+<span class="pc bpc" id="L37" title="1 of 2 branches missed.">                heightPx == null ? defaults.heightPx() : heightPx,</span>
+<span class="pc bpc" id="L38" title="1 of 2 branches missed.">                intendedDpi == null ? defaults.intendedDpi() : intendedDpi,</span>
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">                patternSeed == null ? defaults.patternSeed() : patternSeed,</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">                dotDiameterPx == null ? defaults.dotDiameterPx() : dotDiameterPx,</span>
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">                targetFillRatio == null ? defaults.targetFillRatio() : targetFillRatio,</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">                minimumDotSpacingPx == null</span>
+<span class="nc" id="L43">                        ? defaults.minimumDotSpacingPx()</span>
+<span class="fc" id="L44">                        : minimumDotSpacingPx,</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">                borderPx == null ? defaults.borderPx() : borderPx,</span>
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">                fiducialsEnabled == null</span>
+<span class="nc" id="L47">                        ? defaults.fiducialsEnabled()</span>
+<span class="fc" id="L48">                        : fiducialsEnabled,</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">                invertPattern == null ? defaults.invertPattern() : invertPattern);</span>
+    }
+
+    public BosTargetParameters toParameters() {
+<span class="fc" id="L53">        BosTargetRequest value = normalized();</span>
+<span class="fc" id="L54">        return new BosTargetParameters(</span>
+<span class="fc" id="L55">                value.widthPx(),</span>
+<span class="fc" id="L56">                value.heightPx(),</span>
+<span class="fc" id="L57">                value.intendedDpi(),</span>
+<span class="fc" id="L58">                value.patternSeed(),</span>
+<span class="fc" id="L59">                value.dotDiameterPx(),</span>
+<span class="fc" id="L60">                value.targetFillRatio(),</span>
+<span class="fc" id="L61">                value.minimumDotSpacingPx(),</span>
+<span class="fc" id="L62">                value.borderPx(),</span>
+<span class="fc" id="L63">                value.fiducialsEnabled(),</span>
+<span class="fc" id="L64">                value.invertPattern());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

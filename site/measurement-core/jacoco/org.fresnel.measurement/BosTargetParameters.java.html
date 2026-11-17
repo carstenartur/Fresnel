@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BosTargetParameters.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Measurement Core</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.measurement</a> &gt; <span class="el_source">BosTargetParameters.java</span></div><h1>BosTargetParameters.java</h1><pre class="source lang-java linenums">package org.fresnel.measurement;
+
+/**
+ * Immutable parameters for a deterministic Background-Oriented Schlieren target.
+ *
+ * &lt;p&gt;The first version deliberately uses pixel-domain geometry. A displayed target
+ * can therefore be shown at one device pixel per source pixel, while the intended
+ * DPI gives downloaded PNGs a reproducible physical print scale.&lt;/p&gt;
+ */
+public record BosTargetParameters(
+        int widthPx,
+        int heightPx,
+        double intendedDpi,
+        long patternSeed,
+        int dotDiameterPx,
+        double targetFillRatio,
+        int minimumDotSpacingPx,
+        int borderPx,
+        boolean fiducialsEnabled,
+        boolean invertPattern) {
+
+    public static final String ALGORITHM_VERSION = &quot;background-oriented-schlieren-target/1&quot;;
+    public static final int MIN_WIDTH_PX = 320;
+    public static final int MAX_WIDTH_PX = 6000;
+    public static final int MIN_HEIGHT_PX = 240;
+    public static final int MAX_HEIGHT_PX = 6000;
+    public static final long MAX_PIXELS = 24_000_000L;
+    public static final int MIN_DOT_DIAMETER_PX = 2;
+    public static final int MAX_DOT_DIAMETER_PX = 32;
+    public static final int MIN_SPACING_PX = 1;
+    public static final int MAX_SPACING_PX = 32;
+    public static final int MIN_BORDER_PX = 24;
+    public static final int MAX_BORDER_PX = 512;
+    public static final double MIN_FILL_RATIO = 0.02;
+    public static final double MAX_FILL_RATIO = 0.25;
+    public static final double MIN_DPI = 50.0;
+    public static final double MAX_DPI = 2400.0;
+
+<span class="fc" id="L39">    public BosTargetParameters {</span>
+<span class="fc bfc" id="L40" title="All 4 branches covered.">        if (widthPx &lt; MIN_WIDTH_PX || widthPx &gt; MAX_WIDTH_PX) {</span>
+<span class="fc" id="L41">            throw new IllegalArgumentException(</span>
+                    &quot;widthPx must be between &quot; + MIN_WIDTH_PX + &quot; and &quot; + MAX_WIDTH_PX);
+        }
+<span class="fc bfc" id="L44" title="All 4 branches covered.">        if (heightPx &lt; MIN_HEIGHT_PX || heightPx &gt; MAX_HEIGHT_PX) {</span>
+<span class="fc" id="L45">            throw new IllegalArgumentException(</span>
+                    &quot;heightPx must be between &quot; + MIN_HEIGHT_PX + &quot; and &quot; + MAX_HEIGHT_PX);
+        }
+<span class="fc" id="L48">        long pixels = Math.multiplyExact((long) widthPx, heightPx);</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (pixels &gt; MAX_PIXELS) {</span>
+<span class="fc" id="L50">            throw new IllegalArgumentException(</span>
+                    &quot;target exceeds the maximum of &quot; + MAX_PIXELS + &quot; pixels&quot;);
+        }
+<span class="pc bpc" id="L53" title="2 of 6 branches missed.">        if (!Double.isFinite(intendedDpi)</span>
+                || intendedDpi &lt; MIN_DPI
+                || intendedDpi &gt; MAX_DPI) {
+<span class="fc" id="L56">            throw new IllegalArgumentException(</span>
+                    &quot;intendedDpi must be finite and between &quot; + MIN_DPI + &quot; and &quot; + MAX_DPI);
+        }
+<span class="pc bpc" id="L59" title="1 of 4 branches missed.">        if (dotDiameterPx &lt; MIN_DOT_DIAMETER_PX</span>
+                || dotDiameterPx &gt; MAX_DOT_DIAMETER_PX) {
+<span class="fc" id="L61">            throw new IllegalArgumentException(</span>
+                    &quot;dotDiameterPx must be between &quot; + MIN_DOT_DIAMETER_PX
+                            + &quot; and &quot; + MAX_DOT_DIAMETER_PX);
+        }
+<span class="pc bpc" id="L65" title="2 of 6 branches missed.">        if (!Double.isFinite(targetFillRatio)</span>
+                || targetFillRatio &lt; MIN_FILL_RATIO
+                || targetFillRatio &gt; MAX_FILL_RATIO) {
+<span class="fc" id="L68">            throw new IllegalArgumentException(</span>
+                    &quot;targetFillRatio must be finite and between &quot; + MIN_FILL_RATIO
+                            + &quot; and &quot; + MAX_FILL_RATIO);
+        }
+<span class="pc bpc" id="L72" title="1 of 4 branches missed.">        if (minimumDotSpacingPx &lt; MIN_SPACING_PX</span>
+                || minimumDotSpacingPx &gt; MAX_SPACING_PX) {
+<span class="fc" id="L74">            throw new IllegalArgumentException(</span>
+                    &quot;minimumDotSpacingPx must be between &quot; + MIN_SPACING_PX
+                            + &quot; and &quot; + MAX_SPACING_PX);
+        }
+<span class="pc bpc" id="L78" title="1 of 4 branches missed.">        if (borderPx &lt; MIN_BORDER_PX || borderPx &gt; MAX_BORDER_PX) {</span>
+<span class="fc" id="L79">            throw new IllegalArgumentException(</span>
+                    &quot;borderPx must be between &quot; + MIN_BORDER_PX + &quot; and &quot; + MAX_BORDER_PX);
+        }
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        if (borderPx * 4 &gt;= Math.min(widthPx, heightPx)) {</span>
+<span class="fc" id="L83">            throw new IllegalArgumentException(</span>
+                    &quot;borderPx must leave an active region larger than half the shorter target side&quot;);
+        }
+
+<span class="fc" id="L87">        int minimumMarkerBorder = dotDiameterPx * 2 + minimumDotSpacingPx + 8;</span>
+<span class="pc bpc" id="L88" title="1 of 4 branches missed.">        if (fiducialsEnabled &amp;&amp; borderPx &lt; minimumMarkerBorder) {</span>
+<span class="nc" id="L89">            throw new IllegalArgumentException(</span>
+                    &quot;borderPx is too small for the requested dots and orientation fiducials; &quot;
+                            + &quot;minimum is &quot; + minimumMarkerBorder);
+        }
+
+<span class="fc" id="L94">        int activeWidth = widthPx - 2 * borderPx;</span>
+<span class="fc" id="L95">        int activeHeight = heightPx - 2 * borderPx;</span>
+<span class="fc" id="L96">        int pitch = cellPitchPx(dotDiameterPx, minimumDotSpacingPx);</span>
+<span class="fc" id="L97">        int columns = activeWidth / pitch;</span>
+<span class="fc" id="L98">        int rows = activeHeight / pitch;</span>
+<span class="pc bpc" id="L99" title="2 of 4 branches missed.">        if (columns &lt; 4 || rows &lt; 4) {</span>
+<span class="nc" id="L100">            throw new IllegalArgumentException(</span>
+                    &quot;active region is too small for a spatially distributed dot field&quot;);
+        }
+<span class="fc" id="L103">        int candidateCount = Math.multiplyExact(columns, rows);</span>
+<span class="fc" id="L104">        double nominalDotArea = Math.PI * square(dotDiameterPx / 2.0);</span>
+<span class="fc" id="L105">        int requestedDots = (int) Math.round(targetFillRatio * activeWidth * activeHeight / nominalDotArea);</span>
+<span class="pc bpc" id="L106" title="1 of 4 branches missed.">        if (requestedDots &lt; 1 || requestedDots &gt; candidateCount) {</span>
+<span class="fc" id="L107">            double maximumAchievable = candidateCount * nominalDotArea / (activeWidth * activeHeight);</span>
+<span class="fc" id="L108">            throw new IllegalArgumentException(</span>
+                    &quot;targetFillRatio cannot be achieved with the selected dot diameter and spacing; &quot;
+                            + &quot;maximum is approximately &quot; + maximumAchievable);
+        }
+<span class="fc" id="L112">    }</span>
+
+    public static BosTargetParameters defaults() {
+<span class="fc" id="L115">        return new BosTargetParameters(</span>
+                1600,
+                1000,
+                150.0,
+                20260823L,
+                7,
+                0.12,
+                3,
+                64,
+                true,
+                false);
+    }
+
+    public int activeWidthPx() {
+<span class="fc" id="L129">        return widthPx - 2 * borderPx;</span>
+    }
+
+    public int activeHeightPx() {
+<span class="fc" id="L133">        return heightPx - 2 * borderPx;</span>
+    }
+
+    public double intendedWidthMm() {
+<span class="fc" id="L137">        return widthPx * 25.4 / intendedDpi;</span>
+    }
+
+    public double intendedHeightMm() {
+<span class="fc" id="L141">        return heightPx * 25.4 / intendedDpi;</span>
+    }
+
+    static int jitterRadiusPx(int dotDiameterPx) {
+<span class="fc" id="L145">        return Math.max(1, dotDiameterPx / 3);</span>
+    }
+
+    static int cellPitchPx(int dotDiameterPx, int minimumDotSpacingPx) {
+<span class="fc" id="L149">        return dotDiameterPx</span>
+                + minimumDotSpacingPx
+<span class="fc" id="L151">                + 2 * jitterRadiusPx(dotDiameterPx);</span>
+    }
+
+    private static double square(double value) {
+<span class="fc" id="L155">        return value * value;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

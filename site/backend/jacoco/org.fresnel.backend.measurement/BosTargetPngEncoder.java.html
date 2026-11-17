@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BosTargetPngEncoder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.measurement</a> &gt; <span class="el_source">BosTargetPngEncoder.java</span></div><h1>BosTargetPngEncoder.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.measurement;
+
+import org.fresnel.measurement.BosTarget;
+
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageTypeSpecifier;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Iterator;
+
+/** Lossless PNG encoder that preserves the target's intended physical print scale. */
+public final class BosTargetPngEncoder {
+
+    private static final String PNG_METADATA_FORMAT = &quot;javax_imageio_png_1.0&quot;;
+
+    private BosTargetPngEncoder() {}
+
+    public static byte[] encode(BosTarget target) {
+<span class="fc bfc" id="L28" title="All 2 branches covered.">        if (target == null) throw new IllegalArgumentException(&quot;target must not be null&quot;);</span>
+
+<span class="fc" id="L30">        BufferedImage image = new BufferedImage(</span>
+<span class="fc" id="L31">                target.parameters().widthPx(),</span>
+<span class="fc" id="L32">                target.parameters().heightPx(),</span>
+                BufferedImage.TYPE_BYTE_GRAY);
+<span class="fc" id="L34">        byte[] raster = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();</span>
+<span class="fc" id="L35">        byte[] pixels = target.grayscalePixels();</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">        if (raster.length != pixels.length) {</span>
+<span class="nc" id="L37">            throw new IllegalStateException(&quot;unexpected grayscale raster layout&quot;);</span>
+        }
+<span class="fc" id="L39">        System.arraycopy(pixels, 0, raster, 0, pixels.length);</span>
+
+<span class="fc" id="L41">        Iterator&lt;ImageWriter&gt; writers = ImageIO.getImageWritersByFormatName(&quot;png&quot;);</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (!writers.hasNext()) throw new IllegalStateException(&quot;PNG writer unavailable&quot;);</span>
+<span class="fc" id="L43">        ImageWriter writer = writers.next();</span>
+<span class="fc" id="L44">        try (ByteArrayOutputStream bytes = new ByteArrayOutputStream();</span>
+<span class="fc" id="L45">             ImageOutputStream output = ImageIO.createImageOutputStream(bytes)) {</span>
+<span class="fc" id="L46">            writer.setOutput(output);</span>
+<span class="fc" id="L47">            ImageWriteParam writeParam = writer.getDefaultWriteParam();</span>
+<span class="fc" id="L48">            IIOMetadata metadata = writer.getDefaultImageMetadata(</span>
+<span class="fc" id="L49">                    ImageTypeSpecifier.createFromRenderedImage(image), writeParam);</span>
+<span class="fc" id="L50">            addPhysicalResolution(metadata, target.parameters().intendedDpi());</span>
+<span class="fc" id="L51">            writer.write(null, new IIOImage(image, null, metadata), writeParam);</span>
+<span class="fc" id="L52">            output.flush();</span>
+<span class="fc" id="L53">            return bytes.toByteArray();</span>
+<span class="nc" id="L54">        } catch (IOException exception) {</span>
+<span class="nc" id="L55">            throw new UncheckedIOException(&quot;Could not encode BOS target PNG&quot;, exception);</span>
+        } finally {
+<span class="fc" id="L57">            writer.dispose();</span>
+        }
+    }
+
+    /** Nearest-neighbor thumbnail for inspection. Its pixels are never used for measurement. */
+    public static byte[] thumbnail(BosTarget target, int maximumSide) {
+<span class="fc" id="L63">        int sourceWidth = target.parameters().widthPx();</span>
+<span class="fc" id="L64">        int sourceHeight = target.parameters().heightPx();</span>
+<span class="fc" id="L65">        int longest = Math.max(sourceWidth, sourceHeight);</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        if (longest &lt;= maximumSide) return encode(target);</span>
+<span class="fc" id="L67">        double scale = maximumSide / (double) longest;</span>
+<span class="fc" id="L68">        int width = Math.max(1, (int) Math.round(sourceWidth * scale));</span>
+<span class="fc" id="L69">        int height = Math.max(1, (int) Math.round(sourceHeight * scale));</span>
+<span class="fc" id="L70">        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);</span>
+<span class="fc" id="L71">        byte[] pixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        for (int y = 0; y &lt; height; y++) {</span>
+<span class="fc" id="L73">            int sourceY = (2 * y + 1) * sourceHeight / (2 * height);</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            for (int x = 0; x &lt; width; x++) {</span>
+<span class="fc" id="L75">                int sourceX = (2 * x + 1) * sourceWidth / (2 * width);</span>
+<span class="fc" id="L76">                pixels[y * width + x] = (byte) target.pixelUnsigned(sourceX, sourceY);</span>
+            }
+        }
+<span class="fc" id="L79">        try (ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">            if (!ImageIO.write(image, &quot;png&quot;, bytes)) throw new IllegalStateException(&quot;PNG writer unavailable&quot;);</span>
+<span class="fc" id="L81">            return bytes.toByteArray();</span>
+<span class="nc" id="L82">        } catch (IOException exception) {</span>
+<span class="nc" id="L83">            throw new UncheckedIOException(&quot;Could not encode BOS thumbnail&quot;, exception);</span>
+        }
+    }
+
+    private static void addPhysicalResolution(IIOMetadata metadata, double dpi) throws IOException {
+<span class="fc" id="L88">        int pixelsPerMeter = Math.toIntExact(Math.round(dpi / 0.0254));</span>
+<span class="fc" id="L89">        IIOMetadataNode root = new IIOMetadataNode(PNG_METADATA_FORMAT);</span>
+<span class="fc" id="L90">        IIOMetadataNode physical = new IIOMetadataNode(&quot;pHYs&quot;);</span>
+<span class="fc" id="L91">        physical.setAttribute(&quot;pixelsPerUnitXAxis&quot;, Integer.toString(pixelsPerMeter));</span>
+<span class="fc" id="L92">        physical.setAttribute(&quot;pixelsPerUnitYAxis&quot;, Integer.toString(pixelsPerMeter));</span>
+<span class="fc" id="L93">        physical.setAttribute(&quot;unitSpecifier&quot;, &quot;meter&quot;);</span>
+<span class="fc" id="L94">        root.appendChild(physical);</span>
+<span class="fc" id="L95">        metadata.mergeTree(PNG_METADATA_FORMAT, root);</span>
+<span class="fc" id="L96">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>

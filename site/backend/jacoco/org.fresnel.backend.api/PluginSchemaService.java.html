@@ -304,7 +304,7 @@ public class PluginSchemaService {
         }
 
 <span class="fc" id="L306">        JsonNode extensions = uiSchema.get(&quot;extensions&quot;);</span>
-<span class="pc bpc" id="L307" title="1 of 2 branches missed.">        if (extensions != null) {</span>
+<span class="fc bfc" id="L307" title="All 2 branches covered.">        if (extensions != null) {</span>
 <span class="pc bpc" id="L308" title="1 of 2 branches missed.">            if (!extensions.isArray()) {</span>
 <span class="nc" id="L309">                throw new IllegalStateException(path + &quot;.extensions must be an array&quot;);</span>
             }

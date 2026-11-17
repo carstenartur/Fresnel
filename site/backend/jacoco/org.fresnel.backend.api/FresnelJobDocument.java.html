@@ -35,7 +35,7 @@ import java.util.List;
             &quot;https://carstenartur.github.io/Fresnel/schemas/fresnel-job-v1.schema.json&quot;;
     public static final int MAX_FILE_BYTES = 1024 * 1024;
 
-    /** Stable reference to the design plugin and its public compatibility versions. */
+    /** Stable reference to the plugin and its public compatibility versions. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record PluginRef(
             String id,
@@ -59,7 +59,7 @@ import java.util.List;
 <span class="fc" id="L59">        }</span>
     }
 
-    /** Optional non-empty list of outputs requested from the design. */
+    /** Optional non-empty list of outputs requested from the plugin. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ProductionPlan(List&lt;ProductionOutput&gt; outputs) {
 <span class="fc" id="L65">        public ProductionPlan {</span>
@@ -85,7 +85,7 @@ import java.util.List;
             JsonNode options
     ) {}
 
-    /** Non-sensitive metadata needed to diagnose and reproduce a design. */
+    /** Non-sensitive metadata needed to diagnose and reproduce a plugin execution. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
 <span class="fc" id="L90">    public record Provenance(</span>
             String createdWith,

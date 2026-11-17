@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BosTargetController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Fresnel Backend</a> &gt; <a href="index.source.html" class="el_package">org.fresnel.backend.api</a> &gt; <span class="el_source">BosTargetController.java</span></div><h1>BosTargetController.java</h1><pre class="source lang-java linenums">package org.fresnel.backend.api;
+
+import jakarta.validation.Valid;
+import org.fresnel.backend.measurement.BosTargetPngEncoder;
+import org.fresnel.measurement.BosTarget;
+import org.fresnel.measurement.BosTargetGenerator;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/** Public, deterministic target-generation endpoints for the BOS measurement plugin. */
+@RestController
+@RequestMapping(&quot;/api/measurements/background-oriented-schlieren&quot;)
+<span class="fc" id="L21">public class BosTargetController {</span>
+
+    private static final int THUMBNAIL_SIDE_PX = 1600;
+
+    public static final String TARGET_SHA256_HEADER = &quot;X-Fresnel-Target-SHA256&quot;;
+    public static final String TARGET_ID_HEADER = &quot;X-Fresnel-Target-Id&quot;;
+    public static final String ACTIVE_REGION_HEADER = &quot;X-Fresnel-Active-Region&quot;;
+
+    @PostMapping(
+            value = &quot;/target/manifest&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    public BosTarget.Manifest manifest(@Valid @RequestBody BosTargetRequest request) {
+<span class="fc" id="L34">        return generate(request).manifest();</span>
+    }
+
+    @PostMapping(
+            value = &quot;/target/preview.png&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity&lt;byte[]&gt; preview(
+            @Valid @RequestBody BosTargetRequest request,
+            @RequestParam(value = &quot;thumbnail&quot;, defaultValue = &quot;false&quot;) boolean thumbnail) {
+<span class="fc" id="L44">        BosTarget target = generate(request);</span>
+<span class="fc" id="L45">        return imageResponse(target, false, thumbnail);</span>
+    }
+
+    @PostMapping(
+            value = &quot;/target/export.png&quot;,
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity&lt;byte[]&gt; export(@Valid @RequestBody BosTargetRequest request) {
+<span class="fc" id="L53">        BosTarget target = generate(request);</span>
+<span class="fc" id="L54">        return imageResponse(target, true, false);</span>
+    }
+
+    private static BosTarget generate(BosTargetRequest request) {
+<span class="fc" id="L58">        return BosTargetGenerator.generate(request.toParameters());</span>
+    }
+
+    private static ResponseEntity&lt;byte[]&gt; imageResponse(
+            BosTarget target, boolean attachment, boolean thumbnail) {
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        byte[] png = thumbnail</span>
+<span class="fc" id="L64">                ? BosTargetPngEncoder.thumbnail(target, THUMBNAIL_SIDE_PX)</span>
+<span class="fc" id="L65">                : BosTargetPngEncoder.encode(target);</span>
+<span class="fc" id="L66">        BosTarget.Region active = target.activeRegion();</span>
+<span class="fc" id="L67">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="fc" id="L68">        headers.setContentType(MediaType.IMAGE_PNG);</span>
+<span class="fc" id="L69">        headers.setCacheControl(CacheControl.noStore());</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        headers.setETag('&quot;' + target.semanticSha256() + (thumbnail ? &quot;-thumbnail&quot; : &quot;&quot;) + '&quot;');</span>
+<span class="fc" id="L71">        headers.set(TARGET_SHA256_HEADER, target.semanticSha256());</span>
+<span class="fc" id="L72">        headers.set(TARGET_ID_HEADER, target.targetId());</span>
+<span class="fc" id="L73">        headers.set(&quot;X-Fresnel-Pattern-Seed&quot;, Long.toString(target.parameters().patternSeed()));</span>
+<span class="fc" id="L74">        headers.set(&quot;X-Fresnel-Dot-Count&quot;, Integer.toString(target.dotCount()));</span>
+<span class="fc" id="L75">        headers.set(&quot;X-Fresnel-Achieved-Fill-Ratio&quot;, Double.toString(target.actualFillRatio()));</span>
+<span class="fc" id="L76">        headers.set(ACTIVE_REGION_HEADER,</span>
+<span class="fc" id="L77">                active.x() + &quot;,&quot; + active.y() + &quot;,&quot; + active.width() + &quot;,&quot; + active.height());</span>
+<span class="fc" id="L78">        headers.add(&quot;X-Content-Type-Options&quot;, &quot;nosniff&quot;);</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        ContentDisposition disposition = attachment</span>
+<span class="fc" id="L80">                ? ContentDisposition.attachment().filename(target.targetId() + &quot;.png&quot;).build()</span>
+<span class="fc" id="L81">                : ContentDisposition.inline().filename(target.targetId() + &quot;.png&quot;).build();</span>
+<span class="fc" id="L82">        headers.setContentDisposition(disposition);</span>
+<span class="fc" id="L83">        return ResponseEntity.ok().headers(headers).contentLength(png.length).body(png);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.16.202610240946</span></div></body></html>
