@@ -15,6 +15,33 @@ Fresnel generates a reproducible dot target for a screen or a physical-size prin
 and measures a pair of still images in the BOS editor. Use the same stationary target and camera settings for both
 exposures. Ordinary PNG or JPEG uploads are sufficient.
 
+## Check the reference photograph
+
+Choose **Reference image** to see the photograph and its measured quality before
+selecting a disturbed frame. The check uses orientation-corrected BT.709 luma
+at up to 1,024 pixels on the longest side. It reports the 1st–99th percentile
+contrast, fractions near black (0–3) and white (252–255), median
+area-equivalent diameter of isolated thresholded features, and an edge-width
+estimate from contrast divided by the median luminance step at crossings.
+Edge width is a focus or motion-blur indicator. A second image of matching
+dimensions enables comparison of the two edge widths.
+
+The occupancy estimate counts 15 × 15 analysis windows that contain at least
+two detected features. The assistant suggests changes to framing, lighting,
+focus or the dot field when the measurements warrant them. These metrics are
+sampling-dependent, especially for unresolved dots. The resulting experiment
+records the sampled dimensions and foreground statistics.
+
+With a generated target selected, the assistant searches for its four distinct
+corner shapes. It checks their polarity, shape agreement, relative size,
+orientation and quadrilateral geometry, then projects the manifest's active
+field into the reference image. The yellow outline shows that field and the
+blue rectangle shows the area used for analysis. Missing or indistinct markers
+leave the full frame selected. Use **Adjust analysis region** to specify a
+rectangle as percentages of the oriented image. Both images use the same crop
+before displacement analysis, and the result records the source-pixel offset
+and scale. The source files retain their original pixels.
+
 ## Analyze a still pair
 
 1. Keep the outer dot field undisturbed in both exposures. Select **Reference
@@ -266,7 +293,6 @@ resource rejection.
 
 Remaining work for issue #140 includes the following.
 
-1. Evaluate a reference image for dot resolution, contrast, clipping and active-region coverage.
-2. Add fiducial registration, affine models and manual selection of the active region.
-3. Analyze ordered sequences and video with temporal confidence and cancellation.
-4. Integrate paired capture directly into the acquisition and analysis editor.
+1. Extend inter-frame registration from translation to affine motion models.
+2. Analyze ordered sequences and video with temporal confidence and cancellation.
+3. Integrate paired capture directly into the acquisition and analysis editor.
