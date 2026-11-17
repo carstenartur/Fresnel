@@ -40,7 +40,7 @@ public class BosTargetController {
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> preview(
             @Valid @RequestBody BosTargetRequest request,
-            @RequestParam(defaultValue = "false") boolean thumbnail) {
+            @RequestParam(value = "thumbnail", defaultValue = "false") boolean thumbnail) {
         BosTarget target = generate(request);
         return imageResponse(target, false, thumbnail);
     }
