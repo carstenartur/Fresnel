@@ -104,7 +104,10 @@ class MeasurementBundles {
         } catch (tools.jackson.core.JacksonException e) { throw bad("Invalid experiment manifest"); }
         if (m == null || m.version != 1 || m.assets == null) throw bad("Unsupported experiment manifest");
         sessions.validate(m.plan);
-        if (m.capture != null) m.capture.verify(m.plan, m.assets);
+        if (m.capture != null) {
+            m.capture.verify(m.plan, m.assets);
+            m.capture.verifyIllumination(m.plan, sessions.json);
+        }
         Set<String> expected = new HashSet<>(Set.of("manifest.json"));
         if (m.reportSha256 != null) {
             checkedDocument(zip, entries, "reports/summary.md", m.reportSha256);
