@@ -1,4 +1,5 @@
-import {useEffect,useRef,useState,type FormEvent} from 'react';
+import {useEffect,useMemo,useRef,useState,type FormEvent} from 'react';
+import {useMeasurementTrack} from '../measurement/MeasurementWorkflow';
 import {captureSequence,type CameraSession} from './cameraSequence';
 import {displayFrame,nativeSize,stage} from './stage';
 import {pluginId,type Geometry,type Manifest} from './data';
@@ -28,6 +29,13 @@ export function PhotometryCamera({manifest,onRestore}:{manifest:Manifest;onResto
   const [cameras,setCameras]=useState<Camera[]>([]),[cameraId,setCameraId]=useState(''),[locks,setLocks]=useState(false);
   const [sessions,setSessions]=useState<CameraSession[]>([]),[current,setCurrent]=useState<CameraSession|null>(null);
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
+  const [running,setRunning]=useState(false);
+  const activateCamera=useMeasurementTrack('photometry/camera',useMemo(()=>({
+    artifacts:current?.acceptedSteps.map(role=>({role})) ?? [], planned:manifest.patterns.length,
+    ready:current?.state==='COMPLETED', captureReady:current?.state==='READY', calibrating:current?.state==='CREATING', capturing:running || !!current?.pendingStep,
+    cancelled:current?.state==='CANCELLED', error, session:current?.id,
+    camera:cameras.find(c=>c.id===cameraId)?.name,
+  }),[current,manifest.patterns.length,running,error,cameras,cameraId]));
   const canvas=useRef<HTMLCanvasElement>(null), cancelActive=useRef<null|(()=>void)>(null);
   const creating=useRef<Creation|null>(null);
   useEffect(()=>()=>cancelActive.current?.(),[]);
@@ -84,6 +92,7 @@ export function PhotometryCamera({manifest,onRestore}:{manifest:Manifest;onResto
   async function run() {
     const target=canvas.current, session=current;
     if (!target || !session || cancelActive.current) return;
+    setRunning(true);
     let lost=false, engaged=false, done=false;
     let cancellation:Promise<void>|undefined;
     const continuous=()=>!lost && !document.hidden && document.fullscreenElement===target && nativeSize(target);
@@ -120,7 +129,7 @@ export function PhotometryCamera({manifest,onRestore}:{manifest:Manifest;onResto
       document.removeEventListener('visibilitychange',check); document.removeEventListener('fullscreenchange',check);
       window.removeEventListener('resize',check); window.removeEventListener('pagehide',leave);
       if (document.fullscreenElement===target) await document.exitFullscreen().catch(()=>undefined);
-      cancelActive.current=null;
+      cancelActive.current=null; setRunning(false);
     }
   }
   async function openCaptured() {
@@ -141,7 +150,7 @@ export function PhotometryCamera({manifest,onRestore}:{manifest:Manifest;onResto
     }
     await onRestore(saved.parameters,files,current.archiveId);
   }
-  return <details><summary>Synchronized Photographer capture</summary>
+  return <details id="photometry-camera" tabIndex={-1} onFocusCapture={activateCamera}><summary>Synchronized Photographer capture</summary>
     {!auth ? <form onSubmit={signIn}><fieldset disabled={busy}>
       <label>Operator username <input name="username" autoComplete="username" required/></label>
       <label>Operator password <input name="password" autoComplete="current-password" type="password" required/></label>

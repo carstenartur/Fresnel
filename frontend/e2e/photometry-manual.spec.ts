@@ -4,6 +4,8 @@ import type { Manifest } from '../src/photometry/data';
 
 test('manually maps a physical illumination sequence and exports measured relighting', async ({ page }) => {
   await page.goto('/plugins/display-photometric-stereo');
+  const workflow = page.getByRole('region',{name:'Measurement workflow'});
+  await expect(workflow).toHaveAttribute('data-state','DRAFT');
   await page.getByText('Physical setup and saved screens',{exact:true}).click();
   await page.getByLabel('Screen profile name').fill('Bench monitor');
   await page.getByRole('button',{name:'Save display profile'}).click();
@@ -13,6 +15,9 @@ test('manually maps a physical illumination sequence and exports measured religh
   await page.getByLabel('Camera placement',{exact:true}).selectOption('above');
   const response = page.waitForResponse(r => r.url().endsWith('/display-photometric-stereo/sequence'));
   await page.getByRole('button',{ name:'Prepare illumination sequence' }).click();
+  await expect(workflow).toHaveAttribute('data-state','TARGET_READY');
+  await workflow.getByRole('button',{name:'Collect sources'}).click();
+  await expect(workflow).toHaveAttribute('data-state','READY_TO_CAPTURE');
   const manifest = await (await response).json() as Manifest;
   expect(manifest.patterns).toHaveLength(10);
   expect(manifest.conditionNumber).toBeLessThan(25);
@@ -38,7 +43,9 @@ test('manually maps a physical illumination sequence and exports measured religh
     });
   }
   await expect(page.getByText('10 / 10 exposures mapped')).toBeVisible();
+  await expect(workflow).toHaveAttribute('data-state','READY_TO_ANALYZE');
   await page.getByRole('button',{name:'Reconstruct surface'}).click();
+  await expect(workflow).toHaveAttribute('data-state','COMPLETED');
   await expect(page.getByText('336 of 336 pixels passed the solve.',{exact:false})).toBeVisible();
   const canvas = page.locator('canvas[aria-label="Measured surface result"]');
   await expect(canvas).toBeVisible();

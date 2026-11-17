@@ -3,6 +3,12 @@ import { expect, test } from '@playwright/test';
 
 test('analyzes two local images, re-renders a stored grid and exports it', async ({ page }) => {
   await page.goto('/plugins/background-oriented-schlieren');
+  const workflow = page.getByRole('region', {name:'Measurement workflow'});
+  await expect(workflow).toHaveAttribute('data-state','DRAFT');
+  await workflow.getByLabel('Capture source').selectOption('bos/series');
+  await expect(page.getByLabel('Source type')).toBeVisible();
+  await workflow.getByLabel('Capture source').selectOption('bos/pair');
+  await expect(workflow).toHaveAttribute('data-state','READY_TO_CAPTURE');
   const panel = page.getByRole('region', { name: 'Still-pair displacement' });
   const png = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
@@ -31,8 +37,16 @@ test('analyzes two local images, re-renders a stored grid and exports it', async
   await quality.getByRole('button', { name: 'Apply region' }).click();
   await expect(quality).toContainText('Using the manual region');
   await panel.getByLabel('Disturbed image', { exact: true }).setInputFiles(file);
+  await expect(workflow).toHaveAttribute('data-state','READY_TO_ANALYZE');
   await panel.getByRole('button', { name: 'Analyze still pair' }).click();
   await expect(panel.getByRole('status')).toContainText('Registered 12 of 12');
+  await expect(workflow).toHaveAttribute('data-state','COMPLETED');
+  await workflow.getByText('Source files and provenance (2)').click();
+  await expect(workflow.locator('code').filter({hasText:/SHA-256 [a-f0-9]{64}/})).toHaveCount(2);
+  await workflow.getByRole('button',{name:'Preview reference'}).click();
+  await expect(workflow.getByAltText('reference source')).toBeVisible();
+  await workflow.getByRole('button',{name:'Save or reopen'}).click();
+  await expect(panel.getByRole('button',{name:'Sign in to saved experiments'})).toBeVisible();
   await panel.getByLabel('Map', { exact: true }).selectOption('horizontal');
   await panel.getByLabel('Amplification').fill('2');
   await expect(panel.getByText(/Blue is negative/)).toBeVisible();
@@ -75,5 +89,6 @@ test('analyzes two local images, re-renders a stored grid and exports it', async
     .setInputFiles({ name: 'invalid.png', mimeType: 'image/png', buffer: Buffer.from('invalid image') });
   await panel.getByRole('button', { name: 'Analyze still pair' }).click();
   await expect(panel.getByRole('alert')).toContainText('valid PNG');
+  await expect(workflow).toHaveAttribute('data-state','FAILED');
   await expect(panel.getByRole('link', { name: 'Download numeric grid' })).toHaveCount(0);
 });

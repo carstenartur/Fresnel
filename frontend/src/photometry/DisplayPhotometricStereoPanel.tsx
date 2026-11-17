@@ -7,11 +7,17 @@ import { PhotometryCamera } from './PhotometryCamera';
 import { PhysicalSetup,SetupAssistant } from './SetupAssistant';
 import { fullRegion,regionFrom,profileIdentity,type Region } from './setup';
 import { PatternPresenter } from './PatternPresenter';
+import { MeasurementWorkflow, useMeasurementTrack, type WorkflowSource } from '../measurement/MeasurementWorkflow';
 import { MeasurementArchive } from '../measurement/MeasurementArchive';
 import { archiveResult } from './archive';
 import type { Relief } from './height';
 import { RelativeRelief } from './RelativeRelief';
 import { Relighting } from './Relighting';
+
+const captureSources: WorkflowSource[] = [
+  {key:'photometry/manual', label:'Mapped camera files', captureId:'photometry-manual', analysisId:'photometry-analyze', archiveId:'photometry-archive', planned:0, requiresTarget:true},
+  {key:'photometry/camera', label:'Synchronized Photographer', captureId:'photometry-camera', analysisId:'photometry-camera', archiveId:'photometry-archive', planned:0, requiresTarget:true, requiresSession:true},
+];
 
 export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   const [geometry, setGeometry] = useState(() => initialJobParameters(initialJob,pluginId,defaults));
@@ -26,11 +32,20 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   const archived = useMemo(()=>manifest && result ? archiveResult(manifest,result,relief) : null,[manifest,result,relief]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<'screen' | 'sequence' | 'solve' | null>(null);
+  const [cancelled, setCancelled] = useState(false);
+  const activateFiles = useMeasurementTrack('photometry/manual', useMemo(() => ({
+    artifacts: Object.entries(files).map(([role,file]) => ({role, file, sha256:result?.sources.find(s=>s.patternId===role)?.sha256})),
+    planned: manifest?.patterns.length ?? geometry.lightCount + 2,
+    ready: Boolean(manifest?.patterns.every(p=>files[p.id])),
+    calibrating: busy === 'screen', analyzing: busy === 'solve', completed: !!result, error, cancelled,
+    session: sourceSessionId,
+  }), [files, result, manifest, geometry.lightCount, busy, error, cancelled, sourceSessionId]));
   const screenProbe=useRef<HTMLCanvasElement>(null);
   const worker = useRef<Worker | null>(null);
   const generation = useRef(0);
   useEffect(() => () => { generation.current++; worker.current?.terminate(); }, []);
   function change(next: Geometry) {
+    setCancelled(false);
     generation.current++;
     worker.current?.terminate();
     setSourceSessionId(undefined); setGeometry(next); setRoi(fullRegion); setProfile(null); setManifest(null); setFiles({}); setResult(null); setRelief(null); setError(''); setBusy(null);
@@ -52,13 +67,14 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   }
   async function prepare(settings: Geometry, restored?: Record<string,File>, region:Region=fullRegion, sourceId?:string) {
     const ticket = ++generation.current;
-    setError(''); setBusy('sequence');
+    setCancelled(false); setError(''); setBusy('sequence');
     try {
       const generated: Manifest = await (await generator('sequence',settings)).json();
       const screenProfile=await profileIdentity(generated.geometry);
       if (generation.current !== ticket) return;
       if (restored && Object.keys(restored).some(id => !generated.patterns.some(p=>p.id===id)))
         throw new Error('Saved source mapping differs from the regenerated illumination plan.');
+      if (restored) activateFiles();
       setSourceSessionId(sourceId); setRoi(region); setProfile(screenProfile); setGeometry(generated.geometry); setManifest(generated); setFiles(restored ?? {}); select('dark'); setResult(null); setRelief(null);
     } catch (e) { if (ticket === generation.current) setError(String(e)); if (restored) throw e; }
     finally { if (ticket === generation.current) setBusy(null); }
@@ -66,7 +82,7 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
   function stop() { worker.current?.terminate(); worker.current = null; setBusy(null); }
   function analyze() {
     if (!manifest) return;
-    setError(''); setBusy('solve'); setResult(null); setRelief(null);
+    activateFiles(); setCancelled(false); setError(''); setBusy('solve'); setResult(null); setRelief(null);
     const task = new Worker(new URL('./analyze.worker.ts',import.meta.url), { type:'module' });
     worker.current = task;
     task.onerror = e => { setError(e.message || 'Analysis failed.'); stop(); };
@@ -83,21 +99,23 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
     <p>Face a small matte object toward the screen. Mount an upright camera beside the display, aim at the object center, and lock focus, exposure and white balance. Keep the scene still throughout the sequence.</p>
     <canvas ref={screenProbe} className="photometry-illumination" aria-label="Measuring fullscreen raster"/>
     <PhysicalSetup geometry={geometry} onChange={change} disabled={!!busy}/>
-    <PluginEditorShell pluginId={pluginId} value={geometry} onChange={change} disabled={!!busy} domainValidationEnabled={false}>
+    <PluginEditorShell pluginId={pluginId} value={geometry} onChange={change} disabled={!!busy} domainValidationEnabled={false}
+      header={schema=>schema.uiSchema.extensions?.includes('measurement-workflow') &&
+        <MeasurementWorkflow sources={captureSources} target={manifest?.sequenceId} targetId="parameters-display-photometric-stereo" targetError={!manifest && error || undefined}/>}>
       {(_, validation) => <>
         <button disabled={!!busy} onClick={() => void measureScreen()}>Use this display’s pixel dimensions</button>
         <button disabled={!!busy || !validation?.valid || !!manifest} onClick={() => void prepare(geometry)}>Prepare illumination sequence</button>
         <SaveJobControl pluginId={pluginId} parameters={geometry} disabled={!!busy || !validation?.valid}/>
       </>}
     </PluginEditorShell>
-    <MeasurementArchive analysis={{ready:!!complete,running:busy === 'solve',error,start:analyze,stop}} sourceSessionId={sourceSessionId} pluginId={pluginId} parameters={{geometry,roi,screenProfile:profile}} steps={manifest?.patterns.map(p=>p.id) ?? []}
+    <MeasurementArchive anchorId="photometry-archive" analysis={{ready:!!complete,running:busy === 'solve',error,start:analyze,stop}} sourceSessionId={sourceSessionId} pluginId={pluginId} parameters={{geometry,roi,screenProfile:profile}} steps={manifest?.patterns.map(p=>p.id) ?? []}
       files={files} result={archived} onRestore={async (parameters,images,sourceId?:string)=>{
         const restored=(parameters.geometry ?? parameters) as Geometry;
         stop(); await prepare(restored,images,regionFrom(parameters.roi),sourceId);
       }}/>
     {manifest && <>
       <PhotometryCamera key={manifest.sequenceId} manifest={manifest} onRestore={(g,images,sourceId)=>prepare(g,images,fullRegion,sourceId)}/>
-      <h3>Manual capture</h3>
+      <section id="photometry-manual" tabIndex={-1} onFocusCapture={activateFiles}><h3>Manual capture</h3>
       <SetupAssistant manifest={manifest} files={files} roi={roi} disabled={!!busy} onSelect={select}
         onChange={next=>{setRoi(next);setResult(null);setRelief(null);}}/>
       <p>Light matrix condition number {manifest.conditionNumber.toFixed(2)}. Show each pattern, wait at least {manifest.geometry.settleDelayMs} ms, and take one exposure. Press Esc to return and map the camera file to that pattern.</p>
@@ -110,17 +128,17 @@ export function DisplayPhotometricStereoPanel({ initialJob }: JobPanelProps) {
         disabled={!!busy} onChange={e => {
           const f = e.target.files?.[0]; if (!f) return;
           if (f.size > 16*1024*1024) { setError('Choose a file of at most 16 MiB.'); return; }
-          setSourceSessionId(undefined); setFiles({ ...files,[selected]:f }); setResult(null); setRelief(null); setError('');
+          setSourceSessionId(undefined); setCancelled(false); activateFiles(); setFiles({ ...files,[selected]:f }); setResult(null); setRelief(null); setError('');
         }}/></label>
       {files[selected] && <p>{files[selected].name}</p>}
       <p role="status">{Object.keys(files).length} / {manifest.patterns.length} exposures mapped</p>
-      <button onClick={analyze} disabled={!!busy || !complete}>Reconstruct surface</button>
-      {busy === 'solve' && <button onClick={stop}>Cancel reconstruction</button>}
+      <button id="photometry-analyze" onClick={analyze} disabled={!!busy || !complete}>Reconstruct surface</button>
+      {busy === 'solve' && <button onClick={()=>{stop(); setCancelled(true);}}>Cancel reconstruction</button>}
       {result && <>
         <Relighting result={result} manifest={manifest} relief={relief} files={files}/>
         <RelativeRelief result={result} relief={relief} onChange={setRelief}/>
       </>}
-    </>}
+    </section></>}
     {error && <p role="alert">{error}</p>}
   </>;
 }

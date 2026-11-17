@@ -142,7 +142,8 @@ class PluginSchemaServiceTest {
                 ui.get("widgets").get("widthPx").get("type").asText());
         assertEquals("number-with-presets",
                 ui.get("widgets").get("dotDiameterPx").get("type").asText());
-        assertFalse(ui.has("extensions"));
+        assertEquals("measurement-workflow", ui.get("extensions").get(0).asText());
+        assertEquals(ui.get("extensions"), service.requireByPluginId("display-photometric-stereo").uiSchema().get("extensions"));
         assertEquals(10, bos.parameterSchema().get("properties").size());
         long defaultPixels = (long) bos.defaults().get("widthPx").asInt()
                 * bos.defaults().get("heightPx").asInt();

@@ -28,6 +28,7 @@ export interface PluginEditorShellProps<T extends object> {
   domainValidationEnabled?: boolean;
   onStructuralValidation?: (validation: PluginParameterValidation<T> | null) => void;
   onDomainValidation?: (validation: DesignValidationReport | null) => void;
+  header?: (schema: PluginSchemaDocument<T>) => ReactNode;
   children?: (
     schema: PluginSchemaDocument<T>,
     structuralValidation: PluginParameterValidation<T> | null,
@@ -64,6 +65,7 @@ export function PluginEditorShell<T extends object>({
   onStructuralValidation,
   onDomainValidation,
   children,
+  header,
 }: PluginEditorShellProps<T>) {
   const [schema, setSchema] = useState<PluginSchemaDocument<T> | null>(null);
   const [schemaError, setSchemaError] = useState<string | null>(null);
@@ -245,6 +247,7 @@ export function PluginEditorShell<T extends object>({
       onInputCapture={scheduleVisibleValidityCheck}
       onChangeCapture={scheduleVisibleValidityCheck}
     >
+      {schema && header?.(schema)}
       {schema ? (
         <SchemaForm
           parameterSchema={schema.parameterSchema}

@@ -60,6 +60,8 @@ test('shows a connected Photographer-style provider and camera details', async (
 
   await status.getByText('Connection details').click();
   await expect(status).toContainText('Canon EOS R: connected');
+  await expect(status).toContainText('Negotiated protocol · v1');
+  await expect(status).toContainText('Camera capabilities · STILL_CAPTURE');
 });
 
 test('keeps the last confirmed connection state when a later refresh fails', async ({ page }) => {
