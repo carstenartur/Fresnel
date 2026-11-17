@@ -5,6 +5,7 @@ import org.fresnel.measurement.CaptureProviderException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -69,8 +70,15 @@ final class PhotographerHttp {
     private static JsonNode parse(InputStream source) throws IOException {
         if (source == null) throw incompatible();
         try (source) {
-            byte[] bytes = source.readNBytes(MAX_RESPONSE + 1);
-            if (bytes.length > MAX_RESPONSE) throw incompatible();
+            var data = new ByteArrayOutputStream();
+            byte[] chunk = new byte[8192];
+            long started = System.nanoTime();
+            for (int count; (count = source.read(chunk)) != -1;) {
+                if (System.nanoTime() - started >= java.util.concurrent.TimeUnit.SECONDS.toNanos(15)) throw transport();
+                if (count > MAX_RESPONSE - data.size()) throw incompatible();
+                data.write(chunk, 0, count);
+            }
+            byte[] bytes = data.toByteArray();
             try {
                 JsonNode node = JSON.readTree(bytes);
                 if (node == null || node.isNull() || node.isMissingNode()) throw incompatible();
