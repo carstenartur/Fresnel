@@ -1,0 +1,13 @@
+services:
+  focusstack:
+    environment:
+      FOCUSSTACK_FRESNEL_ENABLED: "true"
+      FOCUSSTACK_FRESNEL_TRUST_PRIVATE_NETWORK: "true"
+    networks:
+      - default
+      - capture
+
+networks:
+  capture:
+    external: true
+    name: fresnel-capture
