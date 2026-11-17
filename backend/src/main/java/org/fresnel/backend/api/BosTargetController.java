@@ -2,8 +2,10 @@ package org.fresnel.backend.api;
 
 import jakarta.validation.Valid;
 import org.fresnel.backend.measurement.BosTargetPngEncoder;
+import org.fresnel.backend.measurement.BosTargetPrintExporter;
 import org.fresnel.measurement.BosTarget;
 import org.fresnel.measurement.BosTargetGenerator;
+import org.fresnel.optics.PdfExporter.SheetSize;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -14,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.io.IOException;
 
 /** Public, deterministic target-generation endpoints for the BOS measurement plugin. */
 @RestController
@@ -54,6 +58,23 @@ public class BosTargetController {
         return imageResponse(target, true, false);
     }
 
+    @PostMapping(value = "/target/export.svg", consumes = MediaType.APPLICATION_JSON_VALUE, produces = "image/svg+xml")
+    public ResponseEntity<byte[]> exportSvg(@Valid @RequestBody BosTargetRequest request,
+            @RequestParam(value = "calibrationStrip", defaultValue = "true") boolean strip) {
+        BosTarget target = generate(request);
+        return output(target, BosTargetPrintExporter.svg(target, strip), MediaType.valueOf("image/svg+xml"),
+                ".svg", true, "-svg-" + strip);
+    }
+
+    @PostMapping(value = "/target/export.pdf", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> exportPdf(@Valid @RequestBody BosTargetRequest request,
+            @RequestParam(value = "calibrationStrip", defaultValue = "true") boolean strip,
+            @RequestParam(value = "sheet", defaultValue = "FIT") SheetSize sheet) throws IOException {
+        BosTarget target = generate(request);
+        return output(target, BosTargetPrintExporter.pdf(target, strip, sheet), MediaType.APPLICATION_PDF,
+                ".pdf", true, "-pdf-" + strip + "-" + sheet);
+    }
+
     private static BosTarget generate(BosTargetRequest request) {
         return BosTargetGenerator.generate(request.toParameters());
     }
@@ -63,11 +84,16 @@ public class BosTargetController {
         byte[] png = thumbnail
                 ? BosTargetPngEncoder.thumbnail(target, THUMBNAIL_SIDE_PX)
                 : BosTargetPngEncoder.encode(target);
+        return output(target, png, MediaType.IMAGE_PNG, ".png", attachment, thumbnail ? "-thumbnail" : "");
+    }
+
+    private static ResponseEntity<byte[]> output(BosTarget target, byte[] bytes, MediaType type,
+            String extension, boolean attachment, String variant) {
         BosTarget.Region active = target.activeRegion();
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.IMAGE_PNG);
+        headers.setContentType(type);
         headers.setCacheControl(CacheControl.noStore());
-        headers.setETag('"' + target.semanticSha256() + (thumbnail ? "-thumbnail" : "") + '"');
+        headers.setETag('"' + target.semanticSha256() + variant + '"');
         headers.set(TARGET_SHA256_HEADER, target.semanticSha256());
         headers.set(TARGET_ID_HEADER, target.targetId());
         headers.set("X-Fresnel-Pattern-Seed", Long.toString(target.parameters().patternSeed()));
@@ -77,9 +103,9 @@ public class BosTargetController {
                 active.x() + "," + active.y() + "," + active.width() + "," + active.height());
         headers.add("X-Content-Type-Options", "nosniff");
         ContentDisposition disposition = attachment
-                ? ContentDisposition.attachment().filename(target.targetId() + ".png").build()
-                : ContentDisposition.inline().filename(target.targetId() + ".png").build();
+                ? ContentDisposition.attachment().filename(target.targetId() + extension).build()
+                : ContentDisposition.inline().filename(target.targetId() + extension).build();
         headers.setContentDisposition(disposition);
-        return ResponseEntity.ok().headers(headers).contentLength(png.length).body(png);
+        return ResponseEntity.ok().headers(headers).contentLength(bytes.length).body(bytes);
     }
 }

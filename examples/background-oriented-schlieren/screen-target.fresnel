@@ -25,6 +25,23 @@
         "id": "target",
         "format": "png",
         "filename": "bos-target.png"
+      },
+      {
+        "id": "print-svg",
+        "format": "svg",
+        "filename": "bos-target.svg",
+        "options": {
+          "calibrationStrip": true
+        }
+      },
+      {
+        "id": "print-pdf",
+        "format": "pdf",
+        "filename": "bos-target.pdf",
+        "options": {
+          "calibrationStrip": true
+        },
+        "sheet": "A4"
       }
     ]
   },

@@ -12,6 +12,7 @@ import {
   saveFresnelJob,
   type FresnelJobDocument,
   type FresnelPluginId,
+  type FresnelProductionPlan,
   type LoadedFresnelJob,
 } from '../jobApi';
 import { fetchPluginMetadataById } from '../pluginSchemaApi';
@@ -91,11 +92,13 @@ export function SaveJobControl<T>({
   parameters,
   disabled = false,
   filename,
+  production,
 }: {
   pluginId: FresnelPluginId;
   parameters: T | null;
   disabled?: boolean;
   filename?: string;
+  production?: FresnelProductionPlan;
 }) {
   const sourceJob = useContext(JobSourceContext);
   const [busy, setBusy] = useState(false);
@@ -114,6 +117,7 @@ export function SaveJobControl<T>({
         metadata.algorithmVersion,
         filename,
         sourceJob,
+        production,
       );
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError));

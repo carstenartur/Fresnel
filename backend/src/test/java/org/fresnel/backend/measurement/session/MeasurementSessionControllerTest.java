@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(MeasurementSessionController.class)
-@Import({MeasurementSessions.class, MeasurementBundles.class, SecurityConfig.class, SecurityCredentials.class,
+@Import({MeasurementSessions.class, MeasurementBundles.class, ExperimentDocuments.class, org.fresnel.backend.api.FresnelJobService.class, SecurityConfig.class, SecurityCredentials.class,
         MockMvcSecurityConfig.class, MeasurementSessionControllerTest.TestSecurity.class})
 class MeasurementSessionControllerTest {
     @TestConfiguration(proxyBeanMethods = false) @EnableWebSecurity static class TestSecurity {}
