@@ -46,6 +46,12 @@ and scale. The source files retain their original pixels.
 
 1. Keep the outer dot field undisturbed in both exposures. Select **Reference
    image** and **Disturbed image**, then **Analyze still pair**.
+   For a paired camera, choose **Open paired Photographer capture**, sign in, pick
+   the camera and acknowledge the undisturbed and disturbed conditions. On a
+   completed capture, choose **Use verified pair in BOS analysis**. Fresnel
+   checks each original PNG against its recorded size and SHA-256 and loads it
+   into the same analysis controls. The numeric result and saved experiment
+   retain the provider, capture identifier and both exposure times.
 2. Check the accepted windows and registration residual. Inspect the stabilized
    disturbed frame alongside the map. Switch between magnitude, signed horizontal
    or vertical displacement and normalized correlation. Display amplification
@@ -295,4 +301,3 @@ Remaining work for issue #140 includes the following.
 
 1. Extend inter-frame registration from translation to affine motion models.
 2. Analyze ordered sequences and video with temporal confidence and cancellation.
-3. Integrate paired capture directly into the acquisition and analysis editor.
