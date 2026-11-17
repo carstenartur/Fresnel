@@ -16,6 +16,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
             <version>1.28.0</version>
@@ -139,6 +144,7 @@
                         <configuration>
                             <includes>
                                 <include>**/PlaywrightE2EIT.java</include>
+                                <include>**/PhotographerContainerIT.java</include>
                             </includes>
                             <skipITs>${fresnel.e2e.skip}</skipITs>
                         </configuration>
