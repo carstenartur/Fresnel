@@ -16,6 +16,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
             <version>1.28.0</version>
@@ -137,8 +142,11 @@
                             <goal>verify</goal>
                         </goals>
                         <configuration>
+                            <!-- The repackaged Boot JAR stores classes below BOOT-INF/classes. -->
+                            <classesDirectory>${project.build.outputDirectory}</classesDirectory>
                             <includes>
                                 <include>**/PlaywrightE2EIT.java</include>
+                                <include>**/PhotographerContainerIT.java</include>
                             </includes>
                             <skipITs>${fresnel.e2e.skip}</skipITs>
                         </configuration>

@@ -1,3 +1,4 @@
+import { restoreTarget, type TargetEvidence } from './bosTargetEvidence';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MeasurementArchive } from './MeasurementArchive';
 import { BosReferenceInspector, useReferenceInspection } from './BosReferenceInspector';
@@ -23,20 +24,6 @@ const modes: Record<MapMode, string> = {
   vertical: 'Signed vertical displacement',
   confidence: 'Correlation confidence',
 };
-type TargetIdentity = { targetId: string; semanticSha256: string };
-function readTarget(value: unknown): TargetIdentity | null {
-  if (typeof value !== 'object' || value === null || !('targetId' in value) || !('semanticSha256' in value))
-    return null;
-  if (
-    typeof value.targetId !== 'string' ||
-    !/^bos-[0-9a-f]{12}$/.test(value.targetId) ||
-    typeof value.semanticSha256 !== 'string' ||
-    !/^[0-9a-f]{64}$/.test(value.semanticSha256)
-  )
-    return null;
-  return { targetId: value.targetId, semanticSha256: value.semanticSha256 };
-}
-
 function useObjectUrl(blob?: Blob) {
   const [url, setUrl] = useState('');
   useEffect(() => {
@@ -51,15 +38,15 @@ function useObjectUrl(blob?: Blob) {
   return url;
 }
 
-export function BosStillPairPanel({ target }: { target: BosTargetManifest | null }) {
-  const [restoredTarget, setRestoredTarget] = useState<TargetIdentity | null | undefined>(undefined);
-  const [analyzedTarget, setAnalyzedTarget] = useState<TargetIdentity | null>(null);
+export function BosStillPairPanel({ target, manifest }: { target: TargetEvidence; manifest: BosTargetManifest | null }) {
+  const [restoredTarget, setRestoredTarget] = useState<TargetEvidence>();
+  const [analyzedTarget, setAnalyzedTarget] = useState<TargetEvidence>({configuredTarget:null});
   const [cameraModel, setCameraModel] = useState<CameraModel>('translation');
   const [files, setFiles] = useState<Images>({});
   const [manualArea, setManualArea] = useState<Region | null>(null);
   const [analyzedQuality, setAnalyzedQuality] = useState<QualityOutput['result'] | null>(null);
   const qualityTarget =
-    restoredTarget === undefined || restoredTarget?.semanticSha256 === target?.semanticSha256 ? target : null;
+    restoredTarget === undefined || restoredTarget.configuredTarget?.semanticSha256 === manifest?.semanticSha256 ? manifest : null;
   const inspection = useReferenceInspection(files.reference, files.disturbed, qualityTarget, manualArea);
   const [output, setOutput] = useState<WorkerOutput>();
   const [status, setStatus] = useState('');
@@ -81,7 +68,7 @@ export function BosStillPairPanel({ target }: { target: BosTargetManifest | null
         [
           JSON.stringify({
             ...output.result,
-            configuredTarget: analyzedTarget,
+            ...analyzedTarget,
             referenceQuality: analyzedQuality,
             visualization: mode,
             amplification: gain,
@@ -111,7 +98,7 @@ export function BosStillPairPanel({ target }: { target: BosTargetManifest | null
   }
   function restore(params: Record<string, unknown>, restored: Partial<Record<string, File>>) {
     changeFiles({ reference: restored.reference, disturbed: restored.disturbed });
-    setRestoredTarget(readTarget(params.configuredTarget));
+    setRestoredTarget(restoreTarget(params));
     setManualArea(readRegion(params.analysisRegion));
     setCameraModel(
       params.cameraModel === 'affine' || params.cameraModel === 'homography'
@@ -133,8 +120,8 @@ export function BosStillPairPanel({ target }: { target: BosTargetManifest | null
   }
   function analyze() {
     if (!files.reference || !files.disturbed) return;
+    setAnalyzedTarget(restoredTarget ?? target);
     setAnalyzedQuality(inspection?.data?.result ?? null);
-    setAnalyzedTarget(restoredTarget === undefined ? readTarget(target) : restoredTarget);
     stop();
     setOutput(undefined);
     setError('');
@@ -331,6 +318,7 @@ export function BosStillPairPanel({ target }: { target: BosTargetManifest | null
       <MeasurementArchive
         pluginId="background-oriented-schlieren"
         steps={imageRoles}
+        acceptsSteps={steps=>steps.length===2 && steps[0]==='reference' && steps[1]==='disturbed'}
         files={files}
         parameters={{
           cameraModel,
@@ -339,11 +327,7 @@ export function BosStillPairPanel({ target }: { target: BosTargetManifest | null
           analysisRegion: output
             ? (analyzedQuality?.region ?? manualArea ?? fullFrame)
             : (manualArea ?? inspection?.data?.result.region),
-          configuredTarget: output
-            ? analyzedTarget
-            : restoredTarget === undefined
-              ? readTarget(target)
-              : restoredTarget,
+          ...(output ? analyzedTarget : restoredTarget ?? target),
         }}
         result={report}
         onRestore={restore}

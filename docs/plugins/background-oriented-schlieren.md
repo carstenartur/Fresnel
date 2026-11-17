@@ -93,6 +93,34 @@ displacement, the camera prediction error at nine independent locations must
 stay below 0.55 px. At least 88% of the grid must survive, with a 95th-percentile
 vector error below 0.40 px and central local-field error below 0.48 px.
 
+## Ordered frames and short video
+
+Open **Analyze a sequence or video** below the still-pair editor. Supply
+2–24 PNG/JPEG images in exposure order or a finite MP4 clip up to 30 seconds,
+64 MiB, 4096 pixels per side and 8.5 megapixels. A browser-supported MP4
+codec is required. Reorder stills before analysis with **Move earlier**.
+The declared still cadence determines their displayed times. For video,
+Fresnel samples evenly at the midpoint of each interval, with at least two
+and at most 24 samples. The JSON records the requested presentation times.
+
+Use a separate undisturbed still or the first frame for a fixed reference.
+Temporal median registers three or five samples spread across the sequence
+onto the first sample before taking their per-pixel median. It requires at
+least three frames with sufficient stable texture. Each subsequent frame is
+registered independently. Inspect rejected frames on the timeline. All
+valid frames share one robust color limit so colors can be compared in time.
+The review WebM plays at five frames per second. The numeric grid preserves
+the experiment timing.
+
+The worker holds one current image and at most five downsampled reference
+frames. The video element seeks to individual samples. Cancelling terminates
+the worker and releases the video. Separate stills total at most 128 MiB
+including any external reference. The archive retains ordered sources or the
+original MP4, plus checksummed result JSON; identical source blobs share one
+ZIP entry. Its MP4 metadata reader checks the video track, dimensions and
+duration without expanding its media. The server's total session limit is
+160 MiB.
+
 ## What is available now
 
 The trusted built-in plugin provides:
@@ -301,9 +329,6 @@ PNG decoding, physical-resolution metadata, public preview access,
 authenticated export, registry/job algorithm-version separation and cross-field
 resource rejection.
 
-## Next slices
+## Capture integration
 
-Remaining work for issue #140 includes the following.
-
-1. Analyze ordered sequences and video with temporal confidence and cancellation.
-2. Integrate paired capture directly into the acquisition and analysis editor.
+Paired Photographer stills are tracked in the capture workflow for issue #140.
