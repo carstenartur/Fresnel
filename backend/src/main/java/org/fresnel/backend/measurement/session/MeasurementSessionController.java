@@ -23,9 +23,18 @@ class MeasurementSessionController {
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     MeasurementSessions.View create(Principal user, HttpServletRequest request) throws IOException {
+        return sessions.create(user.getName(), plan(request));
+    }
+
+    @PutMapping(value="/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    MeasurementSessions.View createAt(Principal user, @PathVariable("id") UUID id, HttpServletRequest request) throws IOException {
+        return sessions.create(user.getName(), id, plan(request), "manual-upload");
+    }
+
+    private MeasurementSessions.Plan plan(HttpServletRequest request) throws IOException {
         var bytes = new ByteArrayOutputStream();
         MeasurementSessions.copy(request.getInputStream(), bytes, MeasurementSessions.PLAN_BYTES);
-        try { return sessions.create(user.getName(), json.readValue(bytes.toByteArray(), MeasurementSessions.Plan.class)); }
+        try { return json.readValue(bytes.toByteArray(), MeasurementSessions.Plan.class); }
         catch (tools.jackson.core.JacksonException e) { throw MeasurementSessions.bad("Invalid capture plan"); }
     }
     @GetMapping List<MeasurementSessions.View> list(Principal user) throws IOException { return sessions.list(user.getName()); }

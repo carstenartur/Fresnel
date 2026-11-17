@@ -19,7 +19,7 @@ initial target-generation slice is implemented end to end:
 ```text
 schema-backed parameters
         → deterministic BosTargetGenerator
-        → preview / lossless PNG
+        → native PNG or physically sized SVG/PDF
         → versioned manifest + semantic SHA-256
         → portable .fresnel job
 ```
@@ -30,6 +30,8 @@ The editor advertises the implemented target and still-pair capabilities:
 GENERATE_CAPTURE_TARGET
 PREVIEW_PNG
 EXPORT_PNG
+EXPORT_SVG
+EXPORT_PDF
 IMPORT_CAPTURE_SET
 ANALYZE_CAPTURE_SET
 EXPORT_EXPERIMENT_BUNDLE
@@ -170,3 +172,5 @@ Detailed implementation work is tracked in:
 - #140 — Background-Oriented Schlieren plugin;
 - #141 — display photometric-stereo plugin;
 - [Photographer paired capture guide](https://github.com/carstenartur/Photographer/blob/main/docs/fresnel-capture.md) — camera service setup, session limits and recovery.
+
+The [saved measurement sessions](measurement-sessions.md) retain manual captures and their checksummed experiment bundles. The [paired deployment example](../examples/photographer-integration/README.md) covers native applications, separate containers, a native Photographer beside a Fresnel container, and separate HTTPS hosts.

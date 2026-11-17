@@ -25,6 +25,12 @@ Choose **Integrate relative height** to solve a masked Poisson least-squares pro
 
 An accepted result with a nonzero height range can be exported as a closed STL relief. Supply the model width, desired height span and base thickness. All three dimensions are user-assigned millimeters. The file header records the assigned scale. The experiment does not measure physical height or length.
 
+## Synchronized Photographer capture
+
+Pair Photographer in the camera provider controls. Prepare the illumination sequence, open **Synchronized Photographer capture**, sign in to Fresnel, and select a camera. Exposure and focus are locked by the provider when available. Otherwise lock them on the camera and confirm before preparing the capture.
+
+**Run camera sequence full screen** stages and checks each pattern on the native display. It waits two animation frames and the specified settling time, then triggers the corresponding remote step once. Fresnel accepts the returned shot only while the same presentation remains visible. Leaving full screen, hiding the tab or changing the display mode interrupts the sequence and requests cancellation. A previously accepted step remains available in the private source archive. Reopen a ready session to continue at its next expected pattern. After an interrupted pending exposure, cancel that session before beginning another sequence. **Open captured exposures** verifies the stored media checksums and loads the accepted files for reconstruction.
+
 ## Setup checks and object region
 
 The setup drawing shows an upright camera above the display. Camera placement presets fill in offsets for the selected screen size; adjust them to match the actual mount. Save a named display profile in the browser to reuse its physical size and native raster. Saved experiment parameters also record the resolved display values and their SHA-256 identity.

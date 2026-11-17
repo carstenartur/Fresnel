@@ -11,9 +11,36 @@ high-contrast background visible. In a typical household experiment, a camera
 first records a random-dot target without the disturbance and then records the
 same target with warm or moving air between camera and target.
 
-Fresnel generates a reproducible dot target and measures a pair of still images
-in the BOS editor. Use the same stationary target and camera settings for both
+Fresnel generates a reproducible dot target for a screen or a physical-size printout
+and measures a pair of still images in the BOS editor. Use the same stationary target and camera settings for both
 exposures. Ordinary PNG or JPEG uploads are sufficient.
+
+## Check the reference photograph
+
+Choose **Reference image** to see the photograph and its measured quality before
+selecting a disturbed frame. The check uses orientation-corrected BT.709 luma
+at up to 1,024 pixels on the longest side. It reports the 1st–99th percentile
+contrast, fractions near black (0–3) and white (252–255), median
+area-equivalent diameter of isolated thresholded features, and an edge-width
+estimate from contrast divided by the median luminance step at crossings.
+Edge width is a focus or motion-blur indicator. A second image of matching
+dimensions enables comparison of the two edge widths.
+
+The occupancy estimate counts 15 × 15 analysis windows that contain at least
+two detected features. The assistant suggests changes to framing, lighting,
+focus or the dot field when the measurements warrant them. These metrics are
+sampling-dependent, especially for unresolved dots. The resulting experiment
+records the sampled dimensions and foreground statistics.
+
+With a generated target selected, the assistant searches for its four distinct
+corner shapes. It checks their polarity, shape agreement, relative size,
+orientation and quadrilateral geometry, then projects the manifest's active
+field into the reference image. The yellow outline shows that field and the
+blue rectangle shows the area used for analysis. Missing or indistinct markers
+leave the full frame selected. Use **Adjust analysis region** to specify a
+rectangle as percentages of the oriented image. Both images use the same crop
+before displacement analysis, and the result records the source-pixel offset
+and scale. The source files retain their original pixels.
 
 ## Analyze a still pair
 
@@ -67,7 +94,7 @@ The trusted built-in plugin provides:
   SHA-256;
 - schema-driven editing and portable `.fresnel` jobs;
 - a public bounded preview and manifest endpoint;
-- an authenticated production PNG download.
+- authenticated PNG, vector SVG and physical-size PDF downloads.
 
 The parameter schema cannot name code, commands, local paths or remote URLs.
 The implementation is selected only through the reviewed `PluginRegistry`.
@@ -86,7 +113,7 @@ The implementation is selected only through the reviewed `PluginRegistry`.
    must be reproduced later.
 
 The [1920 × 1080 example job](../../examples/background-oriented-schlieren/screen-target.fresnel)
-opens in the same editor and includes a production plan for `bos-target.png`.
+opens in the same editor and includes a production plan for PNG, SVG and A4 PDF outputs.
 
 Changing the seed changes dot placement. Keeping every parameter unchanged
 reproduces the same pixels, semantic hash and target ID.
@@ -109,18 +136,24 @@ the active dot region.
 
 ## Printed target
 
-The PNG contains a `pHYs` chunk derived from `intendedDpi`. Print at **100%** and
-disable:
+Choose **Download print SVG** for a vector drawing or **Download print PDF** for a
+printable page. Both derive each pixel's physical width from `25.4 / intendedDpi`
+in millimetres. The target ID is printed in the top quiet border, clear of the
+orientation markers and the active dot field. The PNG also records its intended
+resolution in a `pHYs` chunk.
 
-- fit-to-page or shrink-to-printable-area;
-- image enhancement and smoothing;
-- driver resampling;
-- automatic border or poster scaling.
+**Exact target sheet** sizes the PDF page to its contents. Select an A-series
+paper size for a 5 mm printing margin. Larger targets tile across pages with
+5 mm overlaps. Print at **Actual size / 100%** and turn off driver scaling.
+Measure the distance between the outer ticks of the optional **50 mm
+calibration strip**. The strip adds 12 mm below the target. For very narrow
+targets, the sheet widens to 56 mm to accommodate the ruler. The active field
+retains its original dimensions in either case.
 
-The manifest reports the intended width and height in millimetres. Measure the
-printed target before treating its geometry as known. A later slice will add
-vector/PDF print targets, a human-readable target ID and explicit scale marks;
-this first slice exports a lossless physically tagged PNG only.
+New jobs saved from this editor include PNG, SVG and PDF production outputs.
+For SVG and PDF, `options.calibrationStrip` is a boolean and defaults to
+`true`. PDF accepts the normal `sheet` values and uses `printScale: 1`.
+Non-unit scale factors fail to protect the target calibration.
 
 ## Parameters and hard limits
 
@@ -181,7 +214,13 @@ Authenticated production download:
 
 ```text
 POST /api/measurements/background-oriented-schlieren/target/export.png
+POST /api/measurements/background-oriented-schlieren/target/export.svg
+POST /api/measurements/background-oriented-schlieren/target/export.pdf
 ```
+
+The two print endpoints accept `?calibrationStrip=false` to omit the ruler.
+The PDF endpoint also accepts `sheet=FIT` (default) or an A-series sheet size
+from A4 through A0.
 
 All operations accept the same JSON parameter object. The PNG endpoints return:
 
@@ -252,12 +291,8 @@ resource rejection.
 
 ## Next slices
 
-The next implementation work for issue #140 is deliberately separate from the
-PNG target generator:
+Remaining work for issue #140 includes the following.
 
-1. add exact-size SVG/PDF targets, a human-readable ID and physical scale marks;
-2. evaluate a reference image for dot resolution, contrast, clipping and active
-   region coverage;
-3. add fiducial registration, affine models and manual selection of the active region;
-4. analyze ordered sequences and video with temporal confidence and cancellation;
-5. integrate paired capture directly into the acquisition and analysis editor.
+1. Extend inter-frame registration from translation to affine motion models.
+2. Analyze ordered sequences and video with temporal confidence and cancellation.
+3. Integrate paired capture directly into the acquisition and analysis editor.

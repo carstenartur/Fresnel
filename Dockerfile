@@ -53,7 +53,7 @@ WORKDIR /app
 # Copy the executable jar from the build stage
 COPY --from=backend-build /app/backend/target/backend-*.jar app.jar
 
-RUN chown fresnel:fresnel /app/app.jar
+RUN install -d -o fresnel -g fresnel -m 0700 /data && chown fresnel:fresnel /app/app.jar
 
 USER fresnel
 

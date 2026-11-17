@@ -189,6 +189,8 @@ public final class PluginRegistry {
                     PluginCapability.ANALYZE_CAPTURE_SET,
                     PluginCapability.EXPORT_EXPERIMENT_BUNDLE,
                     PluginCapability.EXPORT_PNG,
+                    PluginCapability.EXPORT_SVG,
+                    PluginCapability.EXPORT_PDF,
                     PluginCapability.PREVIEW_PNG
             ),
             Set.of(),
@@ -202,7 +204,7 @@ public final class PluginRegistry {
             "display-photometric-stereo/1", PluginStabilityLevel.EXPERIMENTAL,
             Set.of(PluginCapability.GENERATE_CAPTURE_TARGET, PluginCapability.IMPORT_CAPTURE_SET,
                    PluginCapability.ANALYZE_CAPTURE_SET, PluginCapability.LIVE_ANALYSIS_PREVIEW, PluginCapability.EXPORT_PNG,
-                   PluginCapability.EXPORT_EXPERIMENT_BUNDLE, PluginCapability.EXPORT_STL),
+                   PluginCapability.EXPORT_EXPERIMENT_BUNDLE, PluginCapability.EXPORT_STL, PluginCapability.REMOTE_CAPTURE),
             Set.of(), schema("display-photometric-stereo", PluginEditorMode.SCHEMA_WITH_EXTENSIONS)
     );
 

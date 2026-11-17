@@ -1,4 +1,5 @@
 import { settings, type GrayFrame } from './bosDisplacement';
+import { fullFrame, pixelRegion, readRegion, type Region } from './bosReferenceQuality';
 
 const maxBytes = 20 * 1024 * 1024;
 const maxPixels = 24_000_000;
@@ -28,7 +29,13 @@ function declaredDimensions(bytes: Uint8Array): [number, number] {
   throw new Error('Choose a valid PNG or baseline/progressive JPEG image.');
 }
 
-export async function decodeFrame(file: File) {
+export async function decodeFrame(
+  file: File,
+  region: Region = fullFrame,
+  maximumSide: number = settings.maximumSide,
+) {
+  if (!readRegion(region) || ![settings.maximumSide, 1024].includes(maximumSide))
+    throw new Error('Invalid analysis region or resolution.');
   if (!file.size || file.size > maxBytes) throw new Error('Each image must be between 1 byte and 20 MiB.');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const [w, h] = declaredDimensions(bytes);
@@ -42,9 +49,10 @@ export async function decodeFrame(file: File) {
     if (!((sourceWidth === w && sourceHeight === h) || (sourceWidth === h && sourceHeight === w))) {
       throw new Error('Image geometry differs from its header.');
     }
-    const scale = Math.min(1, settings.maximumSide / Math.max(sourceWidth, sourceHeight));
-    const width = Math.round(sourceWidth * scale),
-      height = Math.round(sourceHeight * scale);
+    const crop = pixelRegion(region, sourceWidth, sourceHeight);
+    const scale = Math.min(1, maximumSide / Math.max(crop.width, crop.height));
+    const width = Math.round(crop.width * scale),
+      height = Math.round(crop.height * scale);
     if (Math.min(width, height) < settings.minimumSide)
       throw new Error('Use an image with at least 96 analysis pixels in each direction.');
     const canvas = new OffscreenCanvas(width, height);
@@ -53,7 +61,7 @@ export async function decodeFrame(file: File) {
     ctx.fillStyle = 'white';
     ctx.fillRect(0, 0, width, height);
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(image, 0, 0, width, height);
+    ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
     const rgba = ctx.getImageData(0, 0, width, height).data,
       pixels = new Uint8Array(width * height);
     for (let i = 0; i < pixels.length; i++)
@@ -70,7 +78,8 @@ export async function decodeFrame(file: File) {
         sha256,
         sourceWidth,
         sourceHeight,
-        sourcePixelsPerAnalysisPixel: { x: sourceWidth / width, y: sourceHeight / height },
+        sourceRegion: crop,
+        sourcePixelsPerAnalysisPixel: { x: crop.width / width, y: crop.height / height },
       },
     };
   } finally {

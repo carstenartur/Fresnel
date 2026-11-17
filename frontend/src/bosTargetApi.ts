@@ -1,3 +1,6 @@
+import type { FresnelProductionOutput } from './jobApi';
+
+export type BosPrintSheet = NonNullable<FresnelProductionOutput['sheet']>;
 const BASE = '';
 
 export interface BosTargetRequest {
@@ -107,6 +110,24 @@ export async function downloadBosTargetPng(
     'image/png',
   );
   downloadBlob(await response.blob(), filename);
+}
+
+export async function downloadBosPrintTarget(
+  request: BosTargetRequest,
+  format: 'svg' | 'pdf',
+  calibrationStrip: boolean,
+  sheet: BosPrintSheet,
+): Promise<void> {
+  const query = new URLSearchParams({ calibrationStrip: String(calibrationStrip) });
+  if (format === 'pdf') query.set('sheet', sheet);
+  const response = await postResponse(
+    `/api/measurements/background-oriented-schlieren/target/export.${format}?${query}`,
+    request,
+    format === 'pdf' ? 'application/pdf' : 'image/svg+xml',
+  );
+  const id = requiredHeader(response, 'X-Fresnel-Target-Id');
+  if (!/^bos-[0-9a-f]{12}$/.test(id)) throw new Error('Invalid print target identity.');
+  downloadBlob(await response.blob(), `${id}.${format}`);
 }
 
 export function downloadBosTargetManifest(

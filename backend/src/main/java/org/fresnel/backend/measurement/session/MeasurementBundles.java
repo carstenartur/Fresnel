@@ -17,16 +17,24 @@ class MeasurementBundles {
     static final String TYPE = "application/vnd.carstenartur.fresnel.experiment+zip";
     private static final int MANIFEST_MAX = 96 << 10;
     private final MeasurementSessions sessions;
-    MeasurementBundles(MeasurementSessions sessions) { this.sessions = sessions; }
-    record Manifest(int version, Plan plan, Map<String,Asset> assets) {}
+    private final ExperimentDocuments documents;
+    MeasurementBundles(MeasurementSessions sessions, ExperimentDocuments documents) {
+        this.sessions = sessions; this.documents = documents;
+    }
+    record Manifest(int version, Plan plan, Map<String,Asset> assets, String jobSha256, String reportSha256) {}
 
     void export(String owner, UUID id, OutputStream output) throws IOException {
         var lock = sessions.lock(owner); lock.lock();
         try {
             View view = sessions.get(owner, id);
             try (var zip = new ZipOutputStream(output)) {
-                byte[] manifest = sessions.json.writeValueAsBytes(new Manifest(1, view.plan(), new TreeMap<>(view.assets())));
+                byte[] job = documents.job(view.plan());
+                byte[] report = documents.report(view.plan(), view.assets(), job != null);
+                byte[] manifest = sessions.json.writeValueAsBytes(new Manifest(1, view.plan(), new TreeMap<>(view.assets()),
+                        job == null ? null : hash(job), hash(report)));
                 add(zip, "manifest.json", new ByteArrayInputStream(manifest));
+                add(zip, "reports/summary.md", new ByteArrayInputStream(report));
+                if (job != null) add(zip, "job.fresnel", new ByteArrayInputStream(job));
                 Set<String> names = new HashSet<>();
                 for (var item : new TreeMap<>(view.assets()).entrySet()) {
                     String path = entryName(item.getKey(), item.getValue());
@@ -66,7 +74,7 @@ class MeasurementBundles {
             long directorySize = Integer.toUnsignedLong(header.getInt(12));
             long directoryOffset = Integer.toUnsignedLong(header.getInt(16));
             if (header.getInt(0) != 0x06054b50 || header.getInt(4) != 0 || header.getShort(20) != 0
-                    || entries != Short.toUnsignedInt(header.getShort(8)) || entries == 0 || entries > 20
+                    || entries != Short.toUnsignedInt(header.getShort(8)) || entries == 0 || entries > 24
                     || directorySize > 8192 || directoryOffset + directorySize != file.length() - 22) throw bad("Unsupported ZIP layout");
         }
     }
@@ -76,12 +84,12 @@ class MeasurementBundles {
         long expanded = 0;
         for (var iterator = zip.getEntries(); iterator.hasMoreElements();) {
             var entry = iterator.nextElement();
-            if (entries.size() >= 20 || entry.isDirectory() || entry.isUnixSymlink()
+            if (entries.size() >= 24 || entry.isDirectory() || entry.isUnixSymlink()
                     || !zip.canReadEntryData(entry) || entry.getSize() < 0 || entry.getSize() > RESULT_BYTES
                     || (entry.getMethod() != ZipEntry.DEFLATED && entry.getMethod() != ZipEntry.STORED)
                     || entries.putIfAbsent(entry.getName(), entry) != null) throw bad("Invalid experiment ZIP entry");
             expanded += entry.getSize();
-            if (expanded > SESSION_BYTES + MANIFEST_MAX) throw bad("Experiment exceeds size limit");
+            if (expanded > SESSION_BYTES + 3L * MANIFEST_MAX) throw bad("Experiment exceeds size limit");
         }
         var metadata = entries.get("manifest.json");
         if (metadata == null || metadata.getSize() > MANIFEST_MAX) throw bad("Missing or oversized manifest");
@@ -94,6 +102,15 @@ class MeasurementBundles {
         if (m == null || m.version != 1 || m.assets == null) throw bad("Unsupported experiment manifest");
         sessions.validate(m.plan);
         Set<String> expected = new HashSet<>(Set.of("manifest.json"));
+        if (m.reportSha256 != null) {
+            checkedDocument(zip, entries, "reports/summary.md", m.reportSha256);
+            expected.add("reports/summary.md");
+        }
+        if (m.jobSha256 != null) {
+            byte[] job = checkedDocument(zip, entries, "job.fresnel", m.jobSha256);
+            documents.checkJob(job, m.plan);
+            expected.add("job.fresnel");
+        }
         for (var item : m.assets.entrySet()) {
             Asset a = item.getValue();
             if ((!m.plan.steps().contains(item.getKey()) && !"result".equals(item.getKey())) || a == null ||
@@ -128,6 +145,18 @@ class MeasurementBundles {
                 return v;
             } finally { MeasurementSessions.remove(stagingDirectory); }
         } finally { lock.unlock(); }
+    }
+
+    private static byte[] checkedDocument(ZipFile zip, Map<String,ZipArchiveEntry> entries, String name, String digest) throws IOException {
+        var entry = entries.get(name);
+        if (entry == null || entry.getSize() > MANIFEST_MAX) throw bad("Missing or oversized experiment document");
+        try (var stream = zip.getInputStream(entry)) {
+            var bytes = new ByteArrayOutputStream();
+            copy(stream, bytes, MANIFEST_MAX);
+            byte[] data = bytes.toByteArray();
+            if (!hash(data).equals(digest)) throw bad("Experiment document checksum mismatch");
+            return data;
+        }
     }
 
     private static String entryName(String step, Asset a) {

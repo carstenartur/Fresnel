@@ -40,6 +40,7 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/measurement-sessions", "/api/measurement-sessions/**").authenticated()
+                        .requestMatchers("/api/experiments/photometry-captures", "/api/experiments/photometry-captures/**").authenticated()
                         .requestMatchers("/api/experiments/bos-captures", "/api/experiments/bos-captures/**").authenticated()
                         .requestMatchers("/api/admin/capture-providers/photographer/**").hasRole("ADMIN")
                         // A render-job identifier is not a public share token. Every
@@ -75,7 +76,9 @@ public class SecurityConfig {
                                 "/api/designs/export*",
                                 "/api/designs/*/export*",
                                 "/api/holograms/**",
-                                "/api/measurements/background-oriented-schlieren/target/export.png")
+                                "/api/measurements/background-oriented-schlieren/target/export.png",
+                                "/api/measurements/background-oriented-schlieren/target/export.svg",
+                                "/api/measurements/background-oriented-schlieren/target/export.pdf")
                         .authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/**").authenticated()
                         .anyRequest().permitAll())

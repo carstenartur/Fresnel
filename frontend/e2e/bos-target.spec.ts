@@ -60,12 +60,24 @@ test('BOS target generates reproducible evidence, downloads and job round trip',
   );
   expect(targetDownload.suggestedFilename()).toMatch(/^bos-[0-9a-f]{12}\.png$/);
 
+  const actualTargetPath = await targetDownload.path();
+  const measurement = page.getByRole('region', {name:'Still-pair displacement'});
+  await measurement.getByLabel('Reference image', { exact:true }).setInputFiles(actualTargetPath!);
+  await expect(measurement.getByRole('region', {name:'Reference image quality'}))
+    .toContainText('Four orientation markers matched');
   const manifestDownload = await clickDownload(
     page,
     page.getByRole('button', { name: 'Download target manifest' }),
   );
   expect(manifestDownload.suggestedFilename())
     .toMatch(/^bos-[0-9a-f]{12}-manifest\.json$/);
+
+  await page.getByRole('checkbox', { name: 'Include 50 mm calibration strip' }).uncheck();
+  await page.getByLabel('PDF paper size').selectOption('A4');
+  for (const format of ['SVG', 'PDF']) {
+    const print = await clickDownload(page, page.getByRole('button', { name: `Download print ${format}` }));
+    expect(print.suggestedFilename()).toBe(targetDownload.suggestedFilename().replace(/png$/, format.toLowerCase()));
+  }
 
   const saved = await clickDownload(
     page,
@@ -76,6 +88,7 @@ test('BOS target generates reproducible evidence, downloads and job round trip',
   const savedJob = JSON.parse(await readFile(savedPath!, 'utf8')) as {
     plugin: { id: string; parameterSchemaVersion: number; algorithmVersion: string };
     parameters: { patternSeed: number };
+    production: { outputs: { format: string; sheet?: string; options?: { calibrationStrip?: boolean } }[] };
   };
   expect(savedJob.plugin).toEqual({
     id: 'background-oriented-schlieren',
@@ -83,9 +96,14 @@ test('BOS target generates reproducible evidence, downloads and job round trip',
     algorithmVersion: 'background-oriented-schlieren/1',
   });
   expect(savedJob.parameters.patternSeed).toBe(123456);
+  expect(savedJob.production.outputs.find((output) => output.format === 'pdf')).toMatchObject({
+    sheet: 'A4', options: { calibrationStrip: false },
+  });
 
   await form.getByLabel('Pattern seed').fill('654321');
   await jobInput(page).setInputFiles(savedPath!);
   await expect(page).toHaveURL(/\/plugins\/background-oriented-schlieren$/);
   await expect(form.getByLabel('Pattern seed')).toHaveValue('123456');
+  await expect(page.getByLabel('PDF paper size')).toHaveValue('A4');
+  await expect(page.getByRole('checkbox', { name: 'Include 50 mm calibration strip' })).not.toBeChecked();
 });
