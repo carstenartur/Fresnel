@@ -38,7 +38,13 @@ function useObjectUrl(blob?: Blob) {
   return url;
 }
 
-export function BosStillPairPanel({ target, manifest, pairedCapture }: { target: TargetEvidence; manifest: BosTargetManifest | null; pairedCapture?:PairedBosCapture }) {
+export function BosStillPairPanel({ target, manifest, pairedCapture, explicitRegion, onExplicitRegion }: {
+  target: TargetEvidence;
+  manifest: BosTargetManifest | null;
+  pairedCapture?: PairedBosCapture;
+  explicitRegion: Region | null;
+  onExplicitRegion: (region: Region | null) => void;
+}) {
   const [restoredTarget, setRestoredTarget] = useState<TargetEvidence>();
   const [analyzedTarget, setAnalyzedTarget] = useState<TargetEvidence>({configuredTarget:null});
   const [localSearch, setLocalSearch] = useState<LocalSearch>('pyramid');
@@ -108,7 +114,10 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
   }
   function changeFiles(next: Images) {
     setCancelled(false); stop();
-    if (next.reference !== files.reference) setManualArea(null);
+    if (next.reference !== files.reference) {
+      setManualArea(null);
+      onExplicitRegion(null);
+    }
     setFiles(next);
     setOrigin(null);
     setRestoredTarget(undefined);
@@ -127,6 +136,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
     changeFiles({ reference: restored.reference, disturbed: restored.disturbed });
     setRestoredTarget(restoreTarget(params));
     setManualArea(readRegion(params.analysisRegion));
+    onExplicitRegion(readRegion(params.manualRegion));
     setCameraModel(restoreCameraModel(params.cameraModel));
     setLocalSearch(savedLocalSearch(params.localSearch));
     setOrigin(restoredOrigin);
@@ -208,6 +218,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
           onArea={(r) => {
             stop();
             setManualArea(r);
+            onExplicitRegion(r);
             setOutput(undefined);
             setError('');
           }}
@@ -354,6 +365,7 @@ export function BosStillPairPanel({ target, manifest, pairedCapture }: { target:
           captureOrigin:origin,
           visualization: mode,
           amplification: gain,
+          manualRegion: explicitRegion,
           analysisRegion: output
             ? (analyzedQuality?.region ?? manualArea ?? fullFrame)
             : (manualArea ?? inspection?.data?.result.region),

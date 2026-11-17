@@ -1,3 +1,5 @@
+import { ManualRegion } from './BosReferenceInspector';
+import { fullFrame, readRegion, type Region } from './bosReferenceQuality';
 import { BosLocalSearchControl, savedLocalSearch } from './BosLocalSearchControl';
 import type { LocalSearch } from './bosDisplacement';
 import type { CameraModel } from './bosCameraModel';
@@ -71,7 +73,8 @@ async function reviewVideo(result: SequenceResult, mode: MapMode, signal: AbortS
   }
 }
 
-export function BosSequencePanel({ target }: { target: TargetEvidence }) {
+export function BosSequencePanel({ target, stillRegion }: { target: TargetEvidence; stillRegion: Region | null }) {
+  const [region, setRegion] = useState<Region | null>(null);
   const [liveFrame, setLiveFrame] = useState<FrameResult>();
   const liveCanvas = useRef<HTMLCanvasElement>(null);
   const [localSearch, setLocalSearch] = useState<LocalSearch>('pyramid');
@@ -140,6 +143,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
   function restore(params: Record<string, unknown>, sources: Record<string, File>) {
     reset();
     setRestoredTarget(restoreTarget(params));
+    setRegion(readRegion(params.manualRegion));
     setKey((k) => k + 1);
     setKind(sources.video || params.sourceKind === 'video' ? 'video' : 'stills');
     setExternal(sources.reference);
@@ -187,6 +191,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
           rate,
           cameraModel,
           localSearch,
+          region ?? fullFrame,
           controller.signal,
           (s) => {
             if (!controller.signal.aborted) setStatus(s);
@@ -225,6 +230,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
               value={kind}
               onChange={(e) => {
                 reset();
+                setRegion(null);
                 setKind(e.target.value as typeof kind);
               }}
             >
@@ -244,6 +250,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
                   accept="image/png,image/jpeg"
                   onChange={(e) => {
                     reset();
+                    setRegion(null);
                     setRestoredTarget(undefined);
                     const chosen = Array.from(e.target.files ?? []);
                     setFiles([]);
@@ -289,11 +296,39 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
                 onChange={(e) => {
                   reset();
                   setRestoredTarget(undefined);
+                  setRegion(null);
                   setClip(e.target.files?.[0]);
                 }}
               />
               {clip?.name}
             </label>
+          )}
+          {(kind === 'video' ? clip : files.length > 0) && (
+            <>
+              {stillRegion && (
+                <button type="button" onClick={() => {
+                  reset();
+                  setRegion(stillRegion);
+                }}>
+                  Use the manually selected still-pair region
+                </button>
+              )}
+              <ManualRegion
+                key={JSON.stringify(region)}
+                region={region ?? fullFrame}
+                resetLabel="Use full image"
+                apply={next => {
+                  reset();
+                  setRegion(next);
+                }}
+              />
+              {region && (
+                <p>
+                  Sequence region starts at {(100 * region.x).toFixed(1)}%, {(100 * region.y).toFixed(1)}%
+                  and covers {(100 * region.width).toFixed(1)}% × {(100 * region.height).toFixed(1)}% of each source.
+                </p>
+              )}
+            </>
           )}
           <BosLocalSearchControl
             value={localSearch}
@@ -332,6 +367,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
                 accept="image/png,image/jpeg"
                 onChange={(e) => {
                   reset();
+                  setRegion(null);
                   setExternal(e.target.files?.[0]);
                 }}
               />
@@ -459,6 +495,7 @@ export function BosSequencePanel({ target }: { target: TargetEvidence }) {
           files={sources}
           parameters={{
             sourceKind: kind,
+            manualRegion: region,
             policy,
             rate,
             cameraModel,
