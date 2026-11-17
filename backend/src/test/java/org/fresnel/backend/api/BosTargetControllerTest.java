@@ -1,5 +1,7 @@
 package org.fresnel.backend.api;
 
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,8 +15,10 @@ import tools.jackson.databind.ObjectMapper;
 
 import javax.imageio.ImageIO;
 import java.io.ByteArrayInputStream;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -136,6 +140,56 @@ class BosTargetControllerTest {
         assertThat(thumbnail.getHeader(BosTargetController.TARGET_SHA256_HEADER))
                 .isEqualTo(source.getHeader(BosTargetController.TARGET_SHA256_HEADER));
         assertThat(thumbnail.getHeader(HttpHeaders.ETAG)).isNotEqualTo(source.getHeader(HttpHeaders.ETAG));
+    }
+
+    @Test
+    void svgPrintHasExactPhysicalDimensionsAndAnOptionalSeparateRuler() throws Exception {
+        mvc.perform(post(BASE + "/export.svg").contentType(MediaType.APPLICATION_JSON).content(VALID))
+                .andExpect(status().isUnauthorized());
+        for (boolean strip : new boolean[]{false, true}) {
+            var response = mvc.perform(post(BASE + "/export.svg").with(user("alice").roles("USER"))
+                            .param("calibrationStrip", Boolean.toString(strip))
+                            .contentType(MediaType.APPLICATION_JSON).content(VALID))
+                    .andExpect(status().isOk()).andExpect(content().contentTypeCompatibleWith("image/svg+xml"))
+                    .andReturn().getResponse();
+            var doc = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                    .parse(new ByteArrayInputStream(response.getContentAsByteArray()));
+            var svg = doc.getDocumentElement();
+            assertThat(Double.parseDouble(svg.getAttribute("width").replace("mm", ""))).isCloseTo(162.56, within(0.00001));
+            assertThat(Double.parseDouble(svg.getAttribute("height").replace("mm", "")))
+                    .isCloseTo(121.92 + (strip ? 12 : 0), within(0.00001));
+            assertThat(svg.getTextContent()).contains(response.getHeader(BosTargetController.TARGET_ID_HEADER));
+            assertThat(doc.getElementsByTagName("path").getLength()).isPositive();
+            assertThat(doc.getElementsByTagName("image").getLength()).isZero();
+            var rulers = doc.getElementsByTagName("line");
+            if (strip) {
+                var ruler = (org.w3c.dom.Element) rulers.item(0);
+                double x1 = Double.parseDouble(ruler.getAttribute("x1"));
+                double x2 = Double.parseDouble(ruler.getAttribute("x2"));
+                assertThat(x2 - x1).isEqualTo(50.0);
+                assertThat(Double.parseDouble(ruler.getAttribute("y1"))).isGreaterThan(121.92);
+            } else {
+                assertThat(rulers.getLength()).isZero();
+            }
+        }
+    }
+
+    @Test
+    void pdfPrintRetainsTargetSizeAndShowsTheTargetIdAndScale() throws Exception {
+        mvc.perform(post(BASE + "/export.pdf").contentType(MediaType.APPLICATION_JSON).content(VALID))
+                .andExpect(status().isUnauthorized());
+        var response = mvc.perform(post(BASE + "/export.pdf").with(user("alice").roles("USER"))
+                        .contentType(MediaType.APPLICATION_JSON).content(VALID))
+                .andExpect(status().isOk()).andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andReturn().getResponse();
+        try (var doc = Loader.loadPDF(response.getContentAsByteArray())) {
+            assertThat(doc.getNumberOfPages()).isEqualTo(1);
+            var page = doc.getPage(0);
+            // 640 x 480 source pixels at 100 dpi, plus a 12 mm detachable strip.
+            assertThat((double) page.getMediaBox().getWidth()).isCloseTo(640.0 * 72 / 100, within(0.001));
+            assertThat((double) page.getMediaBox().getHeight()).isCloseTo(480.0 * 72 / 100 + 12 * 72 / 25.4, within(0.001));
+            assertThat(new PDFTextStripper().getText(doc)).contains("50 mm", response.getHeader(BosTargetController.TARGET_ID_HEADER));
+        }
     }
 
     @Test

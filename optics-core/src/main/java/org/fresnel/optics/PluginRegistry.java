@@ -189,6 +189,8 @@ public final class PluginRegistry {
                     PluginCapability.ANALYZE_CAPTURE_SET,
                     PluginCapability.EXPORT_EXPERIMENT_BUNDLE,
                     PluginCapability.EXPORT_PNG,
+                    PluginCapability.EXPORT_SVG,
+                    PluginCapability.EXPORT_PDF,
                     PluginCapability.PREVIEW_PNG
             ),
             Set.of(),

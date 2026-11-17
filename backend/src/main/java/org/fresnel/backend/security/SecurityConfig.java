@@ -75,7 +75,9 @@ public class SecurityConfig {
                                 "/api/designs/export*",
                                 "/api/designs/*/export*",
                                 "/api/holograms/**",
-                                "/api/measurements/background-oriented-schlieren/target/export.png")
+                                "/api/measurements/background-oriented-schlieren/target/export.png",
+                                "/api/measurements/background-oriented-schlieren/target/export.svg",
+                                "/api/measurements/background-oriented-schlieren/target/export.pdf")
                         .authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/**").authenticated()
                         .anyRequest().permitAll())
