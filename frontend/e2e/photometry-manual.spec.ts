@@ -36,7 +36,7 @@ test('manually maps a physical illumination sequence and exports measured religh
   const canvas = page.locator('canvas[aria-label="Measured surface result"]');
   await expect(canvas).toBeVisible();
   const before = await canvas.evaluate((c: HTMLCanvasElement) => c.toDataURL());
-  await page.getByLabel('Light horizontal').fill('0.80');
+  await page.getByLabel('Light horizontal').press('Home');
   await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => c.toDataURL())).not.toBe(before);
   const output = page.waitForEvent('download');
   await page.getByRole('button',{name:'Download result grid and provenance'}).click();
