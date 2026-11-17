@@ -128,6 +128,12 @@ media presentation timestamp reported by the browser for each decoded frame.
 
 Use a separate undisturbed still or the first frame for a fixed reference.
 The selected camera motion model applies to every frame and to median preparation.
+By default all frames use the full image. Under **Adjust analysis region**, a
+manually chosen rectangle applies to every reference sample and measurement
+frame, before resizing. **Use the manually selected still-pair region** copies
+the operator's existing selection only when clicked. A saved sequence retains
+its own selection. The result records the native source-pixel rectangle and
+conversion to analysis-pixel units for each frame.
 Temporal median registers three or five samples spread across the sequence
 onto the first sample before taking their per-pixel median. It requires at
 least three frames with sufficient stable texture. Each subsequent frame is

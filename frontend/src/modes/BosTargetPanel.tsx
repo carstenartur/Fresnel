@@ -1,3 +1,4 @@
+import type { Region } from '../measurement/bosReferenceQuality';
 import {targetEvidence} from '../measurement/bosTargetEvidence';
 import type {PairedBosCapture} from '../measurement/bosPairedCapture';
 import { useRef, useState } from 'react';
@@ -45,6 +46,7 @@ interface GeneratedTarget {
 export function BosTargetPanel({ initialJob, pairedCapture, photographerAvailable }: JobPanelProps & {
   pairedCapture?:PairedBosCapture; photographerAvailable?:boolean;
 }) {
+  const [explicitRegion, setExplicitRegion] = useState<Region | null>(null);
   const [request, setRequest] = useState<BosTargetRequest>(() =>
     initialJobParameters(initialJob, 'background-oriented-schlieren', DEFAULT));
   const outputs: FresnelProductionOutput[] = initialJob?.production?.outputs ?? [
@@ -258,8 +260,14 @@ export function BosTargetPanel({ initialJob, pairedCapture, photographerAvailabl
         const acquisition=document.getElementById('bos-camera-acquisition') as HTMLDetailsElement|null;
         if(acquisition){acquisition.open=true;acquisition.scrollIntoView({block:'center'});acquisition.querySelector('summary')?.focus();}
       }}>Open paired Photographer capture</button>}
-      <BosStillPairPanel pairedCapture={pairedCapture} manifest={currentManifest} target={targetEvidence(currentManifest, request)} />
-      <BosSequencePanel target={targetEvidence(currentManifest, request)} />
+      <BosStillPairPanel
+        explicitRegion={explicitRegion}
+        onExplicitRegion={setExplicitRegion}
+        pairedCapture={pairedCapture}
+        manifest={currentManifest}
+        target={targetEvidence(currentManifest, request)}
+      />
+      <BosSequencePanel stillRegion={explicitRegion} target={targetEvidence(currentManifest, request)} />
     </>
   );
 }
