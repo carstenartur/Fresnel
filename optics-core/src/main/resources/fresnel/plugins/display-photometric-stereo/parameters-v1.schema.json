@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Fresnel/schemas/plugins/display-photometric-stereo/parameters-v1.schema.json",
+  "title": "Display photometric stereo",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "screenWidthMm",
+    "screenHeightMm",
+    "widthPx",
+    "heightPx",
+    "objectDistanceMm",
+    "cameraOffsetXmm",
+    "cameraOffsetYmm",
+    "lightCount",
+    "patchDiameterPercent",
+    "settleDelayMs",
+    "cameraGamma"
+  ],
+  "default": {
+    "screenWidthMm": 530,
+    "screenHeightMm": 300,
+    "widthPx": 1920,
+    "heightPx": 1080,
+    "objectDistanceMm": 450,
+    "cameraOffsetXmm": 0,
+    "cameraOffsetYmm": 160,
+    "lightCount": 8,
+    "patchDiameterPercent": 12,
+    "settleDelayMs": 500,
+    "cameraGamma": 2.2
+  },
+  "properties": {
+    "screenWidthMm": {
+      "type": "number",
+      "title": "Active screen width (mm)",
+      "minimum": 100,
+      "maximum": 2000,
+      "default": 530
+    },
+    "screenHeightMm": {
+      "type": "number",
+      "title": "Active screen height (mm)",
+      "minimum": 60,
+      "maximum": 1500,
+      "default": 300
+    },
+    "widthPx": {
+      "type": "integer",
+      "title": "Native screen width (px)",
+      "minimum": 64,
+      "maximum": 4096,
+      "default": 1920
+    },
+    "heightPx": {
+      "type": "integer",
+      "title": "Native screen height (px)",
+      "minimum": 64,
+      "maximum": 4096,
+      "default": 1080
+    },
+    "objectDistanceMm": {
+      "type": "number",
+      "title": "Object distance from screen (mm)",
+      "minimum": 50,
+      "maximum": 4000,
+      "default": 450
+    },
+    "cameraOffsetXmm": {
+      "type": "number",
+      "title": "Camera right of screen center (mm)",
+      "minimum": -1000,
+      "maximum": 1000,
+      "default": 0
+    },
+    "cameraOffsetYmm": {
+      "type": "number",
+      "title": "Camera above screen center (mm)",
+      "minimum": -1000,
+      "maximum": 1000,
+      "default": 160
+    },
+    "lightCount": {
+      "type": "integer",
+      "title": "Directional lights",
+      "minimum": 4,
+      "maximum": 16,
+      "default": 8,
+      "enum": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "patchDiameterPercent": {
+      "type": "number",
+      "title": "Disc diameter (% of shorter side)",
+      "minimum": 4,
+      "maximum": 16,
+      "default": 12
+    },
+    "settleDelayMs": {
+      "type": "integer",
+      "title": "Display settle delay (ms)",
+      "minimum": 100,
+      "maximum": 5000,
+      "default": 500
+    },
+    "cameraGamma": {
+      "type": "number",
+      "title": "Assumed camera gamma",
+      "minimum": 1,
+      "maximum": 3,
+      "default": 2.2
+    }
+  }
+}

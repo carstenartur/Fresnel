@@ -28,7 +28,8 @@ class PluginRegistryTest {
         assertTrue(ids.contains("hologram"), "hologram missing");
         assertTrue(ids.contains("background-oriented-schlieren"),
                 "background-oriented-schlieren missing");
-        assertEquals(8, PluginRegistry.ALL.size(), "unexpected plugin count");
+        assertTrue(ids.contains("display-photometric-stereo"));
+        assertEquals(9, PluginRegistry.ALL.size(), "unexpected plugin count");
     }
 
     @Test
@@ -41,7 +42,8 @@ class PluginRegistryTest {
                         "multi-focus",
                         "rgb-zone-plate",
                         "hologram",
-                        "background-oriented-schlieren"),
+                        "background-oriented-schlieren",
+                        "display-photometric-stereo"),
                 PluginRegistry.ALL.stream().map(PluginDescriptor::id).toList());
     }
 
@@ -75,7 +77,7 @@ class PluginRegistryTest {
                         PluginRegistry.RGB_ZONE_PLATE,
                         PluginRegistry.HOLOGRAM),
                 PluginRegistry.ofKind(PluginKind.DESIGN));
-        assertEquals(List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN),
+        assertEquals(List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN, PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO),
                 PluginRegistry.ofKind(PluginKind.MEASUREMENT));
         assertTrue(PluginRegistry.ofKind(PluginKind.DESIGN).stream()
                 .noneMatch(PluginDescriptor::isMeasurementPlugin));
@@ -85,13 +87,16 @@ class PluginRegistryTest {
 
     @Test
     void measurementCapabilitiesAreAdvertisedOnlyWhenImplemented() {
-        assertEquals(List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN),
+        assertEquals(List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN, PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO),
                 PluginRegistry.withCapability(PluginCapability.GENERATE_CAPTURE_TARGET));
-        assertTrue(PluginRegistry.withCapability(PluginCapability.IMPORT_CAPTURE_SET).contains(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN));
+        var measurements = List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN, PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO);
+        assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.IMPORT_CAPTURE_SET));
         assertTrue(PluginRegistry.withCapability(PluginCapability.REMOTE_CAPTURE).isEmpty());
-        assertTrue(PluginRegistry.withCapability(PluginCapability.ANALYZE_CAPTURE_SET).contains(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN));
-        assertTrue(PluginRegistry.withCapability(PluginCapability.LIVE_ANALYSIS_PREVIEW).isEmpty());
-        assertTrue(PluginRegistry.withCapability(PluginCapability.EXPORT_EXPERIMENT_BUNDLE).contains(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN));
+        assertEquals(measurements, PluginRegistry.withCapability(PluginCapability.ANALYZE_CAPTURE_SET));
+        assertEquals(List.of(PluginRegistry.DISPLAY_PHOTOMETRIC_STEREO),
+                PluginRegistry.withCapability(PluginCapability.LIVE_ANALYSIS_PREVIEW));
+        assertEquals(List.of(PluginRegistry.BACKGROUND_ORIENTED_SCHLIEREN),
+                PluginRegistry.withCapability(PluginCapability.EXPORT_EXPERIMENT_BUNDLE));
         assertTrue(PluginRegistry.ofKind(PluginKind.DESIGN).stream()
                 .noneMatch(descriptor -> descriptor.supports(PluginCapability.GENERATE_CAPTURE_TARGET)));
     }

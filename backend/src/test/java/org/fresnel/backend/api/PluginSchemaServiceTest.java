@@ -1,5 +1,7 @@
 package org.fresnel.backend.api;
 
+import org.fresnel.measurement.photometry.DisplayGeometry;
+
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.fresnel.optics.AxisQuantity;
@@ -40,7 +42,8 @@ class PluginSchemaServiceTest {
             "multi-focus", MultiFocusRequest.class,
             "rgb-zone-plate", RgbZonePlateRequest.class,
             "hologram", HologramRequest.class,
-            "background-oriented-schlieren", BosTargetRequest.class);
+            "background-oriented-schlieren", BosTargetRequest.class,
+            "display-photometric-stereo", DisplayGeometry.class);
 
     @Autowired PluginSchemaService service;
     @Autowired ObjectMapper mapper;
@@ -51,7 +54,7 @@ class PluginSchemaServiceTest {
         assertEquals(
                 PluginRegistry.ALL.stream().map(PluginDescriptor::id).toList(),
                 service.all().stream().map(PluginSchemaDocument::pluginId).toList());
-        assertEquals(8, service.all().size());
+        assertEquals(9, service.all().size());
 
         for (PluginDescriptor descriptor : PluginRegistry.ALL) {
             PluginSchemaDocument document = service.requireByPluginId(descriptor.id());
