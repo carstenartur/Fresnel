@@ -1,5 +1,6 @@
 package org.fresnel.backend.measurement.session;
 
+import org.fresnel.measurement.UploadCaptureSource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.core.io.FileSystemResource;
@@ -15,20 +16,23 @@ import java.util.*;
 @RequestMapping("/api/measurement-sessions")
 class MeasurementSessionController {
     private final MeasurementSessions sessions;
+    private final UploadCaptureSource<MeasurementSessions.Plan, MeasurementSessions.View> uploads;
     private final MeasurementBundles bundles;
     private final ObjectMapper json;
-    MeasurementSessionController(MeasurementSessions sessions, MeasurementBundles bundles, ObjectMapper json) {
+    MeasurementSessionController(MeasurementSessions sessions, MeasurementBundles bundles, ObjectMapper json,
+            UploadCaptureSource<MeasurementSessions.Plan, MeasurementSessions.View> uploads) {
+        this.uploads = uploads;
         this.sessions = sessions; this.bundles = bundles; this.json = json;
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     MeasurementSessions.View create(Principal user, HttpServletRequest request) throws IOException {
-        return sessions.create(user.getName(), plan(request));
+        return uploads.create(user.getName(), UUID.randomUUID(), plan(request));
     }
 
     @PutMapping(value="/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     MeasurementSessions.View createAt(Principal user, @PathVariable("id") UUID id, HttpServletRequest request) throws IOException {
-        return sessions.create(user.getName(), id, plan(request), "manual-upload");
+        return uploads.create(user.getName(), id, plan(request));
     }
 
     @PutMapping(value="/{id}/derive/{sourceId}", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -58,7 +62,7 @@ class MeasurementSessionController {
     @PutMapping("/{id}/assets/{step}")
     MeasurementSessions.View put(Principal user, @PathVariable("id") UUID id, @PathVariable("step") String step,
                                  @RequestHeader("X-Content-SHA256") String sha, HttpServletRequest request) throws IOException {
-        return sessions.put(user.getName(), id, step, Objects.toString(request.getContentType(), ""), sha, request.getInputStream());
+        return uploads.put(user.getName(), id, step, Objects.toString(request.getContentType(), ""), sha, request.getInputStream());
     }
 
     @GetMapping("/{id}/assets/{step}")
