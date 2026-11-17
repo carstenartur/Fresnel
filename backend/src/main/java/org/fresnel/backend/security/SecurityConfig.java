@@ -39,6 +39,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
                 .cors(cors -> {})
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/admin/capture-providers/photographer/**").hasRole("ADMIN")
                         // A render-job identifier is not a public share token. Every
                         // submit/status/SSE/result request requires authentication;
                         // owner-or-admin authorization is enforced by the job service.

@@ -89,3 +89,25 @@ test('keeps the last confirmed connection state when a later refresh fails', asy
   await expect(status).toContainText('Connected · stale');
   await expect(status).toContainText('showing the last confirmed camera-service state');
 });
+
+test('pairs using a single-use code and keeps service credentials out of the browser', async ({ page }) => {
+  await page.route('**/api/capture-providers', route => route.fulfill({ json: connectedOverview }));
+  let exchanges = 0;
+  await page.route('**/api/admin/capture-providers/photographer/pairing', async route => {
+    expect(route.request().method()).toBe('POST');
+    expect(route.request().headers()['authorization']).toBe('Basic ' + Buffer.from('lab-admin:lab-password').toString('base64'));
+    expect(route.request().postDataJSON()).toEqual({ pairingCode: 'single-use-code' });
+    exchanges++;
+    await route.fulfill({ status: 204 });
+  });
+  await page.goto('/');
+  await page.getByText('Manage Photographer pairing').click();
+  await page.getByLabel('Fresnel administrator').fill('lab-admin');
+  await page.getByLabel('Password', { exact: true }).fill('lab-password');
+  await page.getByLabel('Photographer pairing code').fill('single-use-code');
+  await page.getByRole('button', { name: 'Pair with Photographer' }).click();
+  await expect(page.getByText('Paired with Photographer.')).toBeVisible();
+  await expect(page.getByLabel('Photographer pairing code')).toHaveValue('');
+  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
+  expect(exchanges).toBe(1);
+});

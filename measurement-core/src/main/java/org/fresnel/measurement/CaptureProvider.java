@@ -26,6 +26,11 @@ public interface CaptureProvider {
 
     SessionRef createSession(CapturePlan plan, String idempotencyKey);
 
+    /** Correlates a capture with its durable local experiment when the provider supports it. */
+    default SessionRef createSession(CapturePlan plan, String externalExperimentId, String idempotencyKey) {
+        return createSession(plan, idempotencyKey);
+    }
+
     SessionStatus getSession(String remoteSessionId);
 
     /**
