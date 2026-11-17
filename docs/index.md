@@ -28,11 +28,8 @@ Stable plugin IDs are also the primary UI routes, for example
 `/plugins/zone-plate`. The ordered `GET /api/plugins` response determines plugin
 navigation; former frontend mode aliases are no longer part of the public API.
 
-The table below lists the currently available plugins. The seven established
-optical renderers are `DESIGN` plugins. Background-Oriented Schlieren is the
-first `MEASUREMENT` plugin and currently advertises only its implemented,
-deterministic target-generation slice; capture import and analysis remain
-separate future capabilities.
+The registry contains seven `DESIGN` plugins and two `MEASUREMENT` plugins.
+The measurement editors share capture selection, analysis progress and saved experiments.
 
 | Plugin | Kind | Trusted implementation | Frontend integration | Description |
 |--------|------|------------------------|----------------------|-------------|
@@ -43,7 +40,8 @@ separate future capabilities.
 | [Multi-Focus](plugins/multi-focus.md) | `DESIGN` | `MultiFocusRenderer` | Schema form + focus-point widget | Aperture divided among multiple focal targets |
 | [RGB Zone Plate](plugins/rgb-zone-plate.md) | `DESIGN` | `RgbZonePlateRenderer` | Schema editor | Zone plate rendered at three wavelengths and composited into one RGB image |
 | [Hologram](plugins/hologram.md) | `DESIGN` | `HologramSynthesizer` | Schema form + image/reconstruction extensions | Computer-generated hologram via the Gerchberg–Saxton algorithm |
-| [Background-Oriented Schlieren](plugins/background-oriented-schlieren.md) | `MEASUREMENT` | `BosTargetGenerator` | Schema form + target preview/manifest | Deterministic random-dot target with PNG, true-size SVG/PDF and a reproduction manifest |
+| [Background-Oriented Schlieren](plugins/background-oriented-schlieren.md) | `MEASUREMENT` | `BosTargetGenerator` | BOS target | Random-dot targets and registered displacement maps from still pairs, ordered images or video |
+| [Display Photometric Stereo](plugins/display-photometric-stereo.md) | `MEASUREMENT` | `DisplayIlluminationSequenceGenerator` | Surface scanner | Display-driven capture, surface reconstruction, interactive relighting and relative relief |
 
 ## Plugin structure
 

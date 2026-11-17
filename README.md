@@ -24,8 +24,8 @@ exports, reproducible `.fresnel` jobs and a React/Spring Boot application.
 - hexagonal macro cells and printable window foils;
 - Gerchberg–Saxton computer-generated holograms;
 - orientation-specific variable-line printer calibration gratings;
-- deterministic Background-Oriented Schlieren random-dot targets with
-  versioned manifests and semantic SHA-256 evidence;
+- Background-Oriented Schlieren displacement maps from still pairs, image sequences and video
+- display photometric stereo for measured normals, relative albedo and interactive relighting
 - optical propagation and quality analysis;
 - PNG, SVG, PDF, DXF, Gerber, STL and trusted-profile PCL production paths;
 - versioned plugin schemas and deterministic `.fresnel` job execution;
@@ -233,11 +233,12 @@ validated artifact is published from `main`.
 | [Window Foil](docs/plugins/window-foil.md) | Design | printable tiled sheet |
 | [Hologram](docs/plugins/hologram.md) | Design | computer-generated hologram |
 | [Variable Line Grating](docs/plugins/variable-line-grating.md) | Design | orientation-specific printer calibration |
-| [Background-Oriented Schlieren](docs/plugins/background-oriented-schlieren.md) | Measurement | deterministic random-dot target and registered still-pair displacement |
+| [Background-Oriented Schlieren](docs/plugins/background-oriented-schlieren.md) | Measurement | deterministic dot target, camera-motion registration and image-plane displacement with confidence |
+| [Display Photometric Stereo](docs/plugins/display-photometric-stereo.md) | Measurement | screen illumination sequence, surface normals, relative albedo, relighting and relative relief |
 
-The experimental BOS editor accepts two PNG or JPEG exposures, stabilizes camera
-translation and exports a qualitative displacement map, confidence and numeric
-grid. Its image-plane vectors do not determine temperature or airflow velocity.
+Open **BOS target** or **Surface scanner** to work with uploaded images or a
+paired Photographer camera. **Saved experiments** lets you reopen the source
+captures and export a checksummed experiment bundle.
 
 ## Documentation
 
