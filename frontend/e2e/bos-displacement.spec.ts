@@ -18,12 +18,7 @@ function texture(): GrayFrame {
   return { width: size, height: size, pixels };
 }
 
-function warp(
-  source: GrayFrame,
-  field: (x: number, y: number) => number[],
-  gain = 1,
-  offset = 0,
-): GrayFrame {
+function warp(source: GrayFrame, field: (x: number, y: number) => number[], gain = 1, offset = 0): GrayFrame {
   const pixels = new Uint8Array(size * size);
   for (let y = 0; y < size; y++)
     for (let x = 0; x < size; x++) {
@@ -53,9 +48,7 @@ test('stabilizes fractional camera translation and tolerates a brightness change
   expect(Math.abs(r.registration.dy + 1.7)).toBeLessThan(0.22);
   const accepted = r.vectors.filter((v) => v.dx !== null && v.dy !== null);
   expect(accepted.length / r.vectors.length).toBeGreaterThan(0.9);
-  expect(accepted.filter((v) => Math.hypot(v.dx!, v.dy!) > 0.3).length / accepted.length).toBeLessThan(
-    0.03,
-  );
+  expect(accepted.filter((v) => Math.hypot(v.dx!, v.dy!) > 0.3).length / accepted.length).toBeLessThan(0.03);
 });
 
 test('measures a smooth local shift after stabilization and masks occlusion', () => {
@@ -92,4 +85,75 @@ test('rejects incompatible geometry, ambiguous patterns, and unregistrable motio
       warp(ref, (x, y) => [0.052 * (y - 80), -0.052 * (x - 80)]),
     ),
   ).toThrow(/register|registration/i);
+});
+
+for (const model of ['affine', 'homography'] as const) {
+  const center = (size - 1) / 2;
+  function camera(x: number, y: number) {
+    const u = x - center,
+      v = y - center;
+    const w = model === 'homography' ? 1 + 0.00047 * u - 0.00031 * v : 1;
+    return [center + (1.009 * u - 0.039 * v + 1.4) / w, center + (0.035 * u + 0.992 * v - 1.1) / w];
+  }
+  const peak = (x: number, y: number) => Math.exp(-((x - center) ** 2 + (y - center) ** 2) / 360);
+  // Render from an independent, analytic forward mapping by inverting it at each destination pixel.
+  function render(ref: GrayFrame, local: boolean) {
+    return warp(ref, (x, y) => {
+      let sx = x,
+        sy = y;
+      for (let k = 0; k < 8; k++) {
+        const strength = local ? peak(sx, sy) : 0;
+        const [tx, ty] = camera(sx + 1.8 * strength, sy - 0.9 * strength);
+        sx += x - tx;
+        sy += y - ty;
+      }
+      return [x - sx, y - sy];
+    });
+  }
+  test(model + ' removes camera warp and preserves signed local displacement in reference pixels', () => {
+    const ref = texture();
+    for (const local of [false, true]) {
+      const result = analyzePair(ref, render(ref, local), model);
+      const registration = result.registration;
+      expect(registration.model).toBe(model);
+      expect(registration.inliers).toBeGreaterThanOrEqual(9);
+      const m = registration.matrix;
+      for (const x of [12, 80, 147])
+        for (const y of [12, 80, 147]) {
+          const [tx, ty] = camera(x, y),
+            w = m[6] * x + m[7] * y + m[8];
+          expect(
+            Math.hypot((m[0] * x + m[1] * y + m[2]) / w - tx, (m[3] * x + m[4] * y + m[5]) / w - ty),
+          ).toBeLessThan(0.55);
+        }
+      const good = result.vectors.filter((v) => v.dx !== null && v.dy !== null);
+      expect(good.length / result.vectors.length).toBeGreaterThan(0.88);
+      const errors = good
+        .map((v) => {
+          const strength = local ? peak(v.x, v.y) : 0;
+          return Math.hypot(v.dx! - 1.8 * strength, v.dy! + 0.9 * strength);
+        })
+        .sort((a, b) => a - b);
+      expect(errors[Math.floor(0.95 * (errors.length - 1))]).toBeLessThan(0.4);
+      const central = good.filter((v) => Math.hypot(v.x - center, v.y - center) < 18);
+      expect(central.length).toBeGreaterThanOrEqual(4);
+      if (local)
+        for (const v of central) {
+          expect(Math.hypot(v.dx! - 1.8 * peak(v.x, v.y), v.dy! + 0.9 * peak(v.x, v.y))).toBeLessThan(0.48);
+        }
+    }
+  });
+
+  test(model + ' rejects insufficient spatial support', () => {
+    const ref = texture();
+    const partial = { ...ref, pixels: ref.pixels.slice() };
+    for (let y = 0; y < size / 2; y++) partial.pixels.fill(128, y * size, (y + 1) * size);
+    expect(() => analyzePair(ref, partial, model)).toThrow(/registration/i);
+  });
+}
+
+test('default and explicit translation preserve the same vectors and registration', () => {
+  const ref = texture(),
+    shifted = warp(ref, () => [2.35, -1.7]);
+  expect(analyzePair(ref, shifted)).toEqual(analyzePair(ref, shifted, 'translation'));
 });

@@ -1,3 +1,5 @@
+import { fitCamera, stabilize, validFootprint, type CameraModel, type Matrix } from './bosCameraModel';
+
 // All coordinates and displacements refer to the orientation-corrected analysis raster.
 export interface GrayFrame {
   width: number;
@@ -93,8 +95,7 @@ function match(
     }
   const col = bestIndex % span,
     row = Math.floor(bestIndex / span);
-  if (best < settings.minimumCorrelation || !col || !row || col === span - 1 || row === span - 1)
-    return null;
+  if (best < settings.minimumCorrelation || !col || !row || col === span - 1 || row === span - 1) return null;
   for (let i = 0; i < scores.length; i++) {
     const separated = Math.abs((i % span) - col) > 1 || Math.abs(Math.floor(i / span) - row) > 1;
     if (separated && best - scores[i] < settings.peakSeparation) return null;
@@ -106,23 +107,19 @@ function match(
   };
 }
 
-function register(reference: GrayFrame, disturbed: GrayFrame) {
+export function register(reference: GrayFrame, disturbed: GrayFrame, model: CameraModel = 'translation') {
   const anchors = [];
   const fractions = [0.18, 0.39, 0.61, 0.82];
   for (const fy of fractions)
     for (const fx of fractions) {
       if (fx > 0.18 && fx < 0.82 && fy > 0.18 && fy < 0.82) continue;
-      const vector = match(
-        reference,
-        disturbed,
-        Math.round((reference.width - 1) * fx),
-        Math.round((reference.height - 1) * fy),
-        0,
-        0,
-        settings.globalRadius,
-      );
-      if (vector) anchors.push({ ...vector, quadrant: (fx > 0.5 ? 1 : 0) + (fy > 0.5 ? 2 : 0) });
+      const x = Math.round((reference.width - 1) * fx),
+        y = Math.round((reference.height - 1) * fy);
+      const vector = match(reference, disturbed, x, y, 0, 0, settings.globalRadius);
+      if (vector) anchors.push({ x, y, ...vector, quadrant: (fx > 0.5 ? 1 : 0) + (fy > 0.5 ? 2 : 0) });
     }
+  if (model !== 'translation')
+    return fitCamera(anchors, model, reference.width, reference.height, settings.registrationTolerance);
   const error =
     'Registration failed. Keep the camera fixed and the outer dot field sharp and undisturbed. Check for rotation, clipping or excessive camera motion.';
   if (anchors.length < 9) throw new Error(error);
@@ -142,10 +139,11 @@ function register(reference: GrayFrame, disturbed: GrayFrame) {
   const residualRms = Math.sqrt(
     inliers.reduce((s, a) => s + (a.dx - dx) ** 2 + (a.dy - dy) ** 2, 0) / inliers.length,
   );
-  return { model: 'translation', dx, dy, residualRms, inliers: inliers.length, anchors: 12 };
+  const matrix: Matrix = [1, 0, dx, 0, 1, dy, 0, 0, 1];
+  return { model, matrix, dx, dy, residualRms, inliers: inliers.length, anchors: 12 };
 }
 
-export function analyzePair(reference: GrayFrame, disturbed: GrayFrame) {
+export function analyzePair(reference: GrayFrame, disturbed: GrayFrame, model: CameraModel = 'translation') {
   const { width, height } = reference;
   if (width !== disturbed.width || height !== disturbed.height)
     throw new Error('Reference and disturbed image dimensions must match.');
@@ -157,9 +155,12 @@ export function analyzePair(reference: GrayFrame, disturbed: GrayFrame) {
   ) {
     throw new Error('Analysis images must be between 96 and 512 pixels on each side.');
   }
-  const registration = register(reference, disturbed);
-  const baseX = Math.round(registration.dx),
-    baseY = Math.round(registration.dy);
+  const registration = register(reference, disturbed, model);
+  const aligned = model === 'translation' ? disturbed : stabilize(disturbed, registration.matrix);
+  const offsetX = model === 'translation' ? registration.dx : 0;
+  const offsetY = model === 'translation' ? registration.dy : 0;
+  const baseX = Math.round(offsetX),
+    baseY = Math.round(offsetY);
   const step = Math.max(12, Math.ceil(Math.max(width, height) / 28));
   const margin = settings.windowRadius + settings.globalRadius + settings.localRadius;
   const cols = Math.floor((width - 1 - 2 * margin) / step) + 1,
@@ -171,12 +172,22 @@ export function analyzePair(reference: GrayFrame, disturbed: GrayFrame) {
     for (let col = 0; col < cols; col++) {
       const x = x0 + col * step,
         y = y0 + row * step;
-      const m = match(reference, disturbed, x, y, baseX, baseY, settings.localRadius);
+      const inside =
+        model === 'translation' ||
+        validFootprint(
+          registration.matrix,
+          x,
+          y,
+          settings.windowRadius + settings.localRadius,
+          width,
+          height,
+        );
+      const m = inside ? match(reference, aligned, x, y, baseX, baseY, settings.localRadius) : null;
       vectors.push({
         x,
         y,
-        dx: m ? m.dx - registration.dx : null,
-        dy: m ? m.dy - registration.dy : null,
+        dx: m ? m.dx - offsetX : null,
+        dy: m ? m.dy - offsetY : null,
         correlation: m?.correlation ?? 0,
       });
     }
