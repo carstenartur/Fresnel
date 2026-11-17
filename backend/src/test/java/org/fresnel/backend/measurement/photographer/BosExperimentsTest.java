@@ -86,9 +86,15 @@ class BosExperimentsTest {
                     times.capture(), keys.capture());
             assertEquals(1, times.getAllValues().stream().distinct().count());
             assertEquals(1, keys.getAllValues().stream().distinct().count());
-            assertArrayEquals(bytes, Files.readAllBytes(service.source("owner", id, step)));
+            Path source = service.source("owner", id, step).toRealPath();
+            String ownerDirectory = HexFormat.of().formatHex(PhotographerJournal.sha256().digest(
+                    "owner".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            assertEquals(root.toRealPath().resolve(ownerDirectory).resolve(id.toString()).resolve(step + ".png"), source);
+            assertArrayEquals(bytes, Files.readAllBytes(source));
             assertThrows(PhotographerPairing.Failure.class, () -> service.source("other", id, step));
         }
+        assertEquals(404, assertThrows(PhotographerPairing.Failure.class,
+                () -> service.source("owner", id, "preview")).status());
         assertEquals("COMPLETED", service.get("owner", id).state());
         assertEquals(1, service.list("owner").size());
     }

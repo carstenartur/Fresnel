@@ -38,7 +38,8 @@ final class BosExperiments {
                    @Value("${fresnel.capture.photographer.experiments-directory:}") String directory) {
         this.pairings = pairings;
         this.providers = providers;
-        this.directory = directory.isBlank() ? DesktopDataDirectory.resolve().resolve("bos-captures") : Path.of(directory);
+        Path root = directory.isBlank() ? DesktopDataDirectory.resolve().resolve("bos-captures") : Path.of(directory);
+        this.directory = root.toAbsolutePath().normalize();
     }
 
     record Camera(String id, String name) {}
@@ -78,7 +79,8 @@ final class BosExperiments {
         Path parent = ownerDirectory(owner);
         if (Files.notExists(parent)) return List.of();
         try (var files = Files.list(parent)) {
-            return files.map(p -> p.resolve("experiment.json")).filter(Files::isRegularFile)
+            return files.filter(p -> Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS))
+                    .map(p -> p.resolve("experiment.json")).filter(p -> Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS))
                     .map(BosExperiments::load).map(Experiment::view)
                     .sorted(Comparator.comparing(View::id)).toList();
         } catch (IOException ex) { throw storeFailure(); }
@@ -137,7 +139,7 @@ final class BosExperiments {
             if (!metadata.sessionId().equals(e.session) || !metadata.stepId().equals(step) || metadata.role() != role
                     || !"image/png".equals(metadata.mediaType())) throw failure(502, "ASSET_MISMATCH");
             try (var source = provider().openAsset(e.session, metadata.assetId(), CaptureProvider.FullAsset.INSTANCE)) {
-                importImage(file.resolveSibling(step + ".png"), metadata, source);
+                importImage(imagePath(file, role), metadata, source);
             } catch (IOException ex) { throw storeFailure(); }
             var imported = new Image(metadata.byteLength(), metadata.sha256(), metadata.capturedAt());
             if (role == REFERENCE) e.reference = imported; else e.disturbed = imported;
@@ -165,8 +167,11 @@ final class BosExperiments {
 
     Path source(String owner, UUID id, String step) {
         Path file = manifest(owner, id);
-        if (image(load(file), role(step)) == null) throw failure(404, "IMAGE_NOT_FOUND");
-        return file.resolveSibling(step + ".png");
+        CapturePlan.Role requested = role(step);
+        if (image(load(file), requested) == null) throw failure(404, "IMAGE_NOT_FOUND");
+        Path source = imagePath(file, requested);
+        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) throw failure(404, "IMAGE_NOT_FOUND");
+        return source;
     }
 
     private List<CaptureProvider.Device> available() {
@@ -216,8 +221,27 @@ final class BosExperiments {
     }
 
     private static Image image(Experiment e, CapturePlan.Role role) { return role == REFERENCE ? e.reference : e.disturbed; }
-    private Path ownerDirectory(String owner) { return directory.resolve(hash(owner)); }
-    private Path manifest(String owner, UUID id) { return ownerDirectory(owner).resolve(id.toString()).resolve("experiment.json"); }
+    private static Path imagePath(Path manifest, CapturePlan.Role role) {
+        return switch (role) {
+            case REFERENCE -> child(manifest.getParent(), "reference.png");
+            case DISTURBED -> child(manifest.getParent(), "disturbed.png");
+            default -> throw failure(404, "STEP_NOT_FOUND");
+        };
+    }
+
+    private Path ownerDirectory(String owner) { return child(directory, hash(owner)); }
+
+    private Path manifest(String owner, UUID id) {
+        Path experimentDirectory = child(ownerDirectory(owner), id.toString());
+        return child(experimentDirectory, "experiment.json");
+    }
+
+    private static Path child(Path parent, String name) {
+        Path path = parent.resolve(name).normalize();
+        if (!path.startsWith(parent) || !parent.equals(path.getParent()) || Files.isSymbolicLink(path))
+            throw failure(404, "EXPERIMENT_NOT_FOUND");
+        return path;
+    }
     private static String binding(PhotographerPairing.Connection c) { return hash(c.origin() + "\n" + c.instanceId() + "\n" + c.pairingId()); }
     private static String selection(String binding, String device) { return hash(binding + "\n" + device); }
     private static String hash(String text) {
