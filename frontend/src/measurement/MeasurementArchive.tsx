@@ -14,7 +14,8 @@ interface Props {
   files: Files;
   result?: Blob | null;
   acceptsSteps?: (steps: readonly string[]) => boolean;
-  onRestore: (parameters: Record<string, unknown>, files: Record<string, File>) => void | Promise<void>;
+  sourceSessionId?: string;
+  onRestore: (parameters: Record<string, unknown>, files: Record<string, File>, sourceId?: string) => void | Promise<void>;
 }
 
 async function sha256(blob: Blob) {
@@ -34,7 +35,7 @@ async function request(auth: string, path = '', options: RequestInit = {}) {
   throw new Error(errors[response.status] ?? ('Fresnel returned HTTP ' + response.status + '.'));
 }
 
-export function MeasurementArchive({pluginId, parameters, steps, files, result, onRestore, acceptsSteps}: Props) {
+export function MeasurementArchive({pluginId, parameters, steps, files, result, onRestore, acceptsSteps, sourceSessionId}: Props) {
   const [auth, setAuth] = useState('');
   const [saved, setSaved] = useState<Saved[]>([]);
   const [selected, select] = useState('');
@@ -84,19 +85,22 @@ export function MeasurementArchive({pluginId, parameters, steps, files, result, 
     }
     if (result && items.length === steps.length) items.push({step:'result', file:result, type:'application/json', hash:await sha256(result)});
     const plan = {pluginId, parameters, steps};
-    const key = JSON.stringify([plan, items.map(i => [i.step, i.hash])]);
+    const key = JSON.stringify([sourceSessionId, plan, items.map(i => [i.step, i.hash])]);
     const current = saved.find(s => s.id === selected);
     const samePlan = current && current.pluginId === pluginId && JSON.stringify(current.steps) === JSON.stringify(steps)
       && JSON.stringify(current.parameters) === JSON.stringify(parameters);
     const sameFiles = current && Object.entries(current.assets).every(([step, asset]) =>
       items.some(item => item.step === step && item.hash === asset.sha256));
     const reusable = samePlan && sameFiles && current?.captureProvider !== 'photographer-rest';
-    const id = pending?.key === key ? pending.id : reusable && current ? current.id : crypto.randomUUID();
+    const id = pending?.key === key ? pending.id : !sourceSessionId && reusable && current ? current.id : crypto.randomUUID();
     setPending({key, id});
-    const created: Saved = await (await request(auth, '/' + id, {method:'PUT', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(plan)})).json();
+    const sourceHashes = Object.fromEntries(items.filter(item => item.step !== 'result').map(item => [item.step,item.hash]));
+    const path = '/' + id + (sourceSessionId ? '/derive/' + sourceSessionId : '');
+    const created: Saved = await (await request(auth, path, {method:'PUT', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(sourceSessionId ? {plan,sourceHashes} : plan)})).json();
     setSaved(previous => [created, ...previous.filter(s => s.id !== id)]); select(id);
     for (const item of items) {
+      if (created.assets[item.step]?.sha256 === item.hash) continue;
       setStatus('Saving ' + item.step + '…');
       await request(auth, '/' + id + '/assets/' + item.step, {method:'PUT',
         headers:{'Content-Type':item.type, 'X-Content-SHA256':item.hash}, body:item.file});
@@ -113,7 +117,7 @@ export function MeasurementArchive({pluginId, parameters, steps, files, result, 
       if (blob.size !== asset.byteLength || await sha256(blob) !== asset.sha256) throw new Error('Stored image checksum mismatch.');
       loaded[step] = new File([blob], step + (asset.mediaType === 'video/mp4' ? '.mp4' : asset.mediaType === 'image/png' ? '.png' : '.jpg'), {type:asset.mediaType});
     }
-    await onRestore(session.parameters, loaded);
+    await onRestore(session.parameters, loaded, session.steps.every(step => loaded[step]) ? session.id : undefined);
     setStatus('Opened ' + Object.keys(loaded).length + (loaded.video ? ' source files.' : ' source images.'));
   }
 

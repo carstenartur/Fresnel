@@ -1,3 +1,4 @@
+import type {PairedBosCapture} from './measurement/bosPairedCapture';
 import { useEffect, useRef, useState } from 'react';
 import { PhotographerPairingPanel } from './PhotographerPairingPanel';
 import { BosCapturePanel } from './BosCapturePanel';
@@ -21,7 +22,7 @@ const STATE_LABELS: Record<CaptureProviderHealthState, string> = {
 };
 
 /** Compact global status for Photographer and other capture-provider adapters. */
-export function CaptureProviderStatus() {
+export function CaptureProviderStatus({onBosPair,onAvailability}:{onBosPair:(pair:PairedBosCapture)=>void;onAvailability:(value:boolean)=>void}) {
   const [overview, setOverview] = useState<CaptureProviderOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pairingRevision, setPairingRevision] = useState(0);
@@ -54,6 +55,9 @@ export function CaptureProviderStatus() {
       activeRequest.current = null;
     };
   }, [pairingRevision]);
+
+  const photographerAvailable = overview?.providers.some(provider => provider.id === 'photographer-rest') ?? false;
+  useEffect(()=>{onAvailability(photographerAvailable);},[photographerAvailable,onAvailability]);
 
   // A failed refresh does not prove that a previously connected provider became
   // disconnected. Preserve the last confirmed state and mark it as stale. Only
@@ -125,10 +129,10 @@ export function CaptureProviderStatus() {
         </details>
       )}
 
-      {overview?.providers.some(provider => provider.id === 'photographer-rest') && (
+      {photographerAvailable && (
         <>
           <PhotographerPairingPanel onChanged={() => setPairingRevision(value => value + 1)} />
-          <BosCapturePanel />
+          <BosCapturePanel onUsePair={onBosPair} />
         </>
       )}
 

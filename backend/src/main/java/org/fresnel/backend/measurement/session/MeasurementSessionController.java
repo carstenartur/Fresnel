@@ -31,6 +31,17 @@ class MeasurementSessionController {
         return sessions.create(user.getName(), id, plan(request), "manual-upload");
     }
 
+    @PutMapping(value="/{id}/derive/{sourceId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    MeasurementSessions.View derive(Principal user, @PathVariable("id") UUID id, @PathVariable("sourceId") UUID sourceId,
+                                    HttpServletRequest request) throws IOException {
+        var bytes = new ByteArrayOutputStream();
+        MeasurementSessions.copy(request.getInputStream(), bytes, MeasurementSessions.PLAN_BYTES + 4096);
+        try {
+            var input = json.readValue(bytes.toByteArray(), MeasurementSessions.Derivation.class);
+            return sessions.derive(user.getName(), id, sourceId, input);
+        } catch (tools.jackson.core.JacksonException e) { throw MeasurementSessions.bad("Invalid source mapping"); }
+    }
+
     private MeasurementSessions.Plan plan(HttpServletRequest request) throws IOException {
         var bytes = new ByteArrayOutputStream();
         MeasurementSessions.copy(request.getInputStream(), bytes, MeasurementSessions.PLAN_BYTES);

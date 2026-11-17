@@ -1,3 +1,4 @@
+import {exposureHash, readBosOrigin, type PairedBosCapture} from './measurement/bosPairedCapture';
 import { useEffect, useState, type FormEvent } from 'react';
 
 const ROOT = '/api/experiments/bos-captures';
@@ -5,7 +6,7 @@ const ROOT = '/api/experiments/bos-captures';
 type Step = 'reference' | 'disturbed';
 type Camera = { id: string; name: string };
 type Source = { byteLength: number; sha256: string; capturedAt: string };
-type Capture = { id: string; state: string; pendingStep: Step | null; reference: Source | null; disturbed: Source | null };
+type Capture = { id: string; cameraSelection?:string; state: string; pendingStep: Step | null; reference: Source | null; disturbed: Source | null };
 type PendingCreate = { id: string; cameraId: string };
 type Operator = { username: string; authorization: string };
 const labels: Record<string, string> = {
@@ -45,6 +46,15 @@ function errorMessage(failure: unknown) {
   return failure instanceof Error ? failure.message : 'Fresnel could not confirm this request.';
 }
 
+async function verifiedPng(operator:Operator,capture:string,step:Step,source:Source) {
+  const response=await request(operator,'/'+encodeURIComponent(capture)+'/images/'+step);
+  const blob=await response.blob();
+  if(blob.type!=='image/png'||blob.size!==source.byteLength||await exposureHash(blob)!==source.sha256) {
+    throw new Error('The stored '+step+' PNG failed its media type, byte length or SHA-256 check.');
+  }
+  return new File([blob],'bos-'+capture+'-'+step+'.png',{type:'image/png'});
+}
+
 function SourceImage({ operator, capture, step, source }: {
   operator: Operator; capture: string; step: Step; source: Source;
 }) {
@@ -55,9 +65,7 @@ function SourceImage({ operator, capture, step, source }: {
     let objectUrl = '';
     setUrl('');
     setError('');
-    void request(operator, '/' + encodeURIComponent(capture) + '/images/' + step).then(async response => {
-      const blob = await response.blob();
-      if (blob.type !== 'image/png' || blob.size !== source.byteLength) throw new Error('The stored PNG failed its size or type check.');
+    void verifiedPng(operator,capture,step,source).then(blob=>{
       if (live) {
         objectUrl = URL.createObjectURL(blob);
         setUrl(objectUrl);
@@ -77,7 +85,7 @@ function SourceImage({ operator, capture, step, source }: {
   </figure>;
 }
 
-function Acquisition() {
+function Acquisition({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
   const [operator, setOperator] = useState<Operator | null>(null);
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [cameraId, setCameraId] = useState('');
@@ -221,6 +229,16 @@ function Acquisition() {
           {['CREATING', 'WAITING_REFERENCE', 'WAITING_DISTURBED'].includes(current.state) &&
             <button type="button" disabled={busy} onClick={() => void advance()}>Cancel capture</button>}
         </div>
+        {current.state==='COMPLETED'&&current.reference&&current.disturbed&&<button type="button" disabled={busy}
+          onClick={()=>void action(async()=>{
+            const origin=readBosOrigin({provider:'photographer-rest',captureId:current.id,cameraSelection:current.cameraSelection,reference:current.reference,disturbed:current.disturbed});
+            if(!origin)throw new Error('The completed capture has incomplete source metadata.');
+            if([origin.reference,origin.disturbed].some(s=>s.byteLength>20*1024*1024))throw new Error('Still analysis accepts up to 20 MiB per original.');
+            const [reference,disturbed]=await Promise.all([
+              verifiedPng(operator,current.id,'reference',origin.reference),verifiedPng(operator,current.id,'disturbed',origin.disturbed),
+            ]);
+            onUsePair({origin,files:{reference,disturbed}});
+          })}>Use verified pair in BOS analysis</button>}
         {(['reference', 'disturbed'] as const).map(role => current[role] &&
           <SourceImage key={current.id + role} operator={operator} capture={current.id} step={role} source={current[role]} />)}
       </>}
@@ -229,10 +247,10 @@ function Acquisition() {
   </div>;
 }
 
-export function BosCapturePanel() {
+export function BosCapturePanel({onUsePair}:{onUsePair:(pair:PairedBosCapture)=>void}) {
   const [open, setOpen] = useState(false);
-  return <details className="capture-provider-status-details" onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details id="bos-camera-acquisition" className="capture-provider-status-details" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Background-oriented schlieren capture</summary>
-    {open && <Acquisition />}
+    {open && <Acquisition onUsePair={onUsePair} />}
   </details>;
 }

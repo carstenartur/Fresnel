@@ -1,3 +1,4 @@
+import type {PairedBosCapture} from './measurement/bosPairedCapture';
 import {
   type ComponentType,
   useCallback,
@@ -66,6 +67,8 @@ interface OpenedJobState {
 }
 
 export function App() {
+  const [bosPair,setBosPair]=useState<PairedBosCapture>();
+  const [photographerAvailable,setPhotographerAvailable]=useState(false);
   const [mode, setMode] = useState<ModeKey>(() => modeFromPath(window.location.pathname));
   const [pluginOrder, setPluginOrder] = useState<readonly FresnelPluginId[]>(FALLBACK_PLUGIN_ORDER);
   const [pluginRegistryError, setPluginRegistryError] = useState<string | null>(null);
@@ -82,6 +85,7 @@ export function App() {
       throw new Error(`No trusted editor is registered for plugin "${pluginId}".`);
     }
 
+    setBosPair(undefined);
     revision.current += 1;
     setOpenedJob({ job, revision: revision.current });
     setMode(pluginId);
@@ -176,6 +180,7 @@ export function App() {
   }, [applyJob]);
 
   const selectMode = (nextMode: ModeKey) => {
+    setBosPair(undefined);
     setMode(nextMode);
     setOpenedJob(null);
     setJobNotice(null);
@@ -188,7 +193,10 @@ export function App() {
   const panelKey = `${mode}:${openedJob?.revision ?? 0}`;
 
   let panel: JSX.Element;
-  if (isPluginId(mode)) {
+  if(mode==='background-oriented-schlieren') {
+    panel=<BosTargetPanel key={panelKey} initialJob={initialJob} pairedCapture={bosPair}
+      photographerAvailable={photographerAvailable}/>;
+  } else if (isPluginId(mode)) {
     const Editor = EDITOR_REGISTRY[mode].component;
     panel = <Editor key={panelKey} initialJob={initialJob} />;
   } else if (mode === 'compare') {
@@ -206,7 +214,10 @@ export function App() {
     <div className="app">
       <aside className="panel">
         <h1>Fresnel Designer</h1>
-        <CaptureProviderStatus />
+        <CaptureProviderStatus onAvailability={setPhotographerAvailable} onBosPair={pair=>{
+          if(mode!=='background-oriented-schlieren')selectMode('background-oriented-schlieren');
+          setBosPair(pair);
+        }}/>
         <OpenJobControl onOpenJob={openJob} />
         {pluginRegistryError && (
           <div className="warning error" style={{ marginBottom: 12 }} role="alert">

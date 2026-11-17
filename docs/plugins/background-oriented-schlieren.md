@@ -49,6 +49,12 @@ and scale. The source files retain their original pixels.
    **Analyze still pair**. Translation is the default. Affine also fits small
    rotation, scale and shear. Perspective fits a planar target viewed from a
    slightly different angle.
+   For a paired camera, choose **Open paired Photographer capture**, sign in, pick
+   the camera and acknowledge the undisturbed and disturbed conditions. On a
+   completed capture, choose **Use verified pair in BOS analysis**. Fresnel
+   checks each original PNG against its recorded size and SHA-256 and loads it
+   into the same analysis controls. The numeric result and saved experiment
+   retain the provider, capture identifier and both exposure times.
 2. Check the accepted windows and registration residual. Inspect the stabilized
    disturbed frame alongside the map. Switch between magnitude, signed horizontal
    or vertical displacement and normalized correlation. Display amplification
@@ -329,7 +335,3 @@ bounds, quiet borders, asymmetric fiducials, inversion, immutable manifests,
 PNG decoding, physical-resolution metadata, public preview access,
 authenticated export, registry/job algorithm-version separation and cross-field
 resource rejection.
-
-## Capture integration
-
-Paired Photographer stills are tracked in the capture workflow for issue #140.
