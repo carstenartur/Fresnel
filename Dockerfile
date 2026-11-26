@@ -16,7 +16,7 @@ RUN npm run build
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 2 – Build the Spring Boot backend (frontend already built)
 # ──────────────────────────────────────────────────────────────────────────────
-FROM maven:3-eclipse-temurin-27@sha256:3175c44b207d6698aecb9bbb5bf285b5b4efcf7f567d6f65d88cd218276a6ab2 AS backend-build
+FROM maven:3-eclipse-temurin-27@sha256:3d8de45e72f62c97735db13bbae86445966001d5c05c2c8a137d062c5e8379b2 AS backend-build
 
 WORKDIR /app
 
